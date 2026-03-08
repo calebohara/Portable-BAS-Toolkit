@@ -2,7 +2,7 @@
 
 import { useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, WifiOff, Menu } from 'lucide-react';
+import { Search, WifiOff, Menu, RefreshCw } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
@@ -41,6 +41,16 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             <span className="hidden sm:inline">Offline</span>
           </div>
         )}
+
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-8 w-8 p-0 text-muted-foreground"
+          onClick={() => window.location.reload()}
+          aria-label="Refresh page"
+        >
+          <RefreshCw className="h-3.5 w-3.5" />
+        </Button>
 
         <Button
           variant="outline"
