@@ -20,7 +20,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile } from '@/types';
 import { cn } from '@/lib/utils';
-import { deleteFile } from '@/lib/db';
+import { deleteFile, getFileBlob } from '@/lib/db';
+import { UploadFileDialog } from '@/components/files/upload-file-dialog';
 import { toast } from 'sonner';
 
 interface Props {
@@ -35,6 +36,7 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
   const [sortBy, setSortBy] = useState<'updated' | 'name' | 'size'>('updated');
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectFile | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
 
   const filteredFiles = useMemo(() => {
     let result = [...files];
@@ -62,7 +64,7 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">{FILE_CATEGORY_LABELS[category]}</h2>
-        <Button size="sm" className="gap-1.5">
+        <Button size="sm" className="gap-1.5" onClick={() => setShowUpload(true)}>
           <Upload className="h-4 w-4" />
           <span className="hidden sm:inline">Upload</span>
         </Button>
@@ -105,7 +107,7 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
           title={search ? 'No matching files' : `No ${FILE_CATEGORY_LABELS[category].toLowerCase()} yet`}
           description={search ? 'Try a different search term.' : 'Upload your first file to get started.'}
           action={!search ? (
-            <Button size="sm" className="gap-1.5">
+            <Button size="sm" className="gap-1.5" onClick={() => setShowUpload(true)}>
               <Upload className="h-4 w-4" /> Upload File
             </Button>
           ) : undefined}
@@ -175,7 +177,18 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
                         <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem><Download className="mr-2 h-4 w-4" /> Download</DropdownMenuItem>
+                        <DropdownMenuItem onClick={async () => {
+                          const version = selectedFile.versions.find(v => v.id === selectedFile.currentVersionId);
+                          if (!version?.blobKey) { toast.error('No file data available'); return; }
+                          const blob = await getFileBlob(version.blobKey);
+                          if (!blob) { toast.error('File not found in local storage'); return; }
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = selectedFile.fileName;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}><Download className="mr-2 h-4 w-4" /> Download</DropdownMenuItem>
                         <DropdownMenuItem><Eye className="mr-2 h-4 w-4" /> Preview</DropdownMenuItem>
                         <DropdownMenuItem><Copy className="mr-2 h-4 w-4" /> Duplicate</DropdownMenuItem>
                         <DropdownMenuItem><Pin className="mr-2 h-4 w-4" /> {selectedFile.isPinned ? 'Unpin' : 'Pin'}</DropdownMenuItem>
@@ -256,6 +269,14 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
           )}
         </div>
       )}
+
+      <UploadFileDialog
+        open={showUpload}
+        onOpenChange={setShowUpload}
+        projectId={projectId}
+        category={category}
+        onUploaded={onRefresh}
+      />
 
       <ConfirmDialog
         open={!!deleteTarget}
