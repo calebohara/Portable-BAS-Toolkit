@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
-  ChevronLeft, ChevronRight, X, FolderOpen,
+  ChevronLeft, ChevronRight, X, FolderOpen, HelpCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
@@ -12,12 +12,13 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 const navItems = [
-  { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/projects', icon: FolderKanban, label: 'Projects' },
-  { href: '/documents', icon: FolderOpen, label: 'Uploads Inbox' },
-  { href: '/search', icon: Search, label: 'Search' },
-  { href: '/offline', icon: Pin, label: 'Offline / Pinned' },
-  { href: '/settings', icon: Settings, label: 'Settings' },
+  { href: '/', icon: LayoutDashboard, label: 'Dashboard', tourId: 'nav-dashboard' },
+  { href: '/projects', icon: FolderKanban, label: 'Projects', tourId: 'nav-projects' },
+  { href: '/documents', icon: FolderOpen, label: 'Uploads Inbox', tourId: 'nav-documents' },
+  { href: '/search', icon: Search, label: 'Search', tourId: 'nav-search' },
+  { href: '/offline', icon: Pin, label: 'Offline / Pinned', tourId: 'nav-offline' },
+  { href: '/help', icon: HelpCircle, label: 'Help', tourId: 'nav-help' },
+  { href: '/settings', icon: Settings, label: 'Settings', tourId: 'nav-settings' },
 ];
 
 export function Sidebar() {
@@ -36,7 +37,7 @@ export function Sidebar() {
       )}
     >
       {/* Logo area */}
-      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3">
+      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3" data-tour="sidebar-logo">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg overflow-hidden">
           <img src="/icons/icon-small.svg" alt="BAU Suite" className="h-8 w-8" />
         </div>
@@ -66,13 +67,14 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1 px-2 py-3">
-        {navItems.map(({ href, icon: Icon, label }) => {
+        {navItems.map(({ href, icon: Icon, label, tourId }) => {
           const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
 
           const linkEl = (
             <Link
               key={href}
               href={href}
+              data-tour={tourId}
               onClick={() => {
                 // Close sidebar on mobile when navigating
                 if (window.innerWidth < 768) setSidebarOpen(false);

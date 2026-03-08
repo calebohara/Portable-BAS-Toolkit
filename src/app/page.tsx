@@ -64,7 +64,7 @@ export default function DashboardPage() {
         {/* Quick Actions */}
         <section>
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick Actions</h2>
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6" data-tour="quick-actions">
             {quickActions.map(({ icon: Icon, label, onClick }) => (
               <button
                 key={label}

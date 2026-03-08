@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Palette, HardDrive, Info, Trash2, Download,
+  Palette, HardDrive, Info, Trash2, Download, PlayCircle, HelpCircle,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { useAppStore } from '@/store/app-store';
 import { getStorageEstimate, clearFileCache } from '@/lib/db';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { toast } from 'sonner';
@@ -18,6 +19,7 @@ import { toast } from 'sonner';
 export default function SettingsPage() {
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const startTour = useAppStore((s) => s.startTour);
 
   useEffect(() => {
     getStorageEstimate().then(setStorage);
@@ -98,6 +100,27 @@ export default function SettingsPage() {
                 <li>Click &ldquo;Install&rdquo; or &ldquo;Add to Home Screen&rdquo;</li>
               </ol>
               <p className="text-xs">Once installed, the app works offline and opens like a native application.</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Onboarding */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <HelpCircle className="h-4 w-4" /> Onboarding
+            </CardTitle>
+            <CardDescription>Replay the guided tour or visit the help center.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">Guided Tour</p>
+                <p className="text-xs text-muted-foreground">Walk through the key features of BAU Suite.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={startTour} className="gap-1.5">
+                <PlayCircle className="h-3.5 w-3.5" /> Replay Tour
+              </Button>
             </div>
           </CardContent>
         </Card>

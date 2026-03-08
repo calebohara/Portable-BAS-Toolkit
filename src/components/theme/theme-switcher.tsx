@@ -22,6 +22,7 @@ export function ThemeSwitcher({ className }: { className?: string }) {
       )}
       role="radiogroup"
       aria-label="Theme"
+      data-tour="theme-switcher"
     >
       {options.map(({ value, icon: Icon, label }) => (
         <button

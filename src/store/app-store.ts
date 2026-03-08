@@ -19,6 +19,15 @@ interface AppState {
   recentSearches: string[];
   addRecentSearch: (query: string) => void;
   clearRecentSearches: () => void;
+  // Onboarding
+  hasCompletedTour: boolean;
+  tourActive: boolean;
+  tourStep: number;
+  startTour: () => void;
+  endTour: () => void;
+  nextTourStep: () => void;
+  prevTourStep: () => void;
+  setTourStep: (step: number) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -47,6 +56,15 @@ export const useAppStore = create<AppState>()(
         set({ recentSearches: [trimmed, ...current].slice(0, 10) });
       },
       clearRecentSearches: () => set({ recentSearches: [] }),
+      // Onboarding
+      hasCompletedTour: false,
+      tourActive: false,
+      tourStep: 0,
+      startTour: () => set({ tourActive: true, tourStep: 0 }),
+      endTour: () => set({ tourActive: false, tourStep: 0, hasCompletedTour: true }),
+      nextTourStep: () => set((s) => ({ tourStep: s.tourStep + 1 })),
+      prevTourStep: () => set((s) => ({ tourStep: Math.max(0, s.tourStep - 1) })),
+      setTourStep: (step) => set({ tourStep: step }),
     }),
     {
       name: 'bau-suite-app',
@@ -55,6 +73,7 @@ export const useAppStore = create<AppState>()(
         sidebarOpen: state.sidebarOpen,
         recentProjectIds: state.recentProjectIds,
         recentSearches: state.recentSearches,
+        hasCompletedTour: state.hasCompletedTour,
       }),
     }
   )

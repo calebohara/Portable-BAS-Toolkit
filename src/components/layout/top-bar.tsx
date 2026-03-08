@@ -51,6 +51,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             className="h-8 gap-1.5"
             onClick={() => setShowUpload(true)}
             aria-label="Quick Upload"
+            data-tour="upload-button"
           >
             <Upload className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Upload</span>
@@ -71,6 +72,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             size="sm"
             className="h-8 gap-2 text-muted-foreground"
             onClick={goToSearch}
+            data-tour="search-button"
           >
             <Search className="h-3.5 w-3.5" />
             <span className="hidden md:inline">Search...</span>

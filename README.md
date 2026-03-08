@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-1.4.0-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-1.5.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -21,7 +21,7 @@
 
 ## Version
 
-**Current Release: v1.4.0**
+**Current Release: v1.5.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -85,6 +85,8 @@ It centralizes the critical project data that field engineers carry between job 
 | **Theme Switching** | System, light, and dark modes for any environment |
 | **Contact Management** | Track site contacts — GC, TAB, mechanical, building engineer |
 | **Share / Export** | Selective project sharing — Teams (markdown), Outlook (email), PDF (print), or JSON package with audience presets and sensitive data masking |
+| **Guided Tour** | Interactive step-by-step onboarding walkthrough with spotlight overlay — auto-launches on first visit, replayable from Help or Settings |
+| **Help Center** | Dedicated help page with getting started guide, feature guides, FAQ, troubleshooting, keyboard shortcuts, and best practices |
 | **Storage Management** | Monitor IndexedDB usage, clear caches, manage offline storage |
 
 ---
@@ -288,6 +290,8 @@ src/
 │   │   └── page.tsx              # Global search across all data
 │   ├── settings/
 │   │   └── page.tsx              # Theme, storage, cache management
+│   ├── help/
+│   │   └── page.tsx              # Help center — guides, FAQ, troubleshooting
 │   └── offline/
 │       └── page.tsx              # Offline projects and storage monitor
 │
@@ -299,6 +303,7 @@ src/
 │   ├── files/                    # File list, upload dialog, download
 │   ├── notes/                    # Field notes view
 │   ├── share/                    # Share/export wizard, formatters, PDF view
+│   ├── onboarding/               # Guided tour overlay and step definitions
 │   ├── shared/                   # Error boundary, empty states, confirm dialog
 │   └── theme/                    # Theme provider and switcher
 │
@@ -566,7 +571,7 @@ Future enhancements under consideration:
 | **Drive Configuration Tools** | VFD parameter sheets and commissioning checklists |
 | **Loop Tuning Utilities** | PID tuning calculators and trend logging |
 | **PDF Annotation** | Mark up wiring diagrams and sequences directly in-browser |
-| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages available in v1.4.0* |
+| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages available in v1.5.0* |
 | **Cloud Sync** | Optional Supabase backend for cross-device synchronization |
 | **Role-Based Access** | Multi-user support with permission levels |
 | **BACnet Object Browser** | Read/write BACnet object properties from the field |
@@ -624,9 +629,9 @@ The version is tracked in three synchronized locations:
 
 | Location | Format | Source |
 |----------|--------|--------|
-| `package.json` | `"version": "1.4.0"` | Source of truth |
-| Sidebar footer | `v1.4.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
-| Settings → About | `Version 1.4.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| `package.json` | `"version": "1.5.0"` | Source of truth |
+| Sidebar footer | `v1.5.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| Settings → About | `Version 1.5.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
 
 The version follows [Semantic Versioning](https://semver.org/):
 - **MAJOR** — breaking changes or major redesigns

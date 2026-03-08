@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useAppStore } from '@/store/app-store';
 import { Sidebar } from './sidebar';
 import { InstallPrompt } from '@/components/pwa/install-prompt';
+import { TourOverlay } from '@/components/onboarding/tour-overlay';
 import { cn } from '@/lib/utils';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -27,6 +28,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
+    }
+  }, []);
+
+  // Auto-launch tour for first-time users
+  useEffect(() => {
+    const state = useAppStore.getState();
+    if (!state.hasCompletedTour && !state.tourActive) {
+      // Small delay to let the app render first
+      const timer = setTimeout(() => {
+        useAppStore.getState().startTour();
+      }, 800);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -62,6 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
       <InstallPrompt />
+      <TourOverlay />
     </div>
   );
 }
