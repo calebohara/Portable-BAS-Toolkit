@@ -51,6 +51,9 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
+  // Only handle same-origin requests
+  if (url.origin !== self.location.origin) return;
+
   // Navigation requests — network first, fallback to cache
   if (request.mode === 'navigate') {
     event.respondWith(

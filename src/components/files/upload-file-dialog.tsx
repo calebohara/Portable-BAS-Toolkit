@@ -24,6 +24,10 @@ interface Props {
   onUploaded?: () => void;
 }
 
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
+const MAX_TAGS = 20;
+const MAX_TAG_LENGTH = 50;
+
 const ACCEPTED_TYPES: Record<FileCategory, { extensions: string[]; accept: string; description: string }> = {
   'panel-databases': { extensions: ['.pcl'], accept: '.pcl', description: 'PCL files' },
   'wiring-diagrams': { extensions: ['.pdf'], accept: '.pdf', description: 'PDF files' },
@@ -37,6 +41,19 @@ const ACCEPTED_TYPES: Record<FileCategory, { extensions: string[]; accept: strin
 function getFileExtension(name: string): string {
   const dot = name.lastIndexOf('.');
   return dot >= 0 ? name.substring(dot + 1).toLowerCase() : '';
+}
+
+function sanitizeFilename(name: string): string {
+  return name.replace(/[<>:"|?*\\\/]/g, '_').replace(/\.{2,}/g, '.');
+}
+
+function sanitizeTags(tagsString: string): string[] {
+  return tagsString
+    .split(',')
+    .map(t => t.trim())
+    .filter(Boolean)
+    .filter(t => t.length <= MAX_TAG_LENGTH)
+    .slice(0, MAX_TAGS);
 }
 
 export function UploadFileDialog({ open, onOpenChange, projectId, category, onUploaded }: Props) {
@@ -69,6 +86,14 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
 
   const handleFileSelect = (selected: File | null) => {
     if (!selected) return;
+    if (selected.size > MAX_FILE_SIZE) {
+      toast.error(`File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
+      return;
+    }
+    if (selected.size === 0) {
+      toast.error('File is empty');
+      return;
+    }
     const ext = '.' + getFileExtension(selected.name);
     if (accepted.accept !== '*' && !accepted.extensions.includes(ext)) {
       toast.error(`Invalid file type. Expected: ${accepted.description}`);
@@ -114,7 +139,7 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
         id: fileId,
         projectId,
         title: form.title.trim(),
-        fileName: file.name,
+        fileName: sanitizeFilename(file.name),
         fileType: ext,
         mimeType: file.type || 'application/octet-stream',
         category,
@@ -123,7 +148,7 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
         revisionDate: now,
         uploadedBy: form.uploadedBy.trim() || 'Unknown',
         notes: form.notes.trim(),
-        tags: form.tags.split(',').map(t => t.trim()).filter(Boolean),
+        tags: sanitizeTags(form.tags),
         status: 'current',
         isPinned: false,
         isFavorite: false,
