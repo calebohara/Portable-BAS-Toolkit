@@ -15,6 +15,7 @@ interface AppState {
   toggleSidebar: () => void;
   recentProjectIds: string[];
   addRecentProject: (id: string) => void;
+  removeRecentProject: (id: string) => void;
   recentSearches: string[];
   addRecentSearch: (query: string) => void;
   clearRecentSearches: () => void;
@@ -34,6 +35,9 @@ export const useAppStore = create<AppState>()(
       addRecentProject: (id) => {
         const current = get().recentProjectIds.filter((pid) => pid !== id);
         set({ recentProjectIds: [id, ...current].slice(0, 10) });
+      },
+      removeRecentProject: (id) => {
+        set({ recentProjectIds: get().recentProjectIds.filter((pid) => pid !== id) });
       },
       recentSearches: [],
       addRecentSearch: (query) => {

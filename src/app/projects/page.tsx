@@ -4,17 +4,19 @@ import { useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import {
-  Plus, Search, Filter, Pin, ChevronRight, MapPin, Hash,
+  Plus, Search, Filter, Pin, MapPin, Hash, Trash2,
 } from 'lucide-react';
 import { useProjects } from '@/hooks/use-projects';
 import { useAppStore } from '@/store/app-store';
 import { TopBar } from '@/components/layout/top-bar';
 import { ProjectStatusBadge } from '@/components/shared/status-badge';
 import { EmptyState } from '@/components/shared/empty-state';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { NewProjectDialog } from '@/components/projects/new-project-dialog';
+import { toast } from 'sonner';
 import type { Project, ProjectStatus } from '@/types';
 
 export default function ProjectsPage() {
@@ -28,10 +30,27 @@ export default function ProjectsPage() {
 function ProjectsPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { projects, loading, createProject } = useProjects();
+  const { projects, loading, createProject, removeProject } = useProjects();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<ProjectStatus | 'all'>('all');
   const [showNewDialog, setShowNewDialog] = useState(searchParams.get('new') === '1');
+  const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteProject = async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await removeProject(deleteTarget.id);
+      useAppStore.getState().removeRecentProject(deleteTarget.id);
+      toast.success(`Deleted "${deleteTarget.name}"`);
+      setDeleteTarget(null);
+    } catch {
+      toast.error('Failed to delete project');
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     let result = projects;
@@ -118,7 +137,7 @@ function ProjectsPageInner() {
             {filtered.map((project) => (
               <Card
                 key={project.id}
-                className="cursor-pointer transition-all hover:shadow-md hover:border-primary/20"
+                className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/20"
                 onClick={() => {
                   useAppStore.getState().addRecentProject(project.id);
                   router.push(`/projects/${project.id}`);
@@ -133,7 +152,16 @@ function ProjectsPageInner() {
                       </div>
                       <p className="truncate text-xs text-muted-foreground">{project.customerName}</p>
                     </div>
-                    <ProjectStatusBadge status={project.status} />
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <ProjectStatusBadge status={project.status} />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setDeleteTarget(project); }}
+                        className="rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
+                        title="Delete project"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                      </button>
+                    </div>
                   </div>
 
                   <div className="space-y-1.5 text-xs text-muted-foreground">
@@ -181,6 +209,16 @@ function ProjectsPageInner() {
           setShowNewDialog(false);
           router.push(`/projects/${project.id}`);
         }}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete Project"
+        description={deleteTarget ? `Permanently delete "${deleteTarget.name}" (${deleteTarget.projectNumber})? All files, notes, devices, and IP plan entries will be removed. This cannot be undone.` : ''}
+        confirmLabel={deleting ? 'Deleting...' : 'Delete Project'}
+        variant="destructive"
+        onConfirm={handleDeleteProject}
       />
     </>
   );

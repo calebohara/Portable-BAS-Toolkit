@@ -32,6 +32,8 @@ import { FileListView } from '@/components/files/file-list-view';
 import { ActivityTimeline } from '@/components/projects/activity-timeline';
 import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry } from '@/types';
 import { cn } from '@/lib/utils';
+import { deleteProject } from '@/lib/db';
+import { useAppStore } from '@/store/app-store';
 import { toast } from 'sonner';
 
 const sections = [
@@ -56,6 +58,22 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { entries: ipEntries, addIpEntry, updateIpEntry, removeIpEntry } = useProjectIpPlan(id);
   const { activity } = useProjectActivity(id);
   const [activeTab, setActiveTab] = useState('overview');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteProject = async () => {
+    if (!project) return;
+    setDeleting(true);
+    try {
+      await deleteProject(id);
+      useAppStore.getState().removeRecentProject(id);
+      toast.success(`Deleted "${project.name}"`);
+      router.push('/projects');
+    } catch {
+      toast.error('Failed to delete project');
+      setDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -112,6 +130,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </div>
         <ProjectStatusBadge status={project.status} />
         {project.isPinned && <Pin className="h-4 w-4 text-primary" />}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowDeleteConfirm(true)}
+          className="text-muted-foreground hover:text-destructive"
+          title="Delete project"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
       </TopBar>
 
       <div className="flex flex-col lg:flex-row">
@@ -207,6 +234,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           )}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete Project"
+        description={`Permanently delete "${project.name}" (${project.projectNumber})? All files, notes, devices, and IP plan entries will be removed. This cannot be undone.`}
+        confirmLabel={deleting ? 'Deleting...' : 'Delete Project'}
+        variant="destructive"
+        onConfirm={handleDeleteProject}
+      />
     </>
   );
 }
