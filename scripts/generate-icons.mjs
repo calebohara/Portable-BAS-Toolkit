@@ -140,50 +140,139 @@ function createOgSvg(width, height) {
 
   const iconSymbol = `
     <g transform="translate(${iconCx}, ${iconCy}) scale(${s})">
-      <!-- Container frame -->
-      <rect x="-140" y="-140" width="280" height="280" rx="28" fill="none" stroke="#1B3A5C" stroke-width="12"/>
-      <rect x="-116" y="-116" width="232" height="232" rx="16" fill="none" stroke="#1E4D6E" stroke-width="5"/>
+      <defs>
+        <linearGradient id="ogFrameOuter" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#24506E"/>
+          <stop offset="50%" stop-color="#1B3A5C"/>
+          <stop offset="100%" stop-color="#122A44"/>
+        </linearGradient>
+        <linearGradient id="ogFrameInner" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#265878"/>
+          <stop offset="50%" stop-color="#1E4D6E"/>
+          <stop offset="100%" stop-color="#163D5A"/>
+        </linearGradient>
+        <radialGradient id="ogNodeHL" cx="0.35" cy="0.3" r="0.65">
+          <stop offset="0%" stop-color="#1A3050"/>
+          <stop offset="100%" stop-color="#060D18"/>
+        </radialGradient>
+        <radialGradient id="ogCoreGlow">
+          <stop offset="0%" stop-color="#4DF0FF"/>
+          <stop offset="60%" stop-color="#00E5FF"/>
+          <stop offset="100%" stop-color="#00B8D4"/>
+        </radialGradient>
+        <radialGradient id="ogCoreTeal">
+          <stop offset="0%" stop-color="#33D6E5"/>
+          <stop offset="60%" stop-color="#00BCD4"/>
+          <stop offset="100%" stop-color="#0097A7"/>
+        </radialGradient>
+        <linearGradient id="ogSealGrad" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stop-color="#00E5FF" stop-opacity="0.3"/>
+          <stop offset="30%" stop-color="#00E5FF" stop-opacity="0.8"/>
+          <stop offset="70%" stop-color="#00BCD4" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#00BCD4" stop-opacity="0.3"/>
+        </linearGradient>
+        <linearGradient id="ogAccent" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#00BCD4"/>
+          <stop offset="100%" stop-color="#0088A3"/>
+        </linearGradient>
+        <linearGradient id="ogGlow" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="#00E5FF"/>
+          <stop offset="100%" stop-color="#00BCD4"/>
+        </linearGradient>
+        <filter id="ogNodeShadow" x="-30%" y="-20%" width="160%" height="160%">
+          <feDropShadow dx="0" dy="1.5" stdDeviation="2" flood-color="#000" flood-opacity="0.35"/>
+        </filter>
+        <filter id="ogHubGlow" x="-40%" y="-40%" width="180%" height="180%">
+          <feDropShadow dx="0" dy="0" stdDeviation="5" flood-color="#00BCD4" flood-opacity="0.15"/>
+        </filter>
+      </defs>
 
-      <!-- Network lines -->
-      <line x1="-70" y1="-40" x2="70" y2="-40" stroke="#00BCD4" stroke-width="3.5" stroke-linecap="round"/>
-      <line x1="-70" y1="0" x2="70" y2="0" stroke="#00BCD4" stroke-width="3.5" stroke-linecap="round"/>
-      <line x1="-70" y1="40" x2="70" y2="40" stroke="#00BCD4" stroke-width="3.5" stroke-linecap="round"/>
-      <line x1="0" y1="-80" x2="0" y2="80" stroke="#00BCD4" stroke-width="3.5" stroke-linecap="round"/>
+      <!-- Container frame with bevel -->
+      <rect x="-140" y="-140" width="280" height="280" rx="28" fill="none" stroke="#102030" stroke-width="14"/>
+      <rect x="-140" y="-140" width="280" height="280" rx="28" fill="none" stroke="url(#ogFrameOuter)" stroke-width="12"/>
+      <rect x="-116" y="-116" width="232" height="232" rx="16" fill="none" stroke="#0C1C30" stroke-width="6"/>
+      <rect x="-116" y="-116" width="232" height="232" rx="16" fill="none" stroke="url(#ogFrameInner)" stroke-width="5"/>
+
+      <!-- Recessed bus lines -->
+      <line x1="-70" y1="-40" x2="70" y2="-40" stroke="#0A2840" stroke-width="5" stroke-linecap="round"/>
+      <line x1="-70" y1="0" x2="70" y2="0" stroke="#0A2840" stroke-width="5" stroke-linecap="round"/>
+      <line x1="-70" y1="40" x2="70" y2="40" stroke="#0A2840" stroke-width="5" stroke-linecap="round"/>
+      <line x1="0" y1="-80" x2="0" y2="80" stroke="#0A2840" stroke-width="5" stroke-linecap="round"/>
+
+      <!-- Active circuit lines -->
+      <line x1="-70" y1="-40" x2="70" y2="-40" stroke="url(#ogAccent)" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="-70" y1="0" x2="70" y2="0" stroke="url(#ogAccent)" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="-70" y1="40" x2="70" y2="40" stroke="url(#ogAccent)" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="0" y1="-80" x2="0" y2="80" stroke="url(#ogAccent)" stroke-width="3.5" stroke-linecap="round"/>
 
       <!-- Branch lines -->
-      <line x1="-40" y1="-40" x2="-40" y2="40" stroke="#00BCD4" stroke-width="2" stroke-linecap="round"/>
-      <line x1="40" y1="-40" x2="40" y2="40" stroke="#00BCD4" stroke-width="2" stroke-linecap="round"/>
+      <line x1="-40" y1="-40" x2="-40" y2="40" stroke="url(#ogAccent)" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
+      <line x1="40" y1="-40" x2="40" y2="40" stroke="url(#ogAccent)" stroke-width="2" stroke-linecap="round" opacity="0.85"/>
 
-      <!-- Top/bottom nodes -->
-      <circle cx="0" cy="-72" r="14" fill="#0A1628" stroke="#00E5FF" stroke-width="4"/>
-      <circle cx="0" cy="-72" r="6" fill="#00E5FF"/>
-      <circle cx="0" cy="72" r="14" fill="#0A1628" stroke="#00E5FF" stroke-width="4"/>
-      <circle cx="0" cy="72" r="6" fill="#00E5FF"/>
+      <!-- Top/bottom nodes with depth -->
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="0" cy="-72" r="14" fill="url(#ogNodeHL)" stroke="url(#ogGlow)" stroke-width="4"/>
+        <circle cx="0" cy="-72" r="6" fill="url(#ogCoreGlow)"/>
+      </g>
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="0" cy="72" r="14" fill="url(#ogNodeHL)" stroke="url(#ogGlow)" stroke-width="4"/>
+        <circle cx="0" cy="72" r="6" fill="url(#ogCoreGlow)"/>
+      </g>
 
-      <!-- Side nodes -->
-      <circle cx="-70" cy="-40" r="11" fill="#0A1628" stroke="#00BCD4" stroke-width="3.5"/>
-      <circle cx="-70" cy="-40" r="4.5" fill="#00BCD4"/>
-      <circle cx="70" cy="-40" r="11" fill="#0A1628" stroke="#00BCD4" stroke-width="3.5"/>
-      <circle cx="70" cy="-40" r="4.5" fill="#00BCD4"/>
-      <circle cx="-70" cy="40" r="11" fill="#0A1628" stroke="#00BCD4" stroke-width="3.5"/>
-      <circle cx="-70" cy="40" r="4.5" fill="#00BCD4"/>
-      <circle cx="70" cy="40" r="11" fill="#0A1628" stroke="#00BCD4" stroke-width="3.5"/>
-      <circle cx="70" cy="40" r="4.5" fill="#00BCD4"/>
+      <!-- Side nodes with depth -->
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="-70" cy="-40" r="11" fill="url(#ogNodeHL)" stroke="url(#ogAccent)" stroke-width="3.5"/>
+        <circle cx="-70" cy="-40" r="4.5" fill="url(#ogCoreTeal)"/>
+      </g>
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="70" cy="-40" r="11" fill="url(#ogNodeHL)" stroke="url(#ogAccent)" stroke-width="3.5"/>
+        <circle cx="70" cy="-40" r="4.5" fill="url(#ogCoreTeal)"/>
+      </g>
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="-70" cy="40" r="11" fill="url(#ogNodeHL)" stroke="url(#ogAccent)" stroke-width="3.5"/>
+        <circle cx="-70" cy="40" r="4.5" fill="url(#ogCoreTeal)"/>
+      </g>
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="70" cy="40" r="11" fill="url(#ogNodeHL)" stroke="url(#ogAccent)" stroke-width="3.5"/>
+        <circle cx="70" cy="40" r="4.5" fill="url(#ogCoreTeal)"/>
+      </g>
 
-      <!-- Central hub -->
-      <circle cx="0" cy="0" r="20" fill="#0A1628" stroke="#00E5FF" stroke-width="5"/>
-      <circle cx="0" cy="0" r="9" fill="#00E5FF"/>
+      <!-- Central hub with glow -->
+      <g filter="url(#ogHubGlow)">
+        <circle cx="0" cy="0" r="20" fill="url(#ogNodeHL)" stroke="url(#ogGlow)" stroke-width="5"/>
+        <circle cx="0" cy="0" r="9" fill="url(#ogCoreGlow)"/>
+        <circle cx="-3" cy="-3" r="3" fill="#4DF0FF" opacity="0.2"/>
+      </g>
 
-      <!-- Small junction nodes -->
-      <circle cx="-40" cy="-40" r="7" fill="#0A1628" stroke="#0088A3" stroke-width="2.5"/>
-      <circle cx="40" cy="-40" r="7" fill="#0A1628" stroke="#0088A3" stroke-width="2.5"/>
-      <circle cx="-40" cy="40" r="7" fill="#0A1628" stroke="#0088A3" stroke-width="2.5"/>
-      <circle cx="40" cy="40" r="7" fill="#0A1628" stroke="#0088A3" stroke-width="2.5"/>
-      <circle cx="-40" cy="0" r="7" fill="#0A1628" stroke="#0088A3" stroke-width="2.5"/>
-      <circle cx="40" cy="0" r="7" fill="#0A1628" stroke="#0088A3" stroke-width="2.5"/>
+      <!-- Small junction nodes with depth -->
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="-40" cy="-40" r="7" fill="url(#ogNodeHL)" stroke="#0088A3" stroke-width="2.5"/>
+        <circle cx="-40" cy="-40" r="2.5" fill="url(#ogCoreTeal)"/>
+      </g>
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="40" cy="-40" r="7" fill="url(#ogNodeHL)" stroke="#0088A3" stroke-width="2.5"/>
+        <circle cx="40" cy="-40" r="2.5" fill="url(#ogCoreTeal)"/>
+      </g>
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="-40" cy="40" r="7" fill="url(#ogNodeHL)" stroke="#0088A3" stroke-width="2.5"/>
+        <circle cx="-40" cy="40" r="2.5" fill="url(#ogCoreTeal)"/>
+      </g>
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="40" cy="40" r="7" fill="url(#ogNodeHL)" stroke="#0088A3" stroke-width="2.5"/>
+        <circle cx="40" cy="40" r="2.5" fill="url(#ogCoreTeal)"/>
+      </g>
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="-40" cy="0" r="7" fill="url(#ogNodeHL)" stroke="#0088A3" stroke-width="2.5"/>
+        <circle cx="-40" cy="0" r="2.5" fill="url(#ogCoreTeal)"/>
+      </g>
+      <g filter="url(#ogNodeShadow)">
+        <circle cx="40" cy="0" r="7" fill="url(#ogNodeHL)" stroke="#0088A3" stroke-width="2.5"/>
+        <circle cx="40" cy="0" r="2.5" fill="url(#ogCoreTeal)"/>
+      </g>
 
-      <!-- Vault seal -->
-      <rect x="-56" y="-134" width="112" height="6" rx="3" fill="#00E5FF" opacity="0.7"/>
+      <!-- Vault seal with gradient -->
+      <rect x="-56" y="-134" width="112" height="6" rx="3" fill="url(#ogSealGrad)"/>
+      <rect x="-48" y="-134" width="96" height="2" rx="1" fill="#fff" opacity="0.06"/>
     </g>
   `;
 
@@ -200,12 +289,17 @@ function createOgSvg(width, height) {
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
   <defs>
     <linearGradient id="ogBg" x1="0" y1="0" x2="0.3" y2="1">
-      <stop offset="0%" stop-color="#070E1A"/>
+      <stop offset="0%" stop-color="#0E1E34"/>
       <stop offset="50%" stop-color="#0A1628"/>
-      <stop offset="100%" stop-color="#0D1B2E"/>
+      <stop offset="100%" stop-color="#081220"/>
     </linearGradient>
+    <radialGradient id="ogBgGlow" cx="0.2" cy="0.4" r="0.5">
+      <stop offset="0%" stop-color="#122842" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
+    </radialGradient>
   </defs>
   <rect width="${width}" height="${height}" fill="url(#ogBg)"/>
+  <rect width="${width}" height="${height}" fill="url(#ogBgGlow)"/>
   ${gridLines}
   ${circuitTraces}
   ${iconSymbol}
