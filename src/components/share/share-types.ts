@@ -102,7 +102,7 @@ export const AUDIENCE_PRESETS: AudiencePreset[] = [
     description: 'Everything a tech needs on-site',
     sections: ['projectInfo', 'contacts', 'panelRoster', 'techNotes', 'files', 'notes', 'devices', 'ipPlan'],
     detailLevel: 'detailed',
-    fileCategories: ['panel-databases', 'wiring-diagrams', 'sequences', 'backups', 'ip-plan', 'device-list', 'other'],
+    fileCategories: ['panel-databases', 'wiring-diagrams', 'sequences', 'backups', 'ip-plan', 'device-list', 'general-documents', 'other'],
     hideSensitive: false,
   },
   {
@@ -111,7 +111,7 @@ export const AUDIENCE_PRESETS: AudiencePreset[] = [
     description: 'Project manager overview with counts and status',
     sections: ['projectInfo', 'contacts', 'networkSummary', 'files', 'notes', 'devices', 'ipPlan', 'activity'],
     detailLevel: 'summary',
-    fileCategories: ['panel-databases', 'wiring-diagrams', 'sequences', 'backups', 'ip-plan', 'device-list', 'other'],
+    fileCategories: ['panel-databases', 'wiring-diagrams', 'sequences', 'backups', 'ip-plan', 'device-list', 'general-documents', 'other'],
     hideSensitive: false,
   },
   {
@@ -160,7 +160,7 @@ export const ALL_SECTIONS: ShareSection[] = [
 
 export const ALL_FILE_CATEGORIES: FileCategory[] = [
   'panel-databases', 'wiring-diagrams', 'sequences',
-  'ip-plan', 'device-list', 'backups', 'other',
+  'ip-plan', 'device-list', 'backups', 'general-documents', 'other',
 ];
 
 export function createDefaultSelection(): ShareContentSelection {

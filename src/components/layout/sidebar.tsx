@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
-  ChevronLeft, ChevronRight, X,
+  ChevronLeft, ChevronRight, X, FolderOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
@@ -14,6 +14,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 const navItems = [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/projects', icon: FolderKanban, label: 'Projects' },
+  { href: '/documents', icon: FolderOpen, label: 'Uploads Inbox' },
   { href: '/search', icon: Search, label: 'Search' },
   { href: '/offline', icon: Pin, label: 'Offline / Pinned' },
   { href: '/settings', icon: Settings, label: 'Settings' },

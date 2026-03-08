@@ -7,7 +7,7 @@ import {
   ArrowLeft, Database, FileText, Network, Server, HardDrive,
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
-  ChevronRight, Share2,
+  ChevronRight, Share2, FolderOpen,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
@@ -45,6 +45,7 @@ const sections = [
   { id: 'ip-plan', label: 'IP Plan', icon: Network },
   { id: 'device-list', label: 'Devices', icon: Server },
   { id: 'backups', label: 'Backups', icon: HardDrive },
+  { id: 'general-documents', label: 'General Docs', icon: FolderOpen },
   { id: 'notes', label: 'Notes', icon: StickyNote },
   { id: 'history', label: 'History', icon: History },
 ] as const;
@@ -185,7 +186,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             />
           )}
 
-          {(activeTab === 'panel-databases' || activeTab === 'wiring-diagrams' || activeTab === 'sequences' || activeTab === 'backups') && (
+          {(activeTab === 'panel-databases' || activeTab === 'wiring-diagrams' || activeTab === 'sequences' || activeTab === 'backups' || activeTab === 'general-documents') && (
             <FileListView
               projectId={id}
               category={activeTab as FileCategory}
@@ -554,6 +555,7 @@ function OverviewSection({
           { key: 'ip-plan', label: 'IP Plan', icon: Network, color: 'text-green-500' },
           { key: 'device-list', label: 'Devices', icon: Server, color: 'text-amber-500' },
           { key: 'backups', label: 'Backups', icon: HardDrive, color: 'text-red-500' },
+          { key: 'general-documents', label: 'General Docs', icon: FolderOpen, color: 'text-slate-500' },
         ].map(({ key, label, icon: Icon, color }) => {
           const count = key === 'device-list' ? devices.length : key === 'ip-plan' ? ipEntries.length : files.filter((f) => f.category === key).length;
           return (

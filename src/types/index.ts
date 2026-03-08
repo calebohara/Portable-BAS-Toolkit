@@ -1,5 +1,5 @@
 export type ProjectStatus = 'active' | 'on-hold' | 'completed' | 'archived';
-export type FileCategory = 'panel-databases' | 'wiring-diagrams' | 'sequences' | 'ip-plan' | 'device-list' | 'backups' | 'other';
+export type FileCategory = 'panel-databases' | 'wiring-diagrams' | 'sequences' | 'ip-plan' | 'device-list' | 'backups' | 'general-documents' | 'other';
 export type FileStatus = 'current' | 'previous' | 'archived' | 'field-verified' | 'superseded' | 'backup-snapshot' | 'obsolete';
 export type NoteCategory = 'general' | 'issue' | 'fix' | 'punch-item' | 'startup-note' | 'network-change' | 'customer-request';
 
@@ -44,7 +44,7 @@ export interface FileVersion {
 
 export interface ProjectFile {
   id: string;
-  projectId: string;
+  projectId: string; // empty string '' for unassigned uploads
   title: string;
   fileName: string;
   fileType: string; // extension
@@ -138,6 +138,7 @@ export const FILE_CATEGORY_LABELS: Record<FileCategory, string> = {
   'ip-plan': 'IP Plan',
   'device-list': 'Device List',
   'backups': 'Backups',
+  'general-documents': 'General Documents',
   'other': 'Other',
 };
 

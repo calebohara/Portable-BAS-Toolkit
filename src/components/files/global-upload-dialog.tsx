@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
-import { Upload, FileUp, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import { Upload, FileUp, X, CheckCircle2, AlertCircle, Loader2, FolderOpen } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
@@ -11,8 +11,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
-import { saveFile, saveFileBlob, addActivity } from '@/lib/db';
-import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type FileVersion } from '@/types';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import { saveFile, saveFileBlob, addActivity, getAllProjects } from '@/lib/db';
+import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type FileVersion, type Project } from '@/types';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -20,25 +23,20 @@ import { toast } from 'sonner';
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  projectId: string;
-  category: FileCategory;
   onUploaded?: () => void;
 }
 
 const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
-const MAX_TAGS = 20;
-const MAX_TAG_LENGTH = 50;
 
-const ACCEPTED_TYPES: Record<FileCategory, { extensions: string[]; accept: string; description: string }> = {
-  'panel-databases': { extensions: ['.pcl'], accept: '.pcl', description: 'PCL files' },
-  'wiring-diagrams': { extensions: ['.pdf'], accept: '.pdf', description: 'PDF files' },
-  'sequences': { extensions: ['.txt', '.pdf'], accept: '.txt,.pdf', description: 'TXT or PDF files' },
-  'backups': { extensions: ['.pcl'], accept: '.pcl', description: 'PCL files' },
-  'ip-plan': { extensions: ['.xlsx', '.csv', '.pdf'], accept: '.xlsx,.csv,.pdf', description: 'XLSX, CSV, or PDF files' },
-  'device-list': { extensions: ['.xlsx', '.csv'], accept: '.xlsx,.csv', description: 'XLSX or CSV files' },
-  'general-documents': { extensions: [], accept: '*', description: 'Any file (PDF, DOCX, XLSX, images, etc.)' },
-  'other': { extensions: [], accept: '*', description: 'Any file' },
-};
+// All categories available for global upload
+const UPLOAD_CATEGORIES: { value: FileCategory; label: string }[] = [
+  { value: 'general-documents', label: 'General Documents' },
+  { value: 'panel-databases', label: 'Panel Databases' },
+  { value: 'wiring-diagrams', label: 'Wiring Diagrams' },
+  { value: 'sequences', label: 'Sequences' },
+  { value: 'backups', label: 'Backups' },
+  { value: 'other', label: 'Other' },
+];
 
 type UploadStage = 'idle' | 'preparing' | 'storing' | 'saving' | 'complete' | 'failed';
 
@@ -66,51 +64,48 @@ function getFileExtension(name: string): string {
 }
 
 function sanitizeFilename(name: string): string {
-  return name.replace(/[<>:"|?*\\\/]/g, '_').replace(/\.{2,}/g, '.');
+  return name.replace(/[<>:"|?*\\/]/g, '_').replace(/\.{2,}/g, '.');
 }
 
-function sanitizeTags(tagsString: string): string[] {
-  return tagsString
-    .split(',')
-    .map(t => t.trim())
-    .filter(Boolean)
-    .filter(t => t.length <= MAX_TAG_LENGTH)
-    .slice(0, MAX_TAGS);
-}
-
-export function UploadFileDialog({ open, onOpenChange, projectId, category, onUploaded }: Props) {
+export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
   const [file, setFile] = useState<File | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [stage, setStage] = useState<UploadStage>('idle');
   const [errorMessage, setErrorMessage] = useState('');
+  const [projects, setProjects] = useState<Project[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
 
   const [form, setForm] = useState({
     title: '',
-    panelSystem: '',
-    revisionNumber: 'Rev 1',
+    projectId: '', // '' = unassigned
+    category: 'general-documents' as FileCategory,
     uploadedBy: '',
     notes: '',
-    tags: '',
   });
 
-  const accepted = ACCEPTED_TYPES[category];
   const isUploading = stage !== 'idle' && stage !== 'complete' && stage !== 'failed';
+
+  // Load projects when dialog opens
+  useEffect(() => {
+    if (open) {
+      getAllProjects().then(setProjects);
+    }
+  }, [open]);
 
   const resetForm = useCallback(() => {
     setFile(null);
-    setForm({ title: '', panelSystem: '', revisionNumber: 'Rev 1', uploadedBy: '', notes: '', tags: '' });
+    setForm({ title: '', projectId: '', category: 'general-documents', uploadedBy: '', notes: '' });
     setDragOver(false);
     setStage('idle');
     setErrorMessage('');
     submittingRef.current = false;
   }, []);
 
-  const handleOpenChange = (open: boolean) => {
-    if (!open && isUploading) return; // prevent closing during upload
-    if (!open) resetForm();
-    onOpenChange(open);
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && isUploading) return;
+    if (!nextOpen) resetForm();
+    onOpenChange(nextOpen);
   };
 
   const handleFileSelect = (selected: File | null) => {
@@ -121,11 +116,6 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
     }
     if (selected.size === 0) {
       toast.error('File is empty');
-      return;
-    }
-    const ext = '.' + getFileExtension(selected.name);
-    if (accepted.accept !== '*' && !accepted.extensions.includes(ext)) {
-      toast.error(`Invalid file type. Expected: ${accepted.description}`);
       return;
     }
     setFile(selected);
@@ -142,7 +132,7 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
     setDragOver(false);
     const dropped = e.dataTransfer.files[0];
     if (dropped) handleFileSelect(dropped);
-  }, [accepted, isUploading]);
+  }, [isUploading]);
 
   const handleSubmit = async () => {
     if (!file || !form.title.trim() || submittingRef.current) return;
@@ -171,18 +161,17 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
 
       const projectFile: ProjectFile = {
         id: fileId,
-        projectId,
+        projectId: form.projectId, // '' if unassigned
         title: form.title.trim(),
         fileName: sanitizeFilename(file.name),
         fileType: ext,
         mimeType: file.type || 'application/octet-stream',
-        category,
-        panelSystem: form.panelSystem.trim() || undefined,
-        revisionNumber: form.revisionNumber.trim() || 'Rev 1',
+        category: form.category,
+        revisionNumber: 'Rev 1',
         revisionDate: now,
         uploadedBy: form.uploadedBy.trim() || 'Unknown',
         notes: form.notes.trim(),
-        tags: sanitizeTags(form.tags),
+        tags: [],
         status: 'current',
         isPinned: false,
         isFavorite: false,
@@ -199,18 +188,29 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
 
       setStage('saving');
       await saveFile(projectFile);
-      await addActivity({
-        id: crypto.randomUUID(),
-        projectId,
-        action: 'file_uploaded',
-        details: `Uploaded "${form.title.trim()}" to ${FILE_CATEGORY_LABELS[category]}`,
-        timestamp: now,
-        user: form.uploadedBy.trim() || 'Unknown',
-        fileId,
-      });
+
+      // Log activity if assigned to a project
+      if (form.projectId) {
+        await addActivity({
+          id: crypto.randomUUID(),
+          projectId: form.projectId,
+          action: 'file_uploaded',
+          details: `Uploaded "${form.title.trim()}" to ${FILE_CATEGORY_LABELS[form.category]}`,
+          timestamp: now,
+          user: form.uploadedBy.trim() || 'Unknown',
+          fileId,
+        });
+      }
 
       setStage('complete');
-      toast.success(`"${form.title.trim()}" uploaded`);
+      const projectName = form.projectId
+        ? projects.find(p => p.id === form.projectId)?.name
+        : null;
+      toast.success(
+        projectName
+          ? `"${form.title.trim()}" uploaded to ${projectName}`
+          : `"${form.title.trim()}" uploaded to inbox`
+      );
 
       setTimeout(() => {
         handleOpenChange(false);
@@ -236,9 +236,9 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
       <DialogContent className="max-w-lg">
         <div style={{ maxHeight: '85vh', overflowY: 'auto' }}>
           <DialogHeader>
-            <DialogTitle>Upload to {FILE_CATEGORY_LABELS[category]}</DialogTitle>
+            <DialogTitle>Quick Upload</DialogTitle>
             <DialogDescription>
-              Accepted: {accepted.description} — Max {MAX_FILE_SIZE / 1024 / 1024}MB
+              Upload a document to a project or the uploads inbox. Max {MAX_FILE_SIZE / 1024 / 1024}MB.
             </DialogDescription>
           </DialogHeader>
 
@@ -300,7 +300,7 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
                 <input
                   ref={inputRef}
                   type="file"
-                  accept={accepted.accept}
+                  accept="*"
                   className="hidden"
                   onChange={(e) => { handleFileSelect(e.target.files?.[0] || null); if (e.target) e.target.value = ''; }}
                 />
@@ -325,7 +325,7 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
                     <Upload className="h-8 w-8 text-muted-foreground" />
                     <div className="text-center">
                       <p className="text-sm font-medium">Drop file here or click to browse</p>
-                      <p className="text-xs text-muted-foreground">{accepted.description}</p>
+                      <p className="text-xs text-muted-foreground">Any document type accepted</p>
                     </div>
                   </>
                 )}
@@ -336,57 +336,77 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
             {stage !== 'complete' && (
               <fieldset disabled={isUploading}>
                 <div className="grid gap-3 sm:grid-cols-2">
+                  {/* Title */}
                   <div className="space-y-1.5 sm:col-span-2">
-                    <Label htmlFor="uf-title">Title *</Label>
+                    <Label htmlFor="gu-title">Title *</Label>
                     <Input
-                      id="uf-title"
-                      placeholder="e.g. AHU-1 Panel Database"
+                      id="gu-title"
+                      placeholder="e.g. AHU-1 Startup Report"
                       value={form.title}
                       onChange={e => u('title', e.target.value)}
                       required
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="uf-panel">Panel / System</Label>
-                    <Input
-                      id="uf-panel"
-                      placeholder="e.g. PXC36.1-AHU1"
-                      value={form.panelSystem}
-                      onChange={e => u('panelSystem', e.target.value)}
-                    />
+
+                  {/* Project Selector */}
+                  <div className="space-y-1.5 sm:col-span-2">
+                    <Label>Destination Project</Label>
+                    <Select
+                      value={form.projectId || '__unassigned__'}
+                      onValueChange={(v) => v && u('projectId', v === '__unassigned__' ? '' : v)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a project..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__unassigned__">
+                          <FolderOpen className="h-4 w-4 text-muted-foreground" />
+                          Uploads Inbox (unassigned)
+                        </SelectItem>
+                        {projects.map(p => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name} — {p.projectNumber}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {/* Category Selector */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="uf-rev">Revision</Label>
-                    <Input
-                      id="uf-rev"
-                      placeholder="e.g. Rev 1"
-                      value={form.revisionNumber}
-                      onChange={e => u('revisionNumber', e.target.value)}
-                    />
+                    <Label>Category</Label>
+                    <Select
+                      value={form.category}
+                      onValueChange={(v) => v && u('category', v)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {UPLOAD_CATEGORIES.map(c => (
+                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
+
+                  {/* Uploaded By */}
                   <div className="space-y-1.5">
-                    <Label htmlFor="uf-by">Uploaded By</Label>
+                    <Label htmlFor="gu-by">Uploaded By</Label>
                     <Input
-                      id="uf-by"
+                      id="gu-by"
                       placeholder="Your name / initials"
                       value={form.uploadedBy}
                       onChange={e => u('uploadedBy', e.target.value)}
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="uf-tags">Tags</Label>
-                    <Input
-                      id="uf-tags"
-                      placeholder="comma separated"
-                      value={form.tags}
-                      onChange={e => u('tags', e.target.value)}
-                    />
-                  </div>
+
+                  {/* Notes */}
                   <div className="space-y-1.5 sm:col-span-2">
-                    <Label htmlFor="uf-notes">Notes</Label>
+                    <Label htmlFor="gu-notes">Notes</Label>
                     <Textarea
-                      id="uf-notes"
-                      placeholder="Optional notes about this file..."
+                      id="gu-notes"
+                      placeholder="Optional notes about this document..."
                       value={form.notes}
                       onChange={e => u('notes', e.target.value)}
                       rows={2}

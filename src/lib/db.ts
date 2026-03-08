@@ -148,6 +148,18 @@ export async function deleteProject(id: string): Promise<void> {
 }
 
 // Files
+export async function getAllFiles(): Promise<ProjectFile[]> {
+  const db = await getDB();
+  const files = await db.getAll('files');
+  return files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getUnassignedFiles(): Promise<ProjectFile[]> {
+  const db = await getDB();
+  const files = await db.getAllFromIndex('files', 'by-project', '');
+  return files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
 export async function getProjectFiles(projectId: string): Promise<ProjectFile[]> {
   const db = await getDB();
   return db.getAllFromIndex('files', 'by-project', projectId);
