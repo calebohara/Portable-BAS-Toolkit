@@ -37,18 +37,18 @@ export function Sidebar() {
       {/* Logo area */}
       <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg overflow-hidden">
-          <img src="/icons/icon-small.svg" alt="BAS Toolkit" className="h-8 w-8" />
+          <img src="/icons/icon-small.svg" alt="BAU Suite" className="h-8 w-8" />
         </div>
         {(sidebarOpen) && (
           <div className="flex flex-col overflow-hidden md:hidden" data-open={sidebarOpen}>
-            <span className="truncate text-sm font-semibold text-sidebar-foreground">BAS Toolkit</span>
-            <span className="truncate text-[10px] text-muted-foreground">Field Edition</span>
+            <span className="truncate text-sm font-semibold text-sidebar-foreground">BAU Suite</span>
+            <span className="truncate text-[10px] text-muted-foreground">Portable Project Toolkit</span>
           </div>
         )}
         {sidebarOpen && (
           <div className="hidden md:flex flex-col overflow-hidden">
-            <span className="truncate text-sm font-semibold text-sidebar-foreground">BAS Toolkit</span>
-            <span className="truncate text-[10px] text-muted-foreground">Field Edition</span>
+            <span className="truncate text-sm font-semibold text-sidebar-foreground">BAU Suite</span>
+            <span className="truncate text-[10px] text-muted-foreground">Portable Project Toolkit</span>
           </div>
         )}
         {/* Mobile close button */}

@@ -11,8 +11,8 @@ const inter = Inter({ variable: '--font-sans', subsets: ['latin'], display: 'swa
 const jetbrainsMono = JetBrains_Mono({ variable: '--font-mono', subsets: ['latin'], display: 'swap' });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_URL || 'https://bas-vault.vercel.app'),
-  title: 'BAS Field Vault — Portable Project Toolkit',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_URL || 'https://bau-suite.vercel.app'),
+  title: 'BAU Suite — Portable Project Toolkit',
   description: 'Field-ready project management for BAS technicians. Organize panel databases, wiring diagrams, sequences, IP plans, device lists, and backups in one place.',
   manifest: '/manifest.json',
   icons: {
@@ -35,25 +35,25 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'BAS Vault',
+    title: 'BAU Suite',
   },
   openGraph: {
     type: 'website',
-    title: 'Portable BAS Project Toolkit',
+    title: 'BAU Suite — Portable Project Toolkit',
     description: 'Field-ready project container for building automation systems. Organize panel databases, IP plans, wiring diagrams, and device lists.',
-    siteName: 'BAS Field Vault',
+    siteName: 'BAU Suite',
     images: [
       {
         url: '/og/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'BAS Field Vault — Portable Project Toolkit for Building Automation Systems',
+        alt: 'BAU Suite — Portable Project Toolkit for Building Automation Systems',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'Portable BAS Project Toolkit',
+    title: 'BAU Suite — Portable Project Toolkit',
     description: 'Field-ready project container for building automation systems.',
     images: ['/og/twitter-card.png'],
   },

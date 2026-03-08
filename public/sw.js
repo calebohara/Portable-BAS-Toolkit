@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'bas-vault-v2';
+const CACHE_VERSION = 'bau-suite-v2';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 

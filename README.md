@@ -1,6 +1,6 @@
 <div align="center">
 
-# BAS Field Vault
+# BAU Suite
 
 ### Portable Project Toolkit for Building Automation Systems
 
@@ -29,7 +29,7 @@ This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PA
 
 ## Overview
 
-**BAS Field Vault** is a portable project management toolkit purpose-built for Building Automation System (BAS) technicians, controls engineers, and commissioning specialists.
+**BAU Suite** is a portable project management toolkit purpose-built for Building Automation System (BAS) technicians, controls engineers, and commissioning specialists.
 
 It centralizes the critical project data that field engineers carry between job sites:
 
@@ -390,7 +390,7 @@ Results are highlighted and grouped by type.
 
 ## PWA Capabilities
 
-BAS Field Vault is a fully installable Progressive Web App:
+BAU Suite is a fully installable Progressive Web App:
 
 - **Installable** — add to home screen on iOS, Android, Windows, macOS, ChromeOS
 - **Offline-capable** — Service Worker caches the app shell for instant loading
@@ -410,7 +410,7 @@ BAS Field Vault is a fully installable Progressive Web App:
 
 ## Offline-First Design
 
-Every piece of data in BAS Field Vault is stored locally in the browser via **IndexedDB**. This is critical for field engineers who frequently work in:
+Every piece of data in BAU Suite is stored locally in the browser via **IndexedDB**. This is critical for field engineers who frequently work in:
 
 - Mechanical rooms with no Wi-Fi
 - Construction sites with unreliable connectivity
@@ -661,7 +661,7 @@ Built for the building automation community:
 
 <div align="center">
 
-**BAS Field Vault** — *Keep your projects portable.*
+**BAU Suite** — *Keep your projects portable.*
 
 [![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/Portable-BAS-Toolkit)
 

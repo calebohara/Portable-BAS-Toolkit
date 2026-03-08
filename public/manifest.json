@@ -1,6 +1,6 @@
 {
-  "name": "BAS Field Vault — Portable Project Toolkit",
-  "short_name": "BAS Vault",
+  "name": "BAU Suite — Portable Project Toolkit",
+  "short_name": "BAU Suite",
   "description": "Field-ready project management for BAS technicians. Organize panel databases, wiring diagrams, sequences, IP plans, device lists, and backups.",
   "start_url": "/",
   "display": "standalone",

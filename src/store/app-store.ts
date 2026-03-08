@@ -49,7 +49,7 @@ export const useAppStore = create<AppState>()(
       clearRecentSearches: () => set({ recentSearches: [] }),
     }),
     {
-      name: 'bas-toolkit-app',
+      name: 'bau-suite-app',
       partialize: (state) => ({
         theme: state.theme,
         sidebarOpen: state.sidebarOpen,

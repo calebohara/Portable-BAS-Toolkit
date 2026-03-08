@@ -190,11 +190,11 @@ function createOgSvg(width, height) {
   // Text section (right side)
   const textX = width * 0.42;
   const textSection = `
-    <text x="${textX}" y="${height * 0.38}" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="700" fill="#FFFFFF" letter-spacing="0.5">Portable BAS Project Toolkit</text>
+    <text x="${textX}" y="${height * 0.38}" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="42" font-weight="700" fill="#FFFFFF" letter-spacing="0.5">BAU Suite — Portable Project Toolkit</text>
     <text x="${textX}" y="${height * 0.52}" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="400" fill="#8899AA" letter-spacing="0.3">Field-Ready Project Container for</text>
     <text x="${textX}" y="${height * 0.60}" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="22" font-weight="400" fill="#8899AA" letter-spacing="0.3">Building Automation Systems</text>
     <line x1="${textX}" y1="${height * 0.67}" x2="${textX + 280}" y2="${height * 0.67}" stroke="#00BCD4" stroke-width="2" opacity="0.5"/>
-    <text x="${textX}" y="${height * 0.76}" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="500" fill="#00BCD4" letter-spacing="1.5" opacity="0.8">BAS FIELD VAULT</text>
+    <text x="${textX}" y="${height * 0.76}" font-family="system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="16" font-weight="500" fill="#00BCD4" letter-spacing="1.5" opacity="0.8">BAU SUITE</text>
   `;
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}">
@@ -244,7 +244,7 @@ async function generateOgImages() {
 
 // ─── Run All ──────────────────────────────────────────────────
 async function main() {
-  console.log('🔧 BAS Toolkit Icon & Asset Generator\n');
+  console.log('🔧 BAU Suite Icon & Asset Generator\n');
 
   await generateStandardIcons();
   await generateMaskableIcons();

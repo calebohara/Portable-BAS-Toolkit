@@ -87,7 +87,7 @@ export default function SettingsPage() {
             <CardTitle className="flex items-center gap-2 text-base">
               <Download className="h-4 w-4" /> Install as App
             </CardTitle>
-            <CardDescription>Install BAS Toolkit for offline access and a native app experience.</CardDescription>
+            <CardDescription>Install BAU Suite for offline access and a native app experience.</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground space-y-2">
@@ -110,7 +110,7 @@ export default function SettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p><strong className="text-foreground">BAS Field Vault</strong> — Portable Project Toolkit</p>
+            <p><strong className="text-foreground">BAU Suite</strong> — Portable Project Toolkit</p>
             <p>Version {process.env.NEXT_PUBLIC_APP_VERSION}</p>
             <p>Built for BAS field technicians, commissioning agents, and service engineers.</p>
             <p>Offline-first. Fast. Field-ready.</p>

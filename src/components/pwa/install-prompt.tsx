@@ -79,7 +79,7 @@ export function InstallPrompt() {
 
           {/* Content */}
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-foreground">Install BAS Field Vault</p>
+            <p className="text-sm font-semibold text-foreground">Install BAU Suite</p>
             <p className="mt-0.5 text-xs text-muted-foreground">
               Add to your device for offline BAS project access.
             </p>
