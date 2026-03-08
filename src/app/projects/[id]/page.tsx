@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, use } from 'react';
+import { useState, useMemo, use, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
@@ -63,6 +63,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showShare, setShowShare] = useState(false);
+
+  // Auto-refresh files when a global upload targets this project
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.projectId === id) refreshFiles();
+    };
+    window.addEventListener('bau-file-uploaded', handler);
+    return () => window.removeEventListener('bau-file-uploaded', handler);
+  }, [id, refreshFiles]);
 
   const handleDeleteProject = async () => {
     if (!project) return;

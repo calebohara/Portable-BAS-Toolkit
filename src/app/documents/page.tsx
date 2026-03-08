@@ -50,6 +50,16 @@ export default function DocumentsPage() {
 
   useEffect(() => { refresh(); }, [refresh]);
 
+  // Auto-refresh when a global upload goes to inbox (unassigned)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail?.projectId) refresh();
+    };
+    window.addEventListener('bau-file-uploaded', handler);
+    return () => window.removeEventListener('bau-file-uploaded', handler);
+  }, [refresh]);
+
   const filteredFiles = search.trim()
     ? files.filter(f => {
         const q = search.toLowerCase();

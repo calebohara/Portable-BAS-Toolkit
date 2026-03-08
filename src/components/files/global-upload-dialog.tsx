@@ -215,6 +215,9 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
       setTimeout(() => {
         handleOpenChange(false);
         onUploaded?.();
+        window.dispatchEvent(new CustomEvent('bau-file-uploaded', {
+          detail: { projectId: form.projectId, fileId },
+        }));
       }, 600);
     } catch (err) {
       setStage('failed');

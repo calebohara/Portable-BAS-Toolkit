@@ -215,6 +215,9 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
       setTimeout(() => {
         handleOpenChange(false);
         onUploaded?.();
+        window.dispatchEvent(new CustomEvent('bau-file-uploaded', {
+          detail: { projectId, fileId },
+        }));
       }, 600);
     } catch (err) {
       setStage('failed');
