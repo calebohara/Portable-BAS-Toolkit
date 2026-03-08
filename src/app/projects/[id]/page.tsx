@@ -23,7 +23,7 @@ import { ContactDialog } from '@/components/projects/contact-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+
 import { Textarea } from '@/components/ui/textarea';
 import { DeviceListView } from '@/components/devices/device-list-view';
 import { IpPlanView } from '@/components/devices/ip-plan-view';
@@ -123,7 +123,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <ArrowLeft className="h-4 w-4" />
           <span className="hidden sm:inline">Projects</span>
         </Button>
-        <Separator orientation="vertical" className="h-5" />
+
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-semibold sm:text-base">{project.name}</h1>
           <p className="truncate text-xs text-muted-foreground">{project.customerName} — {project.projectNumber}</p>
