@@ -1,0 +1,122 @@
+'use client';
+
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
+import {
+  LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
+  ChevronLeft, ChevronRight, Zap,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { useAppStore } from '@/store/app-store';
+import { Button } from '@/components/ui/button';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+
+const navItems = [
+  { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { href: '/projects', icon: FolderKanban, label: 'Projects' },
+  { href: '/search', icon: Search, label: 'Search' },
+  { href: '/offline', icon: Pin, label: 'Offline / Pinned' },
+  { href: '/settings', icon: Settings, label: 'Settings' },
+];
+
+export function Sidebar() {
+  const pathname = usePathname();
+  const sidebarOpen = useAppStore((s) => s.sidebarOpen);
+  const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
+  const toggleSidebar = useAppStore((s) => s.toggleSidebar);
+  const isOnline = useAppStore((s) => s.isOnline);
+
+  return (
+    <aside
+      className={cn(
+        'fixed left-0 top-0 z-40 flex h-full flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200',
+        // On mobile: slide off-screen when closed
+        sidebarOpen ? 'translate-x-0 w-56' : '-translate-x-full w-56 md:translate-x-0 md:w-16'
+      )}
+    >
+      {/* Logo area */}
+      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary">
+          <Zap className="h-4 w-4 text-primary-foreground" />
+        </div>
+        {(sidebarOpen) && (
+          <div className="flex flex-col overflow-hidden md:hidden" data-open={sidebarOpen}>
+            <span className="truncate text-sm font-semibold text-sidebar-foreground">BAS Toolkit</span>
+            <span className="truncate text-[10px] text-muted-foreground">Field Edition</span>
+          </div>
+        )}
+        {sidebarOpen && (
+          <div className="hidden md:flex flex-col overflow-hidden">
+            <span className="truncate text-sm font-semibold text-sidebar-foreground">BAS Toolkit</span>
+            <span className="truncate text-[10px] text-muted-foreground">Field Edition</span>
+          </div>
+        )}
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 space-y-1 px-2 py-3">
+        {navItems.map(({ href, icon: Icon, label }) => {
+          const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
+
+          const linkEl = (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => {
+                // Close sidebar on mobile when navigating
+                if (window.innerWidth < 768) setSidebarOpen(false);
+              }}
+              className={cn(
+                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                isActive
+                  ? 'bg-sidebar-accent text-sidebar-primary'
+                  : 'text-sidebar-foreground/70'
+              )}
+            >
+              <Icon className="h-4.5 w-4.5 shrink-0" />
+              {/* Always show labels on mobile (sidebar is full-width when open), conditionally on desktop */}
+              <span className="truncate md:hidden">{label}</span>
+              {sidebarOpen && <span className="truncate hidden md:inline">{label}</span>}
+            </Link>
+          );
+
+          // On desktop when collapsed, wrap in tooltip
+          if (!sidebarOpen) {
+            return (
+              <Tooltip key={href}>
+                <TooltipTrigger render={<span className="block" />}>
+                  {linkEl}
+                </TooltipTrigger>
+                <TooltipContent side="right" sideOffset={8}>
+                  {label}
+                </TooltipContent>
+              </Tooltip>
+            );
+          }
+          return linkEl;
+        })}
+      </nav>
+
+      {/* Online status & collapse */}
+      <div className="border-t border-sidebar-border px-3 py-2">
+        {!isOnline && (
+          <div className="mb-2 flex items-center gap-2 rounded-md bg-field-warning/10 px-2 py-1.5 text-xs text-field-warning">
+            <WifiOff className="h-3.5 w-3.5" />
+            <span>Offline Mode</span>
+          </div>
+        )}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleSidebar}
+          className="w-full justify-center text-muted-foreground hover:text-foreground hidden md:flex"
+          aria-label={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
+        >
+          {sidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </Button>
+      </div>
+    </aside>
+  );
+}

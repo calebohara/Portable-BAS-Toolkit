@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Monochrome variant for Safari pinned tabs and other monochrome contexts -->
+
+  <!-- Container frame -->
+  <rect x="152" y="152" width="720" height="720" rx="64" ry="64"
+        fill="none" stroke="#000" stroke-width="32"/>
+
+  <!-- Inner frame -->
+  <rect x="216" y="216" width="592" height="592" rx="40" ry="40"
+        fill="none" stroke="#000" stroke-width="14" opacity="0.5"/>
+
+  <!-- Network bus lines -->
+  <line x1="340" y1="400" x2="684" y2="400" stroke="#000" stroke-width="8" stroke-linecap="round"/>
+  <line x1="340" y1="512" x2="684" y2="512" stroke="#000" stroke-width="8" stroke-linecap="round"/>
+  <line x1="340" y1="624" x2="684" y2="624" stroke="#000" stroke-width="8" stroke-linecap="round"/>
+  <line x1="512" y1="340" x2="512" y2="684" stroke="#000" stroke-width="8" stroke-linecap="round"/>
+
+  <!-- Branch lines -->
+  <line x1="400" y1="400" x2="400" y2="624" stroke="#000" stroke-width="5" stroke-linecap="round"/>
+  <line x1="624" y1="400" x2="624" y2="624" stroke="#000" stroke-width="5" stroke-linecap="round"/>
+
+  <!-- Top/bottom nodes -->
+  <circle cx="512" cy="340" r="28" fill="#fff" stroke="#000" stroke-width="10"/>
+  <circle cx="512" cy="340" r="10" fill="#000"/>
+  <circle cx="512" cy="684" r="28" fill="#fff" stroke="#000" stroke-width="10"/>
+  <circle cx="512" cy="684" r="10" fill="#000"/>
+
+  <!-- Side nodes -->
+  <circle cx="340" cy="400" r="22" fill="#fff" stroke="#000" stroke-width="8"/>
+  <circle cx="340" cy="400" r="8" fill="#000"/>
+  <circle cx="684" cy="400" r="22" fill="#fff" stroke="#000" stroke-width="8"/>
+  <circle cx="684" cy="400" r="8" fill="#000"/>
+  <circle cx="340" cy="624" r="22" fill="#fff" stroke="#000" stroke-width="8"/>
+  <circle cx="340" cy="624" r="8" fill="#000"/>
+  <circle cx="684" cy="624" r="22" fill="#fff" stroke="#000" stroke-width="8"/>
+  <circle cx="684" cy="624" r="8" fill="#000"/>
+
+  <!-- Central hub -->
+  <circle cx="512" cy="512" r="40" fill="#fff" stroke="#000" stroke-width="12"/>
+  <circle cx="512" cy="512" r="16" fill="#000"/>
+
+  <!-- Junction nodes -->
+  <circle cx="400" cy="400" r="12" fill="#fff" stroke="#000" stroke-width="6"/>
+  <circle cx="624" cy="400" r="12" fill="#fff" stroke="#000" stroke-width="6"/>
+  <circle cx="400" cy="624" r="12" fill="#fff" stroke="#000" stroke-width="6"/>
+  <circle cx="624" cy="624" r="12" fill="#fff" stroke="#000" stroke-width="6"/>
+  <circle cx="400" cy="512" r="12" fill="#fff" stroke="#000" stroke-width="6"/>
+  <circle cx="624" cy="512" r="12" fill="#fff" stroke="#000" stroke-width="6"/>
+
+  <!-- Vault seal -->
+  <rect x="360" y="166" width="304" height="14" rx="7" fill="#000" opacity="0.6"/>
+</svg>

@@ -1,0 +1,169 @@
+export type ProjectStatus = 'active' | 'on-hold' | 'completed' | 'archived';
+export type FileCategory = 'panel-databases' | 'wiring-diagrams' | 'sequences' | 'ip-plan' | 'device-list' | 'backups' | 'other';
+export type FileStatus = 'current' | 'previous' | 'archived' | 'field-verified' | 'superseded' | 'backup-snapshot' | 'obsolete';
+export type NoteCategory = 'general' | 'issue' | 'fix' | 'punch-item' | 'startup-note' | 'network-change' | 'customer-request';
+
+export interface Contact {
+  name: string;
+  role: string; // GC, controls contractor, TAB, mechanical, customer, etc.
+  phone?: string;
+  email?: string;
+  company?: string;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  customerName: string;
+  siteAddress: string;
+  buildingArea: string;
+  projectNumber: string;
+  technicianNotes: string;
+  createdAt: string;
+  updatedAt: string;
+  tags: string[];
+  status: ProjectStatus;
+  contacts: Contact[];
+  panelRosterSummary?: string;
+  networkSummary?: string;
+  isPinned: boolean;
+  isOfflineAvailable: boolean;
+}
+
+export interface FileVersion {
+  id: string;
+  fileId: string;
+  versionNumber: number;
+  uploadedAt: string;
+  uploadedBy: string;
+  notes: string;
+  size: number;
+  status: FileStatus;
+  blobKey?: string; // key in IndexedDB blob store
+}
+
+export interface ProjectFile {
+  id: string;
+  projectId: string;
+  title: string;
+  fileName: string;
+  fileType: string; // extension
+  mimeType: string;
+  category: FileCategory;
+  panelSystem?: string;
+  revisionNumber: string;
+  revisionDate: string;
+  uploadedBy: string;
+  notes: string;
+  tags: string[];
+  status: FileStatus;
+  isPinned: boolean;
+  isFavorite: boolean;
+  isOfflineCached: boolean;
+  currentVersionId: string;
+  versions: FileVersion[];
+  createdAt: string;
+  updatedAt: string;
+  size: number;
+}
+
+export interface FieldNote {
+  id: string;
+  projectId: string;
+  fileId?: string; // optional: note attached to a file
+  content: string;
+  category: NoteCategory;
+  author: string;
+  isPinned: boolean;
+  createdAt: string;
+  updatedAt: string;
+  tags: string[];
+}
+
+export interface DeviceEntry {
+  id: string;
+  projectId: string;
+  deviceName: string;
+  description: string;
+  system: string;
+  panel: string;
+  controllerType: string;
+  macAddress?: string;
+  instanceNumber?: string;
+  ipAddress?: string;
+  floor: string;
+  area: string;
+  status: string;
+  notes: string;
+}
+
+export interface IpPlanEntry {
+  id: string;
+  projectId: string;
+  ipAddress: string;
+  hostname: string;
+  panel: string;
+  vlan: string;
+  subnet: string;
+  deviceRole: string;
+  macAddress?: string;
+  notes: string;
+  status: 'active' | 'reserved' | 'available' | 'conflict';
+}
+
+export interface ActivityLogEntry {
+  id: string;
+  projectId: string;
+  action: string;
+  details: string;
+  timestamp: string;
+  user: string;
+  fileId?: string;
+}
+
+export interface SyncQueueItem {
+  id: string;
+  action: 'create' | 'update' | 'delete';
+  entityType: 'project' | 'file' | 'note' | 'device' | 'ipPlan';
+  entityId: string;
+  data: unknown;
+  timestamp: string;
+  status: 'pending' | 'syncing' | 'failed';
+}
+
+export const FILE_CATEGORY_LABELS: Record<FileCategory, string> = {
+  'panel-databases': 'Panel Databases',
+  'wiring-diagrams': 'Wiring Diagrams',
+  'sequences': 'Sequences',
+  'ip-plan': 'IP Plan',
+  'device-list': 'Device List',
+  'backups': 'Backups',
+  'other': 'Other',
+};
+
+export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
+  active: 'Active',
+  'on-hold': 'On Hold',
+  completed: 'Completed',
+  archived: 'Archived',
+};
+
+export const FILE_STATUS_LABELS: Record<FileStatus, string> = {
+  current: 'Current',
+  previous: 'Previous',
+  archived: 'Archived',
+  'field-verified': 'Field Verified',
+  superseded: 'Superseded',
+  'backup-snapshot': 'Backup Snapshot',
+  obsolete: 'Obsolete',
+};
+
+export const NOTE_CATEGORY_LABELS: Record<NoteCategory, string> = {
+  general: 'General',
+  issue: 'Issue',
+  fix: 'Fix',
+  'punch-item': 'Punch Item',
+  'startup-note': 'Startup Note',
+  'network-change': 'Network Change',
+  'customer-request': 'Customer Request',
+};

@@ -1,0 +1,95 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0A1628"/>
+      <stop offset="100%" stop-color="#0D2137"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00BCD4"/>
+      <stop offset="100%" stop-color="#0088A3"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#00E5FF"/>
+      <stop offset="100%" stop-color="#00BCD4"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect x="0" y="0" width="1024" height="1024" rx="208" fill="url(#bg)"/>
+
+  <!-- Outer container frame — vault shell -->
+  <rect x="152" y="152" width="720" height="720" rx="64" ry="64"
+        fill="none" stroke="#1B3A5C" stroke-width="28"/>
+
+  <!-- Inner container frame -->
+  <rect x="208" y="208" width="608" height="608" rx="40" ry="40"
+        fill="none" stroke="#1E4D6E" stroke-width="12"/>
+
+  <!-- Horizontal network bus lines -->
+  <line x1="280" y1="400" x2="744" y2="400" stroke="#0E3854" stroke-width="10" stroke-linecap="round"/>
+  <line x1="280" y1="512" x2="744" y2="512" stroke="#0E3854" stroke-width="10" stroke-linecap="round"/>
+  <line x1="280" y1="624" x2="744" y2="624" stroke="#0E3854" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Vertical network trunk -->
+  <line x1="512" y1="300" x2="512" y2="724" stroke="#0E3854" stroke-width="10" stroke-linecap="round"/>
+
+  <!-- Active circuit lines — horizontal -->
+  <line x1="340" y1="400" x2="684" y2="400" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="340" y1="512" x2="684" y2="512" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+  <line x1="340" y1="624" x2="684" y2="624" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Active circuit lines — vertical trunk -->
+  <line x1="512" y1="340" x2="512" y2="684" stroke="url(#accent)" stroke-width="6" stroke-linecap="round"/>
+
+  <!-- Vertical branch lines to nodes -->
+  <line x1="400" y1="400" x2="400" y2="512" stroke="url(#accent)" stroke-width="4" stroke-linecap="round"/>
+  <line x1="624" y1="400" x2="624" y2="512" stroke="url(#accent)" stroke-width="4" stroke-linecap="round"/>
+  <line x1="400" y1="512" x2="400" y2="624" stroke="url(#accent)" stroke-width="4" stroke-linecap="round"/>
+  <line x1="624" y1="512" x2="624" y2="624" stroke="url(#accent)" stroke-width="4" stroke-linecap="round"/>
+
+  <!-- Network nodes — large (controllers) -->
+  <circle cx="512" cy="340" r="28" fill="#0A1628" stroke="url(#glow)" stroke-width="8"/>
+  <circle cx="512" cy="340" r="12" fill="#00E5FF"/>
+
+  <circle cx="512" cy="684" r="28" fill="#0A1628" stroke="url(#glow)" stroke-width="8"/>
+  <circle cx="512" cy="684" r="12" fill="#00E5FF"/>
+
+  <!-- Network nodes — medium (panels) -->
+  <circle cx="340" cy="400" r="22" fill="#0A1628" stroke="url(#accent)" stroke-width="7"/>
+  <circle cx="340" cy="400" r="9" fill="#00BCD4"/>
+
+  <circle cx="684" cy="400" r="22" fill="#0A1628" stroke="url(#accent)" stroke-width="7"/>
+  <circle cx="684" cy="400" r="9" fill="#00BCD4"/>
+
+  <circle cx="340" cy="624" r="22" fill="#0A1628" stroke="url(#accent)" stroke-width="7"/>
+  <circle cx="340" cy="624" r="9" fill="#00BCD4"/>
+
+  <circle cx="684" cy="624" r="22" fill="#0A1628" stroke="url(#accent)" stroke-width="7"/>
+  <circle cx="684" cy="624" r="9" fill="#00BCD4"/>
+
+  <!-- Central hub node — larger, brighter -->
+  <circle cx="512" cy="512" r="40" fill="#0A1628" stroke="url(#glow)" stroke-width="10"/>
+  <circle cx="512" cy="512" r="18" fill="#00E5FF"/>
+
+  <!-- Corner junction nodes — small -->
+  <circle cx="400" cy="400" r="14" fill="#0A1628" stroke="#0088A3" stroke-width="5"/>
+  <circle cx="400" cy="400" r="5" fill="#00BCD4"/>
+
+  <circle cx="624" cy="400" r="14" fill="#0A1628" stroke="#0088A3" stroke-width="5"/>
+  <circle cx="624" cy="400" r="5" fill="#00BCD4"/>
+
+  <circle cx="400" cy="624" r="14" fill="#0A1628" stroke="#0088A3" stroke-width="5"/>
+  <circle cx="400" cy="624" r="5" fill="#00BCD4"/>
+
+  <circle cx="624" cy="624" r="14" fill="#0A1628" stroke="#0088A3" stroke-width="5"/>
+  <circle cx="624" cy="624" r="5" fill="#00BCD4"/>
+
+  <circle cx="400" cy="512" r="14" fill="#0A1628" stroke="#0088A3" stroke-width="5"/>
+  <circle cx="400" cy="512" r="5" fill="#00BCD4"/>
+
+  <circle cx="624" cy="512" r="14" fill="#0A1628" stroke="#0088A3" stroke-width="5"/>
+  <circle cx="624" cy="512" r="5" fill="#00BCD4"/>
+
+  <!-- Top edge accent bar — vault "seal" -->
+  <rect x="360" y="168" width="304" height="12" rx="6" fill="url(#glow)" opacity="0.7"/>
+</svg>
