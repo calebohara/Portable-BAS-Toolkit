@@ -132,24 +132,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </div>
         <ProjectStatusBadge status={project.status} />
         {project.isPinned && <Pin className="h-4 w-4 text-primary" />}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowShare(true)}
-          className="text-muted-foreground hover:text-primary"
-          title="Share / Export"
-        >
-          <Share2 className="h-4 w-4" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setShowDeleteConfirm(true)}
-          className="text-muted-foreground hover:text-destructive"
-          title="Delete project"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
       </TopBar>
 
       <div className="flex flex-col lg:flex-row">
@@ -198,6 +180,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               ipEntries={ipEntries}
               onNavigate={setActiveTab}
               onUpdateProject={handleUpdateProject}
+              onShare={() => setShowShare(true)}
+              onDelete={() => setShowDeleteConfirm(true)}
             />
           )}
 
@@ -273,7 +257,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 // ─── Overview Section ───────────────────────────────────────────────────────
 
 function OverviewSection({
-  project, files, notes, devices, ipEntries, onNavigate, onUpdateProject,
+  project, files, notes, devices, ipEntries, onNavigate, onUpdateProject, onShare, onDelete,
 }: {
   project: Project;
   files: ProjectFile[];
@@ -282,6 +266,8 @@ function OverviewSection({
   ipEntries: IpPlanEntry[];
   onNavigate: (tab: string) => void;
   onUpdateProject: (data: Partial<Project>) => Promise<void>;
+  onShare: () => void;
+  onDelete: () => void;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
@@ -348,6 +334,13 @@ function OverviewSection({
         </Button>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onNavigate('ip-plan')}>
           <Network className="h-3.5 w-3.5" /> Add IP Entry
+        </Button>
+        <div className="flex-1" />
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={onShare}>
+          <Share2 className="h-3.5 w-3.5" /> Share
+        </Button>
+        <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={onDelete}>
+          <Trash2 className="h-3.5 w-3.5" /> Delete
         </Button>
       </div>
 
