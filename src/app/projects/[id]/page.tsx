@@ -7,7 +7,7 @@ import {
   ArrowLeft, Database, FileText, Network, Server, HardDrive,
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
-  ChevronRight,
+  ChevronRight, Share2,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
@@ -30,6 +30,7 @@ import { IpPlanView } from '@/components/devices/ip-plan-view';
 import { FieldNotesView } from '@/components/notes/field-notes-view';
 import { FileListView } from '@/components/files/file-list-view';
 import { ActivityTimeline } from '@/components/projects/activity-timeline';
+import { ShareDialog } from '@/components/share/share-dialog';
 import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry } from '@/types';
 import { cn } from '@/lib/utils';
 import { deleteProject } from '@/lib/db';
@@ -60,6 +61,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [activeTab, setActiveTab] = useState('overview');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [showShare, setShowShare] = useState(false);
 
   const handleDeleteProject = async () => {
     if (!project) return;
@@ -130,6 +132,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         </div>
         <ProjectStatusBadge status={project.status} />
         {project.isPinned && <Pin className="h-4 w-4 text-primary" />}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowShare(true)}
+          className="text-muted-foreground hover:text-primary"
+          title="Share / Export"
+        >
+          <Share2 className="h-4 w-4" />
+        </Button>
         <Button
           variant="ghost"
           size="sm"
@@ -243,6 +254,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         confirmLabel={deleting ? 'Deleting...' : 'Delete Project'}
         variant="destructive"
         onConfirm={handleDeleteProject}
+      />
+
+      <ShareDialog
+        open={showShare}
+        onOpenChange={setShowShare}
+        project={project}
+        files={files}
+        notes={notes}
+        devices={devices}
+        ipEntries={ipEntries}
+        activity={activity}
       />
     </>
   );
