@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
-  ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight, X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
@@ -51,6 +51,16 @@ export function Sidebar() {
             <span className="truncate text-[10px] text-muted-foreground">Field Edition</span>
           </div>
         )}
+        {/* Mobile close button */}
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setSidebarOpen(false)}
+          className="ml-auto h-8 w-8 p-0 text-muted-foreground hover:text-foreground md:hidden"
+          aria-label="Close menu"
+        >
+          <X className="h-4.5 w-4.5" />
+        </Button>
       </div>
 
       {/* Navigation */}
