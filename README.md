@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-1.5.1-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-1.6.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -21,7 +21,7 @@
 
 ## Version
 
-**Current Release: v1.5.1**
+**Current Release: v1.6.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -80,7 +80,7 @@ It centralizes the critical project data that field engineers carry between job 
 | **Activity Log** | Automatic audit trail of every project modification |
 | **Offline Access** | Pin projects for full offline availability via IndexedDB and Service Worker |
 | **PWA Install** | Install as a native app on any device — desktop, tablet, or phone |
-| **Global Search** | Search across all projects, files, devices, IP entries, and notes instantly |
+| **Global Search** | Live search-as-you-type across all projects, files, devices, IP entries, and notes with debounced indexing, quick chips, and highlighted results |
 | **Mobile-Ready** | Responsive design optimized for field use on phones and tablets |
 | **Theme Switching** | System, light, and dark modes for any environment |
 | **Contact Management** | Track site contacts — GC, TAB, mechanical, building engineer |
@@ -571,7 +571,7 @@ Future enhancements under consideration:
 | **Drive Configuration Tools** | VFD parameter sheets and commissioning checklists |
 | **Loop Tuning Utilities** | PID tuning calculators and trend logging |
 | **PDF Annotation** | Mark up wiring diagrams and sequences directly in-browser |
-| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages available in v1.5.1* |
+| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages available in v1.6.0* |
 | **Cloud Sync** | Optional Supabase backend for cross-device synchronization |
 | **Role-Based Access** | Multi-user support with permission levels |
 | **BACnet Object Browser** | Read/write BACnet object properties from the field |
@@ -629,9 +629,9 @@ The version is tracked in three synchronized locations:
 
 | Location | Format | Source |
 |----------|--------|--------|
-| `package.json` | `"version": "1.5.1"` | Source of truth |
-| Sidebar footer | `v1.5.1` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
-| Settings → About | `Version 1.5.1` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| `package.json` | `"version": "1.6.0"` | Source of truth |
+| Sidebar footer | `v1.6.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| Settings → About | `Version 1.6.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
 
 The version follows [Semantic Versioning](https://semver.org/):
 - **MAJOR** — breaking changes or major redesigns

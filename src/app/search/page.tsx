@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
@@ -50,21 +50,33 @@ export default function SearchPage() {
   const clearRecentSearches = useAppStore((s) => s.clearRecentSearches);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const doSearch = useCallback(async (q: string) => {
+  const doSearch = useCallback(async (q: string, saveRecent = false) => {
     if (!q.trim()) { setResults(null); return; }
     setSearching(true);
     try {
       const res = await searchGlobal(q.trim());
       setResults(res);
-      addRecentSearch(q.trim());
+      if (saveRecent) addRecentSearch(q.trim());
     } finally {
       setSearching(false);
     }
   }, [addRecentSearch]);
 
+  // Live search with debounce
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) { setResults(null); return; }
+    debounceRef.current = setTimeout(() => {
+      doSearch(query);
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [query, doSearch]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    doSearch(query);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    doSearch(query, true);
   };
 
   const totalResults = results
@@ -116,7 +128,7 @@ export default function SearchPage() {
           {quickChips.map(({ label, query: chipQuery }) => (
             <button
               key={label}
-              onClick={() => { setQuery(chipQuery); doSearch(chipQuery); }}
+              onClick={() => { setQuery(chipQuery); doSearch(chipQuery, true); }}
               className="rounded-full border border-border px-2.5 py-1 text-xs font-medium text-muted-foreground hover:text-foreground hover:border-primary/20 transition-colors"
             >
               {label}
@@ -125,7 +137,7 @@ export default function SearchPage() {
         </div>
 
         {/* Recent Searches */}
-        {!results && recentSearches.length > 0 && (
+        {!results && !query.trim() && recentSearches.length > 0 && (
           <div>
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-semibold text-muted-foreground">Recent Searches</h3>
@@ -137,7 +149,7 @@ export default function SearchPage() {
               {recentSearches.map((s) => (
                 <button
                   key={s}
-                  onClick={() => { setQuery(s); doSearch(s); }}
+                  onClick={() => { setQuery(s); doSearch(s, true); }}
                   className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-left hover:bg-accent"
                 >
                   <Clock className="h-3.5 w-3.5 text-muted-foreground" />
@@ -309,7 +321,7 @@ export default function SearchPage() {
         )}
 
         {/* Default empty state */}
-        {!results && !searching && recentSearches.length === 0 && (
+        {!results && !searching && !query.trim() && recentSearches.length === 0 && (
           <EmptyState
             icon={Search}
             title="Search your BAS projects"
