@@ -343,7 +343,7 @@ export function generateSharePackage(data: ShareData, config: ShareConfig): stri
   const pkg: Record<string, unknown> = {
     _meta: {
       generator: 'BAU Suite',
-      version: '1.9.0',
+      version: '2.0.0',
       exportedAt: metadata.date,
       preparedBy: metadata.preparedBy || undefined,
       title: metadata.title || undefined,

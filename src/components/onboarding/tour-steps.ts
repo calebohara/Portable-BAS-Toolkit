@@ -65,6 +65,14 @@ export const TOUR_STEPS: TourStep[] = [
     action: 'open-sidebar',
   },
   {
+    id: 'nav-web-interface',
+    target: '[data-tour="nav-web-interface"]',
+    title: 'Web Interface',
+    content: 'Access BAS controller web panels directly from the app. Save endpoints, organize by project, and launch embedded or in a new tab — with honest handling of browser security restrictions.',
+    placement: 'right',
+    action: 'open-sidebar',
+  },
+  {
     id: 'nav-inbox',
     target: '[data-tour="nav-documents"]',
     title: 'Uploads Inbox',

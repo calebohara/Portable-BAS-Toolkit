@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-1.9.0-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-2.0.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -21,7 +21,7 @@
 
 ## Version
 
-**Current Release: v1.9.0**
+**Current Release: v2.0.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -88,6 +88,7 @@ It centralizes the critical project data that field engineers carry between job 
 | **Report Export** | Export daily reports via Teams (markdown), Outlook (email with suggested subject), PDF (print-optimized), or JSON share package — reuses the project share infrastructure |
 | **Share / Export** | Selective project sharing — Teams (markdown), Outlook (email), PDF (print), or JSON package with audience presets and sensitive data masking |
 | **Telnet HMI Tool** | Browser-based terminal for BAS controller access — WebSocket-to-Telnet proxy support, session logging, .txt export, project attachment, baud rate configuration, multiple session tabs, command history, and connection history |
+| **Web Interface** | Access BAS controller web panels directly — saved endpoints with favorites, protocol/port/path configuration, embedded iframe workspace with honest browser security handling (X-Frame-Options, CSP, mixed content), new-tab fallback, project association, recent connections, and JSON export |
 | **Global Sticky Notepad** | Floating scratchpad accessible from any page — tabbed notes for IP addresses, device numbers, commands, and reminders with drag-to-reposition, minimize/restore, and offline persistence via Zustand |
 | **Guided Tour** | Interactive step-by-step onboarding walkthrough with spotlight overlay — auto-launches on first visit, replayable from Help or Settings, mobile-friendly with clean sidebar state management |
 | **Help Center** | Dedicated help page with getting started guide, feature guides, FAQ, troubleshooting, keyboard shortcuts, and best practices |
@@ -300,6 +301,8 @@ src/
 │   │           └── page.tsx      # Edit existing report
 │   ├── terminal/
 │   │   └── page.tsx              # Telnet HMI terminal tool
+│   ├── web-interface/
+│   │   └── page.tsx              # Web Interface panel access tool
 │   ├── search/
 │   │   └── page.tsx              # Global search across all data
 │   ├── settings/
@@ -333,7 +336,10 @@ src/
 │   └── utils.ts                  # Tailwind class merge utility
 │
 ├── store/
-│   └── app-store.ts              # Zustand store — theme, sidebar, recent items
+│   ├── app-store.ts              # Zustand store — theme, sidebar, recent items
+│   ├── notepad-store.ts          # Zustand store — sticky notepad tabs and state
+│   ├── terminal-store.ts         # Zustand store — terminal sessions and settings
+│   └── web-interface-store.ts    # Zustand store — web endpoints and connections
 │
 └── types/
     └── index.ts                  # All TypeScript interfaces and enums
@@ -451,6 +457,21 @@ A browser-based terminal interface for connecting to BAS controllers and panels:
 - **Command history** — arrow-key recall of previously entered commands (up to 50)
 - **Connection history** — recent connections with quick-reconnect, persisted across sessions
 - **WebSocket proxy architecture** — designed for WebSocket-to-Telnet proxy bridging; falls back to local-mode logging when no proxy is available
+
+### Web Interface
+
+A panel web access console for connecting to BAS controller web interfaces:
+
+- **Launch form** — protocol (HTTP/HTTPS), host/IP, port, path, and open mode (auto, embedded, new tab) with live URL preview
+- **Embedded workspace** — iframe-based web panel viewer with loading indicator, reload, and open-in-new-tab controls
+- **Honest security handling** — detects X-Frame-Options, CSP, and mixed content blocks; shows clear explanations and automatic new-tab fallback instead of broken iframes
+- **Saved endpoints** — save frequently-used controller web panels with friendly names, tags, and notes
+- **Favorites** — star endpoints for quick access; favorites sort to top
+- **Project association** — link endpoints to projects for organized access
+- **Recent connections** — last 20 connections with one-click relaunch
+- **Search & filter** — search saved endpoints by name, host, tags, or notes
+- **Export** — download saved endpoints as JSON for backup or sharing
+- **Security guidance** — collapsible panel explaining browser limitations (same-origin policy, mixed content, HTTPS requirements) with practical workarounds
 
 ### Global Sticky Notepad
 
@@ -645,7 +666,7 @@ Future enhancements under consideration:
 | **Drive Configuration Tools** | VFD parameter sheets and commissioning checklists |
 | **Loop Tuning Utilities** | PID tuning calculators and trend logging |
 | **PDF Annotation** | Mark up wiring diagrams and sequences directly in-browser |
-| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages available in v1.9.0* |
+| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages and endpoint export available in v2.0.0* |
 | **Cloud Sync** | Optional Supabase backend for cross-device synchronization |
 | **Role-Based Access** | Multi-user support with permission levels |
 | **BACnet Object Browser** | Read/write BACnet object properties from the field |
@@ -703,9 +724,9 @@ The version is tracked in three synchronized locations:
 
 | Location | Format | Source |
 |----------|--------|--------|
-| `package.json` | `"version": "1.9.0"` | Source of truth |
-| Sidebar footer | `v1.9.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
-| Settings → About | `Version 1.9.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| `package.json` | `"version": "2.0.0"` | Source of truth |
+| Sidebar footer | `v2.0.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| Settings → About | `Version 2.0.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
 
 The version follows [Semantic Versioning](https://semver.org/):
 - **MAJOR** — breaking changes or major redesigns
