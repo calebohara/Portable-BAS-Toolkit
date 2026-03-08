@@ -49,6 +49,14 @@ export const TOUR_STEPS: TourStep[] = [
     action: 'open-sidebar',
   },
   {
+    id: 'nav-reports',
+    target: '[data-tour="nav-reports"]',
+    title: 'Daily Reports',
+    content: 'Record structured daily field reports tied to a project. Track work completed, issues, coordination notes, and equipment status — then export via Teams, Outlook, PDF, or share package.',
+    placement: 'right',
+    action: 'open-sidebar',
+  },
+  {
     id: 'nav-inbox',
     target: '[data-tour="nav-documents"]',
     title: 'Uploads Inbox',

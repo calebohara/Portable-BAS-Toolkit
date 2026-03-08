@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-1.6.0-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-1.7.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -21,7 +21,7 @@
 
 ## Version
 
-**Current Release: v1.6.0**
+**Current Release: v1.7.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -84,6 +84,8 @@ It centralizes the critical project data that field engineers carry between job 
 | **Mobile-Ready** | Responsive design optimized for field use on phones and tablets |
 | **Theme Switching** | System, light, and dark modes for any environment |
 | **Contact Management** | Track site contacts — GC, TAB, mechanical, building engineer |
+| **Daily Reports** | Structured daily field reports tied to projects — work completed, issues, coordination notes, equipment status, attachments, autosave drafts, and three-stage workflow (Draft → Submitted → Finalized) |
+| **Report Export** | Export daily reports via Teams (markdown), Outlook (email with suggested subject), PDF (print-optimized), or JSON share package — reuses the project share infrastructure |
 | **Share / Export** | Selective project sharing — Teams (markdown), Outlook (email), PDF (print), or JSON package with audience presets and sensitive data masking |
 | **Guided Tour** | Interactive step-by-step onboarding walkthrough with spotlight overlay — auto-launches on first visit, replayable from Help or Settings, mobile-friendly with clean sidebar state management |
 | **Help Center** | Dedicated help page with getting started guide, feature guides, FAQ, troubleshooting, keyboard shortcuts, and best practices |
@@ -159,9 +161,9 @@ It centralizes the critical project data that field engineers carry between job 
 │  ┌──────────┐ ┌───────┐ ┌───────┐ ┌────────┐ ┌──────┐  │
 │  │ projects │ │ files │ │ notes │ │devices │ │ipPlan│  │
 │  └──────────┘ └───────┘ └───────┘ └────────┘ └──────┘  │
-│  ┌───────────┐ ┌─────────────┐                           │
-│  │ fileBlobs │ │ activityLog │                           │
-│  └───────────┘ └─────────────┘                           │
+│  ┌───────────┐ ┌─────────────┐ ┌──────────────┐            │
+│  │ fileBlobs │ │ activityLog │ │ dailyReports │            │
+│  └───────────┘ └─────────────┘ └──────────────┘            │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -286,6 +288,14 @@ src/
 │   │   ├── page.tsx              # Project list — search, filter, create
 │   │   └── [id]/
 │   │       └── page.tsx          # Project detail — tabbed sections
+│   ├── reports/
+│   │   ├── page.tsx              # Daily reports list — search, filter, status
+│   │   ├── new/
+│   │   │   └── page.tsx          # Create new daily report
+│   │   └── [id]/
+│   │       ├── page.tsx          # Report detail view — sections, export, delete
+│   │       └── edit/
+│   │           └── page.tsx      # Edit existing report
 │   ├── search/
 │   │   └── page.tsx              # Global search across all data
 │   ├── settings/
@@ -302,6 +312,7 @@ src/
 │   ├── devices/                  # Device list, IP plan, entry dialogs
 │   ├── files/                    # File list, upload dialog, download
 │   ├── notes/                    # Field notes view
+│   ├── reports/                  # Daily report form, export dialog
 │   ├── share/                    # Share/export wizard, formatters, PDF view
 │   ├── onboarding/               # Guided tour overlay and step definitions
 │   ├── shared/                   # Error boundary, empty states, confirm dialog
@@ -396,6 +407,29 @@ Full-text search across:
 - IP addresses and hostnames
 
 Results are highlighted and grouped by type.
+
+### Daily Reporting
+
+Structured field reporting for documenting daily progress:
+
+- **Report creation** — project selector, date, technician name, auto-numbered reports
+- **Content sections** — work completed, issues encountered, work planned next, coordination notes, equipment/systems worked on, device/IP changes, safety notes, general notes
+- **Time tracking** — start/end time, hours on site, location, weather
+- **Attachments** — upload images, PDFs, and documents directly to reports
+- **Workflow status** — Draft → Submitted → Finalized with read-only protection for finalized reports
+- **Autosave** — drafts automatically saved every 30 seconds
+- **Export/Share** — Teams markdown, Outlook email, PDF print, or JSON share package
+
+### Exporting Daily Reports
+
+Reports can be exported in four formats, using the same share infrastructure as project exports:
+
+| Format | Output |
+|--------|--------|
+| **Teams** | Markdown message with all report sections, ready to paste |
+| **Outlook** | Subject line (`Daily Report – [Project] – [Date]`) + formatted email body |
+| **PDF** | Print-optimized view with professional formatting |
+| **Share Package** | JSON bundle with report data and project metadata |
 
 ---
 
@@ -498,7 +532,13 @@ The `/offline` page provides:
    → [issue] AHU-2 mixed air damper actuator binding at 60%
    → [fix] Replaced actuator linkage, damper now full stroke
 
-7. Access Offline at Site
+7. Write Daily Report
+   → Work Completed: AHU-1 startup, all points verified
+   → Issues: AHU-2 damper actuator binding at 60%
+   → Work Planned: Replace actuator linkage tomorrow
+   → Export to Teams for PM status update
+
+8. Access Offline at Site
    → Pin project → drive to job site → open app → full data available
 ```
 
@@ -571,7 +611,7 @@ Future enhancements under consideration:
 | **Drive Configuration Tools** | VFD parameter sheets and commissioning checklists |
 | **Loop Tuning Utilities** | PID tuning calculators and trend logging |
 | **PDF Annotation** | Mark up wiring diagrams and sequences directly in-browser |
-| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages available in v1.6.0* |
+| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages available in v1.7.0* |
 | **Cloud Sync** | Optional Supabase backend for cross-device synchronization |
 | **Role-Based Access** | Multi-user support with permission levels |
 | **BACnet Object Browser** | Read/write BACnet object properties from the field |
@@ -629,9 +669,9 @@ The version is tracked in three synchronized locations:
 
 | Location | Format | Source |
 |----------|--------|--------|
-| `package.json` | `"version": "1.6.0"` | Source of truth |
-| Sidebar footer | `v1.6.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
-| Settings → About | `Version 1.6.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| `package.json` | `"version": "1.7.0"` | Source of truth |
+| Sidebar footer | `v1.7.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| Settings → About | `Version 1.7.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
 
 The version follows [Semantic Versioning](https://semver.org/):
 - **MAJOR** — breaking changes or major redesigns

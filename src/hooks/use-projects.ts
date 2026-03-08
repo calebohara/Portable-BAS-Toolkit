@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry } from '@/types';
+import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport } from '@/types';
 import * as db from '@/lib/db';
 import { generateDemoData } from '@/lib/demo-data';
 import { v4 as uuid } from 'uuid';
@@ -233,4 +233,70 @@ export function useProjectActivity(projectId: string) {
   useEffect(() => { refresh(); }, [refresh]);
 
   return { activity, loading, refresh };
+}
+
+// ─── Daily Reports ───────────────────────────────────────────
+export function useDailyReports(projectId?: string) {
+  const [reports, setReports] = useState<DailyReport[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    await ensureDemoData();
+    const all = projectId
+      ? await db.getProjectDailyReports(projectId)
+      : await db.getAllDailyReports();
+    setReports(all);
+    setLoading(false);
+  }, [projectId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const createReport = useCallback(async (data: Omit<DailyReport, 'id' | 'createdAt' | 'updatedAt' | 'reportNumber'>) => {
+    const now = new Date().toISOString();
+    const reportNumber = await db.getNextReportNumber(data.projectId);
+    const report: DailyReport = { ...data, id: uuid(), reportNumber, createdAt: now, updatedAt: now };
+    await db.saveDailyReport(report);
+    await db.addActivity({
+      id: uuid(), projectId: data.projectId, action: 'Daily report created',
+      details: `Daily Report #${reportNumber} for ${data.date}`, timestamp: now, user: data.technicianName || 'User',
+    });
+    await refresh();
+    return report;
+  }, [refresh]);
+
+  const updateReport = useCallback(async (report: DailyReport) => {
+    report.updatedAt = new Date().toISOString();
+    await db.saveDailyReport(report);
+    await refresh();
+  }, [refresh]);
+
+  const removeReport = useCallback(async (id: string) => {
+    await db.deleteDailyReport(id);
+    await refresh();
+  }, [refresh]);
+
+  return { reports, loading, refresh, createReport, updateReport, removeReport };
+}
+
+export function useDailyReport(id: string) {
+  const [report, setReport] = useState<DailyReport | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    await ensureDemoData();
+    const r = await db.getDailyReport(id);
+    setReport(r || null);
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const update = useCallback(async (data: Partial<DailyReport>) => {
+    if (!report) return;
+    const updated = { ...report, ...data, updatedAt: new Date().toISOString() };
+    await db.saveDailyReport(updated);
+    setReport(updated);
+  }, [report]);
+
+  return { report, loading, refresh, update };
 }

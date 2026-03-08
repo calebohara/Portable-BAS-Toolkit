@@ -121,6 +121,57 @@ export interface ActivityLogEntry {
   fileId?: string;
 }
 
+// ─── Daily Reports ───────────────────────────────────────────
+export type ReportStatus = 'draft' | 'submitted' | 'finalized';
+
+export const REPORT_STATUS_LABELS: Record<ReportStatus, string> = {
+  draft: 'Draft',
+  submitted: 'Submitted',
+  finalized: 'Finalized',
+};
+
+export interface ReportAttachment {
+  id: string;
+  fileName: string;
+  fileType: string;
+  mimeType: string;
+  size: number;
+  blobKey: string; // key in fileBlobs store
+}
+
+export interface DailyReport {
+  id: string;
+  projectId: string;
+  date: string; // YYYY-MM-DD
+  reportNumber: number;
+  technicianName: string;
+  status: ReportStatus;
+  createdAt: string;
+  updatedAt: string;
+
+  // Time
+  startTime: string;
+  endTime: string;
+  hoursOnSite: string;
+
+  // Location
+  location: string;
+  weather: string;
+
+  // Content sections
+  workCompleted: string;
+  issuesEncountered: string;
+  workPlannedNext: string;
+  coordinationNotes: string;
+  equipmentWorkedOn: string;
+  deviceIpChanges: string;
+  safetyNotes: string;
+  generalNotes: string;
+
+  // Attachments
+  attachments: ReportAttachment[];
+}
+
 export interface SyncQueueItem {
   id: string;
   action: 'create' | 'update' | 'delete';

@@ -1,7 +1,7 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type {
   Project, ProjectFile, FileVersion, FieldNote,
-  DeviceEntry, IpPlanEntry, ActivityLogEntry,
+  DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
 } from '@/types';
 
 interface BasToolkitDB extends DBSchema {
@@ -53,46 +53,63 @@ interface BasToolkitDB extends DBSchema {
       'by-timestamp': string;
     };
   };
+  dailyReports: {
+    key: string;
+    value: DailyReport;
+    indexes: {
+      'by-project': string;
+      'by-date': string;
+    };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 1, {
-      upgrade(db) {
-        // Projects
-        const projectStore = db.createObjectStore('projects', { keyPath: 'id' });
-        projectStore.createIndex('by-updated', 'updatedAt');
-        projectStore.createIndex('by-status', 'status');
-        projectStore.createIndex('by-pinned', 'isPinned');
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 2, {
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          // Projects
+          const projectStore = db.createObjectStore('projects', { keyPath: 'id' });
+          projectStore.createIndex('by-updated', 'updatedAt');
+          projectStore.createIndex('by-status', 'status');
+          projectStore.createIndex('by-pinned', 'isPinned');
 
-        // Files
-        const fileStore = db.createObjectStore('files', { keyPath: 'id' });
-        fileStore.createIndex('by-project', 'projectId');
-        fileStore.createIndex('by-category', ['projectId', 'category']);
-        fileStore.createIndex('by-pinned', 'isPinned');
+          // Files
+          const fileStore = db.createObjectStore('files', { keyPath: 'id' });
+          fileStore.createIndex('by-project', 'projectId');
+          fileStore.createIndex('by-category', ['projectId', 'category']);
+          fileStore.createIndex('by-pinned', 'isPinned');
 
-        // File blobs for offline caching
-        db.createObjectStore('fileBlobs', { keyPath: 'id' });
+          // File blobs for offline caching
+          db.createObjectStore('fileBlobs', { keyPath: 'id' });
 
-        // Notes
-        const noteStore = db.createObjectStore('notes', { keyPath: 'id' });
-        noteStore.createIndex('by-project', 'projectId');
-        noteStore.createIndex('by-file', 'fileId');
+          // Notes
+          const noteStore = db.createObjectStore('notes', { keyPath: 'id' });
+          noteStore.createIndex('by-project', 'projectId');
+          noteStore.createIndex('by-file', 'fileId');
 
-        // Devices
-        const deviceStore = db.createObjectStore('devices', { keyPath: 'id' });
-        deviceStore.createIndex('by-project', 'projectId');
+          // Devices
+          const deviceStore = db.createObjectStore('devices', { keyPath: 'id' });
+          deviceStore.createIndex('by-project', 'projectId');
 
-        // IP Plan
-        const ipStore = db.createObjectStore('ipPlan', { keyPath: 'id' });
-        ipStore.createIndex('by-project', 'projectId');
+          // IP Plan
+          const ipStore = db.createObjectStore('ipPlan', { keyPath: 'id' });
+          ipStore.createIndex('by-project', 'projectId');
 
-        // Activity Log
-        const logStore = db.createObjectStore('activityLog', { keyPath: 'id' });
-        logStore.createIndex('by-project', 'projectId');
-        logStore.createIndex('by-timestamp', 'timestamp');
+          // Activity Log
+          const logStore = db.createObjectStore('activityLog', { keyPath: 'id' });
+          logStore.createIndex('by-project', 'projectId');
+          logStore.createIndex('by-timestamp', 'timestamp');
+        }
+
+        if (oldVersion < 2) {
+          // Daily Reports
+          const reportStore = db.createObjectStore('dailyReports', { keyPath: 'id' });
+          reportStore.createIndex('by-project', 'projectId');
+          reportStore.createIndex('by-date', 'date');
+        }
       },
     });
   }
@@ -118,7 +135,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports'], 'readwrite');
 
   // Delete associated data
   const files = await tx.objectStore('files').index('by-project').getAll(id);
@@ -142,6 +159,14 @@ export async function deleteProject(id: string): Promise<void> {
 
   const logs = await tx.objectStore('activityLog').index('by-project').getAll(id);
   for (const log of logs) await tx.objectStore('activityLog').delete(log.id);
+
+  const reports = await tx.objectStore('dailyReports').index('by-project').getAll(id);
+  for (const report of reports) {
+    for (const att of report.attachments) {
+      if (att.blobKey) await tx.objectStore('fileBlobs').delete(att.blobKey);
+    }
+    await tx.objectStore('dailyReports').delete(report.id);
+  }
 
   await tx.objectStore('projects').delete(id);
   await tx.done;
@@ -292,6 +317,47 @@ export async function addActivity(entry: ActivityLogEntry): Promise<void> {
   await db.put('activityLog', entry);
 }
 
+// Daily Reports
+export async function getAllDailyReports(): Promise<DailyReport[]> {
+  const db = await getDB();
+  const reports = await db.getAll('dailyReports');
+  return reports.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getProjectDailyReports(projectId: string): Promise<DailyReport[]> {
+  const db = await getDB();
+  const reports = await db.getAllFromIndex('dailyReports', 'by-project', projectId);
+  return reports.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getDailyReport(id: string): Promise<DailyReport | undefined> {
+  const db = await getDB();
+  return db.get('dailyReports', id);
+}
+
+export async function saveDailyReport(report: DailyReport): Promise<void> {
+  const db = await getDB();
+  await db.put('dailyReports', report);
+}
+
+export async function deleteDailyReport(id: string): Promise<void> {
+  const db = await getDB();
+  const report = await db.get('dailyReports', id);
+  if (report) {
+    // Delete attachment blobs
+    for (const att of report.attachments) {
+      if (att.blobKey) await db.delete('fileBlobs', att.blobKey);
+    }
+  }
+  await db.delete('dailyReports', id);
+}
+
+export async function getNextReportNumber(projectId: string): Promise<number> {
+  const reports = await getProjectDailyReports(projectId);
+  if (reports.length === 0) return 1;
+  return Math.max(...reports.map(r => r.reportNumber)) + 1;
+}
+
 // Storage info
 export async function getStorageEstimate(): Promise<{ used: number; quota: number }> {
   if ('storage' in navigator && 'estimate' in navigator.storage) {
@@ -367,16 +433,18 @@ export async function searchGlobal(query: string): Promise<{
   notes: FieldNote[];
   devices: DeviceEntry[];
   ipEntries: IpPlanEntry[];
+  dailyReports: DailyReport[];
 }> {
   const q = query.toLowerCase();
   const db = await getDB();
 
-  const [projects, files, notes, devices, ipEntries] = await Promise.all([
+  const [projects, files, notes, devices, ipEntries, dailyReports] = await Promise.all([
     db.getAll('projects'),
     db.getAll('files'),
     db.getAll('notes'),
     db.getAll('devices'),
     db.getAll('ipPlan'),
+    db.getAll('dailyReports'),
   ]);
 
   return {
@@ -410,6 +478,16 @@ export async function searchGlobal(query: string): Promise<{
       e.hostname.toLowerCase().includes(q) ||
       e.panel.toLowerCase().includes(q) ||
       e.deviceRole.toLowerCase().includes(q)
+    ),
+    dailyReports: dailyReports.filter(r =>
+      r.technicianName.toLowerCase().includes(q) ||
+      r.workCompleted.toLowerCase().includes(q) ||
+      r.issuesEncountered.toLowerCase().includes(q) ||
+      r.workPlannedNext.toLowerCase().includes(q) ||
+      r.equipmentWorkedOn.toLowerCase().includes(q) ||
+      r.generalNotes.toLowerCase().includes(q) ||
+      r.location.toLowerCase().includes(q) ||
+      r.date.includes(q)
     ),
   };
 }
