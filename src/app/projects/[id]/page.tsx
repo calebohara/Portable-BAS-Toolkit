@@ -134,7 +134,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         {project.isPinned && <Pin className="h-4 w-4 shrink-0 text-primary" />}
       </TopBar>
 
-      <div className="flex flex-col lg:flex-row">
+      <div className="flex flex-col lg:flex-row" style={{ minHeight: 'calc(100vh - 3.5rem)' }}>
         {/* Section Tabs */}
         <div className="border-b lg:border-b-0 lg:border-r border-border lg:w-48 shrink-0">
           <nav className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible p-2 gap-0.5 scrollbar-thin">
