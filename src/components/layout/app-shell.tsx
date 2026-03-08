@@ -5,6 +5,7 @@ import { useAppStore } from '@/store/app-store';
 import { Sidebar } from './sidebar';
 import { InstallPrompt } from '@/components/pwa/install-prompt';
 import { TourOverlay } from '@/components/onboarding/tour-overlay';
+import { GlobalNotepad } from '@/components/notepad/global-notepad';
 import { cn } from '@/lib/utils';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -74,6 +75,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
+      <GlobalNotepad />
       <InstallPrompt />
       <TourOverlay />
     </div>

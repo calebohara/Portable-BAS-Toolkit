@@ -88,6 +88,13 @@ export const TOUR_STEPS: TourStep[] = [
     placement: 'bottom',
   },
   {
+    id: 'notepad-fab',
+    target: '[data-tour="notepad-fab"]',
+    title: 'Sticky Notepad',
+    content: 'A quick-access scratchpad available from any page. Jot down IP addresses, device numbers, commands, or reminders — notes persist across navigation and offline.',
+    placement: 'left',
+  },
+  {
     id: 'nav-help',
     target: '[data-tour="nav-help"]',
     title: 'Help & Guides',
