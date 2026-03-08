@@ -3,6 +3,7 @@
 import { useEffect } from 'react';
 import { useAppStore } from '@/store/app-store';
 import { Sidebar } from './sidebar';
+import { InstallPrompt } from '@/components/pwa/install-prompt';
 import { cn } from '@/lib/utils';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -60,6 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       >
         {children}
       </main>
+      <InstallPrompt />
     </div>
   );
 }

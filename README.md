@@ -7,14 +7,23 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
+[![Version](https://img.shields.io/badge/Version-1.0.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![PWA](https://img.shields.io/badge/PWA-Enabled-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](#pwa-capabilities)
+[![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](#pwa-capabilities)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?style=flat-square&logo=vercel)](https://vercel.com)
 
 </div>
+
+---
+
+## Version
+
+**Current Release: v1.0.0**
+
+This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
 ---
 
@@ -583,6 +592,40 @@ git push origin feature/your-feature-name
 - Test on mobile viewport — field engineers use phones and tablets
 - Ensure offline compatibility — do not introduce external API dependencies without fallback
 - Keep commits focused and descriptive
+
+---
+
+## Typography
+
+The application uses **Inter** as its primary typeface — a clean, geometric sans-serif designed for technical interfaces with excellent readability at all sizes. Inter provides metrics closely matching Siemens Sans while being freely available via Google Fonts.
+
+| Context | Font | Weight |
+|---------|------|--------|
+| **UI Text** | Inter | 400 (Regular) |
+| **Labels & Nav** | Inter | 500 (Medium) |
+| **Headings** | Inter | 600–700 (Semibold–Bold) |
+| **Code / Technical** | JetBrains Mono | 400 |
+
+Fonts are loaded via `next/font/google` with `display: swap` for zero layout shift.
+
+---
+
+## Application Versioning
+
+The version is tracked in three synchronized locations:
+
+| Location | Format | Source |
+|----------|--------|--------|
+| `package.json` | `"version": "1.0.0"` | Source of truth |
+| Sidebar footer | `v1.0.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| Settings → About | `Version 1.0.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+
+The version follows [Semantic Versioning](https://semver.org/):
+- **MAJOR** — breaking changes or major redesigns
+- **MINOR** — new features, backward-compatible
+- **PATCH** — bug fixes and minor improvements
+
+`next.config.ts` injects the version from `package.json` as an environment variable at build time, ensuring the UI always matches the repository version.
 
 ---
 

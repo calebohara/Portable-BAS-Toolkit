@@ -110,8 +110,8 @@ export default function SettingsPage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p><strong className="text-foreground">BAS Toolkit</strong> — Portable Project Manager</p>
-            <p>Version 1.0.0</p>
+            <p><strong className="text-foreground">BAS Field Vault</strong> — Portable Project Toolkit</p>
+            <p>Version {process.env.NEXT_PUBLIC_APP_VERSION}</p>
             <p>Built for BAS field technicians, commissioning agents, and service engineers.</p>
             <p>Offline-first. Fast. Field-ready.</p>
           </CardContent>

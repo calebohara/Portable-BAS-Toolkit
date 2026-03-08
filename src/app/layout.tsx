@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist, Geist_Mono } from 'next/font/google';
+import { Inter, JetBrains_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/theme/theme-provider';
@@ -7,8 +7,8 @@ import { AppShell } from '@/components/layout/app-shell';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 import './globals.css';
 
-const geistSans = Geist({ variable: '--font-geist-sans', subsets: ['latin'] });
-const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
+const inter = Inter({ variable: '--font-sans', subsets: ['latin'], display: 'swap' });
+const jetbrainsMono = JetBrains_Mono({ variable: '--font-mono', subsets: ['latin'], display: 'swap' });
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_URL || 'https://bas-vault.vercel.app'),
@@ -72,7 +72,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+      <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <ThemeProvider>
           <TooltipProvider delay={200}>
             <ErrorBoundary>

@@ -99,13 +99,18 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* Online status & collapse */}
+      {/* Online status, version & collapse */}
       <div className="border-t border-sidebar-border px-3 py-2">
         {!isOnline && (
           <div className="mb-2 flex items-center gap-2 rounded-md bg-field-warning/10 px-2 py-1.5 text-xs text-field-warning">
             <WifiOff className="h-3.5 w-3.5" />
             <span>Offline Mode</span>
           </div>
+        )}
+        {sidebarOpen && (
+          <p className="mb-1.5 text-center text-[10px] text-muted-foreground/50 hidden md:block">
+            v{process.env.NEXT_PUBLIC_APP_VERSION}
+          </p>
         )}
         <Button
           variant="ghost"
