@@ -126,12 +126,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <span className="hidden sm:inline">Projects</span>
         </Button>
 
-        <div className="min-w-0 flex-1">
+        <div className="hidden sm:block min-w-0 flex-1">
           <h1 className="truncate text-sm font-semibold sm:text-base">{project.name}</h1>
           <p className="truncate text-xs text-muted-foreground">{project.customerName} — {project.projectNumber}</p>
         </div>
         <ProjectStatusBadge status={project.status} />
-        {project.isPinned && <Pin className="h-4 w-4 text-primary" />}
+        {project.isPinned && <Pin className="h-4 w-4 shrink-0 text-primary" />}
       </TopBar>
 
       <div className="flex flex-col lg:flex-row">
@@ -335,7 +335,6 @@ function OverviewSection({
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onNavigate('ip-plan')}>
           <Network className="h-3.5 w-3.5" /> Add IP Entry
         </Button>
-        <div className="flex-1" />
         <Button variant="outline" size="sm" className="gap-1.5" onClick={onShare}>
           <Share2 className="h-3.5 w-3.5" /> Share
         </Button>
