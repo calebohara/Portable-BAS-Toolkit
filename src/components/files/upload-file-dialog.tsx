@@ -14,7 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { saveFile, saveFileBlob, addActivity } from '@/lib/db';
 import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type FileVersion } from '@/types';
 import { formatFileSize } from '@/components/shared/file-icon';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface Props {
@@ -63,10 +63,6 @@ const STAGE_PROGRESS: Record<UploadStage, number> = {
 function getFileExtension(name: string): string {
   const dot = name.lastIndexOf('.');
   return dot >= 0 ? name.substring(dot + 1).toLowerCase() : '';
-}
-
-function sanitizeFilename(name: string): string {
-  return name.replace(/[<>:"|?*\\\/]/g, '_').replace(/\.{2,}/g, '.');
 }
 
 function sanitizeTags(tagsString: string): string[] {

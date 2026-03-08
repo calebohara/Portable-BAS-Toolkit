@@ -131,7 +131,7 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
 
   const handleOpenNewTab = () => {
     if (blobUrl) {
-      window.open(blobUrl, '_blank');
+      window.open(blobUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -222,6 +222,8 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
                 className="w-full rounded-lg border border-border bg-white"
                 style={{ height: 'min(70vh, 600px)' }}
                 title={`Preview: ${file.title}`}
+                sandbox="allow-same-origin"
+                referrerPolicy="no-referrer"
               />
             )}
 

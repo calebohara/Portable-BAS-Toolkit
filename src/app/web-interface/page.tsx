@@ -24,7 +24,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   useWebInterfaceStore,
-  buildUrl,
+  buildUrl, isSafeUrl, isValidHost, isValidPort,
   type WebEndpoint, type Protocol, type OpenMode,
 } from '@/store/web-interface-store';
 import { useProjects } from '@/hooks/use-projects';
@@ -111,6 +111,14 @@ function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
   const handleSave = () => {
     if (!form.host.trim()) {
       toast.error('Host/IP is required');
+      return;
+    }
+    if (!isValidHost(form.host.trim())) {
+      toast.error('Invalid host/IP address');
+      return;
+    }
+    if (!isValidPort(form.port)) {
+      toast.error('Port must be 1–65535');
       return;
     }
     const now = new Date().toISOString();
@@ -369,6 +377,7 @@ function EmbeddedWorkspace() {
             src={activeUrl}
             className="w-full h-full border-0"
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            referrerPolicy="no-referrer"
             onLoad={() => {
               setEmbedState('loaded');
               if (activeEndpointId) {
@@ -423,6 +432,12 @@ export default function WebInterfacePage() {
   const handleLaunch = useCallback((url: string, mode: OpenMode, endpointId?: string) => {
     if (!url) return;
 
+    // Security: validate URL before opening or embedding
+    if (!isSafeUrl(url)) {
+      toast.error('Invalid or unsafe URL. Only http:// and https:// are allowed.');
+      return;
+    }
+
     addRecentConnection({
       endpointId: endpointId || '',
       fullUrl: url,
@@ -448,6 +463,14 @@ export default function WebInterfacePage() {
   const handleFormLaunch = useCallback(() => {
     if (!host.trim()) {
       toast.error('Please enter a host/IP address');
+      return;
+    }
+    if (!isValidHost(host.trim())) {
+      toast.error('Invalid host/IP address');
+      return;
+    }
+    if (!isValidPort(port)) {
+      toast.error('Port must be 1–65535');
       return;
     }
     const url = buildUrl({ protocol, host: host.trim(), port, path });

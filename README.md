@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-2.0.0-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-2.1.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -21,7 +21,7 @@
 
 ## Version
 
-**Current Release: v2.0.0**
+**Current Release: v2.1.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -666,7 +666,7 @@ Future enhancements under consideration:
 | **Drive Configuration Tools** | VFD parameter sheets and commissioning checklists |
 | **Loop Tuning Utilities** | PID tuning calculators and trend logging |
 | **PDF Annotation** | Mark up wiring diagrams and sequences directly in-browser |
-| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages and endpoint export available in v2.0.0* |
+| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages and endpoint export available in v2.1.0* |
 | **Cloud Sync** | Optional Supabase backend for cross-device synchronization |
 | **Role-Based Access** | Multi-user support with permission levels |
 | **BACnet Object Browser** | Read/write BACnet object properties from the field |
@@ -724,9 +724,9 @@ The version is tracked in three synchronized locations:
 
 | Location | Format | Source |
 |----------|--------|--------|
-| `package.json` | `"version": "2.0.0"` | Source of truth |
-| Sidebar footer | `v2.0.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
-| Settings → About | `Version 2.0.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| `package.json` | `"version": "2.1.0"` | Source of truth |
+| Sidebar footer | `v2.1.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| Settings → About | `Version 2.1.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
 
 The version follows [Semantic Versioning](https://semver.org/):
 - **MAJOR** — breaking changes or major redesigns
@@ -737,15 +737,31 @@ The version follows [Semantic Versioning](https://semver.org/):
 
 ---
 
-## Security Notes
+## Security
 
-This application stores all data locally in the browser. Keep the following in mind:
+BAU Suite is an **offline-first, local-only** application with no backend server, no authentication, and no cloud database. All data lives exclusively in the user's browser via IndexedDB and localStorage.
 
-- **Do not upload confidential customer data** to public or shared instances
+### Browser Security Headers
+
+All responses include Content-Security-Policy, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, Cross-Origin-Opener-Policy, and Strict-Transport-Security headers configured in `next.config.ts`.
+
+### Hardening Measures
+
+- **Input escaping** — all user input rendered via React JSX auto-escaping; print/export titles explicitly HTML-escaped
+- **URL validation** — Web Interface tool only allows `http://` and `https://` protocols; blocks `javascript:`, `data:`, and other dangerous schemes
+- **File safety** — filenames sanitized against path traversal; PDF previews use sandboxed iframes; SVGs rendered as images only
+- **Window isolation** — all external window.open calls use `noopener,noreferrer`; iframes include `referrerpolicy="no-referrer"`
+- **Service worker** — only caches same-origin GET requests; never caches opaque/error responses; size-limited dynamic cache
+
+### Usage Guidelines
+
+- **Do not store sensitive credentials** (passwords, API keys) in project notes or sticky notepad
 - **Sanitize controller backups** before sharing — remove passwords and credentials
 - **Review exported files** before publishing or emailing
-- **Browser storage is not encrypted** — do not store sensitive passwords or keys in project notes
-- **Clear data** before transferring a device to another user
+- **Browser storage is not encrypted at rest** — use device-level encryption for sensitive environments
+- **Clear data** via Settings before transferring a device to another user
+
+For full details, see [SECURITY.md](SECURITY.md).
 
 ---
 

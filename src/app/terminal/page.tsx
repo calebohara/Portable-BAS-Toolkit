@@ -16,7 +16,7 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@/components/ui/select';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   useTerminalStore,
@@ -232,7 +232,7 @@ function AttachDialog({ open, onOpenChange, session }: {
 function generateFileName(session: TerminalSession) {
   const host = session.host || 'local';
   const date = format(new Date(), 'yyyy-MM-dd_HH-mm');
-  return `${session.label.replace(/\s+/g, '_')}_telnet_session_${date}.txt`;
+  return sanitizeFilename(`${session.label.replace(/\s+/g, '_')}_telnet_session_${date}.txt`);
 }
 
 function generateExportText(session: TerminalSession) {

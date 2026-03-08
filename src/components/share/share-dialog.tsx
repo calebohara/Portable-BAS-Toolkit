@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { cn } from '@/lib/utils';
+import { cn, escapeHtml } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   FILE_CATEGORY_LABELS, type Project, type ProjectFile, type FieldNote,
@@ -295,7 +295,7 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${project.projectNumber || project.name}-share-package.json`;
+    a.download = `${(project.projectNumber || project.name).replace(/[<>:"|?*\\\/]/g, '_')}-share-package.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Package downloaded');
@@ -313,7 +313,7 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
       <!DOCTYPE html>
       <html>
       <head>
-        <title>${metadata.title || project.name} — BAU Suite Export</title>
+        <title>${escapeHtml(metadata.title || project.name)} — BAU Suite Export</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; color: #111; padding: 20px; }

@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
+import { cn, escapeHtml } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { DailyReport, Project, ReportAttachment } from '@/types';
 import {
@@ -431,7 +431,7 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
       <!DOCTYPE html>
       <html>
       <head>
-        <title>${title} — BAU Suite</title>
+        <title>${escapeHtml(title)} — BAU Suite</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; color: #111; padding: 20px; }
