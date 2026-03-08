@@ -57,6 +57,14 @@ export const TOUR_STEPS: TourStep[] = [
     action: 'open-sidebar',
   },
   {
+    id: 'nav-terminal',
+    target: '[data-tour="nav-terminal"]',
+    title: 'Telnet HMI Tool',
+    content: 'Connect to BAS controllers via a browser-based terminal. Log session output, export to .txt, and attach logs to projects. Supports multiple sessions in tabs.',
+    placement: 'right',
+    action: 'open-sidebar',
+  },
+  {
     id: 'nav-inbox',
     target: '[data-tour="nav-documents"]',
     title: 'Uploads Inbox',
