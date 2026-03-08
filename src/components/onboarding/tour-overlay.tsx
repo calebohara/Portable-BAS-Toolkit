@@ -100,9 +100,11 @@ export function TourOverlay() {
 
     setVisible(false);
 
-    // Open sidebar if needed
+    // Manage sidebar state: open only when the step needs it, close otherwise
     if (step.action === 'open-sidebar') {
       useAppStore.getState().setSidebarOpen(true);
+    } else {
+      useAppStore.getState().setSidebarOpen(false);
     }
 
     // Navigate if needed
