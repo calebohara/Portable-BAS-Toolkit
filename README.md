@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-1.1.0-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-1.2.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -21,7 +21,7 @@
 
 ## Version
 
-**Current Release: v1.1.0**
+**Current Release: v1.2.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -69,7 +69,7 @@ It centralizes the critical project data that field engineers carry between job 
 |---------|-------------|
 | **Project Management** | Create, edit, and delete BAS projects with status, contacts, tags, and cascading cleanup |
 | **Full CRUD** | Add, edit, and delete devices, IP entries, contacts, notes, and project metadata inline |
-| **File Versioning** | Upload and version panel databases, wiring diagrams, sequences, and backups |
+| **File Upload & Versioning** | Drag-and-drop upload with file type validation — panel databases (.pcl), wiring diagrams (.pdf), sequences (.txt/.pdf), backups (.pcl) |
 | **IP Plan Management** | Full IP addressing table with VLAN, subnet, hostname, device role, and duplicate detection |
 | **Device Inventory** | Track controllers, sensors, and actuators with BACnet instance, IP, MAC, and location |
 | **Technician Notes** | Categorized field notes — issues, fixes, punch items, startup notes, network changes |
@@ -291,7 +291,7 @@ src/
 │   ├── ui/                       # shadcn/ui component library
 │   ├── projects/                 # Project dialogs and activity timeline
 │   ├── devices/                  # Device list, IP plan, entry dialogs
-│   ├── files/                    # File list with versioning
+│   ├── files/                    # File list, upload dialog, download
 │   ├── notes/                    # Field notes view
 │   ├── shared/                   # Error boundary, empty states, confirm dialog
 │   └── theme/                    # Theme provider and switcher
@@ -618,9 +618,9 @@ The version is tracked in three synchronized locations:
 
 | Location | Format | Source |
 |----------|--------|--------|
-| `package.json` | `"version": "1.1.0"` | Source of truth |
-| Sidebar footer | `v1.1.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
-| Settings → About | `Version 1.1.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| `package.json` | `"version": "1.2.0"` | Source of truth |
+| Sidebar footer | `v1.2.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| Settings → About | `Version 1.2.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
 
 The version follows [Semantic Versioning](https://semver.org/):
 - **MAJOR** — breaking changes or major redesigns
