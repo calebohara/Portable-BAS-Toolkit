@@ -4,7 +4,7 @@ import { useState, useMemo } from 'react';
 import { format } from 'date-fns';
 import {
   Search, Upload, Download, Pin, Star, Clock, ChevronDown,
-  MoreHorizontal, Eye, Copy, Archive, Trash2, FileText,
+  MoreHorizontal, Eye, Trash2, FileText,
 } from 'lucide-react';
 import { FileIcon, formatFileSize } from '@/components/shared/file-icon';
 import { FileStatusBadge } from '@/components/shared/status-badge';
@@ -20,8 +20,9 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile } from '@/types';
 import { cn } from '@/lib/utils';
-import { deleteFile, getFileBlob } from '@/lib/db';
+import { deleteFile, getFileBlob, saveFile } from '@/lib/db';
 import { UploadFileDialog } from '@/components/files/upload-file-dialog';
+import { FilePreviewDialog } from '@/components/files/file-preview-dialog';
 import { toast } from 'sonner';
 
 interface Props {
@@ -37,6 +38,7 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectFile | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [previewFile, setPreviewFile] = useState<ProjectFile | null>(null);
 
   const filteredFiles = useMemo(() => {
     let result = [...files];
@@ -124,6 +126,7 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
                   selectedFileId === file.id && 'ring-2 ring-primary border-primary/20'
                 )}
                 onClick={() => setSelectedFileId(file.id === selectedFileId ? null : file.id)}
+                onDoubleClick={() => setPreviewFile(file)}
               >
                 <CardContent className="p-3">
                   <div className="flex items-start gap-3">
@@ -177,6 +180,9 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
                         <MoreHorizontal className="h-4 w-4" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setPreviewFile(selectedFile)}>
+                          <Eye className="mr-2 h-4 w-4" /> Preview
+                        </DropdownMenuItem>
                         <DropdownMenuItem onClick={async () => {
                           const version = selectedFile.versions.find(v => v.id === selectedFile.currentVersionId);
                           if (!version?.blobKey) { toast.error('No file data available'); return; }
@@ -189,12 +195,24 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
                           a.click();
                           URL.revokeObjectURL(url);
                         }}><Download className="mr-2 h-4 w-4" /> Download</DropdownMenuItem>
-                        <DropdownMenuItem><Eye className="mr-2 h-4 w-4" /> Preview</DropdownMenuItem>
-                        <DropdownMenuItem><Copy className="mr-2 h-4 w-4" /> Duplicate</DropdownMenuItem>
-                        <DropdownMenuItem><Pin className="mr-2 h-4 w-4" /> {selectedFile.isPinned ? 'Unpin' : 'Pin'}</DropdownMenuItem>
-                        <DropdownMenuItem><Star className="mr-2 h-4 w-4" /> {selectedFile.isFavorite ? 'Unfavorite' : 'Favorite'}</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem><Archive className="mr-2 h-4 w-4" /> Archive</DropdownMenuItem>
+                        <DropdownMenuItem onClick={async () => {
+                          const updated = { ...selectedFile, isPinned: !selectedFile.isPinned, updatedAt: new Date().toISOString() };
+                          await saveFile(updated);
+                          toast.success(updated.isPinned ? 'Pinned' : 'Unpinned');
+                          onRefresh?.();
+                        }}>
+                          <Pin className="mr-2 h-4 w-4" /> {selectedFile.isPinned ? 'Unpin' : 'Pin'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={async () => {
+                          const updated = { ...selectedFile, isFavorite: !selectedFile.isFavorite, updatedAt: new Date().toISOString() };
+                          await saveFile(updated);
+                          toast.success(updated.isFavorite ? 'Added to favorites' : 'Removed from favorites');
+                          onRefresh?.();
+                        }}>
+                          <Star className="mr-2 h-4 w-4" /> {selectedFile.isFavorite ? 'Unfavorite' : 'Favorite'}
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(selectedFile)}>
                           <Trash2 className="mr-2 h-4 w-4" /> Delete
                         </DropdownMenuItem>
@@ -297,6 +315,12 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
           }
           setDeleteTarget(null);
         }}
+      />
+
+      <FilePreviewDialog
+        open={!!previewFile}
+        onOpenChange={(open) => { if (!open) setPreviewFile(null); }}
+        file={previewFile}
       />
     </div>
   );
