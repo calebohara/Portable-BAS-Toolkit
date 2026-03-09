@@ -171,7 +171,7 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
           {/* File Detail Panel — scrollable independently */}
           {selectedFile && (
             <div className="lg:w-80 shrink-0">
-              <Card className="lg:sticky lg:top-20 lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
+              <Card className="lg:sticky lg:top-20 lg:overflow-y-auto" style={{ maxHeight: 'calc(100vh - 6rem)' }}>
                 <CardContent className="p-4 space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-semibold">File Details</h3>

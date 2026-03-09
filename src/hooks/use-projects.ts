@@ -42,23 +42,38 @@ export function useProjects() {
   const createProject = useCallback(async (data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const project: Project = { ...data, id: uuid(), createdAt: now, updatedAt: now };
-    await db.saveProject(project);
-    await db.addActivity({
-      id: uuid(), projectId: project.id, action: 'Project created',
-      details: `Project ${project.projectNumber} created`, timestamp: now, user: 'User',
-    });
+    try {
+      await db.saveProject(project);
+      await db.addActivity({
+        id: uuid(), projectId: project.id, action: 'Project created',
+        details: `Project ${project.projectNumber} created`, timestamp: now, user: 'User',
+      });
+    } catch (e) {
+      console.error('Failed to create project:', e);
+      throw e;
+    }
     await refresh();
     return project;
   }, [refresh]);
 
   const updateProject = useCallback(async (project: Project) => {
     project.updatedAt = new Date().toISOString();
-    await db.saveProject(project);
+    try {
+      await db.saveProject(project);
+    } catch (e) {
+      console.error('Failed to update project:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
   const removeProject = useCallback(async (id: string) => {
-    await db.deleteProject(id);
+    try {
+      await db.deleteProject(id);
+    } catch (e) {
+      console.error('Failed to delete project:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
@@ -81,9 +96,14 @@ export function useProject(id: string) {
   const update = useCallback(async (data: Partial<Project>) => {
     if (!project) return;
     const updated = { ...project, ...data, updatedAt: new Date().toISOString() };
-    await db.saveProject(updated);
-    setProject(updated);
-  }, [project]);
+    try {
+      await db.saveProject(updated);
+      setProject(updated);
+    } catch (e) {
+      console.error('Failed to update project:', e);
+      await refresh();
+    }
+  }, [project, refresh]);
 
   return { project, loading, refresh, update };
 }
@@ -122,23 +142,38 @@ export function useProjectNotes(projectId: string) {
   const addNote = useCallback(async (data: Omit<FieldNote, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const note: FieldNote = { ...data, id: uuid(), createdAt: now, updatedAt: now };
-    await db.saveNote(note);
-    await db.addActivity({
-      id: uuid(), projectId, action: 'Note added',
-      details: `${data.category} note added`, timestamp: now, user: data.author,
-    });
+    try {
+      await db.saveNote(note);
+      await db.addActivity({
+        id: uuid(), projectId, action: 'Note added',
+        details: `${data.category} note added`, timestamp: now, user: data.author,
+      });
+    } catch (e) {
+      console.error('Failed to add note:', e);
+      throw e;
+    }
     await refresh();
     return note;
   }, [projectId, refresh]);
 
   const updateNote = useCallback(async (note: FieldNote) => {
     note.updatedAt = new Date().toISOString();
-    await db.saveNote(note);
+    try {
+      await db.saveNote(note);
+    } catch (e) {
+      console.error('Failed to update note:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
   const removeNote = useCallback(async (id: string) => {
-    await db.deleteNote(id);
+    try {
+      await db.deleteNote(id);
+    } catch (e) {
+      console.error('Failed to delete note:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
@@ -160,22 +195,37 @@ export function useProjectDevices(projectId: string) {
 
   const addDevice = useCallback(async (data: Omit<DeviceEntry, 'id'>) => {
     const device: DeviceEntry = { ...data, id: uuid() };
-    await db.saveDevice(device);
-    await db.addActivity({
-      id: uuid(), projectId, action: 'Device added',
-      details: `Device "${data.deviceName}" added`, timestamp: new Date().toISOString(), user: 'User',
-    });
+    try {
+      await db.saveDevice(device);
+      await db.addActivity({
+        id: uuid(), projectId, action: 'Device added',
+        details: `Device "${data.deviceName}" added`, timestamp: new Date().toISOString(), user: 'User',
+      });
+    } catch (e) {
+      console.error('Failed to add device:', e);
+      throw e;
+    }
     await refresh();
     return device;
   }, [projectId, refresh]);
 
   const updateDevice = useCallback(async (device: DeviceEntry) => {
-    await db.saveDevice(device);
+    try {
+      await db.saveDevice(device);
+    } catch (e) {
+      console.error('Failed to update device:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
   const removeDevice = useCallback(async (id: string) => {
-    await db.deleteDevice(id);
+    try {
+      await db.deleteDevice(id);
+    } catch (e) {
+      console.error('Failed to delete device:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
@@ -197,22 +247,37 @@ export function useProjectIpPlan(projectId: string) {
 
   const addIpEntry = useCallback(async (data: Omit<IpPlanEntry, 'id'>) => {
     const entry: IpPlanEntry = { ...data, id: uuid() };
-    await db.saveIpEntry(entry);
-    await db.addActivity({
-      id: uuid(), projectId, action: 'IP entry added',
-      details: `IP ${data.ipAddress} added`, timestamp: new Date().toISOString(), user: 'User',
-    });
+    try {
+      await db.saveIpEntry(entry);
+      await db.addActivity({
+        id: uuid(), projectId, action: 'IP entry added',
+        details: `IP ${data.ipAddress} added`, timestamp: new Date().toISOString(), user: 'User',
+      });
+    } catch (e) {
+      console.error('Failed to add IP entry:', e);
+      throw e;
+    }
     await refresh();
     return entry;
   }, [projectId, refresh]);
 
   const updateIpEntry = useCallback(async (entry: IpPlanEntry) => {
-    await db.saveIpEntry(entry);
+    try {
+      await db.saveIpEntry(entry);
+    } catch (e) {
+      console.error('Failed to update IP entry:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
   const removeIpEntry = useCallback(async (id: string) => {
-    await db.deleteIpEntry(id);
+    try {
+      await db.deleteIpEntry(id);
+    } catch (e) {
+      console.error('Failed to delete IP entry:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
@@ -255,23 +320,38 @@ export function useDailyReports(projectId?: string) {
     const now = new Date().toISOString();
     const reportNumber = await db.getNextReportNumber(data.projectId);
     const report: DailyReport = { ...data, id: uuid(), reportNumber, createdAt: now, updatedAt: now };
-    await db.saveDailyReport(report);
-    await db.addActivity({
-      id: uuid(), projectId: data.projectId, action: 'Daily report created',
-      details: `Daily Report #${reportNumber} for ${data.date}`, timestamp: now, user: data.technicianName || 'User',
-    });
+    try {
+      await db.saveDailyReport(report);
+      await db.addActivity({
+        id: uuid(), projectId: data.projectId, action: 'Daily report created',
+        details: `Daily Report #${reportNumber} for ${data.date}`, timestamp: now, user: data.technicianName || 'User',
+      });
+    } catch (e) {
+      console.error('Failed to create daily report:', e);
+      throw e;
+    }
     await refresh();
     return report;
   }, [refresh]);
 
   const updateReport = useCallback(async (report: DailyReport) => {
     report.updatedAt = new Date().toISOString();
-    await db.saveDailyReport(report);
+    try {
+      await db.saveDailyReport(report);
+    } catch (e) {
+      console.error('Failed to update daily report:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
   const removeReport = useCallback(async (id: string) => {
-    await db.deleteDailyReport(id);
+    try {
+      await db.deleteDailyReport(id);
+    } catch (e) {
+      console.error('Failed to delete daily report:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
@@ -294,9 +374,14 @@ export function useDailyReport(id: string) {
   const update = useCallback(async (data: Partial<DailyReport>) => {
     if (!report) return;
     const updated = { ...report, ...data, updatedAt: new Date().toISOString() };
-    await db.saveDailyReport(updated);
-    setReport(updated);
-  }, [report]);
+    try {
+      await db.saveDailyReport(updated);
+      setReport(updated);
+    } catch (e) {
+      console.error('Failed to update daily report:', e);
+      await refresh();
+    }
+  }, [report, refresh]);
 
   return { report, loading, refresh, update };
 }
@@ -320,12 +405,17 @@ export function useNetworkDiagrams(projectId?: string) {
   const createDiagram = useCallback(async (data: Omit<NetworkDiagram, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
     const diagram: NetworkDiagram = { ...data, id: uuid(), createdAt: now, updatedAt: now };
-    await db.saveDiagram(diagram);
-    if (data.projectId) {
-      await db.addActivity({
-        id: uuid(), projectId: data.projectId, action: 'Diagram created',
-        details: `Network diagram "${data.name}" created`, timestamp: now, user: 'User',
-      });
+    try {
+      await db.saveDiagram(diagram);
+      if (data.projectId) {
+        await db.addActivity({
+          id: uuid(), projectId: data.projectId, action: 'Diagram created',
+          details: `Network diagram "${data.name}" created`, timestamp: now, user: 'User',
+        });
+      }
+    } catch (e) {
+      console.error('Failed to create diagram:', e);
+      throw e;
     }
     await refresh();
     return diagram;
@@ -333,12 +423,22 @@ export function useNetworkDiagrams(projectId?: string) {
 
   const updateDiagram = useCallback(async (diagram: NetworkDiagram) => {
     diagram.updatedAt = new Date().toISOString();
-    await db.saveDiagram(diagram);
+    try {
+      await db.saveDiagram(diagram);
+    } catch (e) {
+      console.error('Failed to update diagram:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
   const removeDiagram = useCallback(async (id: string) => {
-    await db.deleteDiagram(id);
+    try {
+      await db.deleteDiagram(id);
+    } catch (e) {
+      console.error('Failed to delete diagram:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
@@ -361,19 +461,34 @@ export function useCommandSnippets() {
   const addSnippet = useCallback(async (data: Omit<CommandSnippet, 'id' | 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt'>) => {
     const now = new Date().toISOString();
     const snippet: CommandSnippet = { ...data, id: uuid(), usageCount: 0, lastUsedAt: '', createdAt: now, updatedAt: now };
-    await db.saveSnippet(snippet);
+    try {
+      await db.saveSnippet(snippet);
+    } catch (e) {
+      console.error('Failed to add snippet:', e);
+      throw e;
+    }
     await refresh();
     return snippet;
   }, [refresh]);
 
   const updateSnippet = useCallback(async (snippet: CommandSnippet) => {
     snippet.updatedAt = new Date().toISOString();
-    await db.saveSnippet(snippet);
+    try {
+      await db.saveSnippet(snippet);
+    } catch (e) {
+      console.error('Failed to update snippet:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
   const removeSnippet = useCallback(async (id: string) => {
-    await db.deleteSnippet(id);
+    try {
+      await db.deleteSnippet(id);
+    } catch (e) {
+      console.error('Failed to delete snippet:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
@@ -383,7 +498,12 @@ export function useCommandSnippets() {
     if (snippet) {
       snippet.usageCount += 1;
       snippet.lastUsedAt = new Date().toISOString();
-      await db.saveSnippet(snippet);
+      try {
+        await db.saveSnippet(snippet);
+      } catch (e) {
+        console.error('Failed to record snippet usage:', e);
+        throw e;
+      }
       await refresh();
     }
   }, [refresh]);
@@ -407,12 +527,22 @@ export function usePingSessions(projectId?: string) {
   useEffect(() => { refresh(); }, [refresh]);
 
   const saveSession = useCallback(async (session: PingSession) => {
-    await db.savePingSession(session);
+    try {
+      await db.savePingSession(session);
+    } catch (e) {
+      console.error('Failed to save ping session:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
   const removeSession = useCallback(async (id: string) => {
-    await db.deletePingSession(id);
+    try {
+      await db.deletePingSession(id);
+    } catch (e) {
+      console.error('Failed to delete ping session:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 

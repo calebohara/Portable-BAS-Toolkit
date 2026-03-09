@@ -167,45 +167,50 @@ export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
   const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions'], 'readwrite');
 
-  // Delete associated data
-  const files = await tx.objectStore('files').index('by-project').getAll(id);
-  for (const file of files) {
-    for (const version of file.versions) {
-      if (version.blobKey) {
-        await tx.objectStore('fileBlobs').delete(version.blobKey);
+  try {
+    // Delete associated data
+    const files = await tx.objectStore('files').index('by-project').getAll(id);
+    for (const file of files) {
+      for (const version of file.versions) {
+        if (version.blobKey) {
+          await tx.objectStore('fileBlobs').delete(version.blobKey);
+        }
       }
+      await tx.objectStore('files').delete(file.id);
     }
-    await tx.objectStore('files').delete(file.id);
-  }
 
-  const notes = await tx.objectStore('notes').index('by-project').getAll(id);
-  for (const note of notes) await tx.objectStore('notes').delete(note.id);
+    const notes = await tx.objectStore('notes').index('by-project').getAll(id);
+    for (const note of notes) await tx.objectStore('notes').delete(note.id);
 
-  const devices = await tx.objectStore('devices').index('by-project').getAll(id);
-  for (const dev of devices) await tx.objectStore('devices').delete(dev.id);
+    const devices = await tx.objectStore('devices').index('by-project').getAll(id);
+    for (const dev of devices) await tx.objectStore('devices').delete(dev.id);
 
-  const ips = await tx.objectStore('ipPlan').index('by-project').getAll(id);
-  for (const ip of ips) await tx.objectStore('ipPlan').delete(ip.id);
+    const ips = await tx.objectStore('ipPlan').index('by-project').getAll(id);
+    for (const ip of ips) await tx.objectStore('ipPlan').delete(ip.id);
 
-  const logs = await tx.objectStore('activityLog').index('by-project').getAll(id);
-  for (const log of logs) await tx.objectStore('activityLog').delete(log.id);
+    const logs = await tx.objectStore('activityLog').index('by-project').getAll(id);
+    for (const log of logs) await tx.objectStore('activityLog').delete(log.id);
 
-  const reports = await tx.objectStore('dailyReports').index('by-project').getAll(id);
-  for (const report of reports) {
-    for (const att of report.attachments) {
-      if (att.blobKey) await tx.objectStore('fileBlobs').delete(att.blobKey);
+    const reports = await tx.objectStore('dailyReports').index('by-project').getAll(id);
+    for (const report of reports) {
+      for (const att of report.attachments) {
+        if (att.blobKey) await tx.objectStore('fileBlobs').delete(att.blobKey);
+      }
+      await tx.objectStore('dailyReports').delete(report.id);
     }
-    await tx.objectStore('dailyReports').delete(report.id);
+
+    const diagrams = await tx.objectStore('networkDiagrams').index('by-project').getAll(id);
+    for (const d of diagrams) await tx.objectStore('networkDiagrams').delete(d.id);
+
+    const pings = await tx.objectStore('pingSessions').index('by-project').getAll(id);
+    for (const p of pings) await tx.objectStore('pingSessions').delete(p.id);
+
+    await tx.objectStore('projects').delete(id);
+    await tx.done;
+  } catch (e) {
+    tx.abort();
+    throw e;
   }
-
-  const diagrams = await tx.objectStore('networkDiagrams').index('by-project').getAll(id);
-  for (const d of diagrams) await tx.objectStore('networkDiagrams').delete(d.id);
-
-  const pings = await tx.objectStore('pingSessions').index('by-project').getAll(id);
-  for (const p of pings) await tx.objectStore('pingSessions').delete(p.id);
-
-  await tx.objectStore('projects').delete(id);
-  await tx.done;
 }
 
 // Files

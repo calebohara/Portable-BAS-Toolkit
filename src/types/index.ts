@@ -93,7 +93,7 @@ export interface DeviceEntry {
   ipAddress?: string;
   floor: string;
   area: string;
-  status: string;
+  status: 'Online' | 'Offline' | 'Issue' | 'Not Commissioned';
   notes: string;
 }
 

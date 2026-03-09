@@ -71,19 +71,27 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
 
   const handleDelete = async () => {
     setDeleting(true);
-    await removeReport(id);
-    router.push('/reports');
+    try {
+      await removeReport(id);
+      router.push('/reports');
+    } catch {
+      setDeleting(false);
+    }
   };
 
   const handleDownloadAttachment = async (att: { blobKey: string; fileName: string; mimeType: string }) => {
-    const blob = await getFileBlob(att.blobKey);
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = att.fileName;
-    a.click();
-    URL.revokeObjectURL(url);
+    let url: string | undefined;
+    try {
+      const blob = await getFileBlob(att.blobKey);
+      if (!blob) return;
+      url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = att.fileName;
+      a.click();
+    } finally {
+      if (url) URL.revokeObjectURL(url);
+    }
   };
 
   if (loading) {

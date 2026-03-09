@@ -224,7 +224,10 @@ export default function PingToolPage() {
           const existing = prev[target.host] || [];
           // Replace the last pending entry
           const updated = [...existing];
-          const pendingIdx = updated.findLastIndex(r => r.status === 'pending');
+          let pendingIdx = -1;
+          for (let i = updated.length - 1; i >= 0; i--) {
+            if (updated[i].status === 'pending') { pendingIdx = i; break; }
+          }
           if (pendingIdx >= 0) {
             updated[pendingIdx] = result;
           } else {

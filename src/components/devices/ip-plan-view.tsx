@@ -203,7 +203,7 @@ export function IpPlanView({ projectId, entries, onAddEntry, onUpdateEntry, onDe
           action={!search ? <Button size="sm" className="gap-1.5" onClick={openAdd}><Plus className="h-4 w-4" /> Add Entry</Button> : undefined}
         />
       ) : (
-        <div className="rounded-lg border overflow-x-auto max-h-[70vh] overflow-y-auto">
+        <div className="rounded-lg border overflow-x-auto overflow-y-auto" style={{ maxHeight: '70vh' }}>
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>

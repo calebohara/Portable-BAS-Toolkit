@@ -160,7 +160,7 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
           action={!search ? <Button size="sm" className="gap-1.5" onClick={openAdd}><Plus className="h-4 w-4" /> Add Device</Button> : undefined}
         />
       ) : viewMode === 'table' ? (
-        <div className="rounded-lg border overflow-x-auto max-h-[70vh] overflow-y-auto">
+        <div className="rounded-lg border overflow-x-auto overflow-y-auto" style={{ maxHeight: '70vh' }}>
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>

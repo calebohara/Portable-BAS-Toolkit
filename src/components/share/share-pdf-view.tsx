@@ -117,8 +117,8 @@ export function SharePdfView({ project, files, notes, devices, ipEntries, activi
               </tr>
             </thead>
             <tbody>
-              {project.contacts.map((c, i) => (
-                <tr key={i} className="border-b border-gray-100">
+              {project.contacts.map((c) => (
+                <tr key={`${c.name}-${c.role}`} className="border-b border-gray-100">
                   <td className="py-1">{c.name}</td>
                   <td className="py-1">{c.role}</td>
                   <td className="py-1">{c.company || '—'}</td>

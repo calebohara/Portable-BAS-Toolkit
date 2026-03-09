@@ -370,7 +370,8 @@ export default function NetworkDiagramPage() {
       const canvas = document.createElement('canvas');
       canvas.width = (bbox.width + padding * 2) * 2;
       canvas.height = (bbox.height + padding * 2) * 2;
-      const ctx = canvas.getContext('2d')!;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
       ctx.scale(2, 2);
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
