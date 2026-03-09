@@ -15,9 +15,11 @@ pub struct PingResult {
 }
 
 #[tauri::command]
-async fn icmp_ping(host: String, count: Option<u32>, timeout_ms: Option<u32>) -> Result<Vec<PingResult>, String> {
+#[allow(non_snake_case)]
+async fn icmp_ping(host: String, count: Option<u32>, timeoutMs: Option<u32>) -> Result<Vec<PingResult>, String> {
     let count = count.unwrap_or(4);
-    let timeout_secs = (timeout_ms.unwrap_or(5000) / 1000).max(1);
+    let timeout_ms = timeoutMs.unwrap_or(5000);
+    let timeout_secs = (timeout_ms / 1000).max(1);
 
     let mut results = Vec::new();
 
@@ -109,8 +111,9 @@ pub struct PortCheckResult {
 }
 
 #[tauri::command]
-async fn check_port(host: String, port: u16, timeout_ms: Option<u64>) -> Result<PortCheckResult, String> {
-    let timeout = std::time::Duration::from_millis(timeout_ms.unwrap_or(3000));
+#[allow(non_snake_case)]
+async fn check_port(host: String, port: u16, timeoutMs: Option<u64>) -> Result<PortCheckResult, String> {
+    let timeout = std::time::Duration::from_millis(timeoutMs.unwrap_or(3000));
     let start = Instant::now();
     let addr = format!("{}:{}", host, port);
 
@@ -197,29 +200,36 @@ pub fn run() {
             if let Some(window) = main_window {
                 let _ = window.eval(r#"
                     (function() {
-                        // On load, check if we're on a dynamic route that needs SPA fallback
-                        const path = window.location.pathname;
-                        const parts = path.replace(/\/$/, '').split('/');
+                        function checkSpaFallback() {
+                            const path = window.location.pathname;
+                            const parts = path.replace(/\/$/, '').split('/');
 
-                        // Check if this is a dynamic route (projects/{id} or reports/{id}[/edit])
-                        const isDynamic = (
-                            (parts[1] === 'projects' && parts.length === 3 && parts[2] !== '_') ||
-                            (parts[1] === 'reports' && parts.length >= 3 && parts[2] !== '_' && parts[2] !== 'new')
-                        );
+                            // Check if this is a dynamic route (projects/{id} or reports/{id}[/edit])
+                            const isDynamic = (
+                                (parts[1] === 'projects' && parts.length === 3 && parts[2] !== '_') ||
+                                (parts[1] === 'reports' && parts.length >= 3 && parts[2] !== '_' && parts[2] !== 'new')
+                            );
 
-                        if (isDynamic && document.body && document.body.innerHTML.trim() === '') {
-                            // Page didn't load (file not found) — redirect to fallback
-                            const id = parts[2];
-                            const isEdit = parts[3] === 'edit';
-                            let fallbackUrl;
-                            if (parts[1] === 'projects') {
-                                fallbackUrl = '/projects/_/?_id=' + encodeURIComponent(id);
-                            } else if (isEdit) {
-                                fallbackUrl = '/reports/_/edit/?_id=' + encodeURIComponent(id);
-                            } else {
-                                fallbackUrl = '/reports/_/?_id=' + encodeURIComponent(id);
+                            if (isDynamic && document.body && document.body.innerHTML.trim() === '') {
+                                // Page didn't load (file not found) — redirect to fallback
+                                const id = parts[2];
+                                const isEdit = parts[3] === 'edit';
+                                let fallbackUrl;
+                                if (parts[1] === 'projects') {
+                                    fallbackUrl = '/projects/_/?_id=' + encodeURIComponent(id);
+                                } else if (isEdit) {
+                                    fallbackUrl = '/reports/_/edit/?_id=' + encodeURIComponent(id);
+                                } else {
+                                    fallbackUrl = '/reports/_/?_id=' + encodeURIComponent(id);
+                                }
+                                window.location.replace(fallbackUrl);
                             }
-                            window.location.replace(fallbackUrl);
+                        }
+
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', checkSpaFallback);
+                        } else {
+                            checkSpaFallback();
                         }
                     })();
                 "#);
