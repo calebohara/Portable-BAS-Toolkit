@@ -177,7 +177,10 @@ export const useWebInterfaceStore = create<WebInterfaceStore>()(
       partialize: (state) => ({
         endpoints: state.endpoints,
         recentConnections: state.recentConnections,
-        // Don't persist active workspace state
+        activeUrl: state.activeUrl,
+        activeEndpointId: state.activeEndpointId,
+        // embedState resets to 'loading' on rehydration so the iframe re-loads
+        ...(state.activeUrl ? { embedState: 'loading' as const } : {}),
       }),
     }
   )

@@ -222,9 +222,16 @@ export const useTerminalStore = create<TerminalStore>()(
     {
       name: 'bau-suite-terminal',
       partialize: (state) => ({
+        sessions: state.sessions.map(s => ({
+          ...s,
+          // Reset live connection state — WebSocket can't survive navigation
+          connectionState: 'disconnected' as ConnectionState,
+          errorMessage: '',
+          paused: false,
+        })),
+        activeSessionId: state.activeSessionId,
         sessionHistory: state.sessionHistory,
         settings: state.settings,
-        // Don't persist active sessions — they start fresh
       }),
     }
   )
