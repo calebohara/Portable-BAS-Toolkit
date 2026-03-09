@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-2.1.0-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-2.2.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -21,7 +21,7 @@
 
 ## Version
 
-**Current Release: v2.1.0**
+**Current Release: v2.2.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -89,7 +89,7 @@ It centralizes the critical project data that field engineers carry between job 
 | **Share / Export** | Selective project sharing — Teams (markdown), Outlook (email), PDF (print), or JSON package with audience presets and sensitive data masking |
 | **Telnet HMI Tool** | Browser-based terminal for BAS controller access — WebSocket-to-Telnet proxy support, session logging, .txt export, project attachment, baud rate configuration, multiple session tabs, command history, and connection history |
 | **Web Interface** | Access BAS controller web panels directly — saved endpoints with favorites, protocol/port/path configuration, embedded iframe workspace with honest browser security handling (X-Frame-Options, CSP, mixed content), new-tab fallback, project association, recent connections, and JSON export |
-| **Global Sticky Notepad** | Floating scratchpad accessible from any page — tabbed notes for IP addresses, device numbers, commands, and reminders with drag-to-reposition, minimize/restore, and offline persistence via Zustand |
+| **Global Sticky Notepad** | Draggable floating scratchpad accessible from any page — drag the launcher icon anywhere on screen with persistent position, edge snapping, tabbed notes, minimize/restore, and offline persistence via Zustand |
 | **Guided Tour** | Interactive step-by-step onboarding walkthrough with spotlight overlay — auto-launches on first visit, replayable from Help or Settings, mobile-friendly with clean sidebar state management |
 | **Help Center** | Dedicated help page with getting started guide, feature guides, FAQ, troubleshooting, keyboard shortcuts, and best practices |
 | **Storage Management** | Monitor IndexedDB usage, clear caches, manage offline storage |
@@ -477,12 +477,16 @@ A panel web access console for connecting to BAS controller web interfaces:
 
 A persistent floating scratchpad accessible from any page in the application:
 
-- **Floating panel** — opens from a bottom-right FAB (floating action button) visible on every screen
-- **Draggable** — reposition the panel anywhere on desktop; mobile uses a bottom-sheet layout
+- **Draggable launcher** — drag the FAB icon anywhere on screen; position persists across pages, reloads, and browser restarts via localStorage
+- **Click vs drag detection** — movement threshold distinguishes taps/clicks from drags; no accidental opens when repositioning
+- **Edge snapping** — launcher snaps to the nearest left/right edge when dropped nearby for a clean resting position
+- **Viewport safety** — launcher stays within visible bounds; automatically repositions on window resize or orientation change
+- **Floating panel** — opens from the launcher; panel itself is also draggable on desktop; mobile uses a bottom-sheet layout
 - **Tabbed notes** — create, rename (double-click), reorder, and close multiple note tabs
 - **Plain-text editor** — monospace font optimized for IP addresses, commands, device numbers, and quick documentation
-- **Minimize / restore** — collapse to a small docked pill without losing state
-- **Offline persistence** — all tabs and content persist via Zustand localStorage across page refreshes, route changes, and offline sessions
+- **Minimize / restore** — collapse to a small draggable pill without losing state; pill shares the launcher's persisted position
+- **Reset position** — reset button in the panel header returns the launcher to its default bottom-right position
+- **Offline persistence** — all tabs, content, and launcher position persist via Zustand localStorage across page refreshes, route changes, and offline sessions
 - **Delete protection** — confirmation prompt when closing a tab that contains content
 - **Theme-aware** — follows light/dark/system theme automatically
 
@@ -666,7 +670,7 @@ Future enhancements under consideration:
 | **Drive Configuration Tools** | VFD parameter sheets and commissioning checklists |
 | **Loop Tuning Utilities** | PID tuning calculators and trend logging |
 | **PDF Annotation** | Mark up wiring diagrams and sequences directly in-browser |
-| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages and endpoint export available in v2.1.0* |
+| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages and endpoint export available in v2.2.0* |
 | **Cloud Sync** | Optional Supabase backend for cross-device synchronization |
 | **Role-Based Access** | Multi-user support with permission levels |
 | **BACnet Object Browser** | Read/write BACnet object properties from the field |
@@ -724,9 +728,9 @@ The version is tracked in three synchronized locations:
 
 | Location | Format | Source |
 |----------|--------|--------|
-| `package.json` | `"version": "2.1.0"` | Source of truth |
-| Sidebar footer | `v2.1.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
-| Settings → About | `Version 2.1.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| `package.json` | `"version": "2.2.0"` | Source of truth |
+| Sidebar footer | `v2.2.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
+| Settings → About | `Version 2.2.0` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
 
 The version follows [Semantic Versioning](https://semver.org/):
 - **MAJOR** — breaking changes or major redesigns

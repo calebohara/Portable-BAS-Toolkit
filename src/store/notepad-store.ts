@@ -12,6 +12,12 @@ export interface NotepadTab {
 
 type PanelState = 'closed' | 'open' | 'minimized';
 
+/** Launcher position — null means default (bottom-right) */
+export interface LauncherPosition {
+  x: number;
+  y: number;
+}
+
 interface NotepadState {
   // Panel
   panelState: PanelState;
@@ -19,6 +25,11 @@ interface NotepadState {
   minimizePanel: () => void;
   closePanel: () => void;
   togglePanel: () => void;
+
+  // Launcher position
+  launcherPos: LauncherPosition | null;
+  setLauncherPos: (pos: LauncherPosition | null) => void;
+  resetLauncherPos: () => void;
 
   // Tabs
   tabs: NotepadTab[];
@@ -54,6 +65,10 @@ export const useNotepadStore = create<NotepadState>()(
           const s = get().panelState;
           set({ panelState: s === 'open' ? 'minimized' : 'open' });
         },
+
+        launcherPos: null,
+        setLauncherPos: (pos) => set({ launcherPos: pos }),
+        resetLauncherPos: () => set({ launcherPos: null }),
 
         tabs: [defaultTab],
         activeTabId: defaultTab.id,

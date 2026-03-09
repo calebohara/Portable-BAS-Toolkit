@@ -2,27 +2,184 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
-  StickyNote, X, Minus, Plus, Trash2, Check, Maximize2,
+  StickyNote, X, Minus, Plus, Trash2, Check, RotateCcw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useNotepadStore, type NotepadTab } from '@/store/notepad-store';
+import { useNotepadStore, type NotepadTab, type LauncherPosition } from '@/store/notepad-store';
 import { Button } from '@/components/ui/button';
+
+// ─── Constants ──────────────────────────────────────────────
+const EDGE_PADDING = 8;           // min distance from viewport edge
+const DRAG_THRESHOLD = 6;         // px movement to distinguish drag from click
+const SNAP_DISTANCE = 40;         // px from edge to trigger snap
+const FAB_SIZE = 48;              // px — matches h-12 w-12
+const MINIMIZED_WIDTH = 130;      // approximate width of minimized pill
+const MINIMIZED_HEIGHT = 40;      // approximate height of minimized pill
+
+// ─── Viewport clamping ─────────────────────────────────────
+function clampPosition(
+  x: number, y: number,
+  elWidth: number, elHeight: number,
+): { x: number; y: number } {
+  const maxX = window.innerWidth - elWidth - EDGE_PADDING;
+  const maxY = window.innerHeight - elHeight - EDGE_PADDING;
+  return {
+    x: Math.max(EDGE_PADDING, Math.min(maxX, x)),
+    y: Math.max(EDGE_PADDING, Math.min(maxY, y)),
+  };
+}
+
+/** Default position: bottom-right corner */
+function defaultPosition(elWidth: number, elHeight: number): { x: number; y: number } {
+  return {
+    x: window.innerWidth - elWidth - 20,
+    y: window.innerHeight - elHeight - 20,
+  };
+}
+
+/** Snap to nearest left/right edge if within SNAP_DISTANCE */
+function snapToEdge(x: number, elWidth: number): number {
+  if (x < SNAP_DISTANCE + EDGE_PADDING) return EDGE_PADDING;
+  const rightEdge = window.innerWidth - elWidth - EDGE_PADDING;
+  if (x > rightEdge - SNAP_DISTANCE) return rightEdge;
+  return x;
+}
+
+// ─── Draggable Launcher Hook ────────────────────────────────
+function useDraggableLauncher(elWidth: number, elHeight: number) {
+  const launcherPos = useNotepadStore(s => s.launcherPos);
+  const setLauncherPos = useNotepadStore(s => s.setLauncherPos);
+
+  // Current rendered position (local state for smooth dragging)
+  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
+    if (typeof window === 'undefined') return { x: 0, y: 0 };
+    if (launcherPos) return clampPosition(launcherPos.x, launcherPos.y, elWidth, elHeight);
+    return defaultPosition(elWidth, elHeight);
+  });
+
+  const [isDragging, setIsDragging] = useState(false);
+  const wasDragRef = useRef(false);
+  const startPosRef = useRef({ x: 0, y: 0 });
+  const offsetRef = useRef({ x: 0, y: 0 });
+
+  // Sync from store on mount / when store changes (e.g. reset)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (launcherPos) {
+      setPos(clampPosition(launcherPos.x, launcherPos.y, elWidth, elHeight));
+    } else {
+      setPos(defaultPosition(elWidth, elHeight));
+    }
+  }, [launcherPos, elWidth, elHeight]);
+
+  // Recalculate on resize to keep in bounds
+  useEffect(() => {
+    const handleResize = () => {
+      setPos(prev => clampPosition(prev.x, prev.y, elWidth, elHeight));
+    };
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleResize);
+    };
+  }, [elWidth, elHeight]);
+
+  // ── Pointer events (unified mouse + touch) ──
+  const handlePointerDown = useCallback((e: React.PointerEvent) => {
+    // Only primary button
+    if (e.button !== 0) return;
+    e.preventDefault();
+    (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+    startPosRef.current = { x: e.clientX, y: e.clientY };
+    offsetRef.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+    wasDragRef.current = false;
+    setIsDragging(false);
+  }, [pos]);
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    if (!startPosRef.current.x && !startPosRef.current.y) return;
+
+    const dx = e.clientX - startPosRef.current.x;
+    const dy = e.clientY - startPosRef.current.y;
+    const distance = Math.sqrt(dx * dx + dy * dy);
+
+    if (distance > DRAG_THRESHOLD) {
+      wasDragRef.current = true;
+      setIsDragging(true);
+      const newX = e.clientX - offsetRef.current.x;
+      const newY = e.clientY - offsetRef.current.y;
+      const clamped = clampPosition(newX, newY, elWidth, elHeight);
+      setPos(clamped);
+    }
+  }, [elWidth, elHeight]);
+
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+
+    if (wasDragRef.current) {
+      // Snap to edge and persist
+      const snappedX = snapToEdge(pos.x, elWidth);
+      const finalPos = clampPosition(snappedX, pos.y, elWidth, elHeight);
+      setPos(finalPos);
+      setLauncherPos(finalPos);
+    }
+
+    setIsDragging(false);
+    startPosRef.current = { x: 0, y: 0 };
+  }, [pos, elWidth, elHeight, setLauncherPos]);
+
+  const wasDrag = useCallback(() => wasDragRef.current, []);
+
+  return {
+    pos,
+    isDragging,
+    wasDrag,
+    handlePointerDown,
+    handlePointerMove,
+    handlePointerUp,
+  };
+}
 
 // ─── FAB (Floating Action Button) ────────────────────────────
 function NotepadFab({ onClick }: { onClick: () => void }) {
+  const {
+    pos, isDragging, wasDrag,
+    handlePointerDown, handlePointerMove, handlePointerUp,
+  } = useDraggableLauncher(FAB_SIZE, FAB_SIZE);
+
+  const handleClick = useCallback(() => {
+    if (!wasDrag()) onClick();
+  }, [onClick, wasDrag]);
+
   return (
     <button
-      onClick={onClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onClick={handleClick}
       className={cn(
-        'fixed bottom-5 right-5 z-40 flex h-12 w-12 items-center justify-center',
+        'fixed z-40 flex h-12 w-12 items-center justify-center',
         'rounded-full bg-primary text-primary-foreground shadow-lg',
-        'transition-all hover:scale-105 hover:shadow-xl active:scale-95',
+        'transition-shadow',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        isDragging
+          ? 'cursor-grabbing scale-110 shadow-2xl'
+          : 'cursor-grab hover:shadow-xl active:scale-95',
       )}
-      aria-label="Open Notepad"
+      style={{
+        left: pos.x,
+        top: pos.y,
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        transition: isDragging ? 'box-shadow 0.15s, transform 0.15s' : 'box-shadow 0.2s, transform 0.2s, left 0.2s ease-out, top 0.2s ease-out',
+      }}
+      aria-label="Open Sticky Notepad"
       data-tour="notepad-fab"
     >
-      <StickyNote className="h-5 w-5" />
+      <StickyNote className="h-5 w-5 pointer-events-none" />
     </button>
   );
 }
@@ -30,20 +187,43 @@ function NotepadFab({ onClick }: { onClick: () => void }) {
 // ─── Minimized Dock ──────────────────────────────────────────
 function NotepadMinimized({ onClick }: { onClick: () => void }) {
   const tabs = useNotepadStore(s => s.tabs);
+  const {
+    pos, isDragging, wasDrag,
+    handlePointerDown, handlePointerMove, handlePointerUp,
+  } = useDraggableLauncher(MINIMIZED_WIDTH, MINIMIZED_HEIGHT);
+
+  const handleClick = useCallback(() => {
+    if (!wasDrag()) onClick();
+  }, [onClick, wasDrag]);
+
   return (
     <button
-      onClick={onClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onClick={handleClick}
       className={cn(
-        'fixed bottom-5 right-5 z-40 flex items-center gap-2',
+        'fixed z-40 flex items-center gap-2',
         'rounded-full bg-primary text-primary-foreground px-4 py-2.5 shadow-lg',
-        'transition-all hover:scale-105 hover:shadow-xl active:scale-95',
+        'transition-shadow',
         'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+        isDragging
+          ? 'cursor-grabbing scale-105 shadow-2xl'
+          : 'cursor-grab hover:shadow-xl active:scale-95',
       )}
+      style={{
+        left: pos.x,
+        top: pos.y,
+        touchAction: 'none',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
+        transition: isDragging ? 'box-shadow 0.15s, transform 0.15s' : 'box-shadow 0.2s, transform 0.2s, left 0.2s ease-out, top 0.2s ease-out',
+      }}
       aria-label="Restore Notepad"
     >
-      <StickyNote className="h-4 w-4" />
-      <span className="text-xs font-medium">Notepad</span>
-      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-foreground/20 px-1 text-[10px] font-bold">
+      <StickyNote className="h-4 w-4 pointer-events-none" />
+      <span className="text-xs font-medium pointer-events-none">Notepad</span>
+      <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-foreground/20 px-1 text-[10px] font-bold pointer-events-none">
         {tabs.length}
       </span>
     </button>
@@ -204,11 +384,12 @@ function NoteEditor() {
 function NotepadPanel() {
   const minimizePanel = useNotepadStore(s => s.minimizePanel);
   const closePanel = useNotepadStore(s => s.closePanel);
+  const resetLauncherPos = useNotepadStore(s => s.resetLauncherPos);
   const tabs = useNotepadStore(s => s.tabs);
   const activeTabId = useNotepadStore(s => s.activeTabId);
   const activeTab = tabs.find(t => t.id === activeTabId);
 
-  // Drag state
+  // Drag state for panel
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
@@ -271,7 +452,7 @@ function NotepadPanel() {
   // Character count
   const charCount = activeTab?.content.length || 0;
 
-  // Position styles: default bottom-right, or dragged position
+  // Position styles
   const positionStyle: React.CSSProperties = pos
     ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
     : {};
@@ -304,6 +485,14 @@ function NotepadPanel() {
         <StickyNote className="h-4 w-4 text-primary shrink-0" />
         <span className="text-sm font-semibold flex-1 truncate">Notepad</span>
         <div className="flex items-center gap-0.5">
+          <button
+            onClick={resetLauncherPos}
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+            aria-label="Reset launcher position"
+            title="Reset icon position"
+          >
+            <RotateCcw className="h-3 w-3" />
+          </button>
           <button
             onClick={minimizePanel}
             className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
