@@ -5,7 +5,7 @@ import {
   HelpCircle, PlayCircle, FolderKanban, Upload, Search, Pin,
   Database, Network, StickyNote, FileText, Download, Settings,
   ChevronDown, ChevronRight, Wifi, WifiOff, Palette, Share2,
-  Monitor, Smartphone, Shield,
+  Monitor, Smartphone, Shield, Activity, TerminalSquare, BookmarkPlus,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -114,6 +114,45 @@ const featureGuides = [
       'Export as JSON package for backup or transfer',
       'Audience presets for field techs, project managers, and custom',
       'Sensitive data masking for safe external sharing',
+    ],
+  },
+  {
+    icon: Network,
+    title: 'Network Diagram Builder',
+    items: [
+      'Create visual BAS network topology maps per project',
+      'Drag-and-drop nodes: controllers, routers, switches, servers, sensors, actuators, panels, workstations, gateways',
+      'Draw connections between nodes with solid, dashed, or dotted styles',
+      'Edit node properties: label, type, IP address, MAC address, color, and notes',
+      'Label connections (e.g., "BACnet/IP", "Ethernet", "MSTP")',
+      'Pan and zoom the canvas with scroll wheel or toolbar buttons',
+      'Export diagrams as PNG or SVG for documentation',
+      'Save multiple diagrams per project',
+    ],
+  },
+  {
+    icon: BookmarkPlus,
+    title: 'Command Snippet Library',
+    items: [
+      'Save frequently used terminal commands as reusable snippets',
+      'Categorize snippets: BACnet, LonWorks, Modbus, Niagara, Siemens, Johnson, Honeywell, and more',
+      'Search and filter snippets by category or keyword',
+      'Insert snippets directly into the terminal command line with one click',
+      'Track usage count and mark favorites for quick access',
+      'Copy commands to clipboard or delete old snippets',
+    ],
+  },
+  {
+    icon: Activity,
+    title: 'Ping Tool (Reachability Test)',
+    items: [
+      'Test HTTP/TCP reachability of BAS controllers and network devices',
+      'Three modes: Single Check, Repeated (configurable count and interval), Multi-Target (parallel)',
+      'Browser-based — uses fetch() for honest HTTP reachability testing (not ICMP ping)',
+      'Response time measurement for each check',
+      'Expandable per-target result history with latency statistics',
+      'Save results to a project for documentation',
+      'Export results as .txt file with full statistics',
     ],
   },
 ];

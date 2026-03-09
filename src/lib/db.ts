@@ -2,6 +2,7 @@ import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type {
   Project, ProjectFile, FileVersion, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
+  NetworkDiagram, CommandSnippet, PingSession,
 } from '@/types';
 
 interface BasToolkitDB extends DBSchema {
@@ -61,13 +62,28 @@ interface BasToolkitDB extends DBSchema {
       'by-date': string;
     };
   };
+  networkDiagrams: {
+    key: string;
+    value: NetworkDiagram;
+    indexes: { 'by-project': string };
+  };
+  commandSnippets: {
+    key: string;
+    value: CommandSnippet;
+    indexes: { 'by-category': string };
+  };
+  pingSessions: {
+    key: string;
+    value: PingSession;
+    indexes: { 'by-project': string };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 2, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 3, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           // Projects
@@ -110,6 +126,20 @@ function getDB() {
           reportStore.createIndex('by-project', 'projectId');
           reportStore.createIndex('by-date', 'date');
         }
+
+        if (oldVersion < 3) {
+          // Network Diagrams
+          const diagramStore = db.createObjectStore('networkDiagrams', { keyPath: 'id' });
+          diagramStore.createIndex('by-project', 'projectId');
+
+          // Command Snippets
+          const snippetStore = db.createObjectStore('commandSnippets', { keyPath: 'id' });
+          snippetStore.createIndex('by-category', 'category');
+
+          // Ping Sessions
+          const pingStore = db.createObjectStore('pingSessions', { keyPath: 'id' });
+          pingStore.createIndex('by-project', 'projectId');
+        }
       },
     });
   }
@@ -135,7 +165,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions'], 'readwrite');
 
   // Delete associated data
   const files = await tx.objectStore('files').index('by-project').getAll(id);
@@ -167,6 +197,12 @@ export async function deleteProject(id: string): Promise<void> {
     }
     await tx.objectStore('dailyReports').delete(report.id);
   }
+
+  const diagrams = await tx.objectStore('networkDiagrams').index('by-project').getAll(id);
+  for (const d of diagrams) await tx.objectStore('networkDiagrams').delete(d.id);
+
+  const pings = await tx.objectStore('pingSessions').index('by-project').getAll(id);
+  for (const p of pings) await tx.objectStore('pingSessions').delete(p.id);
 
   await tx.objectStore('projects').delete(id);
   await tx.done;
@@ -424,6 +460,79 @@ export async function searchProject(projectId: string, query: string): Promise<{
       e.notes.toLowerCase().includes(q)
     ),
   };
+}
+
+// ─── Network Diagrams ───────────────────────────────────────
+export async function getProjectDiagrams(projectId: string): Promise<NetworkDiagram[]> {
+  const db = await getDB();
+  const diagrams = await db.getAllFromIndex('networkDiagrams', 'by-project', projectId);
+  return diagrams.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getAllDiagrams(): Promise<NetworkDiagram[]> {
+  const db = await getDB();
+  const diagrams = await db.getAll('networkDiagrams');
+  return diagrams.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getDiagram(id: string): Promise<NetworkDiagram | undefined> {
+  const db = await getDB();
+  return db.get('networkDiagrams', id);
+}
+
+export async function saveDiagram(diagram: NetworkDiagram): Promise<void> {
+  const db = await getDB();
+  await db.put('networkDiagrams', diagram);
+}
+
+export async function deleteDiagram(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('networkDiagrams', id);
+}
+
+// ─── Command Snippets ───────────────────────────────────────
+export async function getAllSnippets(): Promise<CommandSnippet[]> {
+  const db = await getDB();
+  const snippets = await db.getAll('commandSnippets');
+  return snippets.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getSnippetsByCategory(category: string): Promise<CommandSnippet[]> {
+  const db = await getDB();
+  return db.getAllFromIndex('commandSnippets', 'by-category', category);
+}
+
+export async function saveSnippet(snippet: CommandSnippet): Promise<void> {
+  const db = await getDB();
+  await db.put('commandSnippets', snippet);
+}
+
+export async function deleteSnippet(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('commandSnippets', id);
+}
+
+// ─── Ping Sessions ──────────────────────────────────────────
+export async function getProjectPingSessions(projectId: string): Promise<PingSession[]> {
+  const db = await getDB();
+  const sessions = await db.getAllFromIndex('pingSessions', 'by-project', projectId);
+  return sessions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getAllPingSessions(): Promise<PingSession[]> {
+  const db = await getDB();
+  const sessions = await db.getAll('pingSessions');
+  return sessions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function savePingSession(session: PingSession): Promise<void> {
+  const db = await getDB();
+  await db.put('pingSessions', session);
+}
+
+export async function deletePingSession(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('pingSessions', id);
 }
 
 // Global search across all projects

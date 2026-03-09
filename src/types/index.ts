@@ -219,3 +219,119 @@ export const NOTE_CATEGORY_LABELS: Record<NoteCategory, string> = {
   'network-change': 'Network Change',
   'customer-request': 'Customer Request',
 };
+
+// ─── Network Diagrams ───────────────────────────────────────
+export type DiagramNodeType =
+  | 'controller' | 'router' | 'switch' | 'server'
+  | 'sensor' | 'actuator' | 'panel' | 'workstation'
+  | 'gateway' | 'cloud' | 'generic';
+
+export const DIAGRAM_NODE_LABELS: Record<DiagramNodeType, string> = {
+  controller: 'Controller',
+  router: 'Router',
+  switch: 'Switch',
+  server: 'Server',
+  sensor: 'Sensor',
+  actuator: 'Actuator',
+  panel: 'Panel',
+  workstation: 'Workstation',
+  gateway: 'Gateway',
+  cloud: 'Cloud',
+  generic: 'Generic',
+};
+
+export interface DiagramNode {
+  id: string;
+  type: DiagramNodeType;
+  label: string;
+  x: number;
+  y: number;
+  ip?: string;
+  mac?: string;
+  notes?: string;
+  color?: string;
+}
+
+export type ConnectionStyle = 'solid' | 'dashed' | 'dotted';
+
+export interface DiagramConnection {
+  id: string;
+  fromNodeId: string;
+  toNodeId: string;
+  label?: string;
+  style: ConnectionStyle;
+  color?: string;
+}
+
+export interface NetworkDiagram {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  nodes: DiagramNode[];
+  connections: DiagramConnection[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Command Snippets ───────────────────────────────────────
+export type SnippetCategory =
+  | 'bacnet' | 'lonworks' | 'modbus' | 'niagara'
+  | 'tridium' | 'siemens' | 'johnson' | 'honeywell'
+  | 'general' | 'diagnostic' | 'network' | 'other';
+
+export const SNIPPET_CATEGORY_LABELS: Record<SnippetCategory, string> = {
+  bacnet: 'BACnet',
+  lonworks: 'LonWorks',
+  modbus: 'Modbus',
+  niagara: 'Niagara',
+  tridium: 'Tridium',
+  siemens: 'Siemens',
+  johnson: 'Johnson Controls',
+  honeywell: 'Honeywell',
+  general: 'General',
+  diagnostic: 'Diagnostic',
+  network: 'Network',
+  other: 'Other',
+};
+
+export interface CommandSnippet {
+  id: string;
+  command: string;
+  label: string;
+  description: string;
+  category: SnippetCategory;
+  tags: string[];
+  isFavorite: boolean;
+  usageCount: number;
+  lastUsedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Ping Results ───────────────────────────────────────────
+export type PingStatus = 'reachable' | 'unreachable' | 'pending' | 'error';
+
+export interface PingTarget {
+  host: string;
+  label?: string;
+  port?: number;
+}
+
+export interface PingResultEntry {
+  timestamp: string;
+  status: PingStatus;
+  responseTimeMs?: number;
+  error?: string;
+}
+
+export interface PingSession {
+  id: string;
+  projectId: string;
+  targets: PingTarget[];
+  results: Record<string, PingResultEntry[]>; // keyed by host
+  mode: 'single' | 'repeated' | 'multi';
+  intervalMs: number;
+  createdAt: string;
+  completedAt?: string;
+}

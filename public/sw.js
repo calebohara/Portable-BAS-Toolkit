@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'bau-suite-v4';
+const CACHE_VERSION = 'bau-suite-v5';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 
@@ -12,6 +12,8 @@ const APP_SHELL = [
   '/search',
   '/offline',
   '/settings',
+  '/network-diagram',
+  '/ping',
   '/manifest.json',
 ];
 

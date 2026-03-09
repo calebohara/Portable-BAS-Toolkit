@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
   ChevronLeft, ChevronRight, X, FolderOpen, HelpCircle, ClipboardList, TerminalSquare, Globe,
+  Network, Activity,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
@@ -15,8 +16,10 @@ const navItems = [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard', tourId: 'nav-dashboard' },
   { href: '/projects', icon: FolderKanban, label: 'Projects', tourId: 'nav-projects' },
   { href: '/reports', icon: ClipboardList, label: 'Daily Reports', tourId: 'nav-reports' },
+  { href: '/network-diagram', icon: Network, label: 'Network Diagrams', tourId: 'nav-network-diagram' },
   { href: '/terminal', icon: TerminalSquare, label: 'Telnet HMI', tourId: 'nav-terminal' },
   { href: '/web-interface', icon: Globe, label: 'Web Interface', tourId: 'nav-web-interface' },
+  { href: '/ping', icon: Activity, label: 'Ping Tool', tourId: 'nav-ping' },
   { href: '/documents', icon: FolderOpen, label: 'Uploads Inbox', tourId: 'nav-documents' },
   { href: '/search', icon: Search, label: 'Search', tourId: 'nav-search' },
   { href: '/offline', icon: Pin, label: 'Offline / Pinned', tourId: 'nav-offline' },

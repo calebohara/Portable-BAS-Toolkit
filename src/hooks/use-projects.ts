@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport } from '@/types';
+import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession } from '@/types';
 import * as db from '@/lib/db';
 import { generateDemoData } from '@/lib/demo-data';
 import { v4 as uuid } from 'uuid';
@@ -299,4 +299,122 @@ export function useDailyReport(id: string) {
   }, [report]);
 
   return { report, loading, refresh, update };
+}
+
+// ─── Network Diagrams ───────────────────────────────────────
+export function useNetworkDiagrams(projectId?: string) {
+  const [diagrams, setDiagrams] = useState<NetworkDiagram[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    await ensureDemoData();
+    const all = projectId
+      ? await db.getProjectDiagrams(projectId)
+      : await db.getAllDiagrams();
+    setDiagrams(all);
+    setLoading(false);
+  }, [projectId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const createDiagram = useCallback(async (data: Omit<NetworkDiagram, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const now = new Date().toISOString();
+    const diagram: NetworkDiagram = { ...data, id: uuid(), createdAt: now, updatedAt: now };
+    await db.saveDiagram(diagram);
+    if (data.projectId) {
+      await db.addActivity({
+        id: uuid(), projectId: data.projectId, action: 'Diagram created',
+        details: `Network diagram "${data.name}" created`, timestamp: now, user: 'User',
+      });
+    }
+    await refresh();
+    return diagram;
+  }, [refresh]);
+
+  const updateDiagram = useCallback(async (diagram: NetworkDiagram) => {
+    diagram.updatedAt = new Date().toISOString();
+    await db.saveDiagram(diagram);
+    await refresh();
+  }, [refresh]);
+
+  const removeDiagram = useCallback(async (id: string) => {
+    await db.deleteDiagram(id);
+    await refresh();
+  }, [refresh]);
+
+  return { diagrams, loading, refresh, createDiagram, updateDiagram, removeDiagram };
+}
+
+// ─── Command Snippets ───────────────────────────────────────
+export function useCommandSnippets() {
+  const [snippets, setSnippets] = useState<CommandSnippet[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const all = await db.getAllSnippets();
+    setSnippets(all);
+    setLoading(false);
+  }, []);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const addSnippet = useCallback(async (data: Omit<CommandSnippet, 'id' | 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt'>) => {
+    const now = new Date().toISOString();
+    const snippet: CommandSnippet = { ...data, id: uuid(), usageCount: 0, lastUsedAt: '', createdAt: now, updatedAt: now };
+    await db.saveSnippet(snippet);
+    await refresh();
+    return snippet;
+  }, [refresh]);
+
+  const updateSnippet = useCallback(async (snippet: CommandSnippet) => {
+    snippet.updatedAt = new Date().toISOString();
+    await db.saveSnippet(snippet);
+    await refresh();
+  }, [refresh]);
+
+  const removeSnippet = useCallback(async (id: string) => {
+    await db.deleteSnippet(id);
+    await refresh();
+  }, [refresh]);
+
+  const recordUsage = useCallback(async (id: string) => {
+    const all = await db.getAllSnippets();
+    const snippet = all.find(s => s.id === id);
+    if (snippet) {
+      snippet.usageCount += 1;
+      snippet.lastUsedAt = new Date().toISOString();
+      await db.saveSnippet(snippet);
+      await refresh();
+    }
+  }, [refresh]);
+
+  return { snippets, loading, refresh, addSnippet, updateSnippet, removeSnippet, recordUsage };
+}
+
+// ─── Ping Sessions ──────────────────────────────────────────
+export function usePingSessions(projectId?: string) {
+  const [sessions, setSessions] = useState<PingSession[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    const all = projectId
+      ? await db.getProjectPingSessions(projectId)
+      : await db.getAllPingSessions();
+    setSessions(all);
+    setLoading(false);
+  }, [projectId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const saveSession = useCallback(async (session: PingSession) => {
+    await db.savePingSession(session);
+    await refresh();
+  }, [refresh]);
+
+  const removeSession = useCallback(async (id: string) => {
+    await db.deletePingSession(id);
+    await refresh();
+  }, [refresh]);
+
+  return { sessions, loading, refresh, saveSession, removeSession };
 }
