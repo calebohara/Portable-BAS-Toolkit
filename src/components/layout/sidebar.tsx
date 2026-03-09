@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { UpdateNotifier } from './update-notifier';
 
 const navItems = [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard', tourId: 'nav-dashboard' },
@@ -127,9 +128,14 @@ export function Sidebar() {
           </div>
         )}
         {sidebarOpen && (
-          <p className="mb-1.5 text-center text-[10px] text-muted-foreground/50 hidden md:block">
+          <p className="mb-1 text-center text-[10px] text-muted-foreground/50 hidden md:block">
             v{process.env.NEXT_PUBLIC_APP_VERSION}
           </p>
+        )}
+        {sidebarOpen && (
+          <div className="mb-1.5 hidden md:block">
+            <UpdateNotifier />
+          </div>
         )}
         <Button
           variant="ghost"
