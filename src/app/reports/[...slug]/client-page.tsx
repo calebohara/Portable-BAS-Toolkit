@@ -59,7 +59,10 @@ function TextBlock({ label, value, icon }: { label: string; value: string; icon?
 }
 
 export default function ReportDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+  const { id: paramId } = use(params);
+  const id = typeof window !== 'undefined'
+    ? (new URLSearchParams(window.location.search).get('_id') || paramId)
+    : paramId;
   const router = useRouter();
   const { report, loading } = useDailyReport(id);
   const { removeReport } = useDailyReports();

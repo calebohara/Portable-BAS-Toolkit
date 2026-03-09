@@ -20,6 +20,7 @@ import { toast } from 'sonner';
 import { useProjects, usePingSessions } from '@/hooks/use-projects';
 import type { PingTarget, PingResultEntry, PingSession, PingStatus } from '@/types';
 import { v4 as uuid } from 'uuid';
+import { isTauri, nativeIcmpPing, nativeCheckPort } from '@/lib/tauri-bridge';
 
 // ─── Common BAS ports ───────────────────────────────────────
 const BAS_PORTS = [
@@ -135,6 +136,42 @@ async function checkReachability(host: string, port?: number, scanPorts?: boolea
   };
 }
 
+// ─── Native ICMP ping (Tauri desktop only) ──────────────────
+async function checkReachabilityNative(host: string, port?: number): Promise<PingResultEntry> {
+  try {
+    // Real ICMP ping
+    const results = await nativeIcmpPing(host, 1, 5000);
+    const r = results[0];
+    if (!r) throw new Error('No result');
+
+    const entry: PingResultEntry = {
+      timestamp: new Date().toISOString(),
+      status: r.reachable ? 'reachable' : 'unreachable',
+      responseTimeMs: r.response_time_ms ?? undefined,
+      reachableOn: r.reachable ? `ICMP${r.ttl ? ` (TTL=${r.ttl})` : ''}` : undefined,
+      error: r.error ?? undefined,
+    };
+
+    // If ICMP succeeded and a port was specified, also check that port
+    if (r.reachable && port) {
+      const portResult = await nativeCheckPort(host, port, 3000);
+      if (portResult.open) {
+        entry.reachableOn = `ICMP + TCP :${port}${r.ttl ? ` (TTL=${r.ttl})` : ''}`;
+      } else {
+        entry.reachableOn = `ICMP only${r.ttl ? ` (TTL=${r.ttl})` : ''} — port ${port} closed`;
+      }
+    }
+
+    return entry;
+  } catch (err) {
+    return {
+      timestamp: new Date().toISOString(),
+      status: 'error',
+      error: err instanceof Error ? err.message : 'Native ping failed',
+    };
+  }
+}
+
 // ─── Status UI ──────────────────────────────────────────────
 const STATUS_CONFIG: Record<PingStatus, { label: string; color: string; icon: typeof CheckCircle2 }> = {
   reachable: { label: 'Reachable', color: 'text-green-500', icon: CheckCircle2 },
@@ -233,6 +270,11 @@ export default function PingToolPage() {
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const { sessions: savedSessions, saveSession, removeSession } = usePingSessions();
 
+  // Desktop detection
+  const [isDesktop, setIsDesktop] = useState(false);
+  const [pingMethod, setPingMethod] = useState<'auto' | 'icmp' | 'http'>('auto');
+  useEffect(() => { setIsDesktop(isTauri()); }, []);
+
   // Test config
   const [targets, setTargets] = useState<PingTarget[]>([{ host: '', label: '' }]);
   const [mode, setMode] = useState<'single' | 'repeated' | 'multi'>('single');
@@ -286,7 +328,10 @@ export default function PingToolPage() {
           }],
         }));
 
-        const result = await checkReachability(target.host, target.port, scanPorts);
+        const useNative = isDesktop && (pingMethod === 'icmp' || (pingMethod === 'auto'));
+        const result = useNative
+          ? await checkReachabilityNative(target.host, target.port)
+          : await checkReachability(target.host, target.port, scanPorts);
 
         setResults(prev => {
           const existing = prev[target.host] || [];
@@ -320,7 +365,7 @@ export default function PingToolPage() {
     }
 
     setRunning(false);
-  }, [targets, mode, repeatCount, intervalMs, scanPorts]);
+  }, [targets, mode, repeatCount, intervalMs, scanPorts, isDesktop, pingMethod]);
 
   const stopTest = useCallback(() => {
     abortRef.current = true;
@@ -419,15 +464,24 @@ export default function PingToolPage() {
           <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm flex gap-3">
             <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
             <div className="text-muted-foreground space-y-1">
-              <div>
-                <strong className="text-foreground">Browser Reachability Test</strong> — Browsers cannot send ICMP
-                ping packets. This tool tests HTTP &amp; HTTPS reachability. A host that responds to <code className="text-xs bg-muted px-1 rounded">cmd ping</code> may
-                show as &quot;Unreachable&quot; here if it has no web server running.
-              </div>
-              <div className="text-xs">
-                Tests HTTP and HTTPS by default. With <strong className="text-foreground">Scan BAS Ports</strong> enabled,
-                also checks ports 8080, 8443, and 47808 (BACnet). Results show which protocol and port responded.
-              </div>
+              {isDesktop ? (
+                <div>
+                  <strong className="text-foreground">Desktop Mode — Real ICMP Ping</strong> — Running in the desktop app.
+                  Uses real ICMP ping by default for accurate reachability testing. You can switch to HTTP mode if needed.
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <strong className="text-foreground">Browser Reachability Test</strong> — Browsers cannot send ICMP
+                    ping packets. This tool tests HTTP &amp; HTTPS reachability. A host that responds to <code className="text-xs bg-muted px-1 rounded">cmd ping</code> may
+                    show as &quot;Unreachable&quot; here if it has no web server running.
+                  </div>
+                  <div className="text-xs">
+                    Tests HTTP and HTTPS by default. With <strong className="text-foreground">Scan BAS Ports</strong> enabled,
+                    also checks ports 8080, 8443, and 47808 (BACnet). Results show which protocol and port responded.
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
@@ -483,19 +537,33 @@ export default function PingToolPage() {
                   </div>
                 </>
               )}
-              <div className="space-y-1.5">
-                <Label className="text-xs">BAS Ports</Label>
-                <label className="flex items-center gap-2 h-8 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={scanPorts}
-                    onChange={e => setScanPorts(e.target.checked)}
-                    className="rounded border-border"
-                    disabled={running}
-                  />
-                  <span className="text-xs text-muted-foreground">Scan common ports</span>
-                </label>
-              </div>
+              {isDesktop && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Method</Label>
+                  <Select value={pingMethod} onValueChange={v => v && setPingMethod(v as typeof pingMethod)}>
+                    <SelectTrigger className="h-8 text-xs w-32"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="auto">ICMP (Native)</SelectItem>
+                      <SelectItem value="http">HTTP Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              {(!isDesktop || pingMethod === 'http') && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs">BAS Ports</Label>
+                  <label className="flex items-center gap-2 h-8 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={scanPorts}
+                      onChange={e => setScanPorts(e.target.checked)}
+                      className="rounded border-border"
+                      disabled={running}
+                    />
+                    <span className="text-xs text-muted-foreground">Scan common ports</span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* Targets */}

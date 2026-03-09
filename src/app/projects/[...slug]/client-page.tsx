@@ -51,7 +51,11 @@ const sections = [
 ] as const;
 
 export default function ProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+  const { id: paramId } = use(params);
+  // In Tauri static export, a hard refresh redirects to /_/?_id=actual-id
+  const id = typeof window !== 'undefined'
+    ? (new URLSearchParams(window.location.search).get('_id') || paramId)
+    : paramId;
   const router = useRouter();
   const { project, loading, update: updateProject } = useProject(id);
   const { files, refresh: refreshFiles } = useProjectFiles(id);

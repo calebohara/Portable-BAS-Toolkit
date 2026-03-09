@@ -6,7 +6,10 @@ import { useDailyReport, useDailyReports } from '@/hooks/use-projects';
 import { ReportForm } from '@/components/reports/report-form';
 
 export default function EditReportPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+  const { id: paramId } = use(params);
+  const id = typeof window !== 'undefined'
+    ? (new URLSearchParams(window.location.search).get('_id') || paramId)
+    : paramId;
   const { report, loading } = useDailyReport(id);
   const { createReport, updateReport } = useDailyReports();
 
