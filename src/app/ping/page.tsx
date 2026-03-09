@@ -21,58 +21,118 @@ import { useProjects, usePingSessions } from '@/hooks/use-projects';
 import type { PingTarget, PingResultEntry, PingSession, PingStatus } from '@/types';
 import { v4 as uuid } from 'uuid';
 
+// ─── Common BAS ports ───────────────────────────────────────
+const BAS_PORTS = [
+  { port: 80, label: 'HTTP' },
+  { port: 443, label: 'HTTPS' },
+  { port: 8080, label: 'HTTP Alt' },
+  { port: 8443, label: 'HTTPS Alt' },
+  { port: 47808, label: 'BACnet' },
+] as const;
+
 // ─── HTTP reachability check ────────────────────────────────
 // Browsers cannot send ICMP. We use fetch() to test TCP/HTTP reachability.
 // This is a legitimate reachability test, NOT a fake ping.
-async function checkReachability(host: string, port?: number): Promise<PingResultEntry> {
+async function tryFetch(url: string, timeoutMs: number = 5000): Promise<{ ok: boolean; elapsed: number; error?: string }> {
   const start = performance.now();
-  const target = port
-    ? `http://${host}:${port}`
-    : `http://${host}`;
-
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
-
-    await fetch(target, {
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    await fetch(url, {
       method: 'HEAD',
       mode: 'no-cors',
       signal: controller.signal,
       cache: 'no-store',
     });
-
     clearTimeout(timeout);
-    const elapsed = Math.round(performance.now() - start);
-
-    return {
-      timestamp: new Date().toISOString(),
-      status: 'reachable',
-      responseTimeMs: elapsed,
-    };
+    return { ok: true, elapsed: Math.round(performance.now() - start) };
   } catch (err: unknown) {
     const elapsed = Math.round(performance.now() - start);
-    const message = err instanceof Error ? err.message : 'Unknown error';
-
-    // AbortError means timeout
     if (err instanceof DOMException && err.name === 'AbortError') {
+      return { ok: false, elapsed, error: 'Timed out' };
+    }
+    return { ok: false, elapsed, error: err instanceof Error ? err.message : 'Unknown error' };
+  }
+}
+
+async function checkReachability(host: string, port?: number, scanPorts?: boolean): Promise<PingResultEntry> {
+  const start = performance.now();
+
+  // If a specific port is given, try both HTTP and HTTPS on that port
+  if (port) {
+    const httpResult = await tryFetch(`http://${host}:${port}`, 5000);
+    if (httpResult.ok) {
       return {
         timestamp: new Date().toISOString(),
-        status: 'unreachable',
-        responseTimeMs: elapsed,
-        error: 'Request timed out (5s)',
+        status: 'reachable',
+        responseTimeMs: httpResult.elapsed,
+        reachableOn: `http :${port}`,
       };
     }
-
-    // TypeError with 'Failed to fetch' = network unreachable or CORS
-    // In no-cors mode, an opaque response is still "reachable"
-    // A TypeError means the host didn't respond at all
+    const httpsResult = await tryFetch(`https://${host}:${port}`, 5000);
+    if (httpsResult.ok) {
+      return {
+        timestamp: new Date().toISOString(),
+        status: 'reachable',
+        responseTimeMs: httpsResult.elapsed,
+        reachableOn: `https :${port}`,
+      };
+    }
+    const elapsed = Math.round(performance.now() - start);
     return {
       timestamp: new Date().toISOString(),
       status: 'unreachable',
       responseTimeMs: elapsed,
-      error: message,
+      error: `No HTTP/HTTPS response on port ${port}. Host may still be reachable via ICMP — try command-line ping to verify.`,
     };
   }
+
+  // No specific port — try HTTP then HTTPS on default ports
+  const httpResult = await tryFetch(`http://${host}`, 5000);
+  if (httpResult.ok) {
+    return {
+      timestamp: new Date().toISOString(),
+      status: 'reachable',
+      responseTimeMs: httpResult.elapsed,
+      reachableOn: 'http :80',
+    };
+  }
+  const httpsResult = await tryFetch(`https://${host}`, 5000);
+  if (httpsResult.ok) {
+    return {
+      timestamp: new Date().toISOString(),
+      status: 'reachable',
+      responseTimeMs: httpsResult.elapsed,
+      reachableOn: 'https :443',
+    };
+  }
+
+  // If port scan enabled, try common BAS ports
+  if (scanPorts) {
+    for (const bp of BAS_PORTS) {
+      if (bp.port === 80 || bp.port === 443) continue; // already tried
+      const proto = bp.port === 8443 ? 'https' : 'http';
+      const result = await tryFetch(`${proto}://${host}:${bp.port}`, 3000);
+      if (result.ok) {
+        return {
+          timestamp: new Date().toISOString(),
+          status: 'reachable',
+          responseTimeMs: result.elapsed,
+          reachableOn: `${proto} :${bp.port} (${bp.label})`,
+        };
+      }
+    }
+  }
+
+  const elapsed = Math.round(performance.now() - start);
+  return {
+    timestamp: new Date().toISOString(),
+    status: 'unreachable',
+    responseTimeMs: elapsed,
+    error: scanPorts
+      ? 'No response on any tested port (80, 443, 8080, 8443, 47808). Host may still be reachable via ICMP — try command-line ping to verify.'
+      : 'No HTTP/HTTPS response. Host may still be reachable via ICMP — try command-line ping to verify. Enable "Scan BAS Ports" to test additional ports.',
+  };
 }
 
 // ─── Status UI ──────────────────────────────────────────────
@@ -108,6 +168,9 @@ function ResultRow({ target, results }: { target: PingTarget; results: PingResul
           <span className="font-mono font-medium">{target.host}</span>
           {target.port && <span className="text-muted-foreground">:{target.port}</span>}
           {target.label && <span className="text-muted-foreground ml-2">({target.label})</span>}
+          {latest.reachableOn && (
+            <span className="text-green-500/70 ml-2 text-xs">via {latest.reachableOn}</span>
+          )}
         </div>
         <div className="flex items-center gap-3 text-xs text-muted-foreground">
           {latest.responseTimeMs !== undefined && (
@@ -135,6 +198,7 @@ function ResultRow({ target, results }: { target: PingTarget; results: PingResul
                 <th className="px-4 py-1.5 text-left font-medium">#</th>
                 <th className="px-4 py-1.5 text-left font-medium">Time</th>
                 <th className="px-4 py-1.5 text-left font-medium">Status</th>
+                <th className="px-4 py-1.5 text-left font-medium">Details</th>
                 <th className="px-4 py-1.5 text-right font-medium">Latency</th>
               </tr>
             </thead>
@@ -146,6 +210,9 @@ function ResultRow({ target, results }: { target: PingTarget; results: PingResul
                     <td className="px-4 py-1.5 text-muted-foreground">{i + 1}</td>
                     <td className="px-4 py-1.5 font-mono">{format(new Date(r.timestamp), 'HH:mm:ss')}</td>
                     <td className={cn('px-4 py-1.5', rc.color)}>{rc.label}</td>
+                    <td className="px-4 py-1.5 text-muted-foreground">
+                      {r.reachableOn ? <span className="text-green-500/70">{r.reachableOn}</span> : (r.error || '—')}
+                    </td>
                     <td className="px-4 py-1.5 text-right font-mono">
                       {r.responseTimeMs !== undefined ? `${r.responseTimeMs}ms` : '—'}
                     </td>
@@ -171,6 +238,7 @@ export default function PingToolPage() {
   const [mode, setMode] = useState<'single' | 'repeated' | 'multi'>('single');
   const [repeatCount, setRepeatCount] = useState(5);
   const [intervalMs, setIntervalMs] = useState(1000);
+  const [scanPorts, setScanPorts] = useState(true);
 
   // Running state
   const [running, setRunning] = useState(false);
@@ -218,7 +286,7 @@ export default function PingToolPage() {
           }],
         }));
 
-        const result = await checkReachability(target.host, target.port);
+        const result = await checkReachability(target.host, target.port, scanPorts);
 
         setResults(prev => {
           const existing = prev[target.host] || [];
@@ -252,7 +320,7 @@ export default function PingToolPage() {
     }
 
     setRunning(false);
-  }, [targets, mode, repeatCount, intervalMs]);
+  }, [targets, mode, repeatCount, intervalMs, scanPorts]);
 
   const stopTest = useCallback(() => {
     abortRef.current = true;
@@ -287,7 +355,7 @@ export default function PingToolPage() {
     lines.push(`Mode:     ${mode}`);
     lines.push(`Targets:  ${validTargets.length}`);
     lines.push('');
-    lines.push('NOTE: Browser-based HTTP reachability test (not ICMP ping)');
+    lines.push('NOTE: Browser-based HTTP/HTTPS reachability test (not ICMP ping)');
     lines.push('');
 
     for (const target of validTargets) {
@@ -311,7 +379,8 @@ export default function PingToolPage() {
       for (const r of hostResults) {
         const ts = format(new Date(r.timestamp), 'HH:mm:ss');
         const status = r.status === 'reachable' ? 'OK' : 'FAIL';
-        lines.push(`  [${ts}] ${status} ${r.responseTimeMs ? r.responseTimeMs + 'ms' : ''} ${r.error || ''}`);
+        const detail = r.reachableOn ? `(${r.reachableOn})` : (r.error || '');
+        lines.push(`  [${ts}] ${status} ${r.responseTimeMs ? r.responseTimeMs + 'ms' : ''} ${detail}`);
       }
       lines.push('');
     }
@@ -349,12 +418,16 @@ export default function PingToolPage() {
           {/* Disclaimer */}
           <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm flex gap-3">
             <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
-            <div className="text-muted-foreground">
-              <strong className="text-foreground">Browser Reachability Test</strong> — Browsers cannot send ICMP
-              ping packets. This tool tests HTTP/TCP reachability using <code className="text-xs bg-muted px-1 rounded">fetch()</code>.
-              It confirms whether a host responds on a given port — useful for verifying BAS controller
-              web interfaces, switches, and servers are reachable. Response times reflect HTTP round-trip,
-              not ICMP latency.
+            <div className="text-muted-foreground space-y-1">
+              <div>
+                <strong className="text-foreground">Browser Reachability Test</strong> — Browsers cannot send ICMP
+                ping packets. This tool tests HTTP &amp; HTTPS reachability. A host that responds to <code className="text-xs bg-muted px-1 rounded">cmd ping</code> may
+                show as &quot;Unreachable&quot; here if it has no web server running.
+              </div>
+              <div className="text-xs">
+                Tests HTTP and HTTPS by default. With <strong className="text-foreground">Scan BAS Ports</strong> enabled,
+                also checks ports 8080, 8443, and 47808 (BACnet). Results show which protocol and port responded.
+              </div>
             </div>
           </div>
 
@@ -382,7 +455,7 @@ export default function PingToolPage() {
             </div>
 
             {/* Mode selector */}
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 flex-wrap">
               <div className="space-y-1.5">
                 <Label className="text-xs">Mode</Label>
                 <Select value={mode} onValueChange={v => v && setMode(v as typeof mode)}>
@@ -410,6 +483,19 @@ export default function PingToolPage() {
                   </div>
                 </>
               )}
+              <div className="space-y-1.5">
+                <Label className="text-xs">BAS Ports</Label>
+                <label className="flex items-center gap-2 h-8 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={scanPorts}
+                    onChange={e => setScanPorts(e.target.checked)}
+                    className="rounded border-border"
+                    disabled={running}
+                  />
+                  <span className="text-xs text-muted-foreground">Scan common ports</span>
+                </label>
+              </div>
             </div>
 
             {/* Targets */}
@@ -501,6 +587,25 @@ export default function PingToolPage() {
                     const r = results[t.host];
                     return r && r[r.length - 1]?.status === 'reachable';
                   }).length} of {validTargets.length} hosts reachable
+                </div>
+              )}
+
+              {/* Unreachable help */}
+              {!running && validTargets.some(t => {
+                const r = results[t.host];
+                return r && r[r.length - 1]?.status === 'unreachable';
+              }) && (
+                <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 text-xs flex gap-3">
+                  <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
+                  <div className="text-muted-foreground space-y-1">
+                    <div><strong className="text-foreground">Host showing unreachable?</strong></div>
+                    <ul className="list-disc ml-4 space-y-0.5">
+                      <li>The device may respond to ICMP ping but have no web server — try <code className="bg-muted px-1 rounded">ping {'{'}IP{'}'}</code> from your command prompt to confirm network connectivity.</li>
+                      <li>Some controllers only listen on non-standard ports — enable <strong>Scan BAS Ports</strong> or enter a specific port number.</li>
+                      <li>If on VPN, ensure the VPN routes traffic to the target subnet. Your browser uses the same network path as other apps.</li>
+                      <li>HTTPS-only devices with self-signed certificates may still show as reachable (the TCP connection succeeds even if the cert is untrusted).</li>
+                    </ul>
+                  </div>
                 </div>
               )}
             </div>

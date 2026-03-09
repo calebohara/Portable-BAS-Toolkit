@@ -323,6 +323,8 @@ export interface PingResultEntry {
   status: PingStatus;
   responseTimeMs?: number;
   error?: string;
+  /** Which protocol:port combination succeeded (e.g. "https :443") */
+  reachableOn?: string;
 }
 
 export interface PingSession {
