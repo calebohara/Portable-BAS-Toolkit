@@ -12,6 +12,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](#pwa-capabilities)
+[![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?style=flat-square&logo=tauri&logoColor=white)](#desktop-app)
 [![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?style=flat-square&logo=vercel)](https://vercel.com)
 
@@ -91,7 +92,8 @@ It centralizes the critical project data that field engineers carry between job 
 | **Telnet HMI Tool** | Browser-based terminal for BAS controller access — WebSocket-to-Telnet proxy support, session logging, .txt export, project attachment, baud rate configuration, multiple session tabs, command history, connection history, and persistent session buffers that survive navigation |
 | **Command Snippet Library** | Save and reuse terminal commands — categorized snippets (BACnet, LonWorks, Modbus, Niagara, Siemens, Johnson, Honeywell), search and filter, one-click insert into terminal, usage tracking, favorites |
 | **Web Interface** | Access BAS controller web panels directly — saved endpoints with favorites, protocol/port/path configuration, embedded iframe workspace with honest browser security handling (X-Frame-Options, CSP, mixed content), new-tab fallback, project association, recent connections, JSON export, and persistent active workspace that survives navigation |
-| **Ping Tool** | Browser-based reachability testing — tries both HTTP and HTTPS, optional BAS port scanning (80, 443, 8080, 8443, 47808/BACnet), single/repeated/multi-target modes, shows which protocol and port responded, helpful diagnostics when hosts are ICMP-reachable but HTTP-unreachable, latency statistics, project association, result saving, and .txt export |
+| **Ping Tool** | Reachability testing with dual mode — browser mode uses HTTP/HTTPS with optional BAS port scanning (80, 443, 8080, 8443, 47808/BACnet); desktop mode uses real ICMP ping with TTL and native TCP port checking. Single/repeated/multi-target modes, auto-detects desktop vs browser, helpful diagnostics, latency statistics, project association, result saving, and .txt export |
+| **Desktop App** | Native desktop application via Tauri — real ICMP ping, direct TCP port checking, system-level network access over VPN, lightweight ~15 MB installer for Windows (.msi) and macOS (.dmg), auto-built via GitHub Actions CI |
 | **Global Sticky Notepad** | Draggable floating scratchpad accessible from any page — drag the launcher icon anywhere on screen with persistent position, edge snapping, tabbed notes, minimize/restore, and offline persistence via Zustand |
 | **Guided Tour** | Interactive step-by-step onboarding walkthrough with spotlight overlay — auto-launches on first visit, replayable from Help or Settings, mobile-friendly with clean sidebar state management |
 | **Help Center** | Dedicated help page with getting started guide, feature guides, FAQ, troubleshooting, keyboard shortcuts, and best practices |
@@ -198,7 +200,8 @@ It centralizes the critical project data that field engineers carry between job 
 | **Toasts** | Sonner | 2 |
 | **Themes** | next-themes | — |
 | **Offline** | Service Worker + IndexedDB | — |
-| **Deployment** | Vercel | — |
+| **Desktop** | Tauri (Rust backend) | 2 |
+| **Deployment** | Vercel / GitHub Releases | — |
 
 ---
 
@@ -512,6 +515,51 @@ BAU Suite is a fully installable Progressive Web App:
 **iOS Safari:** Tap Share → Add to Home Screen.
 
 **Android Chrome:** Tap the install banner or use the browser menu → Install App.
+
+---
+
+## Desktop App
+
+BAU Suite is also available as a native desktop application built with [Tauri](https://v2.tauri.app/), providing capabilities that browsers cannot offer:
+
+### What you get
+
+| Feature | Browser (PWA) | Desktop (Tauri) |
+|---------|:---:|:---:|
+| All BAU Suite tools | Yes | Yes |
+| Offline data (IndexedDB) | Yes | Yes |
+| Real ICMP ping | No | Yes |
+| Direct TCP port checking | No | Yes |
+| VPN network access | Via HTTP only | Full system-level |
+| Install size | ~0 MB (browser) | ~15 MB |
+
+### How to install
+
+Download the latest installer from [GitHub Releases](https://github.com/calebohara/Portable-BAS-Toolkit/releases):
+
+- **Windows:** `.msi` installer
+- **macOS (Apple Silicon):** `.dmg` (M1/M2/M3/M4)
+- **macOS (Intel):** `.dmg` (x86_64)
+
+### How to build locally
+
+```bash
+npm run tauri:dev      # Development mode with hot reload
+npm run tauri:build    # Production build (.app/.dmg on macOS, .msi on Windows)
+```
+
+Requires [Rust](https://rustup.rs/) and platform build tools (Xcode CLI on macOS, Visual Studio Build Tools on Windows).
+
+### CI/CD
+
+Desktop builds are automated via GitHub Actions. Push a version tag to trigger a release:
+
+```bash
+git tag v2.x.x
+git push origin v2.x.x
+```
+
+This builds all platform targets in parallel and creates a draft GitHub Release with installers attached.
 
 ---
 
