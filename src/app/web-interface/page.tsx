@@ -21,6 +21,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
+import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import {
   useWebInterfaceStore,
@@ -294,7 +295,7 @@ function EmbeddedWorkspace() {
   };
 
   const handleOpenExternal = () => {
-    window.open(activeUrl, '_blank', 'noopener,noreferrer');
+    openUrl(activeUrl);
   };
 
   const handleRefresh = () => {
@@ -452,7 +453,7 @@ export default function WebInterfacePage() {
     }
 
     if (mode === 'new-tab') {
-      window.open(url, '_blank', 'noopener,noreferrer');
+      openUrl(url);
       toast.success('Opened in new tab');
     } else {
       // auto or embedded — try embed

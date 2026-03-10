@@ -36,6 +36,29 @@ async function getInvoke() {
   return invoke;
 }
 
+// ─── Shell Open (external URLs, mailto, etc.) ─────────────
+let shellOpenCache: ((url: string) => Promise<void>) | null = null;
+
+async function getShellOpen() {
+  if (shellOpenCache) return shellOpenCache;
+  const { open } = await import('@tauri-apps/plugin-shell');
+  shellOpenCache = open;
+  return open;
+}
+
+/**
+ * Open a URL externally (browser, email client, etc.).
+ * In Tauri, uses the shell plugin; in browser, falls back to window.open.
+ */
+export async function openUrl(url: string): Promise<void> {
+  if (isTauri()) {
+    const open = await getShellOpen();
+    await open(url);
+  } else {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
 // ─── Native ICMP Ping ──────────────────────────────────────
 export async function nativeIcmpPing(
   host: string,

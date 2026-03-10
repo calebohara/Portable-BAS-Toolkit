@@ -10,6 +10,7 @@ import { FileIcon, formatFileSize } from '@/components/shared/file-icon';
 import { getFileBlob } from '@/lib/db';
 import type { ProjectFile } from '@/types';
 import { toast } from 'sonner';
+import { openUrl } from '@/lib/tauri-bridge';
 
 interface Props {
   open: boolean;
@@ -131,7 +132,7 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
 
   const handleOpenNewTab = () => {
     if (blobUrl) {
-      window.open(blobUrl, '_blank', 'noopener,noreferrer');
+      openUrl(blobUrl);
     }
   };
 

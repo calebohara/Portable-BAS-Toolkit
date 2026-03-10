@@ -16,6 +16,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { cn, escapeHtml } from '@/lib/utils';
+import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import {
   FILE_CATEGORY_LABELS, type Project, type ProjectFile, type FieldNote,
@@ -304,47 +305,51 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
   const handlePrint = () => {
     const content = printRef.current;
     if (!content) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) {
-      toast.error('Pop-up blocked. Allow pop-ups and try again.');
-      return;
-    }
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <title>${escapeHtml(metadata.title || project.name)} — BAU Suite Export</title>
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: system-ui, -apple-system, sans-serif; font-size: 12px; color: #111; padding: 20px; }
-          h1 { font-size: 20px; margin-bottom: 8px; }
-          h2 { font-size: 15px; margin-bottom: 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
-          section { margin-bottom: 16px; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #eee; }
-          th { font-weight: 600; background: #f5f5f5; }
-          .text-gray-500 { color: #6b7280; }
-          .text-gray-400 { color: #9ca3af; }
-          .text-gray-600 { color: #4b5563; }
-          .text-gray-700 { color: #374151; }
-          .text-amber-600 { color: #d97706; }
-          .font-semibold { font-weight: 600; }
-          .font-medium { font-weight: 500; }
-          .font-bold { font-weight: 700; }
-          .whitespace-pre-wrap { white-space: pre-wrap; }
-          .list-disc { list-style-type: disc; padding-left: 20px; }
-          .border-b-2 { border-bottom: 2px solid #1f2937; }
-          .border-b { border-bottom: 1px solid #d1d5db; }
-          .border-t { border-top: 1px solid #d1d5db; }
-          @media print { body { padding: 0; } }
-        </style>
-      </head>
-      <body>${content.innerHTML}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+
+    // Create a temporary print container in the current window
+    const printContainer = document.createElement('div');
+    printContainer.id = 'bau-print-container';
+    printContainer.innerHTML = content.innerHTML;
+
+    // Add print styles
+    const style = document.createElement('style');
+    style.id = 'bau-print-styles';
+    style.textContent = `
+      @media print {
+        body > *:not(#bau-print-container) { display: none !important; }
+        #bau-print-container {
+          display: block !important;
+          position: absolute; top: 0; left: 0; width: 100%;
+          font-family: system-ui, -apple-system, sans-serif; font-size: 12px; color: #111; padding: 20px;
+        }
+        #bau-print-container h1 { font-size: 20px; margin-bottom: 8px; }
+        #bau-print-container h2 { font-size: 15px; margin-bottom: 6px; border-bottom: 1px solid #ccc; padding-bottom: 4px; }
+        #bau-print-container section { margin-bottom: 16px; }
+        #bau-print-container table { width: 100%; border-collapse: collapse; }
+        #bau-print-container th, #bau-print-container td { text-align: left; padding: 3px 6px; border-bottom: 1px solid #eee; }
+        #bau-print-container th { font-weight: 600; background: #f5f5f5; }
+        #bau-print-container .text-gray-500 { color: #6b7280; }
+        #bau-print-container .text-gray-400 { color: #9ca3af; }
+        #bau-print-container .text-gray-600 { color: #4b5563; }
+        #bau-print-container .text-gray-700 { color: #374151; }
+        #bau-print-container .text-amber-600 { color: #d97706; }
+        #bau-print-container .font-semibold { font-weight: 600; }
+        #bau-print-container .font-medium { font-weight: 500; }
+        #bau-print-container .font-bold { font-weight: 700; }
+        #bau-print-container .whitespace-pre-wrap { white-space: pre-wrap; }
+        #bau-print-container .list-disc { list-style-type: disc; padding-left: 20px; }
+        #bau-print-container .border-b-2 { border-bottom: 2px solid #1f2937; }
+        #bau-print-container .border-b { border-bottom: 1px solid #d1d5db; }
+        #bau-print-container .border-t { border-top: 1px solid #d1d5db; }
+      }
+      #bau-print-container { display: none; }
+    `;
+    document.head.appendChild(style);
+    document.body.appendChild(printContainer);
+    window.print();
+    // Cleanup after print
+    document.body.removeChild(printContainer);
+    document.head.removeChild(style);
   };
 
   const renderReviewStep = () => {
@@ -449,7 +454,7 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
                 variant="outline"
                 onClick={() => {
                   const mailto = `mailto:?subject=${encodeURIComponent(outlookOutput.subject)}&body=${encodeURIComponent(outlookOutput.body)}`;
-                  window.open(mailto);
+                  openUrl(mailto);
                 }}
                 className="gap-1.5"
               >
