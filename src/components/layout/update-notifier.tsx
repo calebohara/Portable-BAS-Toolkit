@@ -18,11 +18,15 @@ import { checkForUpdate, downloadAndInstall, type UpdateStatus } from '@/lib/upd
 type UpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'error' | 'up-to-date';
 
 export function UpdateNotifier() {
+  const [mounted, setMounted] = useState(false);
   const [state, setState] = useState<UpdateState>('idle');
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+
+  // Prevent hydration mismatch: render nothing until mounted on client
+  useEffect(() => { setMounted(true); }, []);
 
   const doCheck = useCallback(async (silent = false) => {
     if (!isTauri()) return;
@@ -75,8 +79,8 @@ export function UpdateNotifier() {
     }
   };
 
-  // Don't render anything in browser mode
-  if (typeof window !== 'undefined' && !isTauri()) return null;
+  // Don't render until mounted (avoids SSR hydration mismatch), and skip in browser mode
+  if (!mounted || !isTauri()) return null;
 
   return (
     <>

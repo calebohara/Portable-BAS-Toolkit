@@ -25,10 +25,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [setOnline]);
 
-  // Register service worker
+  // Register service worker (skip in Tauri — SW intercepts navigation requests
+  // and breaks client-side routing in the static export)
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
+    if ('serviceWorker' in navigator && !('__TAURI_INTERNALS__' in window)) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
+    } else if ('serviceWorker' in navigator && '__TAURI_INTERNALS__' in window) {
+      // Unregister any previously registered SW in Tauri to prevent stale caches
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+          registration.unregister();
+        }
+      });
     }
   }, []);
 

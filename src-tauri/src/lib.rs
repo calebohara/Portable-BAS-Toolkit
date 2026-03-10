@@ -198,7 +198,9 @@ pub fn run() {
             }
 
             // Inject SPA navigation handler into the main window
-            // This handles hard refreshes on dynamic routes
+            // This handles hard refreshes on dynamic routes in the static export.
+            // When the webview hard-refreshes on /projects/{uuid}, the static file
+            // doesn't exist — we detect this and redirect to the catch-all fallback.
             let main_window = app.get_webview_window("main");
             if let Some(window) = main_window {
                 let _ = window.eval(r#"
@@ -213,8 +215,15 @@ pub fn run() {
                                 (parts[1] === 'reports' && parts.length >= 3 && parts[2] !== '_' && parts[2] !== 'new')
                             );
 
-                            if (isDynamic && document.body && document.body.innerHTML.trim() === '') {
-                                // Page didn't load (file not found) — redirect to fallback
+                            if (!isDynamic) return;
+
+                            // Detect if the page failed to load: check for empty body OR
+                            // missing Next.js root element (more reliable than empty body check)
+                            const hasNextRoot = document.getElementById('__next');
+                            const bodyEmpty = document.body && document.body.innerHTML.trim() === '';
+                            const isErrorPage = document.title === '' || document.title === '404';
+
+                            if (bodyEmpty || !hasNextRoot || isErrorPage) {
                                 const id = parts[2];
                                 const isEdit = parts[3] === 'edit';
                                 let fallbackUrl;
@@ -229,10 +238,11 @@ pub fn run() {
                             }
                         }
 
-                        if (document.readyState === 'loading') {
-                            document.addEventListener('DOMContentLoaded', checkSpaFallback);
-                        } else {
+                        // Wait for the page to fully load before checking
+                        if (document.readyState === 'complete') {
                             checkSpaFallback();
+                        } else {
+                            window.addEventListener('load', checkSpaFallback);
                         }
                     })();
                 "#);

@@ -31,10 +31,15 @@ export function useProjects() {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
-    const all = await db.getAllProjects();
-    setProjects(all);
-    setLoading(false);
+    try {
+      await ensureDemoData();
+      const all = await db.getAllProjects();
+      setProjects(all);
+    } catch (e) {
+      console.error('Failed to load projects:', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -85,10 +90,15 @@ export function useProject(id: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
-    const p = await db.getProject(id);
-    setProject(p || null);
-    setLoading(false);
+    try {
+      await ensureDemoData();
+      const p = await db.getProject(id);
+      setProject(p || null);
+    } catch (e) {
+      console.error('Failed to load project:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -113,12 +123,17 @@ export function useProjectFiles(projectId: string, category?: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
-    const allFiles = category
-      ? await db.getFilesByCategory(projectId, category)
-      : await db.getProjectFiles(projectId);
-    setFiles(allFiles.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
-    setLoading(false);
+    try {
+      await ensureDemoData();
+      const allFiles = category
+        ? await db.getFilesByCategory(projectId, category)
+        : await db.getProjectFiles(projectId);
+      setFiles(allFiles.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+    } catch (e) {
+      console.error('Failed to load files:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId, category]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -131,10 +146,15 @@ export function useProjectNotes(projectId: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
-    const all = await db.getProjectNotes(projectId);
-    setNotes(all);
-    setLoading(false);
+    try {
+      await ensureDemoData();
+      const all = await db.getProjectNotes(projectId);
+      setNotes(all);
+    } catch (e) {
+      console.error('Failed to load notes:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -185,10 +205,15 @@ export function useProjectDevices(projectId: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
-    const all = await db.getProjectDevices(projectId);
-    setDevices(all);
-    setLoading(false);
+    try {
+      await ensureDemoData();
+      const all = await db.getProjectDevices(projectId);
+      setDevices(all);
+    } catch (e) {
+      console.error('Failed to load devices:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -237,10 +262,15 @@ export function useProjectIpPlan(projectId: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
-    const all = await db.getProjectIpPlan(projectId);
-    setEntries(all);
-    setLoading(false);
+    try {
+      await ensureDemoData();
+      const all = await db.getProjectIpPlan(projectId);
+      setEntries(all);
+    } catch (e) {
+      console.error('Failed to load IP plan:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -289,10 +319,15 @@ export function useProjectActivity(projectId: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
-    const all = await db.getProjectActivity(projectId);
-    setActivity(all);
-    setLoading(false);
+    try {
+      await ensureDemoData();
+      const all = await db.getProjectActivity(projectId);
+      setActivity(all);
+    } catch (e) {
+      console.error('Failed to load activity:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -306,12 +341,17 @@ export function useDailyReports(projectId?: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
-    const all = projectId
-      ? await db.getProjectDailyReports(projectId)
-      : await db.getAllDailyReports();
-    setReports(all);
-    setLoading(false);
+    try {
+      await ensureDemoData();
+      const all = projectId
+        ? await db.getProjectDailyReports(projectId)
+        : await db.getAllDailyReports();
+      setReports(all);
+    } catch (e) {
+      console.error('Failed to load daily reports:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -363,10 +403,15 @@ export function useDailyReport(id: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
-    const r = await db.getDailyReport(id);
-    setReport(r || null);
-    setLoading(false);
+    try {
+      await ensureDemoData();
+      const r = await db.getDailyReport(id);
+      setReport(r || null);
+    } catch (e) {
+      console.error('Failed to load daily report:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [id]);
 
   useEffect(() => { refresh(); }, [refresh]);
