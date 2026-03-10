@@ -28,7 +28,11 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
   }
 
   try {
-    const { check } = await import('@tauri-apps/plugin-updater');
+    // Dynamic import wrapped in try-catch — these modules only exist in Tauri builds.
+    // The bundler may still try to resolve them; the catch handles missing modules.
+    const { check } = await import(
+      /* webpackIgnore: true */ '@tauri-apps/plugin-updater'
+    );
     const update = await check();
 
     if (update) {
@@ -58,7 +62,9 @@ export async function downloadAndInstall(
 ): Promise<void> {
   if (!isTauri()) return;
 
-  const { check } = await import('@tauri-apps/plugin-updater');
+  const { check } = await import(
+    /* webpackIgnore: true */ '@tauri-apps/plugin-updater'
+  );
   const update = await check();
 
   if (!update) {
@@ -71,10 +77,10 @@ export async function downloadAndInstall(
   await update.downloadAndInstall((event) => {
     switch (event.event) {
       case 'Started':
-        contentLength = event.data.contentLength ?? null;
+        contentLength = event.data?.contentLength ?? null;
         break;
       case 'Progress':
-        downloaded += event.data.chunkLength;
+        downloaded += event.data?.chunkLength ?? 0;
         onProgress?.({
           chunkLength: downloaded,
           contentLength,
@@ -86,6 +92,8 @@ export async function downloadAndInstall(
   });
 
   // Restart the app to apply the update
-  const { relaunch } = await import('@tauri-apps/plugin-process');
+  const { relaunch } = await import(
+    /* webpackIgnore: true */ '@tauri-apps/plugin-process'
+  );
   await relaunch();
 }

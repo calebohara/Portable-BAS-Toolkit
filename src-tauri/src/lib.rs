@@ -79,7 +79,7 @@ async fn icmp_ping(host: String, count: Option<u32>, timeoutMs: Option<u32>) -> 
 fn parse_ttl(output: &str) -> Option<u32> {
     let lower = output.to_lowercase();
     if let Some(pos) = lower.find("ttl=") {
-        let after = &output[pos + 4..];
+        let after = &lower[pos + 4..];
         let num_str: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
         num_str.parse().ok()
     } else {
@@ -90,7 +90,7 @@ fn parse_ttl(output: &str) -> Option<u32> {
 fn parse_rtt(output: &str) -> Option<u64> {
     let lower = output.to_lowercase();
     if let Some(pos) = lower.find("time=") {
-        let after = &output[pos + 5..];
+        let after = &lower[pos + 5..];
         let num_str: String = after.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
         num_str.parse::<f64>().ok().map(|v| v.round() as u64)
     } else if lower.contains("time<1ms") {

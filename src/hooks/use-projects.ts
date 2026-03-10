@@ -6,24 +6,24 @@ import * as db from '@/lib/db';
 import { generateDemoData } from '@/lib/demo-data';
 import { v4 as uuid } from 'uuid';
 
-let demoSeeded = false;
+let demoSeedPromise: Promise<void> | null = null;
 
-async function ensureDemoData() {
-  if (demoSeeded) return;
-  const existing = await db.getAllProjects();
-  if (existing.length > 0) {
-    demoSeeded = true;
-    return;
+function ensureDemoData(): Promise<void> {
+  if (!demoSeedPromise) {
+    demoSeedPromise = (async () => {
+      const existing = await db.getAllProjects();
+      if (existing.length > 0) return;
+
+      const demo = generateDemoData();
+      for (const p of demo.projects) await db.saveProject(p);
+      for (const f of demo.files) await db.saveFile(f);
+      for (const n of demo.notes) await db.saveNote(n);
+      for (const d of demo.devices) await db.saveDevice(d);
+      for (const ip of demo.ipEntries) await db.saveIpEntry(ip);
+      for (const a of demo.activityLog) await db.addActivity(a);
+    })();
   }
-
-  const demo = generateDemoData();
-  for (const p of demo.projects) await db.saveProject(p);
-  for (const f of demo.files) await db.saveFile(f);
-  for (const n of demo.notes) await db.saveNote(n);
-  for (const d of demo.devices) await db.saveDevice(d);
-  for (const ip of demo.ipEntries) await db.saveIpEntry(ip);
-  for (const a of demo.activityLog) await db.addActivity(a);
-  demoSeeded = true;
+  return demoSeedPromise;
 }
 
 export function useProjects() {
