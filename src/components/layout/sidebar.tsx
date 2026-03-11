@@ -12,6 +12,7 @@ import { useAppStore } from '@/store/app-store';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { UpdateNotifier } from './update-notifier';
+import { APP_VERSION } from '@/lib/version';
 
 const navGroups = [
   {
@@ -158,7 +159,7 @@ export function Sidebar() {
         )}
         {sidebarOpen && (
           <p className="mb-1 text-center text-[10px] text-muted-foreground/50 hidden md:block">
-            v{process.env.NEXT_PUBLIC_APP_VERSION}
+            v{APP_VERSION}
           </p>
         )}
         {sidebarOpen && (

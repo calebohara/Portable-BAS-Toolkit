@@ -6,6 +6,7 @@ import { Sidebar } from './sidebar';
 import { InstallPrompt } from '@/components/pwa/install-prompt';
 import { TourOverlay } from '@/components/onboarding/tour-overlay';
 import { GlobalNotepad } from '@/components/notepad/global-notepad';
+import { WebUpdateBanner } from './web-update-banner';
 import { cn } from '@/lib/utils';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -85,6 +86,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </main>
       <GlobalNotepad />
       <InstallPrompt />
+      <WebUpdateBanner />
       <TourOverlay />
     </div>
   );

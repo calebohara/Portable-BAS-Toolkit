@@ -14,6 +14,7 @@ import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/store/app-store';
 import { getStorageEstimate, clearFileCache } from '@/lib/db';
 import { formatFileSize } from '@/components/shared/file-icon';
+import { APP_VERSION } from '@/lib/version';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
@@ -134,7 +135,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-2 text-sm text-muted-foreground">
             <p><strong className="text-foreground">BAU Suite</strong> — Portable Project Toolkit</p>
-            <p>Version {process.env.NEXT_PUBLIC_APP_VERSION}</p>
+            <p>Version {APP_VERSION}</p>
             <p>Built for BAS field technicians, commissioning agents, and service engineers.</p>
             <p>Offline-first. Fast. Field-ready.</p>
           </CardContent>

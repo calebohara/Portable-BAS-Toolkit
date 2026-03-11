@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { Download, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { Download, RefreshCw, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,6 +14,13 @@ import {
 import { Progress, ProgressLabel } from '@/components/ui/progress';
 import { isTauri } from '@/lib/tauri-bridge';
 import { checkForUpdate, downloadAndInstall, type UpdateStatus } from '@/lib/updater';
+import {
+  APP_VERSION,
+  shouldShowUpdate,
+  setDismissedVersion,
+  clearDismissedVersion,
+  logUpdateDebug,
+} from '@/lib/version';
 
 type UpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'error' | 'up-to-date';
 
@@ -24,6 +31,7 @@ export function UpdateNotifier() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const hasCheckedRef = useRef(false);
 
   // Prevent hydration mismatch: render nothing until mounted on client
   useEffect(() => { setMounted(true); }, []);
@@ -43,11 +51,23 @@ export function UpdateNotifier() {
       return;
     }
 
-    if (result.available) {
+    if (result.available && result.version) {
+      // Check dismissal state — don't nag about versions the user already dismissed
+      if (silent && !shouldShowUpdate(result.version)) {
+        logUpdateDebug('dismissed', {
+          latestVersion: result.version,
+          reason: 'User previously dismissed this version',
+        });
+        setState('idle');
+        return;
+      }
+
       setState('available');
       setUpdate(result);
       setDialogOpen(true);
     } else {
+      // Up to date — clear any stale dismissals since current version caught up
+      clearDismissedVersion();
       setState('up-to-date');
       if (!silent) setDialogOpen(true);
       // Reset to idle after a few seconds if no update
@@ -55,13 +75,23 @@ export function UpdateNotifier() {
     }
   }, []);
 
-  // Automatic check on startup (silent — no dialog if up-to-date)
+  // Automatic check on startup (silent — no dialog if up-to-date or dismissed)
   useEffect(() => {
-    if (!isTauri()) return;
+    if (!isTauri() || hasCheckedRef.current) return;
+    hasCheckedRef.current = true;
     // Wait for app to settle before checking
     const timer = setTimeout(() => doCheck(true), 5000);
     return () => clearTimeout(timer);
   }, [doCheck]);
+
+  const handleDismiss = useCallback(() => {
+    // Persist dismissal so user isn't nagged on next launch
+    if (update?.version) {
+      setDismissedVersion(update.version);
+      logUpdateDebug('user-dismissed', { dismissedVersion: update.version });
+    }
+    setDialogOpen(false);
+  }, [update]);
 
   const handleDownload = async () => {
     setState('downloading');
@@ -88,7 +118,7 @@ export function UpdateNotifier() {
       <ManualCheckButton state={state} onClick={() => doCheck(false)} />
 
       {/* Update dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleDismiss(); else setDialogOpen(true); }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
@@ -100,10 +130,13 @@ export function UpdateNotifier() {
             </DialogTitle>
             <DialogDescription>
               {state === 'available' && update && (
-                <>A new version <strong>v{update.version}</strong> is available. Would you like to download and install it?</>
+                <>
+                  A new version <strong>v{update.version}</strong> is available.
+                  <span className="block mt-1 text-xs opacity-70">Current: v{APP_VERSION}</span>
+                </>
               )}
               {state === 'downloading' && 'Please wait while the update is being downloaded...'}
-              {state === 'up-to-date' && 'You are running the latest version of BAU Suite.'}
+              {state === 'up-to-date' && `You are running the latest version (v${APP_VERSION}) of BAU Suite.`}
               {state === 'error' && (error || 'An error occurred while checking for updates.')}
               {state === 'checking' && 'Checking for new versions...'}
             </DialogDescription>
@@ -143,7 +176,7 @@ export function UpdateNotifier() {
           <DialogFooter>
             {state === 'available' && (
               <>
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button variant="outline" onClick={handleDismiss}>
                   Later
                 </Button>
                 <Button onClick={handleDownload}>
