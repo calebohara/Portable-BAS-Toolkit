@@ -19,6 +19,7 @@ import type { ReportStatus } from '@/types';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
+import { navigateToReportEdit } from '@/lib/routes';
 
 const STATUS_COLORS: Record<ReportStatus, string> = {
   draft: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
@@ -179,7 +180,7 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
           {/* Actions */}
           <div className="flex flex-wrap gap-2 pt-2 border-t border-border">
             {report.status !== 'finalized' && (
-              <Button variant="outline" size="sm" onClick={() => router.push(`/reports/${id}/edit`)} className="gap-1.5">
+              <Button variant="outline" size="sm" onClick={() => navigateToReportEdit(router, id)} className="gap-1.5">
                 <Edit className="h-3.5 w-3.5" /> Edit
               </Button>
             )}

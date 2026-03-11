@@ -16,6 +16,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { useAppStore } from '@/store/app-store';
 import { formatFileSize } from '@/components/shared/file-icon';
+import { navigateToProject } from '@/lib/routes';
 import { toast } from 'sonner';
 
 export default function OfflinePage() {
@@ -114,7 +115,7 @@ export default function OfflinePage() {
                   className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 hover:bg-accent transition-colors"
                 >
                   <button
-                    onClick={() => router.push(`/projects/${project.id}`)}
+                    onClick={() => navigateToProject(router, project.id)}
                     className="flex items-center gap-3 min-w-0 flex-1 text-left"
                   >
                     <FolderKanban className="h-5 w-5 text-primary shrink-0" />
@@ -168,7 +169,7 @@ export default function OfflinePage() {
                   className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 hover:bg-accent transition-colors"
                 >
                   <button
-                    onClick={() => router.push(`/projects/${project.id}`)}
+                    onClick={() => navigateToProject(router, project.id)}
                     className="flex items-center gap-3 min-w-0 flex-1 text-left"
                   >
                     <Pin className="h-5 w-5 text-primary shrink-0" />

@@ -15,6 +15,7 @@ import { ProjectStatusBadge } from '@/components/shared/status-badge';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { navigateToProject } from '@/lib/routes';
 import type { Project } from '@/types';
 
 export default function DashboardPage() {
@@ -91,7 +92,7 @@ export default function DashboardPage() {
               {pinnedProjects.map((project) => (
                 <ProjectCard key={project.id} project={project} onClick={() => {
                   useAppStore.getState().addRecentProject(project.id);
-                  router.push(`/projects/${project.id}`);
+                  navigateToProject(router, project.id);
                 }} />
               ))}
             </div>
@@ -111,7 +112,7 @@ export default function DashboardPage() {
               {activeProjects.slice(0, 6).map((project) => (
                 <ProjectCard key={project.id} project={project} onClick={() => {
                   useAppStore.getState().addRecentProject(project.id);
-                  router.push(`/projects/${project.id}`);
+                  navigateToProject(router, project.id);
                 }} />
               ))}
             </div>
@@ -176,7 +177,7 @@ export default function DashboardPage() {
                   key={project.id}
                   onClick={() => {
                     useAppStore.getState().addRecentProject(project.id);
-                    router.push(`/projects/${project.id}`);
+                    navigateToProject(router, project.id);
                   }}
                   className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 >

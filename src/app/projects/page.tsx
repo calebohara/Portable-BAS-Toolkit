@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { NewProjectDialog } from '@/components/projects/new-project-dialog';
 import { toast } from 'sonner';
+import { navigateToProject } from '@/lib/routes';
 import type { Project, ProjectStatus } from '@/types';
 
 export default function ProjectsPage() {
@@ -140,7 +141,7 @@ function ProjectsPageInner() {
                 className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/20"
                 onClick={() => {
                   useAppStore.getState().addRecentProject(project.id);
-                  router.push(`/projects/${project.id}`);
+                  navigateToProject(router, project.id);
                 }}
               >
                 <CardContent className="p-4">
@@ -207,7 +208,7 @@ function ProjectsPageInner() {
         onCreate={async (data) => {
           const project = await createProject(data);
           setShowNewDialog(false);
-          router.push(`/projects/${project.id}`);
+          navigateToProject(router, project.id);
         }}
       />
 

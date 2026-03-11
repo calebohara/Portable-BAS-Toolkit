@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { navigateToReport } from '@/lib/routes';
 import type { ReportStatus } from '@/types';
 
 const STATUS_COLORS: Record<ReportStatus, string> = {
@@ -126,7 +127,7 @@ export default function ReportsListPage() {
             {filtered.map(r => (
               <button
                 key={r.id}
-                onClick={() => router.push(`/reports/${r.id}`)}
+                onClick={() => navigateToReport(router, r.id)}
                 className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">

@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FILE_CATEGORY_LABELS } from '@/types';
+import { navigateToProject } from '@/lib/routes';
 import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry } from '@/types';
 
 function Highlight({ text, query }: { text: string; query: string }) {
@@ -184,7 +185,7 @@ export default function SearchPage() {
                   {results.projects.map((p) => (
                     <button
                       key={p.id}
-                      onClick={() => router.push(`/projects/${p.id}`)}
+                      onClick={() => navigateToProject(router, p.id)}
                       className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
                       <FolderKanban className="h-5 w-5 text-primary shrink-0" />
@@ -212,7 +213,7 @@ export default function SearchPage() {
                   {results.files.map((f) => (
                     <button
                       key={f.id}
-                      onClick={() => router.push(`/projects/${f.projectId}`)}
+                      onClick={() => navigateToProject(router, f.projectId)}
                       className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
                       <FileIcon fileType={f.fileType} />
@@ -239,7 +240,7 @@ export default function SearchPage() {
                   {results.devices.map((d) => (
                     <button
                       key={d.id}
-                      onClick={() => router.push(`/projects/${d.projectId}`)}
+                      onClick={() => navigateToProject(router, d.projectId)}
                       className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
                       <Server className="h-5 w-5 text-amber-500 shrink-0" />
@@ -266,7 +267,7 @@ export default function SearchPage() {
                   {results.ipEntries.map((e) => (
                     <button
                       key={e.id}
-                      onClick={() => router.push(`/projects/${e.projectId}`)}
+                      onClick={() => navigateToProject(router, e.projectId)}
                       className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
                       <Network className="h-5 w-5 text-green-500 shrink-0" />
@@ -294,7 +295,7 @@ export default function SearchPage() {
                   {results.notes.map((n) => (
                     <button
                       key={n.id}
-                      onClick={() => router.push(`/projects/${n.projectId}`)}
+                      onClick={() => navigateToProject(router, n.projectId)}
                       className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
                       <StickyNote className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />

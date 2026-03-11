@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { v4 as uuid } from 'uuid';
+import { navigateToReport } from '@/lib/routes';
 import type { DailyReport, ReportAttachment, ReportStatus } from '@/types';
 
 interface ReportFormProps {
@@ -141,10 +142,10 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
 
       if (mode === 'create') {
         const report = await onSave(data as Omit<DailyReport, 'id' | 'createdAt' | 'updatedAt' | 'reportNumber'>);
-        router.push(`/reports/${report.id}`);
+        navigateToReport(router, report.id);
       } else if (initial && onUpdate) {
         await onUpdate({ ...initial, ...data, updatedAt: new Date().toISOString() });
-        router.push(`/reports/${initial.id}`);
+        navigateToReport(router, initial.id);
       }
     } finally {
       setSaving(false);

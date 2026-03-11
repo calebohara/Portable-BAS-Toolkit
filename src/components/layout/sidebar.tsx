@@ -99,8 +99,14 @@ export function Sidebar() {
             )}
             <div className="space-y-0.5">
               {group.items.map(({ href, icon: Icon, label, tourId }) => {
-                // Normalize pathname for trailing slash and static export variations
-                const normalizedPath = pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
+                // Normalize pathname for trailing slash, index.html, and catch-all fallback patterns.
+                // In Tauri static export, paths like /projects/_/ are used for dynamic routes.
+                // Strip: trailing slash, /index.html, and /_/ or /_ catch-all segments.
+                const normalizedPath = pathname
+                  .replace(/\/index\.html$/, '')
+                  .replace(/\/_\/?$/, '')     // strip catch-all /_/ or /_
+                  .replace(/\/$/, '')          // strip trailing slash
+                  || '/';
                 const isActive = href === '/'
                   ? normalizedPath === '/'
                   : normalizedPath === href || normalizedPath.startsWith(href + '/');
