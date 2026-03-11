@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
 
   useEffect(() => {
-    getStorageEstimate().then(setStorage);
+    getStorageEstimate().then(setStorage).catch(() => {});
   }, []);
 
   if (loading) {

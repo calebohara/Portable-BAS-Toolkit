@@ -22,7 +22,7 @@ export default function SettingsPage() {
   const startTour = useAppStore((s) => s.startTour);
 
   useEffect(() => {
-    getStorageEstimate().then(setStorage);
+    getStorageEstimate().then(setStorage).catch(() => {});
   }, []);
 
   const storagePercent = storage.quota > 0 ? (storage.used / storage.quota) * 100 : 0;
@@ -30,7 +30,7 @@ export default function SettingsPage() {
   const handleClearCache = async () => {
     const count = await clearFileCache();
     toast.success(`Cleared ${count} cached file(s)`);
-    getStorageEstimate().then(setStorage);
+    getStorageEstimate().then(setStorage).catch(() => {});
   };
 
   return (

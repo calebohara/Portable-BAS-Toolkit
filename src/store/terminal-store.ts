@@ -8,6 +8,7 @@ export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'err
 export type BaudRate = 9600 | 19200 | 38400 | 57600 | 115200;
 
 export const BAUD_RATES: BaudRate[] = [9600, 19200, 38400, 57600, 115200];
+const MAX_BUFFER_LINES = 10000;
 export const BUFFER_SIZES = [100, 500, 1000, 5000, 10000] as const;
 export type BufferSize = typeof BUFFER_SIZES[number];
 
@@ -143,8 +144,8 @@ export const useTerminalStore = create<TerminalStore>()(
             sessions: s.sessions.map(sess => {
               if (sess.id !== sessionId || sess.paused) return sess;
               const buffer = [...sess.buffer, line];
-              // Trim to buffer size
-              const maxLines = settings.defaultBufferSize;
+              // Trim to buffer size (capped at MAX_BUFFER_LINES)
+              const maxLines = Math.min(settings.defaultBufferSize, MAX_BUFFER_LINES);
               return {
                 ...sess,
                 buffer: buffer.length > maxLines ? buffer.slice(-maxLines) : buffer,

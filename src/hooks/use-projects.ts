@@ -21,7 +21,11 @@ function ensureDemoData(): Promise<void> {
       for (const d of demo.devices) await db.saveDevice(d);
       for (const ip of demo.ipEntries) await db.saveIpEntry(ip);
       for (const a of demo.activityLog) await db.addActivity(a);
-    })();
+    })().catch((err) => {
+      // Reset so next attempt retries instead of returning cached failure
+      demoSeedPromise = null;
+      throw err;
+    });
   }
   return demoSeedPromise;
 }

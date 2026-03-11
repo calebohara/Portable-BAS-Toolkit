@@ -42,10 +42,15 @@ export default function DocumentsPage() {
   const [assigningFile, setAssigningFile] = useState<ProjectFile | null>(null);
 
   const refresh = useCallback(async () => {
-    const [f, p] = await Promise.all([getUnassignedFiles(), getAllProjects()]);
-    setFiles(f);
-    setProjects(p);
-    setLoading(false);
+    try {
+      const [f, p] = await Promise.all([getUnassignedFiles(), getAllProjects()]);
+      setFiles(f);
+      setProjects(p);
+    } catch (e) {
+      console.error('Failed to load documents:', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);

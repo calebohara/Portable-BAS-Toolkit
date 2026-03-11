@@ -63,7 +63,40 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { devices, addDevice, updateDevice, removeDevice } = useProjectDevices(id);
   const { entries: ipEntries, addIpEntry, updateIpEntry, removeIpEntry } = useProjectIpPlan(id);
   const { activity } = useProjectActivity(id);
-  const [activeTab, setActiveTab] = useState('overview');
+  const getInitialTab = () => {
+    if (typeof window === 'undefined') return 'overview';
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const validTabs: string[] = sections.map(s => s.id);
+    return tab && validTabs.includes(tab) ? tab : 'overview';
+  };
+  const [activeTab, setActiveTabState] = useState(getInitialTab);
+
+  // Sync tab state when URL changes (e.g. client-side navigation with ?tab= param)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    const validTabs: string[] = sections.map(s => s.id);
+    if (tab && validTabs.includes(tab)) {
+      setActiveTabState(tab);
+    } else if (!tab) {
+      setActiveTabState('overview');
+    }
+  }, [id]);
+
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabState(tab);
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      if (tab === 'overview') {
+        url.searchParams.delete('tab');
+      } else {
+        url.searchParams.set('tab', tab);
+      }
+      window.history.replaceState({}, '', url.toString());
+    }
+  }, []);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showShare, setShowShare] = useState(false);
@@ -143,7 +176,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
         <div className="hidden sm:block min-w-0 flex-1">
           <h1 className="truncate text-sm font-semibold sm:text-base">{project.name}</h1>
-          <p className="truncate text-xs text-muted-foreground">{project.customerName} — {project.projectNumber}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            {project.customerName} — {project.projectNumber}
+            {activeTab !== 'overview' && (
+              <span className="text-primary"> › {sections.find(s => s.id === activeTab)?.label}</span>
+            )}
+          </p>
         </div>
         <ProjectStatusBadge status={project.status} />
         {project.isPinned && <Pin className="h-4 w-4 shrink-0 text-primary" />}

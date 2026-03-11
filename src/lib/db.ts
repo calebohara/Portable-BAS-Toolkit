@@ -141,6 +141,10 @@ function getDB() {
           pingStore.createIndex('by-project', 'projectId');
         }
       },
+    }).catch((err) => {
+      // Reset so next call retries instead of returning cached failure
+      dbPromise = null;
+      throw new Error(`Database initialization failed: ${err?.message || err}. The app requires IndexedDB support.`);
     });
   }
   return dbPromise;

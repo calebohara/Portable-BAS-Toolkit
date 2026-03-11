@@ -26,7 +26,7 @@ export default function OfflinePage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
-    getStorageEstimate().then(setStorage);
+    getStorageEstimate().then(setStorage).catch(() => {});
   }, []);
 
   const offlineProjects = projects.filter((p) => p.isOfflineAvailable);
@@ -38,7 +38,7 @@ export default function OfflinePage() {
   const handleClearCache = async () => {
     const count = await clearFileCache();
     toast.success(`Cleared ${count} cached files`);
-    getStorageEstimate().then(setStorage);
+    getStorageEstimate().then(setStorage).catch(() => {});
   };
 
   const togglePin = async (projectId: string) => {

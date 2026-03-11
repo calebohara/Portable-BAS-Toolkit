@@ -13,19 +13,37 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { UpdateNotifier } from './update-notifier';
 
-const navItems = [
-  { href: '/', icon: LayoutDashboard, label: 'Dashboard', tourId: 'nav-dashboard' },
-  { href: '/projects', icon: FolderKanban, label: 'Projects', tourId: 'nav-projects' },
-  { href: '/reports', icon: ClipboardList, label: 'Daily Reports', tourId: 'nav-reports' },
-  { href: '/network-diagram', icon: Network, label: 'Network Diagrams', tourId: 'nav-network-diagram' },
-  { href: '/terminal', icon: TerminalSquare, label: 'Telnet HMI', tourId: 'nav-terminal' },
-  { href: '/web-interface', icon: Globe, label: 'Web Interface', tourId: 'nav-web-interface' },
-  { href: '/ping', icon: Activity, label: 'Ping Tool', tourId: 'nav-ping' },
-  { href: '/documents', icon: FolderOpen, label: 'Uploads Inbox', tourId: 'nav-documents' },
-  { href: '/search', icon: Search, label: 'Search', tourId: 'nav-search' },
-  { href: '/offline', icon: Pin, label: 'Offline / Pinned', tourId: 'nav-offline' },
-  { href: '/help', icon: HelpCircle, label: 'Help', tourId: 'nav-help' },
-  { href: '/settings', icon: Settings, label: 'Settings', tourId: 'nav-settings' },
+const navGroups = [
+  {
+    items: [
+      { href: '/', icon: LayoutDashboard, label: 'Dashboard', tourId: 'nav-dashboard' },
+      { href: '/projects', icon: FolderKanban, label: 'Projects', tourId: 'nav-projects' },
+      { href: '/reports', icon: ClipboardList, label: 'Daily Reports', tourId: 'nav-reports' },
+    ],
+  },
+  {
+    label: 'Tools',
+    items: [
+      { href: '/network-diagram', icon: Network, label: 'Network Diagrams', tourId: 'nav-network-diagram' },
+      { href: '/terminal', icon: TerminalSquare, label: 'Telnet HMI', tourId: 'nav-terminal' },
+      { href: '/web-interface', icon: Globe, label: 'Web Interface', tourId: 'nav-web-interface' },
+      { href: '/ping', icon: Activity, label: 'Ping Tool', tourId: 'nav-ping' },
+    ],
+  },
+  {
+    label: 'Workspace',
+    items: [
+      { href: '/documents', icon: FolderOpen, label: 'Uploads Inbox', tourId: 'nav-documents' },
+      { href: '/search', icon: Search, label: 'Search', tourId: 'nav-search' },
+      { href: '/offline', icon: Pin, label: 'Offline / Pinned', tourId: 'nav-offline' },
+    ],
+  },
+  {
+    items: [
+      { href: '/help', icon: HelpCircle, label: 'Help', tourId: 'nav-help' },
+      { href: '/settings', icon: Settings, label: 'Settings', tourId: 'nav-settings' },
+    ],
+  },
 ];
 
 export function Sidebar() {
@@ -73,50 +91,61 @@ export function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1 px-2 py-3">
-        {navItems.map(({ href, icon: Icon, label, tourId }) => {
-          const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
+      <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        {navGroups.map((group, gi) => (
+          <div key={gi}>
+            {group.label && sidebarOpen && (
+              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hidden md:block">
+                {group.label}
+              </p>
+            )}
+            {!sidebarOpen && group.label && (
+              <div className="mx-auto mb-1 h-px w-6 bg-sidebar-border hidden md:block" />
+            )}
+            <div className="space-y-0.5">
+              {group.items.map(({ href, icon: Icon, label, tourId }) => {
+                const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
 
-          const linkEl = (
-            <Link
-              key={href}
-              href={href}
-              data-tour={tourId}
-              onClick={() => {
-                // Close sidebar on mobile when navigating
-                if (window.innerWidth < 768) setSidebarOpen(false);
-              }}
-              className={cn(
-                'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
-                'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                isActive
-                  ? 'bg-sidebar-accent text-sidebar-primary'
-                  : 'text-sidebar-foreground/70'
-              )}
-            >
-              <Icon className="h-4.5 w-4.5 shrink-0" />
-              {/* Always show labels on mobile (sidebar is full-width when open), conditionally on desktop */}
-              <span className="truncate md:hidden">{label}</span>
-              {sidebarOpen && <span className="truncate hidden md:inline">{label}</span>}
-            </Link>
-          );
+                const linkEl = (
+                  <Link
+                    key={href}
+                    href={href}
+                    data-tour={tourId}
+                    onClick={() => {
+                      if (window.innerWidth < 768) setSidebarOpen(false);
+                    }}
+                    className={cn(
+                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                      'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                      isActive
+                        ? 'bg-sidebar-accent text-sidebar-primary'
+                        : 'text-sidebar-foreground/70'
+                    )}
+                  >
+                    <Icon className="h-4.5 w-4.5 shrink-0" />
+                    <span className="truncate md:hidden">{label}</span>
+                    {sidebarOpen && <span className="truncate hidden md:inline">{label}</span>}
+                  </Link>
+                );
 
-          // On desktop when collapsed, wrap in tooltip
-          if (!sidebarOpen) {
-            return (
-              <Tooltip key={href}>
-                <TooltipTrigger render={<span className="block" />}>
-                  {linkEl}
-                </TooltipTrigger>
-                <TooltipContent side="right" sideOffset={8}>
-                  {label}
-                </TooltipContent>
-              </Tooltip>
-            );
-          }
-          return linkEl;
-        })}
+                if (!sidebarOpen) {
+                  return (
+                    <Tooltip key={href}>
+                      <TooltipTrigger render={<span className="block" />}>
+                        {linkEl}
+                      </TooltipTrigger>
+                      <TooltipContent side="right" sideOffset={8}>
+                        {label}
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                }
+                return linkEl;
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
       {/* Online status, version & collapse */}

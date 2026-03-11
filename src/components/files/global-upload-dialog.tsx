@@ -85,7 +85,7 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
   // Load projects when dialog opens
   useEffect(() => {
     if (open) {
-      getAllProjects().then(setProjects);
+      getAllProjects().then(setProjects).catch(() => {});
     }
   }, [open]);
 
