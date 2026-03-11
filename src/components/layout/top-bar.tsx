@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Search, WifiOff, Menu, RefreshCw, Upload } from 'lucide-react';
 import { useAppStore } from '@/store/app-store';
 import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
@@ -11,11 +11,23 @@ import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
 
 export function TopBar({ title, children }: { title?: string; children?: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const isOnline = useAppStore((s) => s.isOnline);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const [showUpload, setShowUpload] = useState(false);
 
   const goToSearch = useCallback(() => router.push('/search'), [router]);
+
+  // Use soft refresh on dynamic routes to avoid triggering SPA fallback in desktop app.
+  // Static routes are safe for hard refresh.
+  const handleRefresh = useCallback(() => {
+    const isDynamicRoute = /^\/(projects|reports)\/[^_]/.test(pathname);
+    if (isDynamicRoute) {
+      router.refresh();
+    } else {
+      window.location.reload();
+    }
+  }, [pathname, router]);
   useKeyboardShortcut('k', goToSearch);
 
   return (
@@ -61,7 +73,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             variant="ghost"
             size="sm"
             className="h-8 w-8 p-0 text-muted-foreground"
-            onClick={() => window.location.reload()}
+            onClick={handleRefresh}
             aria-label="Refresh page"
           >
             <RefreshCw className="h-3.5 w-3.5" />

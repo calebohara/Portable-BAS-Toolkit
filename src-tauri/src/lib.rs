@@ -226,13 +226,16 @@ pub fn run() {
                             if (bodyEmpty || !hasNextRoot || isErrorPage) {
                                 const id = parts[2];
                                 const isEdit = parts[3] === 'edit';
+                                // Preserve existing query params (e.g. ?tab=notes) through the fallback redirect
+                                const existingParams = new URLSearchParams(window.location.search);
+                                existingParams.set('_id', id);
                                 let fallbackUrl;
                                 if (parts[1] === 'projects') {
-                                    fallbackUrl = '/projects/_/?_id=' + encodeURIComponent(id);
+                                    fallbackUrl = '/projects/_/?' + existingParams.toString();
                                 } else if (isEdit) {
-                                    fallbackUrl = '/reports/_/edit/?_id=' + encodeURIComponent(id);
+                                    fallbackUrl = '/reports/_/edit/?' + existingParams.toString();
                                 } else {
-                                    fallbackUrl = '/reports/_/?_id=' + encodeURIComponent(id);
+                                    fallbackUrl = '/reports/_/?' + existingParams.toString();
                                 }
                                 window.location.replace(fallbackUrl);
                             }

@@ -105,7 +105,26 @@ export function useProject(id: string) {
     }
   }, [id]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // Guard against stale async results when id changes rapidly
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      try {
+        await ensureDemoData();
+        const p = await db.getProject(id);
+        if (!stale) {
+          setProject(p || null);
+          setLoading(false);
+        }
+      } catch (e) {
+        if (!stale) {
+          console.error('Failed to load project:', e);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { stale = true; };
+  }, [id]);
 
   const update = useCallback(async (data: Partial<Project>) => {
     if (!project) return;
@@ -140,7 +159,28 @@ export function useProjectFiles(projectId: string, category?: string) {
     }
   }, [projectId, category]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  // Guard against stale async results when projectId changes rapidly
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      try {
+        await ensureDemoData();
+        const allFiles = category
+          ? await db.getFilesByCategory(projectId, category)
+          : await db.getProjectFiles(projectId);
+        if (!stale) {
+          setFiles(allFiles.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+          setLoading(false);
+        }
+      } catch (e) {
+        if (!stale) {
+          console.error('Failed to load files:', e);
+          setLoading(false);
+        }
+      }
+    })();
+    return () => { stale = true; };
+  }, [projectId, category]);
 
   return { files, loading, refresh };
 }
@@ -161,7 +201,19 @@ export function useProjectNotes(projectId: string) {
     }
   }, [projectId]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      try {
+        await ensureDemoData();
+        const all = await db.getProjectNotes(projectId);
+        if (!stale) { setNotes(all); setLoading(false); }
+      } catch (e) {
+        if (!stale) { console.error('Failed to load notes:', e); setLoading(false); }
+      }
+    })();
+    return () => { stale = true; };
+  }, [projectId]);
 
   const addNote = useCallback(async (data: Omit<FieldNote, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -220,7 +272,19 @@ export function useProjectDevices(projectId: string) {
     }
   }, [projectId]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      try {
+        await ensureDemoData();
+        const all = await db.getProjectDevices(projectId);
+        if (!stale) { setDevices(all); setLoading(false); }
+      } catch (e) {
+        if (!stale) { console.error('Failed to load devices:', e); setLoading(false); }
+      }
+    })();
+    return () => { stale = true; };
+  }, [projectId]);
 
   const addDevice = useCallback(async (data: Omit<DeviceEntry, 'id'>) => {
     const device: DeviceEntry = { ...data, id: uuid() };
@@ -277,7 +341,19 @@ export function useProjectIpPlan(projectId: string) {
     }
   }, [projectId]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      try {
+        await ensureDemoData();
+        const all = await db.getProjectIpPlan(projectId);
+        if (!stale) { setEntries(all); setLoading(false); }
+      } catch (e) {
+        if (!stale) { console.error('Failed to load IP plan:', e); setLoading(false); }
+      }
+    })();
+    return () => { stale = true; };
+  }, [projectId]);
 
   const addIpEntry = useCallback(async (data: Omit<IpPlanEntry, 'id'>) => {
     const entry: IpPlanEntry = { ...data, id: uuid() };
@@ -334,7 +410,19 @@ export function useProjectActivity(projectId: string) {
     }
   }, [projectId]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      try {
+        await ensureDemoData();
+        const all = await db.getProjectActivity(projectId);
+        if (!stale) { setActivity(all); setLoading(false); }
+      } catch (e) {
+        if (!stale) { console.error('Failed to load activity:', e); setLoading(false); }
+      }
+    })();
+    return () => { stale = true; };
+  }, [projectId]);
 
   return { activity, loading, refresh };
 }
