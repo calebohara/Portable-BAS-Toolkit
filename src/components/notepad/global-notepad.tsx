@@ -1,81 +1,103 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
-  StickyNote, X, Minus, Plus, Trash2, Check, RotateCcw,
+  StickyNote, X, Minus, Plus, Trash2, Copy,
+  RotateCcw, FolderKanban, Link2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useNotepadStore, type NotepadTab, type LauncherPosition } from '@/store/notepad-store';
+import { useNotepadStore, type NotepadTab } from '@/store/notepad-store';
+import { useProjects } from '@/hooks/use-projects';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from '@/components/ui/dialog';
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 
 // ─── Constants ──────────────────────────────────────────────
-const EDGE_PADDING = 8;           // min distance from viewport edge
-const DRAG_THRESHOLD = 6;         // px movement to distinguish drag from click
-const SNAP_DISTANCE = 40;         // px from edge to trigger snap
-const FAB_SIZE = 48;              // px — matches h-12 w-12
-const MINIMIZED_WIDTH = 130;      // approximate width of minimized pill
-const MINIMIZED_HEIGHT = 40;      // approximate height of minimized pill
+const EDGE_PADDING = 8;
+const DRAG_THRESHOLD = 6;
+const SNAP_DISTANCE = 40;
+const FAB_SIZE = 48;
+const MINIMIZED_WIDTH = 130;
+const MINIMIZED_HEIGHT = 40;
+const PANEL_WIDTH = 380;
+const PANEL_HEIGHT = 440;
+const PANEL_GAP = 12; // gap between launcher and panel
 
 // ─── Viewport clamping ─────────────────────────────────────
-function clampPosition(
-  x: number, y: number,
-  elWidth: number, elHeight: number,
-): { x: number; y: number } {
-  const maxX = window.innerWidth - elWidth - EDGE_PADDING;
-  const maxY = window.innerHeight - elHeight - EDGE_PADDING;
+function clampPosition(x: number, y: number, w: number, h: number) {
+  const maxX = window.innerWidth - w - EDGE_PADDING;
+  const maxY = window.innerHeight - h - EDGE_PADDING;
   return {
     x: Math.max(EDGE_PADDING, Math.min(maxX, x)),
     y: Math.max(EDGE_PADDING, Math.min(maxY, y)),
   };
 }
 
-/** Default position: bottom-right corner */
-function defaultPosition(elWidth: number, elHeight: number): { x: number; y: number } {
+function defaultPosition(w: number, h: number) {
   return {
-    x: window.innerWidth - elWidth - 20,
-    y: window.innerHeight - elHeight - 20,
+    x: window.innerWidth - w - 20,
+    y: window.innerHeight - h - 20,
   };
 }
 
-/** Snap to nearest left/right edge if within SNAP_DISTANCE */
-function snapToEdge(x: number, elWidth: number): number {
+function snapToEdge(x: number, w: number): number {
   if (x < SNAP_DISTANCE + EDGE_PADDING) return EDGE_PADDING;
-  const rightEdge = window.innerWidth - elWidth - EDGE_PADDING;
+  const rightEdge = window.innerWidth - w - EDGE_PADDING;
   if (x > rightEdge - SNAP_DISTANCE) return rightEdge;
   return x;
+}
+
+/** Calculate panel position anchored to the launcher */
+function computePanelPos(launcherX: number, launcherY: number): { x: number; y: number } {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  let px: number, py: number;
+
+  // Horizontal: prefer placing panel to the left of launcher if launcher is on right half
+  if (launcherX + FAB_SIZE / 2 > vw / 2) {
+    px = launcherX - PANEL_WIDTH - PANEL_GAP;
+  } else {
+    px = launcherX + FAB_SIZE + PANEL_GAP;
+  }
+
+  // Vertical: align top of panel with launcher, adjust if overflows
+  py = launcherY;
+
+  // Clamp to viewport
+  px = Math.max(EDGE_PADDING, Math.min(vw - PANEL_WIDTH - EDGE_PADDING, px));
+  py = Math.max(EDGE_PADDING, Math.min(vh - PANEL_HEIGHT - EDGE_PADDING, py));
+
+  return { x: px, y: py };
 }
 
 // ─── Draggable Launcher Hook ────────────────────────────────
 function useDraggableLauncher(elWidth: number, elHeight: number) {
   const launcherPos = useNotepadStore(s => s.launcherPos);
+  const hydrated = useNotepadStore(s => s._hydrated);
   const setLauncherPos = useNotepadStore(s => s.setLauncherPos);
 
-  // Current rendered position (local state for smooth dragging)
-  const [pos, setPos] = useState<{ x: number; y: number }>(() => {
-    if (typeof window === 'undefined') return { x: 0, y: 0 };
-    if (launcherPos) return clampPosition(launcherPos.x, launcherPos.y, elWidth, elHeight);
-    return defaultPosition(elWidth, elHeight);
-  });
-
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const wasDragRef = useRef(false);
   const startPosRef = useRef({ x: 0, y: 0 });
   const offsetRef = useRef({ x: 0, y: 0 });
 
-  // Sync from store on mount / when store changes (e.g. reset)
+  // Initialize position only AFTER hydration to prevent jump
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (!hydrated || typeof window === 'undefined') return;
     if (launcherPos) {
       setPos(clampPosition(launcherPos.x, launcherPos.y, elWidth, elHeight));
     } else {
       setPos(defaultPosition(elWidth, elHeight));
     }
-  }, [launcherPos, elWidth, elHeight]);
+  }, [hydrated, launcherPos, elWidth, elHeight]);
 
-  // Recalculate on resize to keep in bounds
+  // Recalculate on resize
   useEffect(() => {
     const handleResize = () => {
-      setPos(prev => clampPosition(prev.x, prev.y, elWidth, elHeight));
+      setPos(prev => prev ? clampPosition(prev.x, prev.y, elWidth, elHeight) : prev);
     };
     window.addEventListener('resize', handleResize);
     window.addEventListener('orientationchange', handleResize);
@@ -85,13 +107,10 @@ function useDraggableLauncher(elWidth: number, elHeight: number) {
     };
   }, [elWidth, elHeight]);
 
-  // ── Pointer events (unified mouse + touch) ──
   const handlePointerDown = useCallback((e: React.PointerEvent) => {
-    // Only primary button
-    if (e.button !== 0) return;
+    if (e.button !== 0 || !pos) return;
     e.preventDefault();
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
-
     startPosRef.current = { x: e.clientX, y: e.clientY };
     offsetRef.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
     wasDragRef.current = false;
@@ -100,58 +119,45 @@ function useDraggableLauncher(elWidth: number, elHeight: number) {
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!startPosRef.current.x && !startPosRef.current.y) return;
-
     const dx = e.clientX - startPosRef.current.x;
     const dy = e.clientY - startPosRef.current.y;
-    const distance = Math.sqrt(dx * dx + dy * dy);
-
-    if (distance > DRAG_THRESHOLD) {
+    if (Math.sqrt(dx * dx + dy * dy) > DRAG_THRESHOLD) {
       wasDragRef.current = true;
       setIsDragging(true);
       const newX = e.clientX - offsetRef.current.x;
       const newY = e.clientY - offsetRef.current.y;
-      const clamped = clampPosition(newX, newY, elWidth, elHeight);
-      setPos(clamped);
+      setPos(clampPosition(newX, newY, elWidth, elHeight));
     }
   }, [elWidth, elHeight]);
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-
-    if (wasDragRef.current) {
-      // Snap to edge and persist
+    if (wasDragRef.current && pos) {
       const snappedX = snapToEdge(pos.x, elWidth);
       const finalPos = clampPosition(snappedX, pos.y, elWidth, elHeight);
       setPos(finalPos);
       setLauncherPos(finalPos);
     }
-
     setIsDragging(false);
     startPosRef.current = { x: 0, y: 0 };
   }, [pos, elWidth, elHeight, setLauncherPos]);
 
   const wasDrag = useCallback(() => wasDragRef.current, []);
 
-  return {
-    pos,
-    isDragging,
-    wasDrag,
-    handlePointerDown,
-    handlePointerMove,
-    handlePointerUp,
-  };
+  return { pos, isDragging, wasDrag, handlePointerDown, handlePointerMove, handlePointerUp };
 }
 
 // ─── FAB (Floating Action Button) ────────────────────────────
 function NotepadFab({ onClick }: { onClick: () => void }) {
-  const {
-    pos, isDragging, wasDrag,
-    handlePointerDown, handlePointerMove, handlePointerUp,
-  } = useDraggableLauncher(FAB_SIZE, FAB_SIZE);
+  const { pos, isDragging, wasDrag, handlePointerDown, handlePointerMove, handlePointerUp } =
+    useDraggableLauncher(FAB_SIZE, FAB_SIZE);
 
   const handleClick = useCallback(() => {
     if (!wasDrag()) onClick();
   }, [onClick, wasDrag]);
+
+  // Don't render until position is known (prevents top-left flash)
+  if (!pos) return null;
 
   return (
     <button
@@ -174,7 +180,9 @@ function NotepadFab({ onClick }: { onClick: () => void }) {
         touchAction: 'none',
         userSelect: 'none',
         WebkitUserSelect: 'none',
-        transition: isDragging ? 'box-shadow 0.15s, transform 0.15s' : 'box-shadow 0.2s, transform 0.2s, left 0.2s ease-out, top 0.2s ease-out',
+        transition: isDragging
+          ? 'box-shadow 0.15s, transform 0.15s'
+          : 'box-shadow 0.2s, transform 0.2s, left 0.2s ease-out, top 0.2s ease-out',
       }}
       aria-label="Open Sticky Notepad"
       data-tour="notepad-fab"
@@ -187,14 +195,14 @@ function NotepadFab({ onClick }: { onClick: () => void }) {
 // ─── Minimized Dock ──────────────────────────────────────────
 function NotepadMinimized({ onClick }: { onClick: () => void }) {
   const tabs = useNotepadStore(s => s.tabs);
-  const {
-    pos, isDragging, wasDrag,
-    handlePointerDown, handlePointerMove, handlePointerUp,
-  } = useDraggableLauncher(MINIMIZED_WIDTH, MINIMIZED_HEIGHT);
+  const { pos, isDragging, wasDrag, handlePointerDown, handlePointerMove, handlePointerUp } =
+    useDraggableLauncher(MINIMIZED_WIDTH, MINIMIZED_HEIGHT);
 
   const handleClick = useCallback(() => {
     if (!wasDrag()) onClick();
   }, [onClick, wasDrag]);
+
+  if (!pos) return null;
 
   return (
     <button
@@ -217,7 +225,9 @@ function NotepadMinimized({ onClick }: { onClick: () => void }) {
         touchAction: 'none',
         userSelect: 'none',
         WebkitUserSelect: 'none',
-        transition: isDragging ? 'box-shadow 0.15s, transform 0.15s' : 'box-shadow 0.2s, transform 0.2s, left 0.2s ease-out, top 0.2s ease-out',
+        transition: isDragging
+          ? 'box-shadow 0.15s, transform 0.15s'
+          : 'box-shadow 0.2s, transform 0.2s, left 0.2s ease-out, top 0.2s ease-out',
       }}
       aria-label="Restore Notepad"
     >
@@ -261,7 +271,6 @@ function TabBar() {
   const [editValue, setEditValue] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const scrollRef = useRef<HTMLDivElement>(null);
 
   const startRename = useCallback((tab: NotepadTab) => {
     setEditingId(tab.id);
@@ -270,9 +279,7 @@ function TabBar() {
   }, []);
 
   const commitRename = useCallback(() => {
-    if (editingId && editValue.trim()) {
-      renameTab(editingId, editValue.trim());
-    }
+    if (editingId && editValue.trim()) renameTab(editingId, editValue.trim());
     setEditingId(null);
   }, [editingId, editValue, renameTab]);
 
@@ -290,7 +297,7 @@ function TabBar() {
   return (
     <>
       <div className="flex items-center border-b border-border bg-muted/30">
-        <div ref={scrollRef} className="flex flex-1 overflow-x-auto scrollbar-none">
+        <div className="flex flex-1 overflow-x-auto scrollbar-none">
           {tabs.map(tab => (
             <div
               key={tab.id}
@@ -319,7 +326,10 @@ function TabBar() {
                   autoFocus
                 />
               ) : (
-                <span className="truncate max-w-24">{tab.name}</span>
+                <span className="truncate max-w-24">
+                  {tab.projectId && <Link2 className="inline h-2.5 w-2.5 mr-0.5 opacity-50" />}
+                  {tab.name}
+                </span>
               )}
               {tabs.length > 1 && (
                 <button
@@ -343,7 +353,6 @@ function TabBar() {
         </button>
       </div>
 
-      {/* Delete confirmation overlay */}
       {tabToDelete && (
         <DeleteConfirm
           tabName={tabToDelete.name}
@@ -361,7 +370,6 @@ function NoteEditor() {
   const activeTabId = useNotepadStore(s => s.activeTabId);
   const updateTabContent = useNotepadStore(s => s.updateTabContent);
   const activeTab = tabs.find(t => t.id === activeTabId);
-
   if (!activeTab) return null;
 
   return (
@@ -380,23 +388,101 @@ function NoteEditor() {
   );
 }
 
+// ─── Attach to Project Dialog ───────────────────────────────
+function AttachDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const tabs = useNotepadStore(s => s.tabs);
+  const activeTabId = useNotepadStore(s => s.activeTabId);
+  const setTabProject = useNotepadStore(s => s.setTabProject);
+  const activeTab = tabs.find(t => t.id === activeTabId);
+  const { projects } = useProjects();
+  const [selectedProjectId, setSelectedProjectId] = useState(activeTab?.projectId || '');
+
+  useEffect(() => {
+    if (open) setSelectedProjectId(activeTab?.projectId || '');
+  }, [open, activeTab?.projectId]);
+
+  const handleAttach = () => {
+    if (!activeTab || !selectedProjectId) return;
+    const project = projects.find(p => p.id === selectedProjectId);
+    setTabProject(activeTab.id, selectedProjectId, project?.name);
+    onOpenChange(false);
+  };
+
+  const handleDetach = () => {
+    if (!activeTab) return;
+    setTabProject(activeTab.id, undefined, undefined);
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Link Note to Project</DialogTitle>
+          <DialogDescription>
+            Associate this note tab with a project for quick reference.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="px-5 py-3">
+          <Select value={selectedProjectId} onValueChange={(v) => setSelectedProjectId(v || '')}>
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="Select a project..." />
+            </SelectTrigger>
+            <SelectContent>
+              {projects.map(p => (
+                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {activeTab?.projectId && (
+            <button onClick={handleDetach} className="mt-2 text-xs text-muted-foreground hover:text-destructive transition-colors">
+              Remove project link
+            </button>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button size="sm" onClick={handleAttach} disabled={!selectedProjectId}>
+            <Link2 className="h-3.5 w-3.5 mr-1.5" />
+            Link
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Floating Panel ──────────────────────────────────────────
 function NotepadPanel() {
   const minimizePanel = useNotepadStore(s => s.minimizePanel);
   const closePanel = useNotepadStore(s => s.closePanel);
   const resetLauncherPos = useNotepadStore(s => s.resetLauncherPos);
+  const duplicateTab = useNotepadStore(s => s.duplicateTab);
   const tabs = useNotepadStore(s => s.tabs);
   const activeTabId = useNotepadStore(s => s.activeTabId);
+  const launcherPos = useNotepadStore(s => s.launcherPos);
   const activeTab = tabs.find(t => t.id === activeTabId);
 
+  const [attachOpen, setAttachOpen] = useState(false);
+
   // Drag state for panel
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const dragOffset = useRef({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
 
+  // Compute initial position anchored to launcher
+  const anchoredPos = useMemo(() => {
+    if (typeof window === 'undefined') return { x: 0, y: 0 };
+    if (launcherPos) return computePanelPos(launcherPos.x, launcherPos.y);
+    return {
+      x: window.innerWidth - PANEL_WIDTH - 20,
+      y: window.innerHeight - PANEL_HEIGHT - 20,
+    };
+  }, [launcherPos]);
+
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button, input, textarea')) return;
+    if ((e.target as HTMLElement).closest('button, input, textarea, [data-slot]')) return;
     e.preventDefault();
     const panel = panelRef.current;
     if (!panel) return;
@@ -410,7 +496,7 @@ function NotepadPanel() {
     const handleMove = (e: MouseEvent) => {
       const x = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffset.current.x));
       const y = Math.max(0, Math.min(window.innerHeight - 60, e.clientY - dragOffset.current.y));
-      setPos({ x, y });
+      setDragPos({ x, y });
     };
     const handleUp = () => setDragging(false);
     window.addEventListener('mousemove', handleMove);
@@ -421,9 +507,9 @@ function NotepadPanel() {
     };
   }, [dragging]);
 
-  // Touch drag support
+  // Touch drag
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if ((e.target as HTMLElement).closest('button, input, textarea')) return;
+    if ((e.target as HTMLElement).closest('button, input, textarea, [data-slot]')) return;
     const panel = panelRef.current;
     if (!panel) return;
     const touch = e.touches[0];
@@ -438,7 +524,7 @@ function NotepadPanel() {
       const touch = e.touches[0];
       const x = Math.max(0, Math.min(window.innerWidth - 100, touch.clientX - dragOffset.current.x));
       const y = Math.max(0, Math.min(window.innerHeight - 60, touch.clientY - dragOffset.current.y));
-      setPos({ x, y });
+      setDragPos({ x, y });
     };
     const handleTouchEnd = () => setDragging(false);
     window.addEventListener('touchmove', handleTouchMove, { passive: true });
@@ -449,83 +535,107 @@ function NotepadPanel() {
     };
   }, [dragging]);
 
-  // Character count
   const charCount = activeTab?.content.length || 0;
-
-  // Position styles
-  const positionStyle: React.CSSProperties = pos
-    ? { left: pos.x, top: pos.y, right: 'auto', bottom: 'auto' }
-    : {};
+  const finalPos = dragPos || anchoredPos;
 
   return (
-    <div
-      ref={panelRef}
-      className={cn(
-        'fixed z-50 flex flex-col',
-        'rounded-xl border border-border bg-background shadow-2xl',
-        'w-[360px] h-[420px]',
-        // Mobile: full-width bottom sheet
-        'max-sm:w-[calc(100%-1rem)] max-sm:left-2 max-sm:right-2 max-sm:bottom-2 max-sm:h-[60vh]',
-        // Default desktop position (bottom-right) when not dragged
-        !pos && 'sm:bottom-5 sm:right-5',
-        dragging && 'cursor-grabbing select-none',
-      )}
-      style={positionStyle}
-    >
-      {/* Header — draggable */}
+    <>
       <div
+        ref={panelRef}
         className={cn(
-          'flex items-center gap-2 px-3 py-2 border-b border-border rounded-t-xl',
-          'bg-muted/40 cursor-grab select-none shrink-0',
-          dragging && 'cursor-grabbing',
+          'fixed z-50 flex flex-col',
+          'rounded-xl border border-border bg-background shadow-2xl',
+          // Mobile: full-width bottom sheet
+          'max-sm:!left-2 max-sm:!right-2 max-sm:!bottom-2 max-sm:!top-auto max-sm:w-[calc(100%-1rem)] max-sm:h-[60vh]',
+          dragging && 'cursor-grabbing select-none',
         )}
-        onMouseDown={handleMouseDown}
-        onTouchStart={handleTouchStart}
+        style={{
+          width: PANEL_WIDTH,
+          height: PANEL_HEIGHT,
+          left: finalPos.x,
+          top: finalPos.y,
+        }}
       >
-        <StickyNote className="h-4 w-4 text-primary shrink-0" />
-        <span className="text-sm font-semibold flex-1 truncate">Notepad</span>
-        <div className="flex items-center gap-0.5">
-          <button
-            onClick={resetLauncherPos}
-            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            aria-label="Reset launcher position"
-            title="Reset icon position"
-          >
-            <RotateCcw className="h-3 w-3" />
-          </button>
-          <button
-            onClick={minimizePanel}
-            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-            aria-label="Minimize notepad"
-            title="Minimize"
-          >
-            <Minus className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={closePanel}
-            className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-            aria-label="Close notepad"
-            title="Close"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+        {/* Header — draggable */}
+        <div
+          className={cn(
+            'flex items-center gap-2 px-3 py-2 border-b border-border rounded-t-xl',
+            'bg-muted/40 cursor-grab select-none shrink-0',
+            dragging && 'cursor-grabbing',
+          )}
+          onMouseDown={handleMouseDown}
+          onTouchStart={handleTouchStart}
+        >
+          <StickyNote className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-sm font-semibold flex-1 truncate">
+            Notepad
+            {activeTab?.projectName && (
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+                — {activeTab.projectName}
+              </span>
+            )}
+          </span>
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => setAttachOpen(true)}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Link to project"
+              title="Link to project"
+            >
+              <FolderKanban className="h-3 w-3" />
+            </button>
+            <button
+              onClick={() => activeTab && duplicateTab(activeTab.id)}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Duplicate tab"
+              title="Duplicate tab"
+            >
+              <Copy className="h-3 w-3" />
+            </button>
+            <button
+              onClick={resetLauncherPos}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Reset launcher position"
+              title="Reset icon position"
+            >
+              <RotateCcw className="h-3 w-3" />
+            </button>
+            <button
+              onClick={minimizePanel}
+              className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              aria-label="Minimize notepad"
+              title="Minimize"
+            >
+              <Minus className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={closePanel}
+              className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              aria-label="Close notepad"
+              title="Close"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="relative shrink-0">
+          <TabBar />
+        </div>
+
+        {/* Editor */}
+        <NoteEditor />
+
+        {/* Footer status bar */}
+        <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-t border-border text-[10px] text-muted-foreground bg-muted/20 rounded-b-xl">
+          <span>{charCount.toLocaleString()} chars</span>
+          <span>{tabs.length} {tabs.length === 1 ? 'tab' : 'tabs'}</span>
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="relative shrink-0">
-        <TabBar />
-      </div>
-
-      {/* Editor */}
-      <NoteEditor />
-
-      {/* Status bar */}
-      <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-border text-[10px] text-muted-foreground">
-        <span>{charCount.toLocaleString()} chars</span>
-        <span>{tabs.length} {tabs.length === 1 ? 'tab' : 'tabs'}</span>
-      </div>
-    </div>
+      <AttachDialog open={attachOpen} onOpenChange={setAttachOpen} />
+    </>
   );
 }
 
@@ -534,13 +644,7 @@ export function GlobalNotepad() {
   const panelState = useNotepadStore(s => s.panelState);
   const openPanel = useNotepadStore(s => s.openPanel);
 
-  if (panelState === 'open') {
-    return <NotepadPanel />;
-  }
-
-  if (panelState === 'minimized') {
-    return <NotepadMinimized onClick={openPanel} />;
-  }
-
+  if (panelState === 'open') return <NotepadPanel />;
+  if (panelState === 'minimized') return <NotepadMinimized onClick={openPanel} />;
   return <NotepadFab onClick={openPanel} />;
 }

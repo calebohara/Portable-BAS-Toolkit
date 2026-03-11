@@ -8,30 +8,32 @@ export interface NotepadTab {
   name: string;
   content: string;
   createdAt: string;
+  updatedAt?: string;
+  projectId?: string;
+  projectName?: string;
 }
 
 type PanelState = 'closed' | 'open' | 'minimized';
 
-/** Launcher position — null means default (bottom-right) */
 export interface LauncherPosition {
   x: number;
   y: number;
 }
 
 interface NotepadState {
-  // Panel
+  _hydrated: boolean;
+  _setHydrated: () => void;
+
   panelState: PanelState;
   openPanel: () => void;
   minimizePanel: () => void;
   closePanel: () => void;
   togglePanel: () => void;
 
-  // Launcher position
   launcherPos: LauncherPosition | null;
   setLauncherPos: (pos: LauncherPosition | null) => void;
   resetLauncherPos: () => void;
 
-  // Tabs
   tabs: NotepadTab[];
   activeTabId: string;
   setActiveTab: (id: string) => void;
@@ -39,9 +41,9 @@ interface NotepadState {
   removeTab: (id: string) => void;
   renameTab: (id: string, name: string) => void;
   updateTabContent: (id: string, content: string) => void;
+  duplicateTab: (id: string) => void;
+  setTabProject: (id: string, projectId: string | undefined, projectName: string | undefined) => void;
 }
-
-let nextTabNum = 1;
 
 function makeTab(num: number): NotepadTab {
   return {
@@ -57,6 +59,9 @@ export const useNotepadStore = create<NotepadState>()(
     (set, get) => {
       const defaultTab = makeTab(1);
       return {
+        _hydrated: false,
+        _setHydrated: () => set({ _hydrated: true }),
+
         panelState: 'closed',
         openPanel: () => set({ panelState: 'open' }),
         minimizePanel: () => set({ panelState: 'minimized' }),
@@ -76,7 +81,6 @@ export const useNotepadStore = create<NotepadState>()(
 
         addTab: () => {
           const tabs = get().tabs;
-          // Derive next number from existing tabs
           const nums = tabs.map(t => {
             const m = t.name.match(/^Note (\d+)$/);
             return m ? parseInt(m[1]) : 0;
@@ -88,7 +92,7 @@ export const useNotepadStore = create<NotepadState>()(
 
         removeTab: (id) => {
           const { tabs, activeTabId } = get();
-          if (tabs.length <= 1) return; // keep at least one
+          if (tabs.length <= 1) return;
           const idx = tabs.findIndex(t => t.id === id);
           const newTabs = tabs.filter(t => t.id !== id);
           let newActive = activeTabId;
@@ -99,20 +103,53 @@ export const useNotepadStore = create<NotepadState>()(
         },
 
         renameTab: (id, name) => {
-          set({
-            tabs: get().tabs.map(t => t.id === id ? { ...t, name } : t),
-          });
+          set({ tabs: get().tabs.map(t => t.id === id ? { ...t, name } : t) });
         },
 
         updateTabContent: (id, content) => {
           set({
-            tabs: get().tabs.map(t => t.id === id ? { ...t, content } : t),
+            tabs: get().tabs.map(t => t.id === id ? { ...t, content, updatedAt: new Date().toISOString() } : t),
+          });
+        },
+
+        duplicateTab: (id) => {
+          const { tabs } = get();
+          const src = tabs.find(t => t.id === id);
+          if (!src) return;
+          const nums = tabs.map(t => {
+            const m = t.name.match(/^Note (\d+)$/);
+            return m ? parseInt(m[1]) : 0;
+          });
+          const next = Math.max(0, ...nums) + 1;
+          const dup: NotepadTab = {
+            id: crypto.randomUUID(),
+            name: `Note ${next}`,
+            content: src.content,
+            createdAt: new Date().toISOString(),
+            projectId: src.projectId,
+            projectName: src.projectName,
+          };
+          set({ tabs: [...tabs, dup], activeTabId: dup.id });
+        },
+
+        setTabProject: (id, projectId, projectName) => {
+          set({
+            tabs: get().tabs.map(t => t.id === id ? { ...t, projectId, projectName } : t),
           });
         },
       };
     },
     {
       name: 'bau-suite-notepad',
+      partialize: (state) => ({
+        panelState: state.panelState,
+        launcherPos: state.launcherPos,
+        tabs: state.tabs,
+        activeTabId: state.activeTabId,
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?._setHydrated();
+      },
     }
   )
 );
