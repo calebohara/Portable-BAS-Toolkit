@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAppStore } from '@/store/app-store';
 import { cn } from '@/lib/utils';
+import { APP_VERSION } from '@/lib/version';
 
 // ─── Getting Started ───────────────────────────────────────────────────────────
 
@@ -400,7 +401,7 @@ export default function HelpPage() {
 
         {/* Version info */}
         <p className="text-center text-xs text-muted-foreground/50 pb-4">
-          BAU Suite v{process.env.NEXT_PUBLIC_APP_VERSION}
+          BAU Suite v{APP_VERSION}
         </p>
       </div>
     </>
