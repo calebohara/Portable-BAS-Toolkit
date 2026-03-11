@@ -99,7 +99,11 @@ export function Sidebar() {
             )}
             <div className="space-y-0.5">
               {group.items.map(({ href, icon: Icon, label, tourId }) => {
-                const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href);
+                // Normalize pathname for trailing slash and static export variations
+                const normalizedPath = pathname.replace(/\/index\.html$/, '').replace(/\/$/, '') || '/';
+                const isActive = href === '/'
+                  ? normalizedPath === '/'
+                  : normalizedPath === href || normalizedPath.startsWith(href + '/');
 
                 const linkEl = (
                   <Link
