@@ -160,7 +160,7 @@ function ProjectsPageInner() {
                       <ProjectStatusBadge status={project.status} />
                       <button
                         onClick={(e) => { e.stopPropagation(); setDeleteTarget(project); }}
-                        className="rounded p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
+                        className="rounded p-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity hover:bg-destructive/10"
                         title="Delete project"
                       >
                         <Trash2 className="h-3.5 w-3.5 text-destructive" />

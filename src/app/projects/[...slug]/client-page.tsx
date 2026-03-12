@@ -446,7 +446,7 @@ function OverviewSection({
                         <p className="flex items-center gap-1 text-xs text-muted-foreground"><Mail className="h-3 w-3" />{contact.email}</p>
                       )}
                     </div>
-                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
                       <button onClick={() => { setEditContact({ contact, index: i }); setContactDialogOpen(true); }} className="rounded p-1.5 hover:bg-muted" title="Edit">
                         <Edit2 className="h-3 w-3 text-muted-foreground" />
                       </button>

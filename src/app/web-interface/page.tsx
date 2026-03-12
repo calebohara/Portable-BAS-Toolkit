@@ -560,7 +560,7 @@ export default function WebInterfacePage() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs">Protocol</Label>
                   <Select value={protocol} onValueChange={v => v && setProtocol(v as Protocol)}>
@@ -837,7 +837,7 @@ function EndpointCard({ endpoint: ep, projectName, onLaunch, onEdit, onDelete, o
             )}
           </div>
         </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
           <button onClick={onLaunch} className="p-1 rounded hover:bg-primary/10 hover:text-primary" title="Launch">
             <Play className="h-3 w-3" />
           </button>

@@ -217,7 +217,7 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                       <button onClick={() => openEdit(device)} className="rounded p-1.5 hover:bg-muted" title="Edit" aria-label="Edit">
                         <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                       </button>
@@ -251,10 +251,10 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
                   >
                     {device.status}
                   </Badge>
-                  <button onClick={() => openEdit(device)} className="rounded p-1.5 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity" title="Edit" aria-label="Edit">
+                  <button onClick={() => openEdit(device)} className="rounded p-1.5 hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" title="Edit" aria-label="Edit">
                     <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
-                  <button onClick={() => setDeleteTarget(device)} className="rounded p-1.5 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity" title="Delete" aria-label="Delete">
+                  <button onClick={() => setDeleteTarget(device)} className="rounded p-1.5 hover:bg-muted sm:opacity-0 sm:group-hover:opacity-100 transition-opacity" title="Delete" aria-label="Delete">
                     <Trash2 className="h-3.5 w-3.5 text-field-danger" />
                   </button>
                 </div>

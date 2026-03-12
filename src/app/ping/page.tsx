@@ -571,12 +571,12 @@ export default function PingToolPage() {
             <div className="space-y-2">
               <Label className="text-xs">Targets</Label>
               {targets.map((target, idx) => (
-                <div key={idx} className="flex items-center gap-2">
+                <div key={idx} className="flex flex-wrap items-center gap-2">
                   <Input
                     value={target.host}
                     onChange={e => updateTarget(idx, { host: e.target.value })}
                     placeholder="10.40.1.10"
-                    className="h-8 text-xs font-mono flex-1"
+                    className="h-8 text-xs font-mono flex-1 min-w-0"
                     disabled={running}
                   />
                   <Input
@@ -584,14 +584,14 @@ export default function PingToolPage() {
                     onChange={e => updateTarget(idx, { port: e.target.value ? parseInt(e.target.value) : undefined })}
                     placeholder="Port"
                     type="number"
-                    className="h-8 text-xs w-20"
+                    className="h-8 text-xs w-20 min-w-16"
                     disabled={running}
                   />
                   <Input
                     value={target.label || ''}
                     onChange={e => updateTarget(idx, { label: e.target.value })}
                     placeholder="Label (optional)"
-                    className="h-8 text-xs w-32"
+                    className="h-8 text-xs w-32 min-w-24"
                     disabled={running}
                   />
                   {targets.length > 1 && (
