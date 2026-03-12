@@ -21,7 +21,7 @@ export default function NotFound() {
         </p>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => router.back()}>Go Back</Button>
-          <Button onClick={() => router.push('/')}>Dashboard</Button>
+          <Button onClick={() => router.push('/dashboard')}>Dashboard</Button>
         </div>
       </div>
     </>

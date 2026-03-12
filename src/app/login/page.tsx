@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,9 +9,24 @@ import { Label } from '@/components/ui/label';
 import { AlertCircle, LogIn, UserPlus, ArrowLeft, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
+  );
+}
+
+function LoginContent() {
   const { signIn, signUp, isConfigured, mode } = useAuth();
   const router = useRouter();
-  const [tab, setTab] = useState<'signin' | 'signup'>('signin');
+  const searchParams = useSearchParams();
+  const [tab, setTab] = useState<'signin' | 'signup'>(
+    searchParams.get('tab') === 'signup' ? 'signup' : 'signin'
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -21,7 +36,7 @@ export default function LoginPage() {
 
   // If already authenticated, redirect to dashboard
   if (mode === 'authenticated') {
-    router.replace('/');
+    router.replace('/dashboard');
     return null;
   }
 
@@ -41,7 +56,7 @@ export default function LoginPage() {
             To enable authentication, set <code className="text-foreground">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
             <code className="text-foreground">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in your environment.
           </p>
-          <Button variant="outline" onClick={() => router.push('/')} className="gap-2">
+          <Button variant="outline" onClick={() => router.push('/dashboard')} className="gap-2">
             <ArrowLeft className="h-4 w-4" /> Continue in Local Mode
           </Button>
         </div>
@@ -77,7 +92,7 @@ export default function LoginPage() {
         if (err) {
           setError(err.message);
         } else {
-          router.replace('/');
+          router.replace('/dashboard');
         }
       } else {
         const { error: err } = await signUp(email, password);
@@ -193,7 +208,7 @@ export default function LoginPage() {
 
         {/* Local mode option */}
         <div className="text-center">
-          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => router.push('/')}>
+          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => router.push('/dashboard')}>
             <ArrowLeft className="h-3 w-3 mr-1" />
             Continue without signing in
           </Button>

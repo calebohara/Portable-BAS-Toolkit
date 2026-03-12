@@ -17,7 +17,7 @@ import { APP_VERSION } from '@/lib/version';
 const navGroups = [
   {
     items: [
-      { href: '/', icon: LayoutDashboard, label: 'Dashboard', tourId: 'nav-dashboard' },
+      { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', tourId: 'nav-dashboard' },
       { href: '/projects', icon: FolderKanban, label: 'Projects', tourId: 'nav-projects' },
       { href: '/reports', icon: ClipboardList, label: 'Daily Reports', tourId: 'nav-reports' },
     ],

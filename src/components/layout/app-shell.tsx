@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import { useAppStore } from '@/store/app-store';
 import { Sidebar } from './sidebar';
 import { InstallPrompt } from '@/components/pwa/install-prompt';
@@ -9,10 +10,15 @@ import { GlobalNotepad } from '@/components/notepad/global-notepad';
 import { WebUpdateBanner } from './web-update-banner';
 import { cn } from '@/lib/utils';
 
+// Routes that render their own full-page layout (no sidebar)
+const FULL_PAGE_ROUTES = ['/', '/login'];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const setOnline = useAppStore((s) => s.setOnline);
+  const isFullPage = FULL_PAGE_ROUTES.includes(pathname);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -63,6 +69,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, [setSidebarOpen]);
+
+  // Full-page routes render without sidebar chrome
+  if (isFullPage) {
+    return (
+      <div className="min-h-screen">
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
