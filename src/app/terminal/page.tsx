@@ -34,6 +34,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   isTauri,
+  nativeCheckPort,
   nativeTelnetConnect,
   nativeTelnetSend,
   nativeTelnetDisconnect,
@@ -764,6 +765,48 @@ export default function TelnetPage() {
     await handleConnect();
   }, [handleConnect, handleDisconnect]);
 
+  const handleTestPort = useCallback(async () => {
+    if (!session.host.trim()) {
+      toast.error('Please enter a host/IP address');
+      return;
+    }
+    if (!isDesktop) {
+      toast.error('Port testing requires the desktop app');
+      return;
+    }
+    appendLine(session.id, {
+      text: `Testing TCP port ${session.host}:${session.port}...`,
+      timestamp: new Date().toISOString(),
+      type: 'system',
+    });
+    try {
+      const result = await nativeCheckPort(session.host, session.port, 5000);
+      if (result.open) {
+        appendLine(session.id, {
+          text: `Port ${session.port} is OPEN on ${session.host} (${result.response_time_ms}ms). Ready to connect.`,
+          timestamp: new Date().toISOString(),
+          type: 'system',
+        });
+        toast.success(`Port ${session.port} is open — ready to connect`);
+      } else {
+        appendLine(session.id, {
+          text: `Port ${session.port} is CLOSED/FILTERED on ${session.host}. ${result.error || 'No response.'}` +
+            '\nTroubleshooting: Check Windows Firewall, verify the device is on and you\'re on the correct network/VLAN.',
+          timestamp: new Date().toISOString(),
+          type: 'error',
+        });
+        toast.error(`Port ${session.port} is not reachable`);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      appendLine(session.id, {
+        text: `Port test failed: ${msg}`,
+        timestamp: new Date().toISOString(),
+        type: 'error',
+      });
+    }
+  }, [session.id, session.host, session.port, isDesktop, appendLine]);
+
   // ─── Send command ──────────────────────────────────────
   const handleSendCommand = useCallback(async (cmd: string) => {
     if (isDesktop) {
@@ -962,9 +1005,14 @@ export default function TelnetPage() {
               {/* Connection buttons */}
               <div className="flex flex-wrap gap-2">
                 {session.connectionState === 'disconnected' || session.connectionState === 'error' ? (
-                  <Button size="sm" onClick={handleConnect} className="gap-1.5 h-8">
-                    <Plug className="h-3.5 w-3.5" /> Connect
-                  </Button>
+                  <>
+                    <Button size="sm" onClick={handleConnect} className="gap-1.5 h-8">
+                      <Plug className="h-3.5 w-3.5" /> Connect
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={handleTestPort} className="gap-1.5 h-8">
+                      <Search className="h-3.5 w-3.5" /> Test Port
+                    </Button>
+                  </>
                 ) : session.connectionState === 'connected' ? (
                   <>
                     <Button size="sm" variant="destructive" onClick={() => handleDisconnect()} className="gap-1.5 h-8">

@@ -262,11 +262,22 @@ async fn telnet_connect(
     port: u16,
 ) -> Result<(), String> {
     let addr = format!("{}:{}", host, port);
-    let timeout = std::time::Duration::from_secs(10);
+    let timeout = std::time::Duration::from_secs(15);
 
-    let stream = tokio::time::timeout(timeout, tokio::net::TcpStream::connect(&addr))
+    // Parse as SocketAddr directly to avoid async DNS resolution issues
+    let sock_addr: std::net::SocketAddr = addr.parse()
+        .map_err(|_| format!("Invalid address: {}. Enter a valid IP address and port.", addr))?;
+
+    let stream = tokio::time::timeout(timeout, tokio::net::TcpStream::connect(sock_addr))
         .await
-        .map_err(|_| format!("Connection to {} timed out (10s). Check that the host is reachable and the port is open.", addr))?
+        .map_err(|_| format!(
+            "Connection to {} timed out (15s). Troubleshooting:\n\
+             • Verify the device is powered on and reachable (try the Ping Tool)\n\
+             • Check Windows Firewall — BAU Suite may need an inbound/outbound exception\n\
+             • Confirm you're on the correct network/VLAN for BAS devices\n\
+             • Try port {} in the Port Scanner tool first",
+            addr, port
+        ))?
         .map_err(|e| {
             let detail = e.to_string();
             if detail.contains("refused") {
