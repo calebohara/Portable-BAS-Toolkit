@@ -131,12 +131,12 @@ export function useProject(id: string) {
     const updated = { ...project, ...data, updatedAt: new Date().toISOString() };
     try {
       await db.saveProject(updated);
-      setProject(updated);
     } catch (e) {
       console.error('Failed to update project:', e);
-      await refresh();
+      throw e;
     }
-  }, [project, refresh]);
+    setProject(updated);
+  }, [project]);
 
   return { project, loading, refresh, update };
 }
@@ -236,12 +236,16 @@ export function useProjectNotes(projectId: string) {
     note.updatedAt = new Date().toISOString();
     try {
       await db.saveNote(note);
+      await db.addActivity({
+        id: uuid(), projectId, action: 'Note updated',
+        details: `${note.category} note updated`, timestamp: note.updatedAt, user: note.author,
+      });
     } catch (e) {
       console.error('Failed to update note:', e);
       throw e;
     }
     await refresh();
-  }, [refresh]);
+  }, [projectId, refresh]);
 
   const removeNote = useCallback(async (id: string) => {
     try {
@@ -305,12 +309,16 @@ export function useProjectDevices(projectId: string) {
   const updateDevice = useCallback(async (device: DeviceEntry) => {
     try {
       await db.saveDevice(device);
+      await db.addActivity({
+        id: uuid(), projectId, action: 'Device updated',
+        details: `Device "${device.deviceName}" updated`, timestamp: new Date().toISOString(), user: 'User',
+      });
     } catch (e) {
       console.error('Failed to update device:', e);
       throw e;
     }
     await refresh();
-  }, [refresh]);
+  }, [projectId, refresh]);
 
   const removeDevice = useCallback(async (id: string) => {
     try {
@@ -374,12 +382,16 @@ export function useProjectIpPlan(projectId: string) {
   const updateIpEntry = useCallback(async (entry: IpPlanEntry) => {
     try {
       await db.saveIpEntry(entry);
+      await db.addActivity({
+        id: uuid(), projectId, action: 'IP entry updated',
+        details: `IP ${entry.ipAddress} updated`, timestamp: new Date().toISOString(), user: 'User',
+      });
     } catch (e) {
       console.error('Failed to update IP entry:', e);
       throw e;
     }
     await refresh();
-  }, [refresh]);
+  }, [projectId, refresh]);
 
   const removeIpEntry = useCallback(async (id: string) => {
     try {
@@ -470,6 +482,12 @@ export function useDailyReports(projectId?: string) {
     report.updatedAt = new Date().toISOString();
     try {
       await db.saveDailyReport(report);
+      if (report.projectId) {
+        await db.addActivity({
+          id: uuid(), projectId: report.projectId, action: 'Daily report updated',
+          details: `Daily Report #${report.reportNumber} updated`, timestamp: report.updatedAt, user: report.technicianName || 'User',
+        });
+      }
     } catch (e) {
       console.error('Failed to update daily report:', e);
       throw e;
@@ -513,12 +531,12 @@ export function useDailyReport(id: string) {
     const updated = { ...report, ...data, updatedAt: new Date().toISOString() };
     try {
       await db.saveDailyReport(updated);
-      setReport(updated);
     } catch (e) {
       console.error('Failed to update daily report:', e);
-      await refresh();
+      throw e;
     }
-  }, [report, refresh]);
+    setReport(updated);
+  }, [report]);
 
   return { report, loading, refresh, update };
 }

@@ -45,15 +45,17 @@ export default function OfflinePage() {
   const togglePin = async (projectId: string) => {
     const project = projects.find((p) => p.id === projectId);
     if (!project) return;
-    await updateProject({ ...project, isPinned: !project.isPinned });
-    toast.success(project.isPinned ? 'Project unpinned' : 'Project pinned');
+    const wasPinned = project.isPinned;
+    await updateProject({ ...project, isPinned: !wasPinned });
+    toast.success(wasPinned ? 'Project unpinned' : 'Project pinned');
   };
 
   const toggleOffline = async (projectId: string) => {
     const project = projects.find((p) => p.id === projectId);
     if (!project) return;
-    await updateProject({ ...project, isOfflineAvailable: !project.isOfflineAvailable });
-    toast.success(project.isOfflineAvailable ? 'Removed from offline' : 'Available offline');
+    const wasOffline = project.isOfflineAvailable;
+    await updateProject({ ...project, isOfflineAvailable: !wasOffline });
+    toast.success(wasOffline ? 'Removed from offline' : 'Available offline');
   };
 
   return (

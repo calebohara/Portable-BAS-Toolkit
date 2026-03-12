@@ -303,6 +303,7 @@ export default function PingToolPage() {
 
   // ─── Run test ──────────────────────────────────────────
   const runTest = useCallback(async () => {
+    if (running) return; // Prevent concurrent runs
     const validTargets = targets.filter(t => t.host.trim());
     if (validTargets.length === 0) {
       toast.error('Enter at least one host');

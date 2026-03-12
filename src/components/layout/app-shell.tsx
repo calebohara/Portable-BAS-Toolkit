@@ -55,7 +55,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Close sidebar on mobile by default
   useEffect(() => {
-    const mq = window.matchMedia('(max-width: 768px)');
+    const mq = window.matchMedia('(max-width: 767px)');
     if (mq.matches) setSidebarOpen(false);
     const handler = (e: MediaQueryListEvent) => {
       if (e.matches) setSidebarOpen(false);

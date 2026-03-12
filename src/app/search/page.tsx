@@ -213,7 +213,7 @@ export default function SearchPage() {
                   {results.files.map((f) => (
                     <button
                       key={f.id}
-                      onClick={() => navigateToProject(router, f.projectId)}
+                      onClick={() => navigateToProject(router, f.projectId, f.category)}
                       className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
                       <FileIcon fileType={f.fileType} />
@@ -240,7 +240,7 @@ export default function SearchPage() {
                   {results.devices.map((d) => (
                     <button
                       key={d.id}
-                      onClick={() => navigateToProject(router, d.projectId)}
+                      onClick={() => navigateToProject(router, d.projectId, 'device-list')}
                       className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
                       <Server className="h-5 w-5 text-amber-500 shrink-0" />
@@ -267,7 +267,7 @@ export default function SearchPage() {
                   {results.ipEntries.map((e) => (
                     <button
                       key={e.id}
-                      onClick={() => navigateToProject(router, e.projectId)}
+                      onClick={() => navigateToProject(router, e.projectId, 'ip-plan')}
                       className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
                       <Network className="h-5 w-5 text-green-500 shrink-0" />
@@ -295,7 +295,7 @@ export default function SearchPage() {
                   {results.notes.map((n) => (
                     <button
                       key={n.id}
-                      onClick={() => navigateToProject(router, n.projectId)}
+                      onClick={() => navigateToProject(router, n.projectId, 'notes')}
                       className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
                       <StickyNote className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />

@@ -258,6 +258,11 @@ export async function deleteFile(id: string): Promise<void> {
       if (version.blobKey) await db.delete('fileBlobs', version.blobKey);
     }
   }
+  // Clean up notes attached to this file
+  const fileNotes = await db.getAllFromIndex('notes', 'by-file', id);
+  for (const note of fileNotes) {
+    await db.delete('notes', note.id);
+  }
   await db.delete('files', id);
 }
 
