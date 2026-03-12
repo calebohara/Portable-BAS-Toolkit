@@ -72,7 +72,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
           <Button
             variant="ghost"
             size="sm"
-            className="hidden sm:flex h-8 w-8 p-0 text-muted-foreground"
+            className="h-8 w-8 p-0 text-muted-foreground"
             onClick={handleRefresh}
             aria-label="Refresh page"
           >
@@ -82,7 +82,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-2 text-muted-foreground"
+            className="hidden sm:flex h-8 gap-2 text-muted-foreground"
             onClick={goToSearch}
             data-tour="search-button"
           >
