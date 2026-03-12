@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-2.4.6-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-2.9.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -22,7 +22,7 @@
 
 ## Version
 
-**Current Release: v2.4.6**
+**Current Release: v2.9.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -92,6 +92,7 @@ It centralizes the critical project data that field engineers carry between job 
 | **Telnet HMI Tool** | Browser-based terminal for BAS controller access — WebSocket-to-Telnet proxy support, session logging, .txt export, project attachment, baud rate configuration, multiple session tabs, command history, connection history, and persistent session buffers that survive navigation |
 | **Command Snippet Library** | Save and reuse terminal commands — categorized snippets (BACnet, LonWorks, Modbus, Niagara, Siemens, Johnson, Honeywell), search and filter, one-click insert into terminal, usage tracking, favorites |
 | **Web Interface** | Access BAS controller web panels directly — saved endpoints with favorites, protocol/port/path configuration, embedded iframe workspace with honest browser security handling (X-Frame-Options, CSP, mixed content), new-tab fallback, project association, recent connections, JSON export, and persistent active workspace that survives navigation |
+| **Protocol Converter / Register Tool** | Production-grade field utility for protocol and register work — hex/decimal/binary conversion, signed/unsigned interpretation, 16-bit and 32-bit register decoding, IEEE 754 float breakdown, byte/word order comparison across all 4 standard orderings, interactive bitmask tool with labeled bit grids and mask operations (AND/OR/XOR/NOT/shift), linear scaling calculator with common presets (0-10V, 4-20mA, temperature, pressure), Modbus address resolver (0-based/1-based/Modicon notation with function codes), save calculations to projects, built-in BAS protocol reference |
 | **Ping Tool** | Reachability testing with dual mode — browser mode uses HTTP/HTTPS with optional BAS port scanning (80, 443, 8080, 8443, 47808/BACnet); desktop mode uses real ICMP ping with TTL and native TCP port checking. Single/repeated/multi-target modes, auto-detects desktop vs browser, helpful diagnostics, latency statistics, project association, result saving, and .txt export |
 | **Desktop App** | Native desktop application via Tauri — real ICMP ping, direct TCP port checking, system-level network access over VPN, Tauri-aware SPA navigation with catch-all route fallback, lightweight ~15 MB installer for Windows (.msi), macOS (.dmg), and Linux (.deb/.AppImage), auto-built via GitHub Actions CI, in-app update checker |
 | **Global Sticky Notepad** | Draggable floating scratchpad accessible from any page — drag the launcher icon anywhere on screen with persistent position, edge snapping, tabbed notes with project attachment and tab duplication, minimize/restore, anchored panel positioning relative to launcher, and offline persistence via Zustand |

@@ -358,6 +358,46 @@ export interface TerminalSessionLog {
   createdAt: string;
 }
 
+// ─── Register Tool / Protocol Converter ─────────────────────
+export type ByteOrder = 'big-endian' | 'little-endian' | 'mid-big' | 'mid-little';
+export type RegisterDataType = 'uint16' | 'int16' | 'uint32' | 'int32' | 'float32';
+export type ModbusNotation = '0-based' | '1-based' | 'modicon';
+export type RegisterToolModule =
+  | 'quick-convert'
+  | 'register-interpret'
+  | 'byte-order'
+  | 'float-decode'
+  | 'bitmask'
+  | 'scaling'
+  | 'modbus-builder';
+
+export type SavedCalcCategory =
+  | 'diagnostics' | 'register-maps' | 'device-notes'
+  | 'scaling-references' | 'integration-notes' | 'general';
+
+export const SAVED_CALC_CATEGORY_LABELS: Record<SavedCalcCategory, string> = {
+  diagnostics: 'Diagnostics',
+  'register-maps': 'Register Maps',
+  'device-notes': 'Device Notes',
+  'scaling-references': 'Scaling References',
+  'integration-notes': 'Integration Notes',
+  general: 'General',
+};
+
+export interface SavedCalculation {
+  id: string;
+  projectId: string;
+  label: string;
+  module: RegisterToolModule;
+  category: SavedCalcCategory;
+  inputs: Record<string, unknown>;
+  result: Record<string, unknown>;
+  notes: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Ping Results ───────────────────────────────────────────
 export type PingStatus = 'reachable' | 'unreachable' | 'pending' | 'error';
 

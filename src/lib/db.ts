@@ -3,7 +3,7 @@ import type {
   Project, ProjectFile, FileVersion, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
-  ConnectionProfile,
+  ConnectionProfile, SavedCalculation,
 } from '@/types';
 
 interface BasToolkitDB extends DBSchema {
@@ -88,13 +88,18 @@ interface BasToolkitDB extends DBSchema {
     value: ConnectionProfile;
     indexes: { 'by-project': string; 'by-type': string };
   };
+  registerCalculations: {
+    key: string;
+    value: SavedCalculation;
+    indexes: { 'by-project': string; 'by-module': string };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 5, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 6, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           // Projects
@@ -164,6 +169,13 @@ function getDB() {
           profileStore.createIndex('by-project', 'projectId');
           profileStore.createIndex('by-type', 'connectionType');
         }
+
+        if (oldVersion < 6) {
+          // Register Tool Saved Calculations
+          const calcStore = db.createObjectStore('registerCalculations', { keyPath: 'id' });
+          calcStore.createIndex('by-project', 'projectId');
+          calcStore.createIndex('by-module', 'module');
+        }
       },
     }).catch((err) => {
       // Reset so next call retries instead of returning cached failure
@@ -193,7 +205,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations'], 'readwrite');
 
   try {
     // Delete associated data
@@ -238,6 +250,9 @@ export async function deleteProject(id: string): Promise<void> {
 
     const connProfiles = await tx.objectStore('connectionProfiles').index('by-project').getAll(id);
     for (const cp of connProfiles) await tx.objectStore('connectionProfiles').delete(cp.id);
+
+    const regCalcs = await tx.objectStore('registerCalculations').index('by-project').getAll(id);
+    for (const rc of regCalcs) await tx.objectStore('registerCalculations').delete(rc.id);
 
     await tx.objectStore('projects').delete(id);
     await tx.done;
@@ -617,6 +632,29 @@ export async function saveConnectionProfile(profile: ConnectionProfile): Promise
 export async function deleteConnectionProfile(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('connectionProfiles', id);
+}
+
+// ─── Register Calculations ───────────────────────────────────
+export async function getAllRegisterCalculations(): Promise<SavedCalculation[]> {
+  const db = await getDB();
+  const calcs = await db.getAll('registerCalculations');
+  return calcs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getProjectRegisterCalculations(projectId: string): Promise<SavedCalculation[]> {
+  const db = await getDB();
+  const calcs = await db.getAllFromIndex('registerCalculations', 'by-project', projectId);
+  return calcs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function saveRegisterCalculation(calc: SavedCalculation): Promise<void> {
+  const db = await getDB();
+  await db.put('registerCalculations', calc);
+}
+
+export async function deleteRegisterCalculation(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('registerCalculations', id);
 }
 
 // Global search across all projects
