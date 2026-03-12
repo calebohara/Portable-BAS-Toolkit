@@ -460,7 +460,7 @@ export default function PingToolPage() {
     <>
       <TopBar title="Ping Tool" />
       <div className="flex-1 overflow-y-auto">
-        <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
+        <div className="max-w-4xl mx-auto px-3 py-4 sm:p-6 space-y-4 sm:space-y-6">
           {/* Disclaimer */}
           <div className="rounded-lg border border-field-info/20 bg-field-info/5 px-4 py-3 text-sm flex gap-3">
             <Info className="h-4 w-4 text-field-info shrink-0 mt-0.5" />
@@ -488,13 +488,13 @@ export default function PingToolPage() {
 
           {/* Config */}
           <div className="rounded-lg border border-border p-4 space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center gap-2 justify-between">
               <h2 className="text-sm font-semibold flex items-center gap-2">
                 <Activity className="h-4 w-4" /> Test Configuration
               </h2>
               <div className="flex items-center gap-2">
                 <Select value={selectedProjectId || '_none'} onValueChange={v => v && setSelectedProjectId(v === '_none' ? '' : v)}>
-                  <SelectTrigger className="h-8 text-xs w-48"><SelectValue placeholder="Project (optional)" /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs w-36 sm:w-48"><SelectValue placeholder="Project (optional)" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="_none">No project</SelectItem>
                     {projects.map(p => (
@@ -510,11 +510,11 @@ export default function PingToolPage() {
             </div>
 
             {/* Mode selector */}
-            <div className="flex items-center gap-4 flex-wrap">
+            <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
               <div className="space-y-1.5">
                 <Label className="text-xs">Mode</Label>
                 <Select value={mode} onValueChange={v => v && setMode(v as typeof mode)}>
-                  <SelectTrigger className="h-8 text-xs w-36"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-8 text-xs w-28 sm:w-36"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="single">Single Check</SelectItem>
                     <SelectItem value="repeated">Repeated</SelectItem>
@@ -576,7 +576,7 @@ export default function PingToolPage() {
                     value={target.host}
                     onChange={e => updateTarget(idx, { host: e.target.value })}
                     placeholder="10.40.1.10"
-                    className="h-8 text-xs font-mono flex-1 min-w-0"
+                    className="h-8 text-xs font-mono min-w-0 flex-[2_1_8rem]"
                     disabled={running}
                   />
                   <Input
@@ -584,18 +584,18 @@ export default function PingToolPage() {
                     onChange={e => updateTarget(idx, { port: e.target.value ? parseInt(e.target.value) : undefined })}
                     placeholder="Port"
                     type="number"
-                    className="h-8 text-xs w-20 min-w-16"
+                    className="h-8 text-xs min-w-0 flex-[1_1_4rem] max-w-20"
                     disabled={running}
                   />
                   <Input
                     value={target.label || ''}
                     onChange={e => updateTarget(idx, { label: e.target.value })}
                     placeholder="Label (optional)"
-                    className="h-8 text-xs w-32 min-w-24"
+                    className="h-8 text-xs min-w-0 flex-[1_1_6rem] max-w-36"
                     disabled={running}
                   />
                   {targets.length > 1 && (
-                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => removeTarget(idx)} disabled={running}>
+                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0 shrink-0" onClick={() => removeTarget(idx)} disabled={running}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   )}
