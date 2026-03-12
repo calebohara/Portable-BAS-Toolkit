@@ -78,3 +78,65 @@ export async function nativeCheckPort(
   const invoke = await getInvoke();
   return invoke('check_port', { host, port, timeoutMs }) as Promise<NativePortCheckResult>;
 }
+
+// ─── Native Telnet TCP Connection ─────────────────────────
+export async function nativeTelnetConnect(
+  sessionId: string,
+  host: string,
+  port: number,
+): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke('telnet_connect', { sessionId, host, port });
+}
+
+export async function nativeTelnetSend(
+  sessionId: string,
+  data: string,
+): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke('telnet_send', { sessionId, data });
+}
+
+export async function nativeTelnetDisconnect(
+  sessionId: string,
+): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke('telnet_disconnect', { sessionId });
+}
+
+// ─── Tauri Event Listener ─────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let listenCache: ((event: string, handler: (event: any) => void) => Promise<() => void>) | null = null;
+
+async function getListen() {
+  if (listenCache) return listenCache;
+  const { listen } = await import('@tauri-apps/api/event');
+  listenCache = listen;
+  return listen;
+}
+
+export async function onTelnetData(
+  sessionId: string,
+  handler: (data: string) => void,
+): Promise<() => void> {
+  const listen = await getListen();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return listen(`telnet-data-${sessionId}`, (event: any) => handler(event.payload as string));
+}
+
+export async function onTelnetClosed(
+  sessionId: string,
+  handler: () => void,
+): Promise<() => void> {
+  const listen = await getListen();
+  return listen(`telnet-closed-${sessionId}`, () => handler());
+}
+
+export async function onTelnetError(
+  sessionId: string,
+  handler: (error: string) => void,
+): Promise<() => void> {
+  const listen = await getListen();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return listen(`telnet-error-${sessionId}`, (event: any) => handler(event.payload as string));
+}

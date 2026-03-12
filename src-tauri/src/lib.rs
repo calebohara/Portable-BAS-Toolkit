@@ -1,7 +1,12 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Instant;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::tcp::OwnedWriteHalf;
 use tokio::process::Command;
+use tokio::sync::Mutex;
 
 // ─── Ping Command ────────────────────────────────────────────
 #[derive(Serialize, Deserialize)]
@@ -153,6 +158,127 @@ async fn check_port(host: String, port: u16, timeoutMs: Option<u64>) -> Result<P
     }
 }
 
+// ─── Telnet TCP Connection ──────────────────────────────────
+struct TelnetConnection {
+    write_half: OwnedWriteHalf,
+    read_task: tokio::task::JoinHandle<()>,
+}
+
+struct TelnetState(Arc<Mutex<HashMap<String, TelnetConnection>>>);
+
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn telnet_connect(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, TelnetState>,
+    sessionId: String,
+    host: String,
+    port: u16,
+) -> Result<(), String> {
+    let addr = format!("{}:{}", host, port);
+    let timeout = std::time::Duration::from_secs(10);
+
+    let stream = tokio::time::timeout(timeout, tokio::net::TcpStream::connect(&addr))
+        .await
+        .map_err(|_| format!("Connection to {} timed out", addr))?
+        .map_err(|e| format!("Connection to {} failed: {}", addr, e))?;
+
+    let (read_half, write_half) = stream.into_split();
+
+    let sid = sessionId.clone();
+    let app_handle = app.clone();
+
+    let read_task = tokio::spawn(async move {
+        let mut reader = read_half;
+        let mut buf = [0u8; 4096];
+        loop {
+            match reader.read(&mut buf).await {
+                Ok(0) => {
+                    let _ = app_handle.emit(&format!("telnet-closed-{}", sid), ());
+                    break;
+                }
+                Ok(n) => {
+                    // Filter out telnet IAC negotiation bytes (0xFF sequences)
+                    let mut filtered = Vec::with_capacity(n);
+                    let mut i = 0;
+                    while i < n {
+                        if buf[i] == 0xFF && i + 1 < n {
+                            // IAC command — skip 2 or 3 bytes depending on command
+                            let cmd = buf.get(i + 1).copied().unwrap_or(0);
+                            if cmd >= 251 && cmd <= 254 && i + 2 < n {
+                                i += 3; // WILL/WONT/DO/DONT + option byte
+                            } else {
+                                i += 2; // Other IAC commands
+                            }
+                        } else {
+                            filtered.push(buf[i]);
+                            i += 1;
+                        }
+                    }
+                    if !filtered.is_empty() {
+                        let data = String::from_utf8_lossy(&filtered).to_string();
+                        let _ = app_handle.emit(&format!("telnet-data-{}", sid), data);
+                    }
+                }
+                Err(e) => {
+                    let _ = app_handle.emit(
+                        &format!("telnet-error-{}", sid),
+                        e.to_string(),
+                    );
+                    break;
+                }
+            }
+        }
+    });
+
+    let mut connections = state.0.lock().await;
+    if let Some(old) = connections.remove(&sessionId) {
+        old.read_task.abort();
+    }
+    connections.insert(
+        sessionId,
+        TelnetConnection {
+            write_half,
+            read_task,
+        },
+    );
+
+    Ok(())
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn telnet_send(
+    state: tauri::State<'_, TelnetState>,
+    sessionId: String,
+    data: String,
+) -> Result<(), String> {
+    let mut connections = state.0.lock().await;
+    if let Some(conn) = connections.get_mut(&sessionId) {
+        let payload = format!("{}\r\n", data);
+        conn.write_half
+            .write_all(payload.as_bytes())
+            .await
+            .map_err(|e| format!("Send failed: {}", e))?;
+    } else {
+        return Err("Not connected".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn telnet_disconnect(
+    state: tauri::State<'_, TelnetState>,
+    sessionId: String,
+) -> Result<(), String> {
+    let mut connections = state.0.lock().await;
+    if let Some(conn) = connections.remove(&sessionId) {
+        conn.read_task.abort();
+    }
+    Ok(())
+}
+
 // ─── SPA Fallback Navigation ────────────────────────────────
 // Resolves the correct fallback path for dynamic routes in static export mode.
 // When the webview navigates to /projects/{uuid}/, the file doesn't exist in
@@ -184,6 +310,7 @@ fn resolve_spa_route(path: String) -> Option<String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(TelnetState(Arc::new(Mutex::new(HashMap::new()))))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
@@ -253,7 +380,14 @@ pub fn run() {
 
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![icmp_ping, check_port, resolve_spa_route])
+        .invoke_handler(tauri::generate_handler![
+            icmp_ping,
+            check_port,
+            resolve_spa_route,
+            telnet_connect,
+            telnet_send,
+            telnet_disconnect,
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -32,6 +32,15 @@ import { SNIPPET_CATEGORY_LABELS } from '@/types';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  isTauri,
+  nativeTelnetConnect,
+  nativeTelnetSend,
+  nativeTelnetDisconnect,
+  onTelnetData,
+  onTelnetClosed,
+  onTelnetError,
+} from '@/lib/tauri-bridge';
 
 // ─── Connection State UI ─────────────────────────────────────
 const STATE_CONFIG: Record<ConnectionState, { label: string; color: string; icon: typeof Circle }> = {
@@ -95,10 +104,11 @@ function TerminalView({ session }: { session: TerminalSession }) {
 }
 
 // ─── Command Input ───────────────────────────────────────────
-function CommandInput({ session, insertedCmd, onClearInserted }: {
+function CommandInput({ session, insertedCmd, onClearInserted, onSend }: {
   session: TerminalSession;
   insertedCmd?: string;
   onClearInserted?: () => void;
+  onSend?: (cmd: string) => void;
 }) {
   const [cmd, setCmd] = useState('');
   const [cmdHistory, setCmdHistory] = useState<string[]>([]);
@@ -126,9 +136,9 @@ function CommandInput({ session, insertedCmd, onClearInserted }: {
     };
     appendLine(session.id, line);
 
-    // If connected via WebSocket, we'd send the command here
-    // For now, echo a system message about the simulated environment
-    if (session.connectionState !== 'connected') {
+    if (session.connectionState === 'connected' && onSend) {
+      onSend(cmd);
+    } else if (session.connectionState !== 'connected') {
       appendLine(session.id, {
         text: 'Not connected. Command logged locally only.',
         timestamp: new Date().toISOString(),
@@ -139,7 +149,7 @@ function CommandInput({ session, insertedCmd, onClearInserted }: {
     setCmdHistory(prev => [cmd, ...prev].slice(0, 50));
     setHistoryIdx(-1);
     setCmd('');
-  }, [cmd, session.id, session.connectionState, appendLine]);
+  }, [cmd, session.id, session.connectionState, appendLine, onSend]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowUp') {
@@ -571,9 +581,13 @@ export default function TelnetPage() {
   const [insertedCmd, setInsertedCmd] = useState('');
 
   const wsRef = useRef<WebSocket | null>(null);
+  const cleanupListenersRef = useRef<(() => void)[]>([]);
+  const [isDesktop, setIsDesktop] = useState(false);
+
+  useEffect(() => { setIsDesktop(isTauri()); }, []);
 
   // ─── Connection logic ────────────────────────────────────
-  const handleConnect = useCallback(() => {
+  const handleConnect = useCallback(async () => {
     if (!session.host.trim()) {
       toast.error('Please enter a host/IP address');
       return;
@@ -586,16 +600,11 @@ export default function TelnetPage() {
       type: 'system',
     });
 
-    // Attempt WebSocket connection to a local proxy
-    // The proxy would bridge WebSocket ↔ Telnet
-    // Default proxy endpoint: ws://localhost:8023
-    const wsUrl = `ws://${session.host}:${session.port}`;
+    if (isDesktop) {
+      // ─── Native TCP via Tauri ──────────────────────────
+      try {
+        await nativeTelnetConnect(session.id, session.host, session.port);
 
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
         setConnectionState(session.id, 'connected');
         appendLine(session.id, {
           text: `Connected to ${session.host}:${session.port}`,
@@ -608,50 +617,119 @@ export default function TelnetPage() {
           baudRate: session.baudRate,
           label: session.label,
         });
-      };
 
-      ws.onmessage = (event) => {
-        appendLine(session.id, {
-          text: String(event.data),
-          timestamp: new Date().toISOString(),
-          type: 'output',
+        // Listen for incoming data, close, and error events
+        const unData = await onTelnetData(session.id, (data) => {
+          appendLine(session.id, {
+            text: data,
+            timestamp: new Date().toISOString(),
+            type: 'output',
+          });
         });
-      };
-
-      ws.onerror = () => {
-        setConnectionState(session.id, 'error', 'Connection failed — ensure a WebSocket-to-Telnet proxy is running');
-        appendLine(session.id, {
-          text: 'Connection error. Browser security restricts raw TCP/Telnet connections. A WebSocket proxy is required for live sessions. You can still use this terminal for local command logging and session documentation.',
-          timestamp: new Date().toISOString(),
-          type: 'error',
-        });
-      };
-
-      ws.onclose = () => {
-        if (session.connectionState === 'connected') {
+        const unClosed = await onTelnetClosed(session.id, () => {
           setConnectionState(session.id, 'disconnected');
           appendLine(session.id, {
-            text: 'Connection closed.',
+            text: 'Connection closed by remote host.',
             timestamp: new Date().toISOString(),
             type: 'system',
           });
-        }
-        wsRef.current = null;
-      };
-    } catch {
-      setConnectionState(session.id, 'error', 'WebSocket connection failed');
-      appendLine(session.id, {
-        text: 'Failed to establish WebSocket connection. Use local mode to log commands and session notes.',
-        timestamp: new Date().toISOString(),
-        type: 'error',
-      });
-    }
-  }, [session, setConnectionState, appendLine, addToHistory]);
+        });
+        const unError = await onTelnetError(session.id, (error) => {
+          setConnectionState(session.id, 'error', `Connection error: ${error}`);
+          appendLine(session.id, {
+            text: `Connection error: ${error}`,
+            timestamp: new Date().toISOString(),
+            type: 'error',
+          });
+        });
 
-  const handleDisconnect = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
+        // Store cleanup functions
+        cleanupListenersRef.current = [unData, unClosed, unError];
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        setConnectionState(session.id, 'error', msg);
+        appendLine(session.id, {
+          text: `Connection failed: ${msg}`,
+          timestamp: new Date().toISOString(),
+          type: 'error',
+        });
+      }
+    } else {
+      // ─── Browser: WebSocket fallback ───────────────────
+      const wsUrl = `ws://${session.host}:${session.port}`;
+      try {
+        const ws = new WebSocket(wsUrl);
+        wsRef.current = ws;
+
+        ws.onopen = () => {
+          setConnectionState(session.id, 'connected');
+          appendLine(session.id, {
+            text: `Connected to ${session.host}:${session.port}`,
+            timestamp: new Date().toISOString(),
+            type: 'system',
+          });
+          addToHistory({
+            host: session.host,
+            port: session.port,
+            baudRate: session.baudRate,
+            label: session.label,
+          });
+        };
+
+        ws.onmessage = (event) => {
+          appendLine(session.id, {
+            text: String(event.data),
+            timestamp: new Date().toISOString(),
+            type: 'output',
+          });
+        };
+
+        ws.onerror = () => {
+          setConnectionState(session.id, 'error', 'Live connections require the BAU Suite desktop app');
+          appendLine(session.id, {
+            text: 'Cannot connect from browser — web browsers cannot make raw TCP/Telnet connections due to security restrictions. Use the BAU Suite desktop app for live Telnet sessions. In the browser, you can still use this terminal for local command logging and session documentation.',
+            timestamp: new Date().toISOString(),
+            type: 'error',
+          });
+        };
+
+        ws.onclose = () => {
+          if (session.connectionState === 'connected') {
+            setConnectionState(session.id, 'disconnected');
+            appendLine(session.id, {
+              text: 'Connection closed.',
+              timestamp: new Date().toISOString(),
+              type: 'system',
+            });
+          }
+          wsRef.current = null;
+        };
+      } catch {
+        setConnectionState(session.id, 'error', 'Live connections require the BAU Suite desktop app');
+        appendLine(session.id, {
+          text: 'Browser cannot make raw TCP connections. Use the desktop app for live sessions, or use local mode to log commands.',
+          timestamp: new Date().toISOString(),
+          type: 'error',
+        });
+      }
+    }
+  }, [session, isDesktop, setConnectionState, appendLine, addToHistory]);
+
+  const handleDisconnect = useCallback(async () => {
+    if (isDesktop) {
+      try {
+        await nativeTelnetDisconnect(session.id);
+      } catch { /* ignore */ }
+      // Clean up event listeners
+      for (const cleanup of cleanupListenersRef.current) {
+        cleanup();
+      }
+      cleanupListenersRef.current = [];
+    } else {
+      if (wsRef.current) {
+        wsRef.current.close();
+        wsRef.current = null;
+      }
     }
     setConnectionState(session.id, 'disconnected');
     appendLine(session.id, {
@@ -659,12 +737,30 @@ export default function TelnetPage() {
       timestamp: new Date().toISOString(),
       type: 'system',
     });
-  }, [session.id, setConnectionState, appendLine]);
+  }, [session.id, isDesktop, setConnectionState, appendLine]);
 
   const handleReconnect = useCallback(() => {
     handleDisconnect();
     setTimeout(() => handleConnect(), 300);
   }, [handleConnect, handleDisconnect]);
+
+  // ─── Send command ──────────────────────────────────────
+  const handleSendCommand = useCallback(async (cmd: string) => {
+    if (isDesktop) {
+      try {
+        await nativeTelnetSend(session.id, cmd);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        appendLine(session.id, {
+          text: `Send failed: ${msg}`,
+          timestamp: new Date().toISOString(),
+          type: 'error',
+        });
+      }
+    } else if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(cmd + '\r\n');
+    }
+  }, [session.id, isDesktop, appendLine]);
 
   // ─── Export ──────────────────────────────────────────────
   const handleExport = useCallback(() => {
@@ -684,6 +780,9 @@ export default function TelnetPage() {
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
+      }
+      for (const cleanup of cleanupListenersRef.current) {
+        cleanup();
       }
     };
   }, []);
@@ -920,6 +1019,14 @@ export default function TelnetPage() {
                 </div>
               </div>
 
+              {/* Browser mode notice */}
+              {!isDesktop && session.connectionState === 'disconnected' && (
+                <div className="rounded-lg bg-field-info/10 border border-field-info/20 px-3 py-2 text-xs text-field-info flex items-start gap-2">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                  <span>Live Telnet connections require the <strong>BAU Suite desktop app</strong>. In the browser, you can log commands and document sessions locally.</span>
+                </div>
+              )}
+
               {/* Error message */}
               {session.connectionState === 'error' && session.errorMessage && (
                 <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
@@ -938,7 +1045,7 @@ export default function TelnetPage() {
         <TerminalView session={session} />
 
         {/* Command Input */}
-        <CommandInput session={session} insertedCmd={insertedCmd} onClearInserted={() => setInsertedCmd('')} />
+        <CommandInput session={session} insertedCmd={insertedCmd} onClearInserted={() => setInsertedCmd('')} onSend={handleSendCommand} />
 
         {/* Status Bar */}
         <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-border bg-muted/30 text-[10px] text-muted-foreground">
