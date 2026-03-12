@@ -121,10 +121,19 @@ async fn check_port(host: String, port: u16, timeoutMs: Option<u64>) -> Result<P
     let start = Instant::now();
     let addr = format!("{}:{}", host, port);
 
-    let connect_result: Result<Result<tokio::net::TcpStream, std::io::Error>, _> =
-        tokio::time::timeout(timeout, tokio::net::TcpStream::connect(&addr)).await;
+    // Use blocking std::net connect (same Winsock code path as native tools)
+    // Tokio's async IOCP connect can fail on some BAS network configurations
+    let sock_addr: std::net::SocketAddr = addr.parse()
+        .map_err(|_| format!("Invalid address: {}", addr))?;
+
+    let connect_result = tokio::task::spawn_blocking(move || {
+        std::net::TcpStream::connect_timeout(&sock_addr, timeout)
+    })
+    .await
+    .map_err(|e| format!("Port check task failed: {}", e))?;
+
     match connect_result {
-        Ok(Ok(_stream)) => {
+        Ok(_stream) => {
             let elapsed = start.elapsed().as_millis() as u64;
             Ok(PortCheckResult {
                 host,
@@ -134,24 +143,16 @@ async fn check_port(host: String, port: u16, timeoutMs: Option<u64>) -> Result<P
                 error: None,
             })
         }
-        Ok(Err(e)) => {
+        Err(e) => {
             let elapsed = start.elapsed().as_millis() as u64;
+            let detail = e.to_string();
+            let timed_out = detail.contains("timed out") || detail.contains("timeout");
             Ok(PortCheckResult {
                 host,
                 port,
                 open: false,
                 response_time_ms: elapsed,
-                error: Some(e.to_string()),
-            })
-        }
-        Err(_) => {
-            let elapsed = start.elapsed().as_millis() as u64;
-            Ok(PortCheckResult {
-                host,
-                port,
-                open: false,
-                response_time_ms: elapsed,
-                error: Some("Connection timed out".to_string()),
+                error: Some(if timed_out { "Connection timed out".to_string() } else { detail }),
             })
         }
     }
@@ -268,29 +269,44 @@ async fn telnet_connect(
     let sock_addr: std::net::SocketAddr = addr.parse()
         .map_err(|_| format!("Invalid address: {}. Enter a valid IP address and port.", addr))?;
 
-    let stream = tokio::time::timeout(timeout, tokio::net::TcpStream::connect(sock_addr))
-        .await
-        .map_err(|_| format!(
-            "Connection to {} timed out (15s). Troubleshooting:\n\
-             • Verify the device is powered on and reachable (try the Ping Tool)\n\
-             • Check Windows Firewall — BAU Suite may need an inbound/outbound exception\n\
-             • Confirm you're on the correct network/VLAN for BAS devices\n\
-             • Try port {} in the Port Scanner tool first",
-            addr, port
-        ))?
-        .map_err(|e| {
-            let detail = e.to_string();
-            if detail.contains("refused") {
-                format!("Connection refused by {}. The host is reachable but port {} is not accepting connections.", addr, port)
-            } else if detail.contains("No route") || detail.contains("unreachable") {
-                format!("Host {} is unreachable. Check network/VPN connectivity.", host)
-            } else {
-                format!("Connection to {} failed: {}", addr, detail)
-            }
-        })?;
+    // Use blocking std::net TCP connect (same Winsock code path as Tera Term)
+    // then convert to async tokio stream. Tokio's async connect uses IOCP on
+    // Windows which can behave differently with BAS network adapters/VLANs.
+    let addr_str = addr.clone();
+    let port_val = port;
+    let host_str = host.clone();
+    let std_stream = tokio::task::spawn_blocking(move || {
+        std::net::TcpStream::connect_timeout(&sock_addr, timeout)
+            .map_err(|e| {
+                let detail = e.to_string();
+                if detail.contains("timed out") || detail.contains("timeout") {
+                    format!(
+                        "Connection to {} timed out (15s). Troubleshooting:\n\
+                         • Verify the device is powered on and reachable (try the Ping Tool)\n\
+                         • Check Windows Firewall — BAU Suite may need an inbound/outbound exception\n\
+                         • Confirm you're on the correct network/VLAN for BAS devices\n\
+                         • Try port {} in the Port Scanner tool first",
+                        addr_str, port_val
+                    )
+                } else if detail.contains("refused") {
+                    format!("Connection refused by {}. The host is reachable but port {} is not accepting connections.", addr_str, port_val)
+                } else if detail.contains("No route") || detail.contains("unreachable") {
+                    format!("Host {} is unreachable. Check network/VPN connectivity.", host_str)
+                } else {
+                    format!("Connection to {} failed: {}", addr_str, detail)
+                }
+            })
+    })
+    .await
+    .map_err(|e| format!("Connection task failed: {}", e))?
+    ?;
 
-    // Low-latency interactive terminal
-    let _ = stream.set_nodelay(true);
+    // Convert blocking socket to async tokio stream
+    std_stream.set_nonblocking(true)
+        .map_err(|e| format!("Failed to set non-blocking mode: {}", e))?;
+    std_stream.set_nodelay(true).ok(); // Low-latency interactive terminal
+    let stream = tokio::net::TcpStream::from_std(std_stream)
+        .map_err(|e| format!("Failed to create async stream: {}", e))?;
 
     let (read_half, write_half) = stream.into_split();
     let writer = Arc::new(Mutex::new(write_half));

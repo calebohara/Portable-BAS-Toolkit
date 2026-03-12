@@ -305,7 +305,19 @@ function SettingsPanel() {
       <h3 className="text-sm font-semibold flex items-center gap-2">
         <Settings2 className="h-4 w-4" /> Terminal Settings
       </h3>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-4">
+        <div className="space-y-1.5">
+          <Label className="text-xs">Default Baud Rate</Label>
+          <Select
+            value={String(settings.defaultBaudRate)}
+            onValueChange={v => v && updateSettings({ defaultBaudRate: Number(v) as BaudRate })}
+          >
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {BAUD_RATES.map(br => <SelectItem key={br} value={String(br)}>{br.toLocaleString()}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="space-y-1.5">
           <Label className="text-xs">Default Line Ending</Label>
           <Select
@@ -929,8 +941,8 @@ export default function TelnetPage() {
           {connPanelOpen && (
             <div className="px-4 pb-3 space-y-3">
               {/* Connection fields */}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1.5 sm:col-span-2 lg:col-span-1">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <div className="space-y-1.5">
                   <Label htmlFor="term-label" className="text-xs">Session Label</Label>
                   <Input
                     id="term-label"
@@ -959,6 +971,18 @@ export default function TelnetPage() {
                     onChange={e => updateSession(session.id, { port: parseInt(e.target.value) || 23 })}
                     className="h-8 text-xs font-mono"
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Baud Rate</Label>
+                  <Select
+                    value={String(session.baudRate)}
+                    onValueChange={v => v && updateSession(session.id, { baudRate: Number(v) as BaudRate })}
+                  >
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {BAUD_RATES.map(br => <SelectItem key={br} value={String(br)}>{br.toLocaleString()}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">Line Ending</Label>
@@ -1131,6 +1155,7 @@ export default function TelnetPage() {
             <span className={stateConfig.color}>{stateConfig.label}</span>
             {session.host && <span>{session.host}:{session.port}</span>}
             <span>Telnet TCP</span>
+            <span>{session.baudRate.toLocaleString()} baud</span>
             <span>{LINE_ENDINGS.find(le => le.value === session.lineEnding)?.label ?? 'CR+LF'}</span>
           </div>
           <div className="flex items-center gap-3">
