@@ -7,7 +7,7 @@ import {
   Copy, Check, Printer, Download,
 } from 'lucide-react';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -619,7 +619,6 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg">
-        <div style={{ maxHeight: '85vh', overflowY: 'auto' }}>
           <DialogHeader>
             <DialogTitle>Export / Share Report</DialogTitle>
             <DialogDescription>
@@ -627,6 +626,7 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
             </DialogDescription>
           </DialogHeader>
 
+          <DialogBody>
           {/* Step Indicator */}
           <div className="flex items-center gap-2 px-5 py-3">
             {STEPS.map((label, i) => (
@@ -657,6 +657,7 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
           {/* Step Content */}
           {step === 0 && renderFormatStep()}
           {step === 1 && renderReviewStep()}
+          </DialogBody>
 
           <DialogFooter>
             {step > 0 && (
@@ -677,7 +678,6 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
               <Button variant="outline" onClick={() => handleOpenChange(false)}>Done</Button>
             )}
           </DialogFooter>
-        </div>
       </DialogContent>
     </Dialog>
   );

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Download, ExternalLink, X, FileText, AlertTriangle, Loader2 } from 'lucide-react';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { FileIcon, formatFileSize } from '@/components/shared/file-icon';
@@ -143,7 +143,6 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl">
-        <div style={{ maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
           <DialogHeader>
             <div className="flex items-center justify-between gap-3 pr-8">
               <div className="flex items-center gap-3 min-w-0">
@@ -169,7 +168,7 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
           </DialogHeader>
 
           {/* Preview Content */}
-          <div className="flex-1 min-h-0 mt-3" style={{ minHeight: '300px' }}>
+          <DialogBody className="mt-3" style={{ minHeight: '300px' }}>
             {state === 'loading' && (
               <div className="flex flex-col items-center justify-center h-full gap-3 py-16">
                 <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -244,8 +243,7 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
                 <pre className="whitespace-pre-wrap break-words">{textContent}</pre>
               </div>
             )}
-          </div>
-        </div>
+          </DialogBody>
       </DialogContent>
     </Dialog>
   );

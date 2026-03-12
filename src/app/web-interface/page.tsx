@@ -18,7 +18,7 @@ import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { openUrl } from '@/lib/tauri-bridge';
@@ -139,6 +139,7 @@ function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
             <DialogTitle>{endpoint ? 'Edit Endpoint' : 'Save Endpoint'}</DialogTitle>
             <DialogDescription>Configure a saved panel web interface endpoint.</DialogDescription>
           </DialogHeader>
+          <DialogBody>
           <div className="space-y-3 px-5 py-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5 sm:col-span-2">
@@ -243,6 +244,7 @@ function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
             </div>
             <UrlPreview protocol={form.protocol} host={form.host} port={form.port} path={form.path} />
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button onClick={handleSave}>{endpoint ? 'Save Changes' : 'Save Endpoint'}</Button>

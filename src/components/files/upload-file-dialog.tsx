@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { Upload, FileUp, X, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -233,7 +233,6 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg">
-        <div style={{ maxHeight: '85vh', overflowY: 'auto' }}>
           <DialogHeader>
             <DialogTitle>Upload to {FILE_CATEGORY_LABELS[category]}</DialogTitle>
             <DialogDescription>
@@ -241,7 +240,7 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
             </DialogDescription>
           </DialogHeader>
 
-          <div className="px-5 pb-1 space-y-4">
+          <DialogBody className="px-5 pb-1 space-y-4">
             {/* Upload Progress */}
             {stage !== 'idle' && (
               <div className={cn(
@@ -395,7 +394,7 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
                 </div>
               </fieldset>
             )}
-          </div>
+          </DialogBody>
 
           <DialogFooter>
             <Button
@@ -419,7 +418,6 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
               </Button>
             )}
           </DialogFooter>
-        </div>
       </DialogContent>
     </Dialog>
   );

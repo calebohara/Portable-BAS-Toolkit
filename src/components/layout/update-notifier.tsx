@@ -5,6 +5,7 @@ import { Download, RefreshCw, CheckCircle2, AlertCircle, ExternalLink } from 'lu
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -142,6 +143,7 @@ export function UpdateNotifier() {
             </DialogDescription>
           </DialogHeader>
 
+          <DialogBody>
           {/* Release notes */}
           {state === 'available' && update?.body && (
             <div className="px-5 pb-2">
@@ -172,6 +174,7 @@ export function UpdateNotifier() {
               <AlertCircle className="h-12 w-12 text-destructive" />
             </div>
           )}
+          </DialogBody>
 
           <DialogFooter>
             {state === 'available' && (

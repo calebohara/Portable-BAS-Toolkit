@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -115,7 +115,8 @@ export function DeviceDialog({ open, onOpenChange, projectId, device, onSave }: 
             {isEdit ? 'Update device information.' : 'Add a new BAS device to this project.'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 px-5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
+          <DialogBody className="space-y-4 px-5 py-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="deviceName">Device Name *</Label>
@@ -174,6 +175,7 @@ export function DeviceDialog({ open, onOpenChange, projectId, device, onSave }: 
               <Textarea id="notes" placeholder="Additional notes..." value={form.notes} onChange={e => u('notes', e.target.value)} rows={2} />
             </div>
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={saving || !form.deviceName.trim()}>

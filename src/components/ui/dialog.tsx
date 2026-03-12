@@ -58,7 +58,10 @@ function DialogContent({
         )}
         {...props}
       >
-        <div className="flex flex-col" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+        <div
+          className="flex flex-col overflow-hidden rounded-xl"
+          style={{ maxHeight: '85vh' }}
+        >
           {children}
         </div>
         {showCloseButton && (
@@ -87,9 +90,20 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="dialog-header"
       className={cn(
-        "sticky top-0 z-20 flex flex-col gap-1.5 bg-background px-5 pt-5 pb-4",
+        "flex shrink-0 flex-col gap-1.5 border-b border-border bg-background px-5 pt-5 pb-4",
         className
       )}
+      {...props}
+    />
+  )
+}
+
+function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="dialog-body"
+      className={cn("flex-1 overflow-y-auto", className)}
+      style={{ minHeight: 0 }}
       {...props}
     />
   )
@@ -107,7 +121,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
-        "sticky bottom-0 z-20 flex flex-col-reverse gap-2 rounded-b-xl border-t bg-muted/50 px-5 py-4 sm:flex-row sm:justify-end",
+        "flex shrink-0 flex-col-reverse gap-2 rounded-b-xl border-t border-border bg-muted/50 px-5 py-4 sm:flex-row sm:justify-end",
         className
       )}
       {...props}
@@ -150,6 +164,7 @@ function DialogDescription({
 
 export {
   Dialog,
+  DialogBody,
   DialogClose,
   DialogContent,
   DialogDescription,

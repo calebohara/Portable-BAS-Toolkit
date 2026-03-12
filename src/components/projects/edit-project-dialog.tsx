@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -106,7 +106,7 @@ export function EditProjectDialog({ open, onOpenChange, project, onSave }: Props
           <DialogTitle>Edit Project Details</DialogTitle>
           <DialogDescription>Update project information and metadata.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="px-5 pb-1">
+        <DialogBody><form onSubmit={handleSubmit} className="px-5 pb-1">
           <div className="grid gap-3 sm:grid-cols-2">
             {/* — Project Info — */}
             <SectionLabel>Project Info</SectionLabel>
@@ -165,7 +165,7 @@ export function EditProjectDialog({ open, onOpenChange, project, onSave }: Props
               <Textarea id="ep-notes" placeholder="Project-level notes..." value={form.technicianNotes} onChange={e => u('technicianNotes', e.target.value)} rows={3} className="resize-none" />
             </div>
           </div>
-        </form>
+        </form></DialogBody>
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleSubmit} disabled={saving || !form.name.trim() || !form.projectNumber.trim()}>

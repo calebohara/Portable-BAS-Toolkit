@@ -30,7 +30,7 @@ import { saveFileBlob } from '@/lib/db';
 import type { CommandSnippet, SnippetCategory } from '@/types';
 import { SNIPPET_CATEGORY_LABELS } from '@/types';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
 } from '@/components/ui/dialog';
 
 // ─── Connection State UI ─────────────────────────────────────
@@ -213,26 +213,28 @@ function AttachDialog({ open, onOpenChange, session }: {
             Save the terminal session log as a text file attached to a project.
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-3 py-2">
-          <div className="space-y-1.5">
-            <Label>Project</Label>
-            <Select value={projectId} onValueChange={v => v && setProjectId(v)}>
-              <SelectTrigger><SelectValue placeholder="Select project..." /></SelectTrigger>
-              <SelectContent>
-                {projects.map(p => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.projectNumber} — {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <DialogBody>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label>Project</Label>
+              <Select value={projectId} onValueChange={v => v && setProjectId(v)}>
+                <SelectTrigger><SelectValue placeholder="Select project..." /></SelectTrigger>
+                <SelectContent>
+                  {projects.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.projectNumber} — {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+              <p><strong>File:</strong> {generateFileName(session)}</p>
+              <p><strong>Lines:</strong> {session.buffer.length}</p>
+              <p><strong>Host:</strong> {session.host || 'N/A'} : {session.port}</p>
+            </div>
           </div>
-          <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-            <p><strong>File:</strong> {generateFileName(session)}</p>
-            <p><strong>Lines:</strong> {session.buffer.length}</p>
-            <p><strong>Host:</strong> {session.host || 'N/A'} : {session.port}</p>
-          </div>
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={handleAttach} disabled={!projectId || saving}>

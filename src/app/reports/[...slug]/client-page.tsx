@@ -17,7 +17,7 @@ import { formatFileSize } from '@/components/shared/file-icon';
 import { ReportExportDialog } from '@/components/reports/report-export-dialog';
 import type { ReportStatus } from '@/types';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog';
 import { navigateToReportEdit } from '@/lib/routes';
 

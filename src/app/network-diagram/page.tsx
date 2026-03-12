@@ -17,7 +17,7 @@ import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -755,12 +755,14 @@ export default function NetworkDiagramPage() {
             <DialogTitle>New Network Diagram</DialogTitle>
             <DialogDescription>Create a new network topology diagram for your project.</DialogDescription>
           </DialogHeader>
+          <DialogBody>
           <div className="space-y-3 py-2">
             <div className="space-y-1.5">
               <Label>Diagram Name</Label>
               <Input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Floor 3 BAS Network" />
             </div>
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowNewDiagram(false)}>Cancel</Button>
             <Button onClick={handleNewDiagram}>Create</Button>

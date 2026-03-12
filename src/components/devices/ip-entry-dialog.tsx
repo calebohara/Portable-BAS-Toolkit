@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -118,7 +118,8 @@ export function IpEntryDialog({ open, onOpenChange, projectId, entry, existingIp
             {isEdit ? 'Update IP plan entry.' : 'Add a new IP address to the network plan.'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 px-5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
+          <DialogBody className="space-y-4 px-5 py-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="ipAddress">IP Address *</Label>
@@ -170,6 +171,7 @@ export function IpEntryDialog({ open, onOpenChange, projectId, entry, existingIp
               <Textarea id="ipNotes" placeholder="Additional notes..." value={form.notes} onChange={e => u('notes', e.target.value)} rows={2} />
             </div>
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={saving || !form.ipAddress.trim() || !form.hostname.trim()}>

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -66,7 +66,8 @@ export function NewProjectDialog({ open, onOpenChange, onCreate }: Props) {
           <DialogTitle>New BAS Project</DialogTitle>
           <DialogDescription>Create a new project container for your BAS field work.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 px-5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
+          <DialogBody className="space-y-4 px-5 py-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
               <Label htmlFor="name">Project Name *</Label>
@@ -98,6 +99,7 @@ export function NewProjectDialog({ open, onOpenChange, onCreate }: Props) {
               <Textarea id="technicianNotes" placeholder="Any initial notes about this project..." value={form.technicianNotes} onChange={(e) => updateField('technicianNotes', e.target.value)} rows={3} />
             </div>
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={saving || !form.name.trim() || !form.projectNumber.trim()}>

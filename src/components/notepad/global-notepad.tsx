@@ -10,7 +10,7 @@ import { useNotepadStore, type NotepadTab } from '@/store/notepad-store';
 import { useProjects } from '@/hooks/use-projects';
 import { Button } from '@/components/ui/button';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
 } from '@/components/ui/dialog';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 
@@ -423,7 +423,7 @@ function AttachDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v:
             Associate this note tab with a project for quick reference.
           </DialogDescription>
         </DialogHeader>
-        <div className="px-5 py-3">
+        <DialogBody className="px-5 py-3">
           <Select value={selectedProjectId} onValueChange={(v) => setSelectedProjectId(v || '')}>
             <SelectTrigger className="w-full">
               <SelectValue placeholder="Select a project..." />
@@ -439,7 +439,7 @@ function AttachDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v:
               Remove project link
             </button>
           )}
-        </div>
+        </DialogBody>
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button size="sm" onClick={handleAttach} disabled={!selectedProjectId}>

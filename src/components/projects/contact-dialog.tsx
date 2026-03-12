@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -53,7 +53,8 @@ export function ContactDialog({ open, onOpenChange, contact, onSave }: Props) {
             {isEdit ? 'Update contact information.' : 'Add a site contact for this project.'}
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4 px-5">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
+          <DialogBody className="space-y-4 px-5 py-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="ct-name">Name *</Label>
@@ -76,6 +77,7 @@ export function ContactDialog({ open, onOpenChange, contact, onSave }: Props) {
               <Input id="ct-email" type="email" placeholder="e.g. john@company.com" value={form.email} onChange={e => u('email', e.target.value)} />
             </div>
           </div>
+          </DialogBody>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={!form.name.trim() || !form.role.trim()}>

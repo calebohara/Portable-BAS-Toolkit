@@ -6,7 +6,7 @@ import {
   Copy, Check, Printer, Download, Eye, EyeOff, Users,
 } from 'lucide-react';
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter,
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -146,7 +146,7 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
   };
 
   const renderContentStep = () => (
-    <div className="space-y-4 px-5 pb-2" style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+    <div className="space-y-4 px-5 pb-2">
       {/* Audience Presets */}
       <div>
         <Label className="text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-2">
@@ -480,7 +480,6 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg">
-        <div style={{ maxHeight: '85vh', overflowY: 'auto' }}>
           <DialogHeader>
             <DialogTitle>Share / Export Project</DialogTitle>
             <DialogDescription>
@@ -488,37 +487,39 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
             </DialogDescription>
           </DialogHeader>
 
-          {/* Step Indicator */}
-          <div className="flex items-center gap-2 px-5 py-3">
-            {STEPS.map((label, i) => (
-              <div key={label} className="flex items-center gap-2 flex-1">
-                <button
-                  onClick={() => i < step && setStep(i)}
-                  className={cn(
-                    'flex items-center gap-1.5 text-xs font-medium transition-colors',
-                    i === step ? 'text-primary' : i < step ? 'text-foreground cursor-pointer hover:text-primary' : 'text-muted-foreground'
+          <DialogBody>
+            {/* Step Indicator */}
+            <div className="flex items-center gap-2 px-5 py-3">
+              {STEPS.map((label, i) => (
+                <div key={label} className="flex items-center gap-2 flex-1">
+                  <button
+                    onClick={() => i < step && setStep(i)}
+                    className={cn(
+                      'flex items-center gap-1.5 text-xs font-medium transition-colors',
+                      i === step ? 'text-primary' : i < step ? 'text-foreground cursor-pointer hover:text-primary' : 'text-muted-foreground'
+                    )}
+                    disabled={i > step}
+                  >
+                    <span className={cn(
+                      'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold',
+                      i === step ? 'bg-primary text-primary-foreground' : i < step ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+                    )}>
+                      {i < step ? <Check className="h-3 w-3" /> : i + 1}
+                    </span>
+                    <span className="hidden sm:inline">{label}</span>
+                  </button>
+                  {i < STEPS.length - 1 && (
+                    <div className={cn('h-px flex-1', i < step ? 'bg-primary/30' : 'bg-border')} />
                   )}
-                  disabled={i > step}
-                >
-                  <span className={cn(
-                    'flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold',
-                    i === step ? 'bg-primary text-primary-foreground' : i < step ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
-                  )}>
-                    {i < step ? <Check className="h-3 w-3" /> : i + 1}
-                  </span>
-                  <span className="hidden sm:inline">{label}</span>
-                </button>
-                {i < STEPS.length - 1 && (
-                  <div className={cn('h-px flex-1', i < step ? 'bg-primary/30' : 'bg-border')} />
-                )}
-              </div>
-            ))}
-          </div>
+                </div>
+              ))}
+            </div>
 
-          {/* Step Content */}
-          {step === 0 && renderFormatStep()}
-          {step === 1 && renderContentStep()}
-          {step === 2 && renderReviewStep()}
+            {/* Step Content */}
+            {step === 0 && renderFormatStep()}
+            {step === 1 && renderContentStep()}
+            {step === 2 && renderReviewStep()}
+          </DialogBody>
 
           <DialogFooter>
             {step > 0 && (
@@ -539,7 +540,6 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
               <Button variant="outline" onClick={() => handleOpenChange(false)}>Done</Button>
             )}
           </DialogFooter>
-        </div>
       </DialogContent>
     </Dialog>
   );
