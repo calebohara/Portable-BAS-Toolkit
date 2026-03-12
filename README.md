@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-2.9.0-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-3.0.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -22,7 +22,7 @@
 
 ## Version
 
-**Current Release: v2.9.0**
+**Current Release: v3.0.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -99,6 +99,7 @@ It centralizes the critical project data that field engineers carry between job 
 | **Guided Tour** | Interactive step-by-step onboarding walkthrough with spotlight overlay — auto-launches on first visit, replayable from Help or Settings, mobile-friendly with clean sidebar state management |
 | **Help Center** | Dedicated help page with getting started guide, feature guides, FAQ, troubleshooting, keyboard shortcuts, and best practices |
 | **Storage Management** | Monitor IndexedDB usage, clear caches, manage offline storage |
+| **Optional Authentication** | Supabase-powered email/password auth — completely optional, app works fully without it. Sign in to prepare for future cloud sync; stay local for offline-only use. Account section in Settings, auth pill in top bar, dedicated login/signup page |
 
 ---
 
@@ -201,6 +202,7 @@ It centralizes the critical project data that field engineers carry between job 
 | **Toasts** | Sonner | 2 |
 | **Themes** | next-themes | — |
 | **Offline** | Service Worker + IndexedDB | — |
+| **Auth** | Supabase (optional) | 2 |
 | **Desktop** | Tauri (Rust backend) | 2 |
 | **Deployment** | Vercel / GitHub Releases | — |
 
@@ -244,14 +246,18 @@ npm start
 
 ### Environment Variables
 
-Create a `.env.local` file in the project root if needed:
+Create a `.env.local` file in the project root. Copy from `.env.example`:
 
 ```env
 # Base URL for OG image resolution (optional — defaults to localhost in dev)
 NEXT_PUBLIC_URL=https://your-domain.vercel.app
+
+# Supabase (optional — app works fully without these)
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...your-anon-key
 ```
 
-The application is **fully offline-first** — no external API keys or database credentials are required. All data is stored locally in IndexedDB.
+The application is **fully offline-first** — no external API keys or database credentials are required. All data is stored locally in IndexedDB. Supabase authentication is optional and prepares the foundation for future cloud sync.
 
 ### Dev Server Configuration
 
@@ -707,6 +713,8 @@ Or connect the GitHub repository directly in the [Vercel Dashboard](https://verc
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `NEXT_PUBLIC_URL` | No | Base URL for OG image resolution. Defaults to the Vercel deployment URL. |
+| `NEXT_PUBLIC_SUPABASE_URL` | No | Supabase project URL. Omit to run in local-only mode. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | No | Supabase anon key (safe for client-side, RLS enforced). |
 
 ### Build Output
 
@@ -807,7 +815,7 @@ The version follows [Semantic Versioning](https://semver.org/):
 
 ## Security
 
-BAU Suite is an **offline-first, local-only** application with no backend server, no authentication, and no cloud database. All data lives exclusively in the user's browser via IndexedDB and localStorage.
+BAU Suite is an **offline-first** application. All project data lives exclusively in the user's browser via IndexedDB and localStorage. Optional Supabase authentication is available but does not sync data — it establishes user identity for future cloud sync capabilities. When Supabase is not configured, the app runs in fully local mode with no external connections (except GitHub update checks).
 
 ### Browser Security Headers
 

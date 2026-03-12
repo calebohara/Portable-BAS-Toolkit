@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, WifiOff, Menu, RefreshCw, Upload } from 'lucide-react';
+import { Search, WifiOff, Menu, RefreshCw, Upload, User, LogIn, LogOut } from 'lucide-react';
+import { useAuth } from '@/providers/auth-provider';
 import { useAppStore } from '@/store/app-store';
 import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
@@ -12,6 +13,7 @@ import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
 export function TopBar({ title, children }: { title?: string; children?: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { mode, user, isConfigured, signOut } = useAuth();
   const isOnline = useAppStore((s) => s.isOnline);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const [showUpload, setShowUpload] = useState(false);
@@ -94,6 +96,34 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
           </Button>
 
           <ThemeSwitcher />
+
+          {/* Auth pill */}
+          {isConfigured ? (
+            mode === 'authenticated' ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 text-muted-foreground"
+                onClick={async () => { await signOut(); router.push('/'); }}
+                aria-label="Sign out"
+              >
+                <User className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline max-w-24 truncate text-xs">{user?.email ?? 'Account'}</span>
+                <LogOut className="h-3 w-3" />
+              </Button>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1.5 text-muted-foreground"
+                onClick={() => router.push('/login')}
+                aria-label="Sign in"
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline text-xs">Sign In</span>
+              </Button>
+            )
+          ) : null}
         </div>
       </header>
 

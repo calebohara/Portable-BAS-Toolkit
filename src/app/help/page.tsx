@@ -193,6 +193,14 @@ const faqItems = [
     q: 'Can I share data between devices?',
     a: 'Currently, use the Share/Export feature to export project data as JSON, then import on another device. Cloud sync is planned for a future release.',
   },
+  {
+    q: 'Do I need to sign in?',
+    a: 'No — signing in is completely optional. The app works fully without an account. Authentication prepares the foundation for future cloud sync. If Supabase is not configured, the sign-in option won\'t appear at all.',
+  },
+  {
+    q: 'What happens to my data when I sign in?',
+    a: 'Nothing changes. All data remains stored locally in IndexedDB on your device. Signing in currently only establishes your identity — no data is synced to the cloud yet. Cloud sync is a future milestone.',
+  },
 ];
 
 // ─── Troubleshooting ────────────────────────────────────────────────────────────

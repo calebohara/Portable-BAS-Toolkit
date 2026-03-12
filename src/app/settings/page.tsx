@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Palette, HardDrive, Info, Trash2, Download, PlayCircle, HelpCircle,
+  Palette, HardDrive, Info, Trash2, Download, PlayCircle, HelpCircle, User, LogOut,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -12,12 +13,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/store/app-store';
+import { useAuth } from '@/providers/auth-provider';
 import { getStorageEstimate, clearFileCache } from '@/lib/db';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { APP_VERSION } from '@/lib/version';
 import { toast } from 'sonner';
 
 export default function SettingsPage() {
+  const router = useRouter();
+  const { mode, user, isConfigured, signOut } = useAuth();
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const startTour = useAppStore((s) => s.startTour);
@@ -38,6 +42,57 @@ export default function SettingsPage() {
     <>
       <TopBar title="Settings" />
       <div className="p-4 md:p-6 space-y-6 max-w-2xl">
+        {/* Account */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <User className="h-4 w-4" /> Account
+            </CardTitle>
+            <CardDescription>
+              {isConfigured
+                ? mode === 'authenticated'
+                  ? 'You are signed in. Your data is stored locally on this device.'
+                  : 'Sign in to enable cloud features in a future update.'
+                : 'Cloud authentication is not configured. All data is stored locally.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {isConfigured && mode === 'authenticated' && user ? (
+              <>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{user.email}</p>
+                    <p className="text-xs text-muted-foreground">Signed in · Data stored locally</p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={async () => { await signOut(); }}
+                  >
+                    <LogOut className="h-3.5 w-3.5" /> Sign Out
+                  </Button>
+                </div>
+              </>
+            ) : isConfigured ? (
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Local Mode</p>
+                  <p className="text-xs text-muted-foreground">All data stored on this device only.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={() => router.push('/login')}>
+                  Sign In
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+                <p>Running in local-only mode. No cloud backend is configured.</p>
+                <p className="text-xs mt-1">All projects, files, and settings are stored in your browser&apos;s IndexedDB.</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Appearance */}
         <Card>
           <CardHeader>

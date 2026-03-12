@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { AppShell } from '@/components/layout/app-shell';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
+import { AuthProvider } from '@/providers/auth-provider';
 import './globals.css';
 
 const inter = Inter({ variable: '--font-sans', subsets: ['latin'], display: 'swap' });
@@ -74,12 +75,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" suppressHydrationWarning>
       <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <ThemeProvider>
-          <TooltipProvider delay={200}>
-            <ErrorBoundary>
-              <AppShell>{children}</AppShell>
-            </ErrorBoundary>
-            <Toaster position="bottom-right" richColors />
-          </TooltipProvider>
+          <AuthProvider>
+            <TooltipProvider delay={200}>
+              <ErrorBoundary>
+                <AppShell>{children}</AppShell>
+              </ErrorBoundary>
+              <Toaster position="bottom-right" richColors />
+            </TooltipProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>
