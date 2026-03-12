@@ -21,9 +21,9 @@ import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   useTerminalStore,
-  BAUD_RATES, BUFFER_SIZES,
+  BAUD_RATES, BUFFER_SIZES, LINE_ENDINGS,
   type TerminalSession, type ConnectionState, type BaudRate, type BufferSize,
-  type TerminalLine,
+  type TerminalLine, type LineEnding,
 } from '@/store/terminal-store';
 import { useProjects, useCommandSnippets } from '@/hooks/use-projects';
 import { saveFileBlob } from '@/lib/db';
@@ -129,12 +129,14 @@ function CommandInput({ session, insertedCmd, onClearInserted, onSend }: {
     e.preventDefault();
     if (!cmd.trim()) return;
 
-    const line: TerminalLine = {
-      text: cmd,
-      timestamp: new Date().toISOString(),
-      type: 'input',
-    };
-    appendLine(session.id, line);
+    // Show typed command locally if local echo is on, or if not connected
+    if (session.localEcho || session.connectionState !== 'connected') {
+      appendLine(session.id, {
+        text: cmd,
+        timestamp: new Date().toISOString(),
+        type: 'input',
+      });
+    }
 
     if (session.connectionState === 'connected' && onSend) {
       onSend(cmd);
@@ -149,7 +151,7 @@ function CommandInput({ session, insertedCmd, onClearInserted, onSend }: {
     setCmdHistory(prev => [cmd, ...prev].slice(0, 50));
     setHistoryIdx(-1);
     setCmd('');
-  }, [cmd, session.id, session.connectionState, appendLine, onSend]);
+  }, [cmd, session.id, session.connectionState, session.localEcho, appendLine, onSend]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'ArrowUp') {
@@ -272,7 +274,7 @@ function generateExportText(session: TerminalSession) {
   lines.push(`Session:    ${session.label}`);
   lines.push(`Host:       ${session.host || 'N/A'}`);
   lines.push(`Port:       ${session.port}`);
-  lines.push(`Baud Rate:  ${session.baudRate}`);
+  lines.push(`Protocol:   Telnet TCP`);
   lines.push(`Started:    ${session.startedAt ? format(new Date(session.startedAt), 'MMM d, yyyy h:mm:ss a') : 'N/A'}`);
   lines.push(`Ended:      ${session.endedAt ? format(new Date(session.endedAt), 'MMM d, yyyy h:mm:ss a') : 'Active'}`);
   lines.push(`Lines:      ${session.buffer.length}`);
@@ -304,14 +306,14 @@ function SettingsPanel() {
       </h3>
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="space-y-1.5">
-          <Label className="text-xs">Default Baud Rate</Label>
+          <Label className="text-xs">Default Line Ending</Label>
           <Select
-            value={String(settings.defaultBaudRate)}
-            onValueChange={v => v && updateSettings({ defaultBaudRate: Number(v) as BaudRate })}
+            value={settings.defaultLineEnding ?? 'crlf'}
+            onValueChange={v => v && updateSettings({ defaultLineEnding: v as LineEnding })}
           >
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
-              {BAUD_RATES.map(b => <SelectItem key={b} value={String(b)}>{b.toLocaleString()}</SelectItem>)}
+              {LINE_ENDINGS.map(le => <SelectItem key={le.value} value={le.value}>{le.label}</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -375,6 +377,7 @@ function HistoryPanel() {
                 host: h.host,
                 port: h.port,
                 baudRate: h.baudRate,
+                lineEnding: h.lineEnding ?? 'crlf',
                 label: h.label,
               });
             }}
@@ -596,7 +599,7 @@ export default function TelnetPage() {
 
     setConnectionState(session.id, 'connecting');
     appendLine(session.id, {
-      text: `Connecting to ${session.host}:${session.port} @ ${session.baudRate} baud...`,
+      text: `Connecting to ${session.host}:${session.port} (Telnet TCP)...`,
       timestamp: new Date().toISOString(),
       type: 'system',
     });
@@ -656,6 +659,7 @@ export default function TelnetPage() {
           host: session.host,
           port: session.port,
           baudRate: session.baudRate,
+          lineEnding: session.lineEnding,
           label: session.label,
         });
       } catch (err) {
@@ -688,6 +692,7 @@ export default function TelnetPage() {
             host: session.host,
             port: session.port,
             baudRate: session.baudRate,
+            lineEnding: session.lineEnding,
             label: session.label,
           });
         };
@@ -763,7 +768,7 @@ export default function TelnetPage() {
   const handleSendCommand = useCallback(async (cmd: string) => {
     if (isDesktop) {
       try {
-        await nativeTelnetSend(session.id, cmd);
+        await nativeTelnetSend(session.id, cmd, session.lineEnding);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         appendLine(session.id, {
@@ -773,9 +778,10 @@ export default function TelnetPage() {
         });
       }
     } else if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(cmd + '\r\n');
+      const ending = session.lineEnding === 'cr' ? '\r' : session.lineEnding === 'lf' ? '\n' : '\r\n';
+      wsRef.current.send(cmd + ending);
     }
-  }, [session.id, isDesktop, appendLine]);
+  }, [session.id, session.lineEnding, isDesktop, appendLine]);
 
   // ─── Export ──────────────────────────────────────────────
   const handleExport = useCallback(() => {
@@ -849,7 +855,7 @@ export default function TelnetPage() {
             })}
           </div>
           <button
-            onClick={() => createSession({ baudRate: settings.defaultBaudRate })}
+            onClick={() => createSession({ baudRate: settings.defaultBaudRate, lineEnding: settings.defaultLineEnding ?? 'crlf' })}
             className="shrink-0 p-2.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
             title="New session"
           >
@@ -912,14 +918,14 @@ export default function TelnetPage() {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Baud Rate</Label>
+                  <Label className="text-xs">Line Ending</Label>
                   <Select
-                    value={String(session.baudRate)}
-                    onValueChange={v => v && updateSession(session.id, { baudRate: Number(v) as BaudRate })}
+                    value={session.lineEnding}
+                    onValueChange={v => v && updateSession(session.id, { lineEnding: v as LineEnding })}
                   >
                     <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {BAUD_RATES.map(b => <SelectItem key={b} value={String(b)}>{b.toLocaleString()}</SelectItem>)}
+                      {LINE_ENDINGS.map(le => <SelectItem key={le.value} value={le.value}>{le.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1076,7 +1082,8 @@ export default function TelnetPage() {
           <div className="flex items-center gap-3">
             <span className={stateConfig.color}>{stateConfig.label}</span>
             {session.host && <span>{session.host}:{session.port}</span>}
-            <span>{session.baudRate} baud</span>
+            <span>Telnet TCP</span>
+            <span>{LINE_ENDINGS.find(le => le.value === session.lineEnding)?.label ?? 'CR+LF'}</span>
           </div>
           <div className="flex items-center gap-3">
             <span>{session.buffer.length} lines</span>

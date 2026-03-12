@@ -92,9 +92,10 @@ export async function nativeTelnetConnect(
 export async function nativeTelnetSend(
   sessionId: string,
   data: string,
+  lineEnding?: 'crlf' | 'cr' | 'lf',
 ): Promise<void> {
   const invoke = await getInvoke();
-  await invoke('telnet_send', { sessionId, data });
+  await invoke('telnet_send', { sessionId, data, lineEnding: lineEnding ?? 'crlf' });
 }
 
 export async function nativeTelnetDisconnect(

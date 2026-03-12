@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Instant;
 use tauri::{Emitter, Manager};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::tcp::OwnedWriteHalf;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
@@ -159,12 +158,99 @@ async fn check_port(host: String, port: u16, timeoutMs: Option<u64>) -> Result<P
 }
 
 // ─── Telnet TCP Connection ──────────────────────────────────
+// Telnet protocol constants
+const IAC: u8 = 255;
+const DONT: u8 = 254;
+const DO: u8 = 253;
+const WONT: u8 = 252;
+const WILL: u8 = 251;
+const SB: u8 = 250;
+const SE: u8 = 240;
+// Common telnet options
+const OPT_ECHO: u8 = 1;
+const OPT_SGA: u8 = 3; // Suppress Go-Ahead
+
 struct TelnetConnection {
-    write_half: OwnedWriteHalf,
+    writer: Arc<Mutex<tokio::net::tcp::OwnedWriteHalf>>,
     read_task: tokio::task::JoinHandle<()>,
 }
 
 struct TelnetState(Arc<Mutex<HashMap<String, TelnetConnection>>>);
+
+/// Process incoming bytes: parse IAC sequences, build negotiation responses,
+/// and return only the displayable data.
+fn process_telnet_bytes(buf: &[u8], n: usize) -> (Vec<u8>, Vec<u8>) {
+    let mut filtered = Vec::with_capacity(n);
+    let mut responses = Vec::new();
+    let mut i = 0;
+
+    while i < n {
+        if buf[i] == IAC && i + 1 < n {
+            let cmd = buf[i + 1];
+            match cmd {
+                WILL => {
+                    if i + 2 < n {
+                        let opt = buf[i + 2];
+                        // Accept ECHO and SGA; reject everything else
+                        if opt == OPT_ECHO || opt == OPT_SGA {
+                            responses.extend_from_slice(&[IAC, DO, opt]);
+                        } else {
+                            responses.extend_from_slice(&[IAC, DONT, opt]);
+                        }
+                        i += 3;
+                    } else {
+                        break; // incomplete sequence, wait for next read
+                    }
+                }
+                WONT => {
+                    if i + 2 < n {
+                        responses.extend_from_slice(&[IAC, DONT, buf[i + 2]]);
+                        i += 3;
+                    } else {
+                        break;
+                    }
+                }
+                DO => {
+                    if i + 2 < n {
+                        // We don't support any DO requests from server
+                        responses.extend_from_slice(&[IAC, WONT, buf[i + 2]]);
+                        i += 3;
+                    } else {
+                        break;
+                    }
+                }
+                DONT => {
+                    // Acknowledge, no response needed
+                    if i + 2 < n { i += 3; } else { break; }
+                }
+                SB => {
+                    // Skip subnegotiation until IAC SE
+                    i += 2;
+                    while i < n {
+                        if buf[i] == IAC && i + 1 < n && buf[i + 1] == SE {
+                            i += 2;
+                            break;
+                        }
+                        i += 1;
+                    }
+                }
+                IAC => {
+                    // Escaped 0xFF — literal byte
+                    filtered.push(0xFF);
+                    i += 2;
+                }
+                _ => {
+                    i += 2; // Other two-byte IAC commands (GA, NOP, etc.)
+                }
+            }
+        } else {
+            filtered.push(buf[i]);
+            i += 1;
+        }
+    }
+
+    (filtered, responses)
+}
 
 #[tauri::command]
 #[allow(non_snake_case)]
@@ -180,13 +266,34 @@ async fn telnet_connect(
 
     let stream = tokio::time::timeout(timeout, tokio::net::TcpStream::connect(&addr))
         .await
-        .map_err(|_| format!("Connection to {} timed out", addr))?
-        .map_err(|e| format!("Connection to {} failed: {}", addr, e))?;
+        .map_err(|_| format!("Connection to {} timed out (10s). Check that the host is reachable and the port is open.", addr))?
+        .map_err(|e| {
+            let detail = e.to_string();
+            if detail.contains("refused") {
+                format!("Connection refused by {}. The host is reachable but port {} is not accepting connections.", addr, port)
+            } else if detail.contains("No route") || detail.contains("unreachable") {
+                format!("Host {} is unreachable. Check network/VPN connectivity.", host)
+            } else {
+                format!("Connection to {} failed: {}", addr, detail)
+            }
+        })?;
+
+    // Low-latency interactive terminal
+    let _ = stream.set_nodelay(true);
 
     let (read_half, write_half) = stream.into_split();
+    let writer = Arc::new(Mutex::new(write_half));
+
+    // Send initial telnet negotiation: request server to echo and suppress go-ahead
+    {
+        let mut w = writer.lock().await;
+        let init_negotiation = [IAC, DO, OPT_SGA, IAC, DO, OPT_ECHO];
+        let _ = w.write_all(&init_negotiation).await;
+    }
 
     let sid = sessionId.clone();
     let app_handle = app.clone();
+    let writer_for_task = writer.clone();
 
     let read_task = tokio::spawn(async move {
         let mut reader = read_half;
@@ -198,23 +305,15 @@ async fn telnet_connect(
                     break;
                 }
                 Ok(n) => {
-                    // Filter out telnet IAC negotiation bytes (0xFF sequences)
-                    let mut filtered = Vec::with_capacity(n);
-                    let mut i = 0;
-                    while i < n {
-                        if buf[i] == 0xFF && i + 1 < n {
-                            // IAC command — skip 2 or 3 bytes depending on command
-                            let cmd = buf.get(i + 1).copied().unwrap_or(0);
-                            if cmd >= 251 && cmd <= 254 && i + 2 < n {
-                                i += 3; // WILL/WONT/DO/DONT + option byte
-                            } else {
-                                i += 2; // Other IAC commands
-                            }
-                        } else {
-                            filtered.push(buf[i]);
-                            i += 1;
-                        }
+                    let (filtered, responses) = process_telnet_bytes(&buf, n);
+
+                    // Send negotiation responses back to server
+                    if !responses.is_empty() {
+                        let mut w = writer_for_task.lock().await;
+                        let _ = w.write_all(&responses).await;
                     }
+
+                    // Emit displayable data to frontend
                     if !filtered.is_empty() {
                         let data = String::from_utf8_lossy(&filtered).to_string();
                         let _ = app_handle.emit(&format!("telnet-data-{}", sid), data);
@@ -238,7 +337,7 @@ async fn telnet_connect(
     connections.insert(
         sessionId,
         TelnetConnection {
-            write_half,
+            writer,
             read_task,
         },
     );
@@ -252,17 +351,25 @@ async fn telnet_send(
     state: tauri::State<'_, TelnetState>,
     sessionId: String,
     data: String,
+    lineEnding: Option<String>,
 ) -> Result<(), String> {
-    let mut connections = state.0.lock().await;
-    if let Some(conn) = connections.get_mut(&sessionId) {
-        let payload = format!("{}\r\n", data);
-        conn.write_half
-            .write_all(payload.as_bytes())
-            .await
-            .map_err(|e| format!("Send failed: {}", e))?;
-    } else {
-        return Err("Not connected".to_string());
-    }
+    let writer = {
+        let connections = state.0.lock().await;
+        match connections.get(&sessionId) {
+            Some(conn) => conn.writer.clone(),
+            None => return Err("Not connected".to_string()),
+        }
+    };
+    let ending = match lineEnding.as_deref() {
+        Some("cr") => "\r",
+        Some("lf") => "\n",
+        _ => "\r\n", // CRLF default (standard telnet)
+    };
+    let payload = format!("{}{}", data, ending);
+    let mut w = writer.lock().await;
+    w.write_all(payload.as_bytes())
+        .await
+        .map_err(|e| format!("Send failed: {}", e))?;
     Ok(())
 }
 
@@ -275,6 +382,10 @@ async fn telnet_disconnect(
     let mut connections = state.0.lock().await;
     if let Some(conn) = connections.remove(&sessionId) {
         conn.read_task.abort();
+        // Attempt graceful shutdown
+        if let Ok(mut w) = conn.writer.try_lock() {
+            let _ = w.shutdown().await;
+        }
     }
     Ok(())
 }
