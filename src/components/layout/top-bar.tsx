@@ -33,7 +33,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
   return (
     <>
       <header
-        className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/80 px-4 backdrop-blur-md"
+        className="sticky top-0 z-30 flex h-14 items-center gap-2 sm:gap-3 border-b border-border bg-background/80 px-3 sm:px-4 backdrop-blur-md"
       >
         {/* Mobile hamburger */}
         <Button
@@ -46,10 +46,10 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
           <Menu className="h-5 w-5" />
         </Button>
 
-        {title && <h1 className="text-lg font-semibold truncate">{title}</h1>}
+        {title && <h1 className="text-base sm:text-lg font-semibold truncate min-w-0">{title}</h1>}
         {children}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
           {!isOnline && (
             <div className="flex items-center gap-1.5 rounded-full bg-field-warning/10 px-2.5 py-1 text-xs font-medium text-field-warning">
               <WifiOff className="h-3 w-3" />
@@ -72,7 +72,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
           <Button
             variant="ghost"
             size="sm"
-            className="h-8 w-8 p-0 text-muted-foreground"
+            className="hidden sm:flex h-8 w-8 p-0 text-muted-foreground"
             onClick={handleRefresh}
             aria-label="Refresh page"
           >
@@ -93,7 +93,9 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             </kbd>
           </Button>
 
-          <ThemeSwitcher />
+          <div className="hidden sm:block">
+            <ThemeSwitcher />
+          </div>
         </div>
       </header>
 

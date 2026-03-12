@@ -183,8 +183,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             )}
           </p>
         </div>
-        <ProjectStatusBadge status={project.status} />
-        {project.isPinned && <Pin className="h-4 w-4 shrink-0 text-primary" />}
+        <div className="hidden sm:flex items-center gap-2 shrink-0">
+          <ProjectStatusBadge status={project.status} />
+          {project.isPinned && <Pin className="h-4 w-4 shrink-0 text-primary" />}
+        </div>
       </TopBar>
 
       <div className="flex flex-col lg:flex-row" style={{ minHeight: 'calc(100vh - 3.5rem)' }}>
