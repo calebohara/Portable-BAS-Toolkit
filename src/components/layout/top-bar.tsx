@@ -93,9 +93,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             </kbd>
           </Button>
 
-          <div className="hidden sm:block">
-            <ThemeSwitcher />
-          </div>
+          <ThemeSwitcher />
         </div>
       </header>
 

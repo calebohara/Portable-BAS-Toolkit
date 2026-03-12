@@ -32,7 +32,7 @@ export function ThemeSwitcher({ className }: { className?: string }) {
           aria-label={label}
           onClick={() => setTheme(value)}
           className={cn(
-            'relative flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200',
+            'relative flex items-center gap-1.5 rounded-full px-2 py-1 sm:px-3 sm:py-1.5 text-xs font-medium transition-all duration-200',
             'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
             theme === value
               ? 'bg-background text-foreground shadow-sm'
