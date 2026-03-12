@@ -279,6 +279,25 @@ export const useTerminalStore = create<TerminalStore>()(
         sessionHistory: state.sessionHistory,
         settings: state.settings,
       }),
+      // Migrate old persisted sessions that are missing newer fields
+      merge: (persisted, current) => {
+        const p = persisted as Partial<typeof current>;
+        return {
+          ...current,
+          ...p,
+          sessions: (p.sessions ?? current.sessions).map(s => ({
+            ...s,
+            connectionMode: s.connectionMode ?? 'serial' as ConnectionMode,
+            serialPort: s.serialPort ?? '',
+            dataBits: s.dataBits ?? (8 as DataBits),
+            parity: s.parity ?? ('none' as Parity),
+            stopBits: s.stopBits ?? ('1' as StopBits),
+            lineEnding: s.lineEnding ?? ('crlf' as LineEnding),
+            localEcho: s.localEcho ?? false,
+            lineMode: s.lineMode ?? true,
+          })),
+        };
+      },
     }
   )
 );

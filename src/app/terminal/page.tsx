@@ -754,8 +754,11 @@ export default function TelnetPage() {
     }
 
     setConnectionState(session.id, 'connecting');
+    const db = session.dataBits ?? 8;
+    const par = (session.parity ?? 'none')[0].toUpperCase();
+    const sb = session.stopBits ?? '1';
     const connectLabel = isSerial
-      ? `${session.serialPort} @ ${session.baudRate} baud (${session.dataBits}${session.parity[0].toUpperCase()}${session.stopBits})`
+      ? `${session.serialPort} @ ${session.baudRate} baud (${db}${par}${sb})`
       : `${session.host}:${session.port} (Telnet TCP)`;
     appendLine(session.id, {
       text: `Connecting to ${connectLabel}...`,
@@ -997,7 +1000,7 @@ export default function TelnetPage() {
       const ending = session.lineEnding === 'cr' ? '\r' : session.lineEnding === 'lf' ? '\n' : '\r\n';
       wsRef.current.send(cmd + ending);
     }
-  }, [session.id, session.lineEnding, isDesktop, appendLine]);
+  }, [session.id, session.connectionMode, session.lineEnding, isDesktop, appendLine]);
 
   // ─── Export ──────────────────────────────────────────────
   const handleExport = useCallback(() => {
@@ -1434,7 +1437,7 @@ export default function TelnetPage() {
           <div className="flex items-center gap-3">
             <span className={stateConfig.color}>{stateConfig.label}</span>
             {session.connectionMode === 'serial'
-              ? <>{session.serialPort && <span>{session.serialPort}</span>}<span>Serial {session.dataBits}{(session.parity ?? 'none')[0].toUpperCase()}{session.stopBits}</span></>
+              ? <>{session.serialPort && <span>{session.serialPort}</span>}<span>Serial {session.dataBits ?? 8}{(session.parity ?? 'none')[0].toUpperCase()}{session.stopBits ?? '1'}</span></>
               : <>{session.host && <span>{session.host}:{session.port}</span>}<span>Telnet TCP</span></>
             }
             <span>{session.baudRate.toLocaleString()} baud</span>
