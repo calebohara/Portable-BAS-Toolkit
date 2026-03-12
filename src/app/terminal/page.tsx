@@ -581,7 +581,8 @@ export default function TelnetPage() {
   const [insertedCmd, setInsertedCmd] = useState('');
 
   const wsRef = useRef<WebSocket | null>(null);
-  const cleanupListenersRef = useRef<(() => void)[]>([]);
+  // Track Tauri event listener cleanup per session (key = session ID)
+  const cleanupListenersMapRef = useRef<Map<string, (() => void)[]>>(new Map());
   const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => { setIsDesktop(isTauri()); }, []);
@@ -602,11 +603,51 @@ export default function TelnetPage() {
 
     if (isDesktop) {
       // ─── Native TCP via Tauri ──────────────────────────
+      const sid = session.id;
       try {
-        await nativeTelnetConnect(session.id, session.host, session.port);
+        // Clean up any existing listeners for this session first
+        const existing = cleanupListenersMapRef.current.get(sid);
+        if (existing) {
+          for (const fn of existing) fn();
+          cleanupListenersMapRef.current.delete(sid);
+        }
 
-        setConnectionState(session.id, 'connected');
-        appendLine(session.id, {
+        // Register event listeners BEFORE connecting to avoid missing data
+        const unData = await onTelnetData(sid, (data) => {
+          appendLine(sid, {
+            text: data,
+            timestamp: new Date().toISOString(),
+            type: 'output',
+          });
+        });
+        const unClosed = await onTelnetClosed(sid, () => {
+          setConnectionState(sid, 'disconnected');
+          appendLine(sid, {
+            text: 'Connection closed by remote host.',
+            timestamp: new Date().toISOString(),
+            type: 'system',
+          });
+          // Auto-cleanup listeners when remote closes
+          const fns = cleanupListenersMapRef.current.get(sid);
+          if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
+        });
+        const unError = await onTelnetError(sid, (error) => {
+          setConnectionState(sid, 'error', `Connection error: ${error}`);
+          appendLine(sid, {
+            text: `Connection error: ${error}`,
+            timestamp: new Date().toISOString(),
+            type: 'error',
+          });
+        });
+
+        // Store cleanup functions keyed by session ID
+        cleanupListenersMapRef.current.set(sid, [unData, unClosed, unError]);
+
+        // Now initiate the TCP connection
+        await nativeTelnetConnect(sid, session.host, session.port);
+
+        setConnectionState(sid, 'connected');
+        appendLine(sid, {
           text: `Connected to ${session.host}:${session.port}`,
           timestamp: new Date().toISOString(),
           type: 'system',
@@ -617,42 +658,17 @@ export default function TelnetPage() {
           baudRate: session.baudRate,
           label: session.label,
         });
-
-        // Listen for incoming data, close, and error events
-        const unData = await onTelnetData(session.id, (data) => {
-          appendLine(session.id, {
-            text: data,
-            timestamp: new Date().toISOString(),
-            type: 'output',
-          });
-        });
-        const unClosed = await onTelnetClosed(session.id, () => {
-          setConnectionState(session.id, 'disconnected');
-          appendLine(session.id, {
-            text: 'Connection closed by remote host.',
-            timestamp: new Date().toISOString(),
-            type: 'system',
-          });
-        });
-        const unError = await onTelnetError(session.id, (error) => {
-          setConnectionState(session.id, 'error', `Connection error: ${error}`);
-          appendLine(session.id, {
-            text: `Connection error: ${error}`,
-            timestamp: new Date().toISOString(),
-            type: 'error',
-          });
-        });
-
-        // Store cleanup functions
-        cleanupListenersRef.current = [unData, unClosed, unError];
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        setConnectionState(session.id, 'error', msg);
-        appendLine(session.id, {
+        setConnectionState(sid, 'error', msg);
+        appendLine(sid, {
           text: `Connection failed: ${msg}`,
           timestamp: new Date().toISOString(),
           type: 'error',
         });
+        // Clean up listeners on connect failure
+        const fns = cleanupListenersMapRef.current.get(sid);
+        if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
       }
     } else {
       // ─── Browser: WebSocket fallback ───────────────────
@@ -715,33 +731,32 @@ export default function TelnetPage() {
     }
   }, [session, isDesktop, setConnectionState, appendLine, addToHistory]);
 
-  const handleDisconnect = useCallback(async () => {
+  const handleDisconnect = useCallback(async (sessionIdOverride?: string) => {
+    const sid = sessionIdOverride || session.id;
     if (isDesktop) {
       try {
-        await nativeTelnetDisconnect(session.id);
+        await nativeTelnetDisconnect(sid);
       } catch { /* ignore */ }
-      // Clean up event listeners
-      for (const cleanup of cleanupListenersRef.current) {
-        cleanup();
-      }
-      cleanupListenersRef.current = [];
+      // Clean up event listeners for this session
+      const fns = cleanupListenersMapRef.current.get(sid);
+      if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
     } else {
       if (wsRef.current) {
         wsRef.current.close();
         wsRef.current = null;
       }
     }
-    setConnectionState(session.id, 'disconnected');
-    appendLine(session.id, {
+    setConnectionState(sid, 'disconnected');
+    appendLine(sid, {
       text: 'Disconnected.',
       timestamp: new Date().toISOString(),
       type: 'system',
     });
   }, [session.id, isDesktop, setConnectionState, appendLine]);
 
-  const handleReconnect = useCallback(() => {
-    handleDisconnect();
-    setTimeout(() => handleConnect(), 300);
+  const handleReconnect = useCallback(async () => {
+    await handleDisconnect();
+    await handleConnect();
   }, [handleConnect, handleDisconnect]);
 
   // ─── Send command ──────────────────────────────────────
@@ -775,15 +790,17 @@ export default function TelnetPage() {
     toast.success('Session log exported');
   }, [session]);
 
-  // Cleanup on unmount
+  // Cleanup on unmount — tear down all sessions
   useEffect(() => {
     return () => {
       if (wsRef.current) {
         wsRef.current.close();
       }
-      for (const cleanup of cleanupListenersRef.current) {
-        cleanup();
+      // Clean up all Tauri event listeners across all sessions
+      for (const [, fns] of cleanupListenersMapRef.current) {
+        for (const fn of fns) fn();
       }
+      cleanupListenersMapRef.current.clear();
     };
   }, []);
 
@@ -814,7 +831,14 @@ export default function TelnetPage() {
                   <span className="truncate max-w-28">{s.label}</span>
                   {sessions.length > 1 && (
                     <button
-                      onClick={(e) => { e.stopPropagation(); removeSession(s.id); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        // Disconnect if connected before removing session
+                        if (s.connectionState === 'connected' || s.connectionState === 'connecting') {
+                          handleDisconnect(s.id);
+                        }
+                        removeSession(s.id);
+                      }}
                       className="ml-1 opacity-0 group-hover:opacity-100 hover:text-destructive p-0.5 rounded transition-opacity"
                     >
                       <X className="h-3 w-3" />
@@ -937,7 +961,7 @@ export default function TelnetPage() {
                   </Button>
                 ) : session.connectionState === 'connected' ? (
                   <>
-                    <Button size="sm" variant="destructive" onClick={handleDisconnect} className="gap-1.5 h-8">
+                    <Button size="sm" variant="destructive" onClick={() => handleDisconnect()} className="gap-1.5 h-8">
                       <Unplug className="h-3.5 w-3.5" /> Disconnect
                     </Button>
                     <Button size="sm" variant="outline" onClick={handleReconnect} className="gap-1.5 h-8">
