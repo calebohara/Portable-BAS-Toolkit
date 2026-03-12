@@ -309,6 +309,23 @@ export interface CommandSnippet {
   updatedAt: string;
 }
 
+// ─── Terminal Session Logs ───────────────────────────────────
+export interface TerminalSessionLog {
+  id: string;
+  projectId: string;
+  sessionLabel: string;
+  connectionMode: 'serial' | 'tcp';
+  host: string;
+  port: number;
+  serialPort: string;
+  baudRate: number;
+  lineCount: number;
+  logContent: string; // full exported text
+  startedAt: string;
+  endedAt: string;
+  createdAt: string;
+}
+
 // ─── Ping Results ───────────────────────────────────────────
 export type PingStatus = 'reachable' | 'unreachable' | 'pending' | 'error';
 

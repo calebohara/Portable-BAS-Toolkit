@@ -7,11 +7,12 @@ import {
   ArrowLeft, Database, FileText, Network, Server, HardDrive,
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
-  ChevronRight, Share2, FolderOpen,
+  ChevronRight, Share2, FolderOpen, Terminal, Download,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
   useProjectDevices, useProjectIpPlan, useProjectActivity,
+  useTerminalLogs,
 } from '@/hooks/use-projects';
 import { TopBar } from '@/components/layout/top-bar';
 import { ProjectStatusBadge, FileStatusBadge } from '@/components/shared/status-badge';
@@ -31,7 +32,7 @@ import { FieldNotesView } from '@/components/notes/field-notes-view';
 import { FileListView } from '@/components/files/file-list-view';
 import { ActivityTimeline } from '@/components/projects/activity-timeline';
 import { ShareDialog } from '@/components/share/share-dialog';
-import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry } from '@/types';
+import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry, type TerminalSessionLog } from '@/types';
 import { cn } from '@/lib/utils';
 import { deleteProject } from '@/lib/db';
 import { useAppStore } from '@/store/app-store';
@@ -47,6 +48,7 @@ const sections = [
   { id: 'backups', label: 'Backups', icon: HardDrive },
   { id: 'general-documents', label: 'General Docs', icon: FolderOpen },
   { id: 'notes', label: 'Notes', icon: StickyNote },
+  { id: 'terminal-logs', label: 'Terminal Logs', icon: Terminal },
   { id: 'history', label: 'History', icon: History },
 ] as const;
 
@@ -63,6 +65,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { devices, addDevice, updateDevice, removeDevice } = useProjectDevices(id);
   const { entries: ipEntries, addIpEntry, updateIpEntry, removeIpEntry } = useProjectIpPlan(id);
   const { activity } = useProjectActivity(id);
+  const { logs: terminalLogs, removeLog: removeTerminalLog } = useTerminalLogs(id);
   const getInitialTab = () => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
@@ -277,6 +280,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onUpdateNote={updateNote}
               onDeleteNote={removeNote}
             />
+          )}
+
+          {activeTab === 'terminal-logs' && (
+            <TerminalLogsView logs={terminalLogs} onDelete={removeTerminalLog} />
           )}
 
           {activeTab === 'history' && (
@@ -720,6 +727,128 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Hash; label: strin
       <div>
         <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</p>
         <p className="text-sm">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Terminal Logs View ──────────────────────────────────────
+function TerminalLogsView({ logs, onDelete }: { logs: TerminalSessionLog[]; onDelete: (id: string) => Promise<void> }) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDownload = (log: TerminalSessionLog) => {
+    const blob = new Blob([log.logContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const mode = log.connectionMode === 'serial' ? 'serial' : 'telnet';
+    a.download = `${log.sessionLabel.replace(/\s+/g, '_')}_${mode}_${format(new Date(log.createdAt), 'yyyy-MM-dd_HH-mm')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await onDelete(id);
+      toast.success('Terminal log deleted');
+    } catch {
+      toast.error('Failed to delete log');
+    }
+    setDeletingId(null);
+  };
+
+  if (logs.length === 0) {
+    return (
+      <EmptyState
+        icon={Terminal}
+        title="No Terminal Logs"
+        description="Connect to a device via the HMI Tool, then use Attach to Project to save session logs here."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <Terminal className="h-5 w-5" /> Terminal Session Logs
+        </h2>
+        <Badge variant="secondary">{logs.length} log{logs.length !== 1 ? 's' : ''}</Badge>
+      </div>
+
+      <div className="space-y-2">
+        {logs.map(log => {
+          const isSerial = log.connectionMode === 'serial';
+          const connectionInfo = isSerial
+            ? `${log.serialPort} @ ${log.baudRate} baud`
+            : `${log.host}:${log.port}`;
+          const isExpanded = expandedId === log.id;
+
+          return (
+            <Card key={log.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-medium text-sm">{log.sessionLabel}</h3>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {isSerial ? 'Serial' : 'Telnet'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                      <span>{connectionInfo}</span>
+                      <span>{log.lineCount} lines</span>
+                      <span>{format(new Date(log.createdAt), 'MMM d, yyyy h:mm a')}</span>
+                    </div>
+                    {log.startedAt && log.endedAt && (
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        {format(new Date(log.startedAt), 'h:mm:ss a')} — {format(new Date(log.endedAt), 'h:mm:ss a')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                      title={isExpanded ? 'Collapse' : 'View log'}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => handleDownload(log)}
+                      title="Download log"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                      onClick={() => handleDelete(log.id)}
+                      disabled={deletingId === log.id}
+                      title="Delete log"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-[#0d1117] p-3 font-mono text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">
+                    {log.logContent}
+                  </pre>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

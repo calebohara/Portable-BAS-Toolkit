@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession } from '@/types';
+import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog } from '@/types';
 import * as db from '@/lib/db';
 import { generateDemoData } from '@/lib/demo-data';
 import { v4 as uuid } from 'uuid';
@@ -702,4 +702,64 @@ export function usePingSessions(projectId?: string) {
   }, [refresh]);
 
   return { sessions, loading, refresh, saveSession, removeSession };
+}
+
+// ─── Terminal Session Logs ───────────────────────────────────
+export function useTerminalLogs(projectId: string) {
+  const [logs, setLogs] = useState<TerminalSessionLog[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const all = await db.getProjectTerminalLogs(projectId);
+      setLogs(all);
+    } catch (e) {
+      console.error('Failed to load terminal logs:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      try {
+        const all = await db.getProjectTerminalLogs(projectId);
+        if (!stale) { setLogs(all); setLoading(false); }
+      } catch (e) {
+        if (!stale) { console.error('Failed to load terminal logs:', e); setLoading(false); }
+      }
+    })();
+    return () => { stale = true; };
+  }, [projectId]);
+
+  const addLog = useCallback(async (data: Omit<TerminalSessionLog, 'id' | 'createdAt'>) => {
+    const now = new Date().toISOString();
+    const log: TerminalSessionLog = { ...data, id: uuid(), createdAt: now };
+    try {
+      await db.saveTerminalLog(log);
+      await db.addActivity({
+        id: uuid(), projectId, action: 'Terminal log attached',
+        details: `${data.connectionMode === 'serial' ? 'Serial' : 'Telnet'} session "${data.sessionLabel}" log attached (${data.lineCount} lines)`,
+        timestamp: now, user: 'User',
+      });
+    } catch (e) {
+      console.error('Failed to save terminal log:', e);
+      throw e;
+    }
+    await refresh();
+    return log;
+  }, [projectId, refresh]);
+
+  const removeLog = useCallback(async (id: string) => {
+    try {
+      await db.deleteTerminalLog(id);
+    } catch (e) {
+      console.error('Failed to delete terminal log:', e);
+      throw e;
+    }
+    await refresh();
+  }, [refresh]);
+
+  return { logs, loading, refresh, addLog, removeLog };
 }

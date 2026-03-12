@@ -28,7 +28,7 @@ import {
   type TerminalLine, type LineEnding,
 } from '@/store/terminal-store';
 import { useProjects, useCommandSnippets } from '@/hooks/use-projects';
-import { saveFileBlob } from '@/lib/db';
+// db imports handled via dynamic import in AttachDialog
 import type { CommandSnippet, SnippetCategory } from '@/types';
 import { SNIPPET_CATEGORY_LABELS } from '@/types';
 import {
@@ -214,18 +214,47 @@ function AttachDialog({ open, onOpenChange, session }: {
   const handleAttach = async () => {
     if (!projectId) return;
     setSaving(true);
-    const content = generateExportText(session);
-    const blob = new Blob([content], { type: 'text/plain' });
-    const fileName = generateFileName(session);
-    const blobKey = crypto.randomUUID();
-    await saveFileBlob(blobKey, blob);
-
-    // We save as a file blob that can be retrieved later
-    // The user can then go to the project and find it in uploads
-    toast.success(`Session log saved as ${fileName}`);
+    try {
+      const content = generateExportText(session);
+      const { saveTerminalLog, addActivity } = await import('@/lib/db');
+      const id = crypto.randomUUID();
+      const now = new Date().toISOString();
+      await saveTerminalLog({
+        id,
+        projectId,
+        sessionLabel: session.label,
+        connectionMode: session.connectionMode,
+        host: session.host,
+        port: session.port,
+        serialPort: session.serialPort,
+        baudRate: session.baudRate,
+        lineCount: session.buffer.length,
+        logContent: content,
+        startedAt: session.startedAt,
+        endedAt: session.endedAt || now,
+        createdAt: now,
+      });
+      await addActivity({
+        id: crypto.randomUUID(),
+        projectId,
+        action: 'Terminal log attached',
+        details: `${session.connectionMode === 'serial' ? 'Serial' : 'Telnet'} session "${session.label}" log attached (${session.buffer.length} lines)`,
+        timestamp: now,
+        user: 'User',
+      });
+      toast.success('Session log attached to project');
+    } catch (err) {
+      toast.error('Failed to attach session log');
+      console.error(err);
+    }
     setSaving(false);
     onOpenChange(false);
   };
+
+  const isSerial = session.connectionMode === 'serial';
+  const connectionInfo = isSerial
+    ? `${session.serialPort || 'N/A'} @ ${session.baudRate} baud`
+    : `${session.host || 'N/A'}:${session.port}`;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -233,7 +262,7 @@ function AttachDialog({ open, onOpenChange, session }: {
         <DialogHeader>
           <DialogTitle>Attach Session Log to Project</DialogTitle>
           <DialogDescription>
-            Save the terminal session log as a text file attached to a project.
+            Save the terminal session log to a project. It will appear under the Terminal Logs tab.
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
@@ -254,7 +283,8 @@ function AttachDialog({ open, onOpenChange, session }: {
             <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
               <p><strong>File:</strong> {generateFileName(session)}</p>
               <p><strong>Lines:</strong> {session.buffer.length}</p>
-              <p><strong>Host:</strong> {session.host || 'N/A'} : {session.port}</p>
+              <p><strong>Mode:</strong> {isSerial ? 'Serial' : 'Telnet TCP'}</p>
+              <p><strong>Connection:</strong> {connectionInfo}</p>
             </div>
           </div>
         </DialogBody>
@@ -271,21 +301,31 @@ function AttachDialog({ open, onOpenChange, session }: {
 
 // ─── Export Helpers ───────────────────────────────────────────
 function generateFileName(session: TerminalSession) {
-  const host = session.host || 'local';
+  const isSerial = session.connectionMode === 'serial';
+  const target = isSerial ? (session.serialPort || 'serial') : (session.host || 'local');
+  const mode = isSerial ? 'serial' : 'telnet';
   const date = format(new Date(), 'yyyy-MM-dd_HH-mm');
-  return sanitizeFilename(`${session.label.replace(/\s+/g, '_')}_telnet_session_${date}.txt`);
+  return sanitizeFilename(`${session.label.replace(/\s+/g, '_')}_${mode}_session_${date}.txt`);
 }
 
 function generateExportText(session: TerminalSession) {
+  const isSerial = session.connectionMode === 'serial';
   const lines: string[] = [];
   lines.push('═══════════════════════════════════════════════════════');
-  lines.push('  BAU Suite — Telnet HMI Session Log');
+  lines.push(`  BAU Suite — ${isSerial ? 'Serial' : 'Telnet'} HMI Session Log`);
   lines.push('═══════════════════════════════════════════════════════');
   lines.push('');
   lines.push(`Session:    ${session.label}`);
-  lines.push(`Host:       ${session.host || 'N/A'}`);
-  lines.push(`Port:       ${session.port}`);
-  lines.push(`Protocol:   Telnet TCP`);
+  if (isSerial) {
+    lines.push(`Port:       ${session.serialPort || 'N/A'}`);
+    lines.push(`Baud Rate:  ${session.baudRate}`);
+    lines.push(`Settings:   ${session.dataBits}${(session.parity ?? 'none')[0].toUpperCase()}${session.stopBits}`);
+    lines.push(`Protocol:   Serial`);
+  } else {
+    lines.push(`Host:       ${session.host || 'N/A'}`);
+    lines.push(`Port:       ${session.port}`);
+    lines.push(`Protocol:   Telnet TCP`);
+  }
   lines.push(`Started:    ${session.startedAt ? format(new Date(session.startedAt), 'MMM d, yyyy h:mm:ss a') : 'N/A'}`);
   lines.push(`Ended:      ${session.endedAt ? format(new Date(session.endedAt), 'MMM d, yyyy h:mm:ss a') : 'Active'}`);
   lines.push(`Lines:      ${session.buffer.length}`);
@@ -611,6 +651,77 @@ export default function TelnetPage() {
   const cleanupListenersMapRef = useRef<Map<string, (() => void)[]>>(new Map());
   const [isDesktop, setIsDesktop] = useState(false);
 
+  // ─── Line buffering for incoming data ──────────────────────
+  // Raw serial/telnet data arrives in arbitrary byte chunks, not neat lines.
+  // We buffer partial lines and only emit complete lines (split on \r\n, \r, \n).
+  // A flush timer emits partial lines after 100ms for interactive prompts.
+  const lineBufferRef = useRef<Map<string, string>>(new Map());
+  const flushTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const processIncomingData = useCallback((sessionId: string, data: string) => {
+    const existing = lineBufferRef.current.get(sessionId) ?? '';
+    const combined = existing + data;
+
+    // Split on any newline variant: \r\n, \r, or \n
+    const parts = combined.split(/\r\n|\r|\n/);
+
+    // All parts except the last are complete lines
+    for (let i = 0; i < parts.length - 1; i++) {
+      appendLine(sessionId, {
+        text: parts[i],
+        timestamp: new Date().toISOString(),
+        type: 'output',
+      });
+    }
+
+    // Last part is a partial (no trailing newline yet) — keep in buffer
+    const partial = parts[parts.length - 1];
+    lineBufferRef.current.set(sessionId, partial);
+
+    // Clear any existing flush timer for this session
+    const existingTimer = flushTimeoutRef.current.get(sessionId);
+    if (existingTimer) clearTimeout(existingTimer);
+
+    // If there's a partial line, flush it after 100ms (for interactive prompts)
+    if (partial) {
+      const timer = setTimeout(() => {
+        const buffered = lineBufferRef.current.get(sessionId);
+        if (buffered) {
+          appendLine(sessionId, {
+            text: buffered,
+            timestamp: new Date().toISOString(),
+            type: 'output',
+          });
+          lineBufferRef.current.set(sessionId, '');
+        }
+        flushTimeoutRef.current.delete(sessionId);
+      }, 100);
+      flushTimeoutRef.current.set(sessionId, timer);
+    }
+  }, [appendLine]);
+
+  const flushLineBuffer = useCallback((sessionId: string) => {
+    const timer = flushTimeoutRef.current.get(sessionId);
+    if (timer) clearTimeout(timer);
+    flushTimeoutRef.current.delete(sessionId);
+    const buffered = lineBufferRef.current.get(sessionId);
+    if (buffered) {
+      appendLine(sessionId, {
+        text: buffered,
+        timestamp: new Date().toISOString(),
+        type: 'output',
+      });
+      lineBufferRef.current.set(sessionId, '');
+    }
+  }, [appendLine]);
+
+  // Clean up flush timers on unmount
+  useEffect(() => {
+    return () => {
+      for (const timer of flushTimeoutRef.current.values()) clearTimeout(timer);
+    };
+  }, []);
+
   useEffect(() => { setIsDesktop(isTauri()); }, []);
 
   // ─── Serial port list ────────────────────────────────────
@@ -665,9 +776,10 @@ export default function TelnetPage() {
         if (isSerial) {
           // ─── Serial Port via Tauri ──────────────────────
           const unData = await onSerialData(sid, (data) => {
-            appendLine(sid, { text: data, timestamp: new Date().toISOString(), type: 'output' });
+            processIncomingData(sid, data);
           });
           const unClosed = await onSerialClosed(sid, () => {
+            flushLineBuffer(sid);
             setConnectionState(sid, 'disconnected');
             appendLine(sid, { text: 'Serial port closed.', timestamp: new Date().toISOString(), type: 'system' });
             const fns = cleanupListenersMapRef.current.get(sid);
@@ -686,9 +798,10 @@ export default function TelnetPage() {
         } else {
           // ─── TCP Telnet via Tauri ───────────────────────
           const unData = await onTelnetData(sid, (data) => {
-            appendLine(sid, { text: data, timestamp: new Date().toISOString(), type: 'output' });
+            processIncomingData(sid, data);
           });
           const unClosed = await onTelnetClosed(sid, () => {
+            flushLineBuffer(sid);
             setConnectionState(sid, 'disconnected');
             appendLine(sid, { text: 'Connection closed by remote host.', timestamp: new Date().toISOString(), type: 'system' });
             const fns = cleanupListenersMapRef.current.get(sid);
@@ -753,11 +866,7 @@ export default function TelnetPage() {
         };
 
         ws.onmessage = (event) => {
-          appendLine(session.id, {
-            text: String(event.data),
-            timestamp: new Date().toISOString(),
-            type: 'output',
-          });
+          processIncomingData(session.id, String(event.data));
         };
 
         ws.onerror = () => {
@@ -770,6 +879,7 @@ export default function TelnetPage() {
         };
 
         ws.onclose = () => {
+          flushLineBuffer(session.id);
           if (session.connectionState === 'connected') {
             setConnectionState(session.id, 'disconnected');
             appendLine(session.id, {
@@ -789,7 +899,7 @@ export default function TelnetPage() {
         });
       }
     }
-  }, [session, isDesktop, setConnectionState, appendLine, addToHistory]);
+  }, [session, isDesktop, setConnectionState, appendLine, addToHistory, processIncomingData, flushLineBuffer]);
 
   const handleDisconnect = useCallback(async (sessionIdOverride?: string) => {
     const sid = sessionIdOverride || session.id;
@@ -810,13 +920,14 @@ export default function TelnetPage() {
         wsRef.current = null;
       }
     }
+    flushLineBuffer(sid);
     setConnectionState(sid, 'disconnected');
     appendLine(sid, {
       text: 'Disconnected.',
       timestamp: new Date().toISOString(),
       type: 'system',
     });
-  }, [session.id, isDesktop, setConnectionState, appendLine]);
+  }, [session.id, session.connectionMode, isDesktop, setConnectionState, appendLine, flushLineBuffer]);
 
   const handleReconnect = useCallback(async () => {
     await handleDisconnect();
