@@ -6,6 +6,7 @@ import {
   MousePointer, Link as LinkIcon, Edit3, X, RotateCcw, Copy,
   Server, Router, MonitorSmartphone, Cpu, Thermometer, Gauge,
   LayoutGrid, Cloud, ArrowRightLeft, Settings2, Eye,
+  FolderKanban, ChevronUp, Layers,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -141,6 +142,9 @@ function ConnectionLine({
   );
 }
 
+// ─── Mobile Bottom Panel ─────────────────────────────────────
+type MobilePanel = 'none' | 'project' | 'nodes';
+
 // ─── Main Page ───────────────────────────────────────────────
 export default function NetworkDiagramPage() {
   const { projects } = useProjects();
@@ -168,6 +172,18 @@ export default function NetworkDiagramPage() {
   const [showConnProps, setShowConnProps] = useState(false);
   const [showDiagramList, setShowDiagramList] = useState(true);
 
+  // Mobile state
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('none');
+  const [showMobileActions, setShowMobileActions] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
   // Drag state
   const svgRef = useRef<SVGSVGElement>(null);
   const draggingRef = useRef<{ nodeId: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
@@ -183,6 +199,7 @@ export default function NetworkDiagramPage() {
     setSelectedNodeId(null);
     setSelectedConnId(null);
     setShowDiagramList(false);
+    setMobilePanel('none');
   }, []);
 
   // ─── Save current diagram ────────────────────────────────
@@ -230,6 +247,7 @@ export default function NetworkDiagramPage() {
     setNodes(prev => [...prev, node]);
     setSelectedNodeId(node.id);
     setSelectedConnId(null);
+    setMobilePanel('none');
   }, [pan, zoom]);
 
   // ─── Delete selected ──────────────────────────────────
@@ -428,17 +446,95 @@ export default function NetworkDiagramPage() {
     setSelectedConnId(null);
     setShowNewDiagram(false);
     setShowDiagramList(false);
+    setMobilePanel('none');
     setNewName('');
   }, [newName]);
 
   const nodeTypes: DiagramNodeType[] = ['controller', 'router', 'switch', 'server', 'sensor', 'actuator', 'panel', 'workstation', 'gateway', 'cloud', 'generic'];
 
+  // ─── Shared node properties form ──────────────────────
+  const nodePropsForm = selectedNode && (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Label</Label>
+        <Input value={selectedNode.label} className="h-8 text-xs"
+          onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, label: e.target.value } : n))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Type</Label>
+        <Select value={selectedNode.type}
+          onValueChange={v => v && setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, type: v as DiagramNodeType, color: NODE_COLORS[v as DiagramNodeType] } : n))}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {nodeTypes.map(t => <SelectItem key={t} value={t}>{DIAGRAM_NODE_LABELS[t]}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">IP Address</Label>
+        <Input value={selectedNode.ip || ''} className="h-8 text-xs font-mono" placeholder="10.40.1.x"
+          onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, ip: e.target.value } : n))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">MAC Address</Label>
+        <Input value={selectedNode.mac || ''} className="h-8 text-xs font-mono" placeholder="AA:BB:CC:DD:EE:FF"
+          onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, mac: e.target.value } : n))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Notes</Label>
+        <Textarea value={selectedNode.notes || ''} className="text-xs min-h-16"
+          onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, notes: e.target.value } : n))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Color</Label>
+        <input type="color" value={selectedNode.color || NODE_COLORS[selectedNode.type]}
+          onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, color: e.target.value } : n))}
+          className="h-8 w-full rounded border border-border cursor-pointer" />
+      </div>
+      <Button size="sm" variant="destructive" className="w-full h-8 gap-1 text-xs" onClick={deleteSelected}>
+        <Trash2 className="h-3 w-3" /> Delete Node
+      </Button>
+    </div>
+  );
+
+  // ─── Shared connection properties form ────────────────
+  const connPropsForm = selectedConn && (
+    <div className="space-y-3">
+      <div className="space-y-1.5">
+        <Label className="text-xs">Label</Label>
+        <Input value={selectedConn.label || ''} className="h-8 text-xs" placeholder="e.g. Ethernet, BACnet/IP"
+          onChange={e => setConnections(prev => prev.map(c => c.id === selectedConnId ? { ...c, label: e.target.value } : c))} />
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Style</Label>
+        <Select value={selectedConn.style}
+          onValueChange={v => v && setConnections(prev => prev.map(c => c.id === selectedConnId ? { ...c, style: v as ConnectionStyle } : c))}>
+          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="solid">Solid</SelectItem>
+            <SelectItem value="dashed">Dashed</SelectItem>
+            <SelectItem value="dotted">Dotted</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label className="text-xs">Color</Label>
+        <input type="color" value={selectedConn.color || '#64748b'}
+          onChange={e => setConnections(prev => prev.map(c => c.id === selectedConnId ? { ...c, color: e.target.value } : c))}
+          className="h-8 w-full rounded border border-border cursor-pointer" />
+      </div>
+      <Button size="sm" variant="destructive" className="w-full h-8 gap-1 text-xs" onClick={deleteSelected}>
+        <Trash2 className="h-3 w-3" /> Delete Connection
+      </Button>
+    </div>
+  );
+
   return (
     <>
       <TopBar title="Network Diagram Builder" />
-      <div className="flex" style={{ height: 'calc(100vh - 3.5rem)' }}>
-        {/* Left sidebar — Node Library + Diagram List */}
-        <div className="w-60 shrink-0 border-r border-border bg-muted/20 flex flex-col overflow-hidden">
+      <div className="flex relative" style={{ height: 'calc(100vh - 3.5rem)' }}>
+        {/* ═══ Desktop Left sidebar — Node Library + Diagram List ═══ */}
+        <div className="hidden md:flex w-60 shrink-0 border-r border-border bg-muted/20 flex-col overflow-hidden">
           {/* Project selector */}
           <div className="p-3 border-b border-border space-y-2">
             <Label className="text-xs">Project</Label>
@@ -521,10 +617,10 @@ export default function NetworkDiagramPage() {
           )}
         </div>
 
-        {/* Main canvas area */}
+        {/* ═══ Main canvas area ═══ */}
         <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Toolbar */}
-          <div className="shrink-0 flex items-center gap-1 px-3 py-1.5 border-b border-border bg-muted/30 flex-wrap">
+          {/* Desktop Toolbar */}
+          <div className="hidden md:flex shrink-0 items-center gap-1 px-3 py-1.5 border-b border-border bg-muted/30 flex-wrap">
             <div className="flex items-center gap-0.5 border-r border-border pr-2 mr-1">
               <Button size="sm" variant={tool === 'select' ? 'secondary' : 'ghost'} className="h-7 w-7 p-0"
                 onClick={() => setTool('select')} title="Select (V)">
@@ -585,8 +681,8 @@ export default function NetworkDiagramPage() {
             </div>
           </div>
 
-          {/* Diagram name bar */}
-          <div className="shrink-0 flex items-center gap-2 px-3 py-1.5 border-b border-border bg-background">
+          {/* Diagram name bar — desktop */}
+          <div className="hidden md:flex shrink-0 items-center gap-2 px-3 py-1.5 border-b border-border bg-background">
             <Network className="h-4 w-4 text-muted-foreground" />
             <input
               value={diagramName}
@@ -597,6 +693,56 @@ export default function NetworkDiagramPage() {
             <span className="text-[10px] text-muted-foreground">
               {nodes.length} nodes, {connections.length} connections
             </span>
+          </div>
+
+          {/* ═══ Mobile floating toolbar ═══ */}
+          <div className="md:hidden shrink-0 flex items-center gap-1 px-2 py-1.5 border-b border-border bg-muted/30 overflow-x-auto scrollbar-none">
+            <div className="flex items-center gap-0.5 shrink-0">
+              <Button size="sm" variant={tool === 'select' ? 'secondary' : 'ghost'} className="h-8 w-8 p-0"
+                onClick={() => setTool('select')}>
+                <MousePointer className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant={tool === 'pan' ? 'secondary' : 'ghost'} className="h-8 w-8 p-0"
+                onClick={() => setTool('pan')}>
+                <Move className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant={tool === 'connect' ? 'secondary' : 'ghost'} className="h-8 w-8 p-0"
+                onClick={() => { setTool('connect'); setConnectFrom(null); }}>
+                <LinkIcon className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="w-px h-5 bg-border shrink-0" />
+            <div className="flex items-center gap-0.5 shrink-0">
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setZoom(z => Math.min(3, z + 0.2))}>
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setZoom(z => Math.max(0.2, z - 0.2))}>
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>
+                <RotateCcw className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="w-px h-5 bg-border shrink-0" />
+            {(selectedNodeId || selectedConnId) && (
+              <div className="flex items-center gap-0.5 shrink-0">
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0"
+                  onClick={() => selectedNodeId ? setShowNodeProps(true) : setShowConnProps(true)}>
+                  <Edit3 className="h-4 w-4" />
+                </Button>
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={deleteSelected}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            )}
+            <div className="flex items-center gap-0.5 ml-auto shrink-0">
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleSave} disabled={!selectedProjectId}>
+                <Save className="h-4 w-4" />
+              </Button>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setShowMobileActions(true)}>
+                <Download className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           {/* SVG Canvas */}
@@ -648,105 +794,223 @@ export default function NetworkDiagramPage() {
               {/* Empty state */}
               {nodes.length === 0 && (
                 <text x="50%" y="50%" textAnchor="middle" fill="currentColor" fillOpacity={0.3} fontSize={14}>
-                  Add nodes from the sidebar to start building your diagram
+                  <tspan x="50%" dy="0" className="hidden md:inline">Add nodes from the sidebar to start building your diagram</tspan>
+                  <tspan x="50%" dy="0" className="md:hidden">Tap + below to add nodes</tspan>
                 </text>
               )}
             </svg>
           </div>
+
+          {/* ═══ Mobile bottom bar ═══ */}
+          <div className="md:hidden shrink-0 border-t border-border bg-background">
+            {/* Connecting indicator */}
+            {connectFrom && (
+              <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-field-info/10 text-xs text-field-info">
+                <LinkIcon className="h-3 w-3" /> Tap target node to connect
+                <button onClick={() => setConnectFrom(null)} className="ml-1"><X className="h-3 w-3" /></button>
+              </div>
+            )}
+            {/* Bottom tabs */}
+            <div className="flex items-center">
+              <button
+                onClick={() => setMobilePanel(mobilePanel === 'project' ? 'none' : 'project')}
+                className={cn(
+                  'flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
+                  mobilePanel === 'project' ? 'text-primary' : 'text-muted-foreground'
+                )}
+              >
+                <FolderKanban className="h-4.5 w-4.5" />
+                <span>Project</span>
+              </button>
+              <button
+                onClick={() => setMobilePanel(mobilePanel === 'nodes' ? 'none' : 'nodes')}
+                className={cn(
+                  'flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
+                  mobilePanel === 'nodes' ? 'text-primary' : 'text-muted-foreground'
+                )}
+              >
+                <Plus className="h-4.5 w-4.5" />
+                <span>Add Node</span>
+              </button>
+              <button
+                onClick={() => {
+                  if (selectedNodeId) setShowNodeProps(true);
+                  else if (selectedConnId) setShowConnProps(true);
+                  else toast('Select a node or connection first');
+                }}
+                className={cn(
+                  'flex-1 flex flex-col items-center gap-0.5 py-2.5 text-[10px] font-medium transition-colors',
+                  (selectedNodeId || selectedConnId) ? 'text-foreground' : 'text-muted-foreground/50'
+                )}
+              >
+                <Edit3 className="h-4.5 w-4.5" />
+                <span>Properties</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Right sidebar — Properties panel (when node/conn selected) */}
+        {/* ═══ Desktop right sidebar — Properties panel ═══ */}
         {(showNodeProps && selectedNode) && (
-          <div className="w-64 shrink-0 border-l border-border bg-muted/20 flex flex-col overflow-y-auto">
+          <div className="hidden md:flex w-64 shrink-0 border-l border-border bg-muted/20 flex-col overflow-y-auto">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border">
               <h3 className="text-xs font-semibold">Node Properties</h3>
               <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setShowNodeProps(false)}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
-            <div className="p-3 space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Label</Label>
-                <Input value={selectedNode.label} className="h-8 text-xs"
-                  onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, label: e.target.value } : n))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Type</Label>
-                <Select value={selectedNode.type}
-                  onValueChange={v => v && setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, type: v as DiagramNodeType, color: NODE_COLORS[v as DiagramNodeType] } : n))}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {nodeTypes.map(t => <SelectItem key={t} value={t}>{DIAGRAM_NODE_LABELS[t]}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">IP Address</Label>
-                <Input value={selectedNode.ip || ''} className="h-8 text-xs font-mono" placeholder="10.40.1.x"
-                  onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, ip: e.target.value } : n))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">MAC Address</Label>
-                <Input value={selectedNode.mac || ''} className="h-8 text-xs font-mono" placeholder="AA:BB:CC:DD:EE:FF"
-                  onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, mac: e.target.value } : n))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Notes</Label>
-                <Textarea value={selectedNode.notes || ''} className="text-xs min-h-16"
-                  onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, notes: e.target.value } : n))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Color</Label>
-                <input type="color" value={selectedNode.color || NODE_COLORS[selectedNode.type]}
-                  onChange={e => setNodes(prev => prev.map(n => n.id === selectedNodeId ? { ...n, color: e.target.value } : n))}
-                  className="h-8 w-full rounded border border-border cursor-pointer" />
-              </div>
-              <Button size="sm" variant="destructive" className="w-full h-8 gap-1 text-xs" onClick={deleteSelected}>
-                <Trash2 className="h-3 w-3" /> Delete Node
-              </Button>
+            <div className="p-3">
+              {nodePropsForm}
             </div>
           </div>
         )}
 
         {(showConnProps && selectedConn) && (
-          <div className="w-64 shrink-0 border-l border-border bg-muted/20 flex flex-col overflow-y-auto">
+          <div className="hidden md:flex w-64 shrink-0 border-l border-border bg-muted/20 flex-col overflow-y-auto">
             <div className="flex items-center justify-between px-3 py-2 border-b border-border">
               <h3 className="text-xs font-semibold">Connection Properties</h3>
               <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setShowConnProps(false)}>
                 <X className="h-3.5 w-3.5" />
               </Button>
             </div>
-            <div className="p-3 space-y-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Label</Label>
-                <Input value={selectedConn.label || ''} className="h-8 text-xs" placeholder="e.g. Ethernet, BACnet/IP"
-                  onChange={e => setConnections(prev => prev.map(c => c.id === selectedConnId ? { ...c, label: e.target.value } : c))} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Style</Label>
-                <Select value={selectedConn.style}
-                  onValueChange={v => v && setConnections(prev => prev.map(c => c.id === selectedConnId ? { ...c, style: v as ConnectionStyle } : c))}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="solid">Solid</SelectItem>
-                    <SelectItem value="dashed">Dashed</SelectItem>
-                    <SelectItem value="dotted">Dotted</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Color</Label>
-                <input type="color" value={selectedConn.color || '#64748b'}
-                  onChange={e => setConnections(prev => prev.map(c => c.id === selectedConnId ? { ...c, color: e.target.value } : c))}
-                  className="h-8 w-full rounded border border-border cursor-pointer" />
-              </div>
-              <Button size="sm" variant="destructive" className="w-full h-8 gap-1 text-xs" onClick={deleteSelected}>
-                <Trash2 className="h-3 w-3" /> Delete Connection
-              </Button>
+            <div className="p-3">
+              {connPropsForm}
             </div>
           </div>
         )}
+
+        {/* ═══ Mobile slide-up panels ═══ */}
+        {mobilePanel !== 'none' && (
+          <>
+            {/* Backdrop */}
+            <div className="md:hidden fixed inset-0 z-40 bg-black/30" onClick={() => setMobilePanel('none')} />
+            {/* Panel */}
+            <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-background border-t border-border rounded-t-2xl shadow-lg" style={{ maxHeight: '60vh' }}>
+              {/* Handle */}
+              <div className="flex justify-center py-2">
+                <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+              </div>
+
+              {mobilePanel === 'project' && (
+                <div className="px-4 pb-6 space-y-3 overflow-y-auto" style={{ maxHeight: 'calc(60vh - 2rem)' }}>
+                  <h3 className="text-sm font-semibold">Project & Diagrams</h3>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Project</Label>
+                    <Select value={selectedProjectId} onValueChange={v => { v && setSelectedProjectId(v); }}>
+                      <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select project..." /></SelectTrigger>
+                      <SelectContent>
+                        {projects.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.projectNumber} — {p.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Diagram Name</Label>
+                    <Input value={diagramName} onChange={e => setDiagramName(e.target.value)} className="h-9 text-xs" placeholder="Diagram name..." />
+                  </div>
+
+                  <Button size="sm" variant="outline" className="w-full gap-1.5 h-9" onClick={() => { setShowNewDiagram(true); setMobilePanel('none'); }}>
+                    <Plus className="h-3.5 w-3.5" /> New Diagram
+                  </Button>
+
+                  {diagrams.length > 0 && (
+                    <div className="space-y-1">
+                      <Label className="text-xs">Load Diagram</Label>
+                      {diagrams.map(d => (
+                        <button
+                          key={d.id}
+                          onClick={() => loadDiagram(d)}
+                          className={cn(
+                            'w-full text-left rounded-lg border px-3 py-2.5 text-xs transition-colors',
+                            d.id === activeDiagramId ? 'border-primary bg-primary/5' : 'border-border hover:bg-muted/50'
+                          )}
+                        >
+                          <div className="font-medium truncate">{d.name}</div>
+                          <div className="text-muted-foreground text-[10px] mt-0.5">
+                            {d.nodes.length} nodes, {d.connections.length} connections
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {mobilePanel === 'nodes' && (
+                <div className="px-4 pb-6 overflow-y-auto" style={{ maxHeight: 'calc(60vh - 2rem)' }}>
+                  <h3 className="text-sm font-semibold mb-3">Add Node</h3>
+                  <div className="grid grid-cols-3 gap-2">
+                    {nodeTypes.map(type => {
+                      const Icon = NODE_ICONS[type];
+                      const color = NODE_COLORS[type];
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => addNode(type)}
+                          className="flex flex-col items-center gap-1.5 rounded-lg border border-border px-2 py-3 text-xs hover:bg-muted/50 active:scale-95 transition-all"
+                        >
+                          <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: color + '20' }}>
+                            <Icon className="h-4 w-4" style={{ color }} />
+                          </div>
+                          <span className="text-[10px] leading-tight text-center">{DIAGRAM_NODE_LABELS[type]}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
+
+      {/* ═══ Node Properties Dialog (mobile) ═══ */}
+      <Dialog open={showNodeProps && !!selectedNode && isMobile} onOpenChange={(o) => { if (!o) setShowNodeProps(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Node Properties</DialogTitle>
+            <DialogDescription>Edit the selected node&apos;s details.</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {nodePropsForm}
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Connection Properties Dialog (mobile) ═══ */}
+      <Dialog open={showConnProps && !!selectedConn && isMobile} onOpenChange={(o) => { if (!o) setShowConnProps(false); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Connection Properties</DialogTitle>
+            <DialogDescription>Edit the selected connection&apos;s details.</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            {connPropsForm}
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══ Mobile Export Actions Dialog ═══ */}
+      <Dialog open={showMobileActions} onOpenChange={setShowMobileActions}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Export Diagram</DialogTitle>
+            <DialogDescription>Download your diagram as an image.</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <div className="flex flex-col gap-2 py-2">
+              <Button variant="outline" className="justify-start gap-2 h-10" onClick={() => { handleExportPng(); setShowMobileActions(false); }} disabled={nodes.length === 0}>
+                <Download className="h-4 w-4" /> Export as PNG
+              </Button>
+              <Button variant="outline" className="justify-start gap-2 h-10" onClick={() => { handleExportSvg(); setShowMobileActions(false); }} disabled={nodes.length === 0}>
+                <Download className="h-4 w-4" /> Export as SVG
+              </Button>
+            </div>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
 
       {/* New Diagram Dialog */}
       <Dialog open={showNewDiagram} onOpenChange={setShowNewDiagram}>
