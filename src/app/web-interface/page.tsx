@@ -547,20 +547,31 @@ export default function WebInterfacePage() {
               <Globe className="h-4 w-4 text-primary" /> Launch Panel Interface
             </h2>
 
-            <div className="grid gap-2">
-              <div className="space-y-1">
-                <Label htmlFor="wi-host" className="text-xs">Host / IP Address</Label>
-                <Input
-                  id="wi-host"
-                  value={host}
-                  onChange={e => setHost(e.target.value)}
-                  placeholder="192.168.1.50"
-                  className="h-8 text-xs font-mono"
-                  onKeyDown={e => e.key === 'Enter' && handleFormLaunch()}
-                />
+            <div className="grid gap-1.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Label htmlFor="wi-host" className="text-xs">Host / IP Address</Label>
+                  <Input
+                    id="wi-host"
+                    value={host}
+                    onChange={e => setHost(e.target.value)}
+                    placeholder="192.168.1.50"
+                    className="h-8 text-xs font-mono"
+                    onKeyDown={e => e.key === 'Enter' && handleFormLaunch()}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Path (optional)</Label>
+                  <Input
+                    value={path}
+                    onChange={e => setPath(e.target.value)}
+                    placeholder="/login"
+                    className="h-8 text-xs font-mono"
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <div className="space-y-1">
                   <Label className="text-xs">Protocol</Label>
                   <Select value={protocol} onValueChange={v => v && setProtocol(v as Protocol)}>
@@ -591,16 +602,6 @@ export default function WebInterfacePage() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-
-              <div className="space-y-1">
-                <Label className="text-xs">Path (optional)</Label>
-                <Input
-                  value={path}
-                  onChange={e => setPath(e.target.value)}
-                  placeholder="/login"
-                  className="h-8 text-xs font-mono"
-                />
               </div>
             </div>
 
