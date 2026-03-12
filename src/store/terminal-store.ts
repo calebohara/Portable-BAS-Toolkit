@@ -5,8 +5,27 @@ import { persist } from 'zustand/middleware';
 
 // ─── Types ──────────────────────────────────────────────────
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
+export type ConnectionMode = 'serial' | 'tcp';
 export type BaudRate = 9600 | 19200 | 38400 | 57600 | 115200;
+export type DataBits = 5 | 6 | 7 | 8;
+export type Parity = 'none' | 'odd' | 'even';
+export type StopBits = '1' | '2';
 export type LineEnding = 'crlf' | 'cr' | 'lf';
+
+export const CONNECTION_MODES: { value: ConnectionMode; label: string }[] = [
+  { value: 'serial', label: 'Serial (COM)' },
+  { value: 'tcp', label: 'TCP / Telnet' },
+];
+export const DATA_BITS_OPTIONS: DataBits[] = [5, 6, 7, 8];
+export const PARITY_OPTIONS: { value: Parity; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'odd', label: 'Odd' },
+  { value: 'even', label: 'Even' },
+];
+export const STOP_BITS_OPTIONS: { value: StopBits; label: string }[] = [
+  { value: '1', label: '1' },
+  { value: '2', label: '2' },
+];
 
 export const BAUD_RATES: BaudRate[] = [9600, 19200, 38400, 57600, 115200];
 export const LINE_ENDINGS: { value: LineEnding; label: string }[] = [
@@ -27,8 +46,16 @@ export interface TerminalLine {
 export interface TerminalSession {
   id: string;
   label: string;
+  connectionMode: ConnectionMode;
+  // TCP fields
   host: string;
   port: number;
+  // Serial fields
+  serialPort: string;
+  dataBits: DataBits;
+  parity: Parity;
+  stopBits: StopBits;
+  // Common fields
   baudRate: BaudRate;
   lineEnding: LineEnding;
   localEcho: boolean;
@@ -43,8 +70,10 @@ export interface TerminalSession {
 }
 
 export interface SessionHistoryEntry {
+  connectionMode?: ConnectionMode;
   host: string;
   port: number;
+  serialPort?: string;
   baudRate: BaudRate;
   lineEnding?: LineEnding;
   label: string;
@@ -67,7 +96,7 @@ interface TerminalStore {
   setActiveSession: (id: string) => void;
 
   // Session management
-  createSession: (opts?: { host?: string; port?: number; baudRate?: BaudRate; lineEnding?: LineEnding; label?: string }) => string;
+  createSession: (opts?: { connectionMode?: ConnectionMode; host?: string; port?: number; serialPort?: string; baudRate?: BaudRate; lineEnding?: LineEnding; label?: string }) => string;
   removeSession: (id: string) => void;
   updateSession: (id: string, patch: Partial<TerminalSession>) => void;
 
@@ -90,15 +119,20 @@ interface TerminalStore {
   updateSettings: (patch: Partial<TerminalSettings>) => void;
 }
 
-function makeSession(opts?: { host?: string; port?: number; baudRate?: BaudRate; lineEnding?: LineEnding; label?: string }): TerminalSession {
+function makeSession(opts?: { connectionMode?: ConnectionMode; host?: string; port?: number; serialPort?: string; baudRate?: BaudRate; lineEnding?: LineEnding; label?: string }): TerminalSession {
   return {
     id: crypto.randomUUID(),
     label: opts?.label || 'New Session',
+    connectionMode: opts?.connectionMode || 'serial',
     host: opts?.host || '',
     port: opts?.port || 23,
-    baudRate: opts?.baudRate || 9600,
+    serialPort: opts?.serialPort || '',
+    dataBits: 8,
+    parity: 'none',
+    stopBits: '1',
+    baudRate: opts?.baudRate || 115200,
     lineEnding: opts?.lineEnding || 'crlf',
-    localEcho: false, // Server-side echo by default (standard telnet)
+    localEcho: false,
     lineMode: true,
     connectionState: 'disconnected',
     errorMessage: '',
@@ -221,7 +255,7 @@ export const useTerminalStore = create<TerminalStore>()(
         clearHistory: () => set({ sessionHistory: [] }),
 
         settings: {
-          defaultBaudRate: 9600,
+          defaultBaudRate: 115200,
           defaultLineEnding: 'crlf' as LineEnding,
           defaultBufferSize: 1000,
           autoLogging: true,

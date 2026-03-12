@@ -26,3 +26,4 @@ tauri-plugin-updater = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-process = "2"
 tokio = { version = "1", features = ["process", "time", "io-util", "net"] }
+serialport = "4"

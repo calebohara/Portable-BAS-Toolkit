@@ -21,8 +21,10 @@ import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   useTerminalStore,
-  BAUD_RATES, BUFFER_SIZES, LINE_ENDINGS,
-  type TerminalSession, type ConnectionState, type BaudRate, type BufferSize,
+  BAUD_RATES, BUFFER_SIZES, LINE_ENDINGS, CONNECTION_MODES,
+  DATA_BITS_OPTIONS, PARITY_OPTIONS, STOP_BITS_OPTIONS,
+  type TerminalSession, type ConnectionState, type ConnectionMode,
+  type BaudRate, type BufferSize, type DataBits, type Parity, type StopBits,
   type TerminalLine, type LineEnding,
 } from '@/store/terminal-store';
 import { useProjects, useCommandSnippets } from '@/hooks/use-projects';
@@ -41,6 +43,14 @@ import {
   onTelnetData,
   onTelnetClosed,
   onTelnetError,
+  nativeSerialListPorts,
+  nativeSerialConnect,
+  nativeSerialSend,
+  nativeSerialDisconnect,
+  onSerialData,
+  onSerialClosed,
+  onSerialError,
+  type NativeSerialPortInfo,
 } from '@/lib/tauri-bridge';
 
 // ─── Connection State UI ─────────────────────────────────────
@@ -603,22 +613,46 @@ export default function TelnetPage() {
 
   useEffect(() => { setIsDesktop(isTauri()); }, []);
 
+  // ─── Serial port list ────────────────────────────────────
+  const [availablePorts, setAvailablePorts] = useState<NativeSerialPortInfo[]>([]);
+  const refreshPorts = useCallback(async () => {
+    if (!isDesktop) return;
+    try {
+      const ports = await nativeSerialListPorts();
+      setAvailablePorts(ports);
+      // Auto-select first port if none selected
+      if (ports.length > 0 && !session.serialPort) {
+        updateSession(session.id, { serialPort: ports[0].name });
+      }
+    } catch { /* ignore in browser */ }
+  }, [isDesktop, session.id, session.serialPort, updateSession]);
+
+  useEffect(() => { refreshPorts(); }, [refreshPorts]);
+
   // ─── Connection logic ────────────────────────────────────
   const handleConnect = useCallback(async () => {
-    if (!session.host.trim()) {
+    const isSerial = session.connectionMode === 'serial';
+
+    if (isSerial && !session.serialPort) {
+      toast.error('Please select a serial port');
+      return;
+    }
+    if (!isSerial && !session.host.trim()) {
       toast.error('Please enter a host/IP address');
       return;
     }
 
     setConnectionState(session.id, 'connecting');
+    const connectLabel = isSerial
+      ? `${session.serialPort} @ ${session.baudRate} baud (${session.dataBits}${session.parity[0].toUpperCase()}${session.stopBits})`
+      : `${session.host}:${session.port} (Telnet TCP)`;
     appendLine(session.id, {
-      text: `Connecting to ${session.host}:${session.port} (Telnet TCP)...`,
+      text: `Connecting to ${connectLabel}...`,
       timestamp: new Date().toISOString(),
       type: 'system',
     });
 
     if (isDesktop) {
-      // ─── Native TCP via Tauri ──────────────────────────
       const sid = session.id;
       try {
         // Clean up any existing listeners for this session first
@@ -628,49 +662,58 @@ export default function TelnetPage() {
           cleanupListenersMapRef.current.delete(sid);
         }
 
-        // Register event listeners BEFORE connecting to avoid missing data
-        const unData = await onTelnetData(sid, (data) => {
-          appendLine(sid, {
-            text: data,
-            timestamp: new Date().toISOString(),
-            type: 'output',
+        if (isSerial) {
+          // ─── Serial Port via Tauri ──────────────────────
+          const unData = await onSerialData(sid, (data) => {
+            appendLine(sid, { text: data, timestamp: new Date().toISOString(), type: 'output' });
           });
-        });
-        const unClosed = await onTelnetClosed(sid, () => {
-          setConnectionState(sid, 'disconnected');
-          appendLine(sid, {
-            text: 'Connection closed by remote host.',
-            timestamp: new Date().toISOString(),
-            type: 'system',
+          const unClosed = await onSerialClosed(sid, () => {
+            setConnectionState(sid, 'disconnected');
+            appendLine(sid, { text: 'Serial port closed.', timestamp: new Date().toISOString(), type: 'system' });
+            const fns = cleanupListenersMapRef.current.get(sid);
+            if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
           });
-          // Auto-cleanup listeners when remote closes
-          const fns = cleanupListenersMapRef.current.get(sid);
-          if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
-        });
-        const unError = await onTelnetError(sid, (error) => {
-          setConnectionState(sid, 'error', `Connection error: ${error}`);
-          appendLine(sid, {
-            text: `Connection error: ${error}`,
-            timestamp: new Date().toISOString(),
-            type: 'error',
+          const unError = await onSerialError(sid, (error) => {
+            setConnectionState(sid, 'error', `Serial error: ${error}`);
+            appendLine(sid, { text: `Serial error: ${error}`, timestamp: new Date().toISOString(), type: 'error' });
           });
-        });
+          cleanupListenersMapRef.current.set(sid, [unData, unClosed, unError]);
 
-        // Store cleanup functions keyed by session ID
-        cleanupListenersMapRef.current.set(sid, [unData, unClosed, unError]);
+          await nativeSerialConnect(
+            sid, session.serialPort, session.baudRate,
+            session.dataBits, session.parity, session.stopBits,
+          );
+        } else {
+          // ─── TCP Telnet via Tauri ───────────────────────
+          const unData = await onTelnetData(sid, (data) => {
+            appendLine(sid, { text: data, timestamp: new Date().toISOString(), type: 'output' });
+          });
+          const unClosed = await onTelnetClosed(sid, () => {
+            setConnectionState(sid, 'disconnected');
+            appendLine(sid, { text: 'Connection closed by remote host.', timestamp: new Date().toISOString(), type: 'system' });
+            const fns = cleanupListenersMapRef.current.get(sid);
+            if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
+          });
+          const unError = await onTelnetError(sid, (error) => {
+            setConnectionState(sid, 'error', `Connection error: ${error}`);
+            appendLine(sid, { text: `Connection error: ${error}`, timestamp: new Date().toISOString(), type: 'error' });
+          });
+          cleanupListenersMapRef.current.set(sid, [unData, unClosed, unError]);
 
-        // Now initiate the TCP connection
-        await nativeTelnetConnect(sid, session.host, session.port);
+          await nativeTelnetConnect(sid, session.host, session.port);
+        }
 
         setConnectionState(sid, 'connected');
         appendLine(sid, {
-          text: `Connected to ${session.host}:${session.port}`,
+          text: `Connected to ${connectLabel}`,
           timestamp: new Date().toISOString(),
           type: 'system',
         });
         addToHistory({
+          connectionMode: session.connectionMode,
           host: session.host,
           port: session.port,
+          serialPort: session.serialPort,
           baudRate: session.baudRate,
           lineEnding: session.lineEnding,
           label: session.label,
@@ -683,7 +726,6 @@ export default function TelnetPage() {
           timestamp: new Date().toISOString(),
           type: 'error',
         });
-        // Clean up listeners on connect failure
         const fns = cleanupListenersMapRef.current.get(sid);
         if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
       }
@@ -753,7 +795,11 @@ export default function TelnetPage() {
     const sid = sessionIdOverride || session.id;
     if (isDesktop) {
       try {
-        await nativeTelnetDisconnect(sid);
+        if (session.connectionMode === 'serial') {
+          await nativeSerialDisconnect(sid);
+        } else {
+          await nativeTelnetDisconnect(sid);
+        }
       } catch { /* ignore */ }
       // Clean up event listeners for this session
       const fns = cleanupListenersMapRef.current.get(sid);
@@ -823,7 +869,11 @@ export default function TelnetPage() {
   const handleSendCommand = useCallback(async (cmd: string) => {
     if (isDesktop) {
       try {
-        await nativeTelnetSend(session.id, cmd, session.lineEnding);
+        if (session.connectionMode === 'serial') {
+          await nativeSerialSend(session.id, cmd, session.lineEnding);
+        } else {
+          await nativeTelnetSend(session.id, cmd, session.lineEnding);
+        }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         appendLine(session.id, {
@@ -931,17 +981,30 @@ export default function TelnetPage() {
                 <StateIcon className={cn('h-2.5 w-2.5', session.connectionState === 'connecting' && 'animate-spin')} />
                 {stateConfig.label}
               </Badge>
-              {session.host && (
-                <span className="text-muted-foreground">{session.host}:{session.port}</span>
-              )}
+              {session.connectionMode === 'serial'
+                ? session.serialPort && <span className="text-muted-foreground">{session.serialPort} @ {session.baudRate}</span>
+                : session.host && <span className="text-muted-foreground">{session.host}:{session.port}</span>
+              }
             </div>
             {connPanelOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
           </button>
 
           {connPanelOpen && (
             <div className="px-4 pb-3 space-y-3">
-              {/* Connection fields */}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+              {/* Connection mode + label row */}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Mode</Label>
+                  <Select
+                    value={session.connectionMode ?? 'serial'}
+                    onValueChange={v => v && updateSession(session.id, { connectionMode: v as ConnectionMode })}
+                  >
+                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CONNECTION_MODES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="term-label" className="text-xs">Session Label</Label>
                   <Input
@@ -952,51 +1015,155 @@ export default function TelnetPage() {
                     className="h-8 text-xs"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="term-host" className="text-xs">Host / IP Address</Label>
-                  <Input
-                    id="term-host"
-                    value={session.host}
-                    onChange={e => updateSession(session.id, { host: e.target.value })}
-                    placeholder="10.40.1.10"
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="term-port" className="text-xs">Port</Label>
-                  <Input
-                    id="term-port"
-                    type="number"
-                    value={session.port}
-                    onChange={e => updateSession(session.id, { port: parseInt(e.target.value) || 23 })}
-                    className="h-8 text-xs font-mono"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Baud Rate</Label>
-                  <Select
-                    value={String(session.baudRate)}
-                    onValueChange={v => v && updateSession(session.id, { baudRate: Number(v) as BaudRate })}
-                  >
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {BAUD_RATES.map(br => <SelectItem key={br} value={String(br)}>{br.toLocaleString()}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Line Ending</Label>
-                  <Select
-                    value={session.lineEnding}
-                    onValueChange={v => v && updateSession(session.id, { lineEnding: v as LineEnding })}
-                  >
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {LINE_ENDINGS.map(le => <SelectItem key={le.value} value={le.value}>{le.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
+
+                {session.connectionMode === 'serial' ? (
+                  <>
+                    {/* Serial: Port selector + Refresh */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Serial Port</Label>
+                      <div className="flex gap-1">
+                        <Select
+                          value={session.serialPort}
+                          onValueChange={v => v && updateSession(session.id, { serialPort: v })}
+                        >
+                          <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Select port..." /></SelectTrigger>
+                          <SelectContent>
+                            {availablePorts.map(p => (
+                              <SelectItem key={p.name} value={p.name}>{p.name} — {p.description}</SelectItem>
+                            ))}
+                            {availablePorts.length === 0 && (
+                              <SelectItem value="_none" disabled>No ports found</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" variant="outline" className="h-8 px-2" onClick={refreshPorts} title="Refresh ports">
+                          <RotateCcw className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Baud Rate</Label>
+                      <Select
+                        value={String(session.baudRate)}
+                        onValueChange={v => v && updateSession(session.id, { baudRate: Number(v) as BaudRate })}
+                      >
+                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {BAUD_RATES.map(br => <SelectItem key={br} value={String(br)}>{br.toLocaleString()}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* TCP: Host + Port */}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="term-host" className="text-xs">Host / IP Address</Label>
+                      <Input
+                        id="term-host"
+                        value={session.host}
+                        onChange={e => updateSession(session.id, { host: e.target.value })}
+                        placeholder="10.40.1.10"
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="term-port" className="text-xs">Port</Label>
+                      <Input
+                        id="term-port"
+                        type="number"
+                        value={session.port}
+                        onChange={e => updateSession(session.id, { port: parseInt(e.target.value) || 23 })}
+                        className="h-8 text-xs font-mono"
+                      />
+                    </div>
+                  </>
+                )}
               </div>
+
+              {/* Serial-specific: Data Bits, Parity, Stop Bits, Line Ending */}
+              {session.connectionMode === 'serial' && (
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Data Bits</Label>
+                    <Select
+                      value={String(session.dataBits ?? 8)}
+                      onValueChange={v => v && updateSession(session.id, { dataBits: Number(v) as DataBits })}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {DATA_BITS_OPTIONS.map(d => <SelectItem key={d} value={String(d)}>{d}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Parity</Label>
+                    <Select
+                      value={session.parity ?? 'none'}
+                      onValueChange={v => v && updateSession(session.id, { parity: v as Parity })}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {PARITY_OPTIONS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Stop Bits</Label>
+                    <Select
+                      value={session.stopBits ?? '1'}
+                      onValueChange={v => v && updateSession(session.id, { stopBits: v as StopBits })}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {STOP_BITS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Line Ending</Label>
+                    <Select
+                      value={session.lineEnding}
+                      onValueChange={v => v && updateSession(session.id, { lineEnding: v as LineEnding })}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {LINE_ENDINGS.map(le => <SelectItem key={le.value} value={le.value}>{le.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
+
+              {/* TCP-specific: Baud Rate + Line Ending */}
+              {session.connectionMode !== 'serial' && (
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Baud Rate</Label>
+                    <Select
+                      value={String(session.baudRate)}
+                      onValueChange={v => v && updateSession(session.id, { baudRate: Number(v) as BaudRate })}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {BAUD_RATES.map(br => <SelectItem key={br} value={String(br)}>{br.toLocaleString()}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Line Ending</Label>
+                    <Select
+                      value={session.lineEnding}
+                      onValueChange={v => v && updateSession(session.id, { lineEnding: v as LineEnding })}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {LINE_ENDINGS.map(le => <SelectItem key={le.value} value={le.value}>{le.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )}
 
               {/* Toggles row */}
               <div className="flex flex-wrap items-center gap-4">
@@ -1033,9 +1200,11 @@ export default function TelnetPage() {
                     <Button size="sm" onClick={handleConnect} className="gap-1.5 h-8">
                       <Plug className="h-3.5 w-3.5" /> Connect
                     </Button>
-                    <Button size="sm" variant="outline" onClick={handleTestPort} className="gap-1.5 h-8">
-                      <Search className="h-3.5 w-3.5" /> Test Port
-                    </Button>
+                    {session.connectionMode !== 'serial' && (
+                      <Button size="sm" variant="outline" onClick={handleTestPort} className="gap-1.5 h-8">
+                        <Search className="h-3.5 w-3.5" /> Test Port
+                      </Button>
+                    )}
                   </>
                 ) : session.connectionState === 'connected' ? (
                   <>
@@ -1153,8 +1322,10 @@ export default function TelnetPage() {
         <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-border bg-muted/30 text-[10px] text-muted-foreground">
           <div className="flex items-center gap-3">
             <span className={stateConfig.color}>{stateConfig.label}</span>
-            {session.host && <span>{session.host}:{session.port}</span>}
-            <span>Telnet TCP</span>
+            {session.connectionMode === 'serial'
+              ? <>{session.serialPort && <span>{session.serialPort}</span>}<span>Serial {session.dataBits}{(session.parity ?? 'none')[0].toUpperCase()}{session.stopBits}</span></>
+              : <>{session.host && <span>{session.host}:{session.port}</span>}<span>Telnet TCP</span></>
+            }
             <span>{session.baudRate.toLocaleString()} baud</span>
             <span>{LINE_ENDINGS.find(le => le.value === session.lineEnding)?.label ?? 'CR+LF'}</span>
           </div>

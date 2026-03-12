@@ -141,3 +141,68 @@ export async function onTelnetError(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return listen(`telnet-error-${sessionId}`, (event: any) => handler(event.payload as string));
 }
+
+// ─── Native Serial Port ──────────────────────────────────────
+export interface NativeSerialPortInfo {
+  name: string;
+  description: string;
+}
+
+export async function nativeSerialListPorts(): Promise<NativeSerialPortInfo[]> {
+  const invoke = await getInvoke();
+  return invoke('serial_list_ports') as Promise<NativeSerialPortInfo[]>;
+}
+
+export async function nativeSerialConnect(
+  sessionId: string,
+  portName: string,
+  baudRate: number,
+  dataBits?: number,
+  parity?: string,
+  stopBits?: string,
+): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke('serial_connect', { sessionId, portName, baudRate, dataBits, parity, stopBits });
+}
+
+export async function nativeSerialSend(
+  sessionId: string,
+  data: string,
+  lineEnding?: 'crlf' | 'cr' | 'lf',
+): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke('serial_send', { sessionId, data, lineEnding: lineEnding ?? 'crlf' });
+}
+
+export async function nativeSerialDisconnect(
+  sessionId: string,
+): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke('serial_disconnect', { sessionId });
+}
+
+export async function onSerialData(
+  sessionId: string,
+  handler: (data: string) => void,
+): Promise<() => void> {
+  const listen = await getListen();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return listen(`serial-data-${sessionId}`, (event: any) => handler(event.payload as string));
+}
+
+export async function onSerialClosed(
+  sessionId: string,
+  handler: () => void,
+): Promise<() => void> {
+  const listen = await getListen();
+  return listen(`serial-closed-${sessionId}`, () => handler());
+}
+
+export async function onSerialError(
+  sessionId: string,
+  handler: (error: string) => void,
+): Promise<() => void> {
+  const listen = await getListen();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return listen(`serial-error-${sessionId}`, (event: any) => handler(event.payload as string));
+}

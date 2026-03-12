@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::io::{Read as _, Write as _};
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{Emitter, Manager};
@@ -417,6 +418,192 @@ async fn telnet_disconnect(
     Ok(())
 }
 
+// ─── Serial Port Connection ─────────────────────────────────
+#[derive(Serialize, Deserialize)]
+pub struct SerialPortInfo {
+    pub name: String,
+    pub description: String,
+}
+
+struct SerialConnection {
+    port: Arc<std::sync::Mutex<Box<dyn serialport::SerialPort>>>,
+    read_task: tokio::task::JoinHandle<()>,
+}
+
+struct SerialState(Arc<Mutex<HashMap<String, SerialConnection>>>);
+
+#[tauri::command]
+fn serial_list_ports() -> Result<Vec<SerialPortInfo>, String> {
+    let ports = serialport::available_ports()
+        .map_err(|e| format!("Failed to list serial ports: {}", e))?;
+    Ok(ports
+        .into_iter()
+        .map(|p| {
+            let description = match &p.port_type {
+                serialport::SerialPortType::UsbPort(info) => {
+                    let product = info.product.as_deref().unwrap_or("USB Serial");
+                    let manufacturer = info.manufacturer.as_deref().unwrap_or("");
+                    if manufacturer.is_empty() {
+                        product.to_string()
+                    } else {
+                        format!("{} ({})", product, manufacturer)
+                    }
+                }
+                serialport::SerialPortType::BluetoothPort => "Bluetooth Serial".to_string(),
+                serialport::SerialPortType::PciPort => "PCI Serial".to_string(),
+                _ => "Serial Port".to_string(),
+            };
+            SerialPortInfo {
+                name: p.port_name,
+                description,
+            }
+        })
+        .collect())
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn serial_connect(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, SerialState>,
+    sessionId: String,
+    portName: String,
+    baudRate: u32,
+    dataBits: Option<u8>,
+    parity: Option<String>,
+    stopBits: Option<String>,
+) -> Result<(), String> {
+    let data_bits = match dataBits.unwrap_or(8) {
+        5 => serialport::DataBits::Five,
+        6 => serialport::DataBits::Six,
+        7 => serialport::DataBits::Seven,
+        _ => serialport::DataBits::Eight,
+    };
+    let parity_val = match parity.as_deref() {
+        Some("odd") => serialport::Parity::Odd,
+        Some("even") => serialport::Parity::Even,
+        _ => serialport::Parity::None,
+    };
+    let stop_bits = match stopBits.as_deref() {
+        Some("2") => serialport::StopBits::Two,
+        _ => serialport::StopBits::One,
+    };
+
+    let port_name = portName.clone();
+    let port = tokio::task::spawn_blocking(move || {
+        serialport::new(&port_name, baudRate)
+            .data_bits(data_bits)
+            .parity(parity_val)
+            .stop_bits(stop_bits)
+            .flow_control(serialport::FlowControl::None)
+            .timeout(std::time::Duration::from_millis(100))
+            .open()
+            .map_err(|e| format!("Failed to open {}: {}", port_name, e))
+    })
+    .await
+    .map_err(|e| format!("Serial task failed: {}", e))?
+    ?;
+
+    let port = Arc::new(std::sync::Mutex::new(port));
+    let read_port = port.clone();
+    let sid = sessionId.clone();
+    let app_handle = app.clone();
+
+    let read_task = tokio::spawn(async move {
+        let mut buf = [0u8; 4096];
+        loop {
+            // Read in a blocking thread since serialport is synchronous
+            let read_port_inner = read_port.clone();
+            let result = tokio::task::spawn_blocking(move || {
+                let mut port = read_port_inner.lock().unwrap();
+                match port.read(&mut buf) {
+                    Ok(n) if n > 0 => Ok(Some(buf[..n].to_vec())),
+                    Ok(_) => Ok(None),
+                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => Ok(None),
+                    Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => Ok(None),
+                    Err(e) => Err(e.to_string()),
+                }
+            })
+            .await;
+
+            match result {
+                Ok(Ok(Some(data))) => {
+                    let text = String::from_utf8_lossy(&data).to_string();
+                    let _ = app_handle.emit(&format!("serial-data-{}", sid), text);
+                }
+                Ok(Ok(None)) => {
+                    // Timeout / no data — just loop
+                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                }
+                Ok(Err(e)) => {
+                    let _ = app_handle.emit(&format!("serial-error-{}", sid), e);
+                    break;
+                }
+                Err(_) => break, // Task was cancelled
+            }
+        }
+        let _ = app_handle.emit(&format!("serial-closed-{}", sid), ());
+    });
+
+    let mut connections = state.0.lock().await;
+    if let Some(old) = connections.remove(&sessionId) {
+        old.read_task.abort();
+    }
+    connections.insert(
+        sessionId,
+        SerialConnection {
+            port,
+            read_task,
+        },
+    );
+
+    Ok(())
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn serial_send(
+    state: tauri::State<'_, SerialState>,
+    sessionId: String,
+    data: String,
+    lineEnding: Option<String>,
+) -> Result<(), String> {
+    let port = {
+        let connections = state.0.lock().await;
+        match connections.get(&sessionId) {
+            Some(conn) => conn.port.clone(),
+            None => return Err("Not connected".to_string()),
+        }
+    };
+    let ending = match lineEnding.as_deref() {
+        Some("cr") => "\r",
+        Some("lf") => "\n",
+        _ => "\r\n",
+    };
+    let payload = format!("{}{}", data, ending);
+    tokio::task::spawn_blocking(move || {
+        let mut port = port.lock().unwrap();
+        port.write_all(payload.as_bytes())
+            .map_err(|e| format!("Send failed: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Send task failed: {}", e))?
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn serial_disconnect(
+    state: tauri::State<'_, SerialState>,
+    sessionId: String,
+) -> Result<(), String> {
+    let mut connections = state.0.lock().await;
+    if let Some(conn) = connections.remove(&sessionId) {
+        conn.read_task.abort();
+        // Port is dropped when Arc refcount reaches 0
+    }
+    Ok(())
+}
+
 // ─── SPA Fallback Navigation ────────────────────────────────
 // Resolves the correct fallback path for dynamic routes in static export mode.
 // When the webview navigates to /projects/{uuid}/, the file doesn't exist in
@@ -449,6 +636,7 @@ fn resolve_spa_route(path: String) -> Option<String> {
 pub fn run() {
     tauri::Builder::default()
         .manage(TelnetState(Arc::new(Mutex::new(HashMap::new()))))
+        .manage(SerialState(Arc::new(Mutex::new(HashMap::new()))))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
@@ -525,6 +713,10 @@ pub fn run() {
             telnet_connect,
             telnet_send,
             telnet_disconnect,
+            serial_list_ports,
+            serial_connect,
+            serial_send,
+            serial_disconnect,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
