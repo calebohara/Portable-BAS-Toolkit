@@ -72,6 +72,6 @@ jobs:
             ### What's new
             See [CHANGELOG](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}) for details.
           includeUpdaterJson: true
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
