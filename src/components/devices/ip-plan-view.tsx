@@ -119,7 +119,14 @@ export function IpPlanView({ projectId, entries, onAddEntry, onUpdateEntry, onDe
   const vlans = [...new Set(entries.map((e) => e.vlan).filter(Boolean))];
 
   const SortHeader = ({ field, children }: { field: keyof IpPlanEntry; children: React.ReactNode }) => (
-    <TableHead className="cursor-pointer select-none hover:bg-muted/50 whitespace-nowrap" onClick={() => handleSort(field)}>
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50 whitespace-nowrap"
+      onClick={() => handleSort(field)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort(field); } }}
+      tabIndex={0}
+      role="columnheader"
+      aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
       <div className="flex items-center gap-1">
         {children}
         {sortField === field && <ChevronDown className={cn('h-3 w-3', sortDir === 'desc' && 'rotate-180')} />}
@@ -250,10 +257,10 @@ export function IpPlanView({ projectId, entries, onAddEntry, onUpdateEntry, onDe
                   <TableCell className="text-xs text-muted-foreground max-w-48 truncate">{entry.notes}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEdit(entry)} className="rounded p-1 hover:bg-muted" title="Edit">
+                      <button onClick={() => openEdit(entry)} className="rounded p-1.5 hover:bg-muted" title="Edit" aria-label="Edit">
                         <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                       </button>
-                      <button onClick={() => setDeleteTarget(entry)} className="rounded p-1 hover:bg-muted" title="Delete">
+                      <button onClick={() => setDeleteTarget(entry)} className="rounded p-1.5 hover:bg-muted" title="Delete" aria-label="Delete">
                         <Trash2 className="h-3.5 w-3.5 text-field-danger" />
                       </button>
                     </div>

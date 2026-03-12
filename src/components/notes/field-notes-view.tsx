@@ -126,7 +126,7 @@ export function FieldNotesView({ projectId, notes, onAddNote, onUpdateNote, onDe
     'punch-item': 'bg-field-warning/10 text-field-warning',
     'startup-note': 'bg-primary/10 text-primary',
     'network-change': 'bg-field-info/10 text-field-info',
-    'customer-request': 'bg-purple-500/10 text-purple-500',
+    'customer-request': 'bg-primary/10 text-primary',
   };
 
   return (
@@ -254,6 +254,7 @@ export function FieldNotesView({ projectId, notes, onAddNote, onUpdateNote, onDe
                       className="h-6 w-6 p-0"
                       onClick={() => handleStartEdit(note)}
                       title="Edit"
+                      aria-label="Edit"
                     >
                       <Edit2 className="h-3 w-3 text-muted-foreground" />
                     </Button>
@@ -263,6 +264,7 @@ export function FieldNotesView({ projectId, notes, onAddNote, onUpdateNote, onDe
                       className="h-6 w-6 p-0"
                       onClick={() => togglePin(note)}
                       title={note.isPinned ? 'Unpin' : 'Pin'}
+                      aria-label={note.isPinned ? 'Unpin' : 'Pin'}
                     >
                       <Pin className={cn('h-3 w-3', note.isPinned ? 'text-primary' : 'text-muted-foreground')} />
                     </Button>

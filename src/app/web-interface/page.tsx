@@ -52,7 +52,7 @@ function UrlPreview({ protocol, host, port, path }: {
       <Globe className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
       <code className="flex-1 text-xs font-mono text-foreground truncate">{url}</code>
       <button onClick={handleCopy} className="text-muted-foreground hover:text-foreground p-0.5">
-        {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+        {copied ? <Check className="h-3.5 w-3.5 text-field-success" /> : <Copy className="h-3.5 w-3.5" />}
       </button>
     </div>
   );
@@ -329,7 +329,7 @@ function EmbeddedWorkspace() {
         <code className="flex-1 text-xs font-mono text-foreground truncate">{activeUrl}</code>
         <div className="flex items-center gap-1">
           <button onClick={handleCopyUrl} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Copy URL">
-            {copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-field-success" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
           <button onClick={handleRefresh} className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" title="Refresh">
             <RefreshCw className="h-3.5 w-3.5" />
@@ -357,7 +357,7 @@ function EmbeddedWorkspace() {
         {embedState === 'blocked' ? (
           <div className="flex items-center justify-center h-full bg-background">
             <div className="text-center space-y-4 px-6 max-w-md">
-              <AlertTriangle className="h-10 w-10 text-yellow-500 mx-auto" />
+              <AlertTriangle className="h-10 w-10 text-field-warning mx-auto" />
               <div>
                 <p className="text-sm font-semibold mb-1">Embedded View Blocked</p>
                 <p className="text-xs text-muted-foreground leading-relaxed">
@@ -814,16 +814,16 @@ function EndpointCard({ endpoint: ep, projectName, onLaunch, onEdit, onDelete, o
     <div className="group rounded-lg border border-border px-3 py-2 hover:bg-muted/30 transition-colors">
       <div className="flex items-start gap-2">
         <button onClick={onToggleFavorite} className="mt-0.5 shrink-0">
-          <Star className={cn('h-3.5 w-3.5 transition-colors', ep.favorite ? 'text-yellow-500 fill-yellow-500' : 'text-muted-foreground/30 hover:text-yellow-500')} />
+          <Star className={cn('h-3.5 w-3.5 transition-colors', ep.favorite ? 'text-field-warning fill-field-warning' : 'text-muted-foreground/30 hover:text-field-warning')} />
         </button>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <p className="text-xs font-medium truncate">{ep.friendlyName || ep.host}</p>
             {ep.lastKnownEmbedSupport === 'blocked' && (
-              <Badge variant="outline" className="text-[9px] h-4 px-1 text-yellow-600 border-yellow-300">ext only</Badge>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 text-field-warning border-yellow-300">ext only</Badge>
             )}
             {ep.lastKnownEmbedSupport === 'supported' && (
-              <Badge variant="outline" className="text-[9px] h-4 px-1 text-green-600 border-green-300">embed ok</Badge>
+              <Badge variant="outline" className="text-[9px] h-4 px-1 text-field-success border-green-300">embed ok</Badge>
             )}
           </div>
           <p className="text-[10px] font-mono text-muted-foreground truncate">{url}</p>

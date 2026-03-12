@@ -22,9 +22,9 @@ import {
 import { navigateToReportEdit } from '@/lib/routes';
 
 const STATUS_COLORS: Record<ReportStatus, string> = {
-  draft: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
-  submitted: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-  finalized: 'bg-green-500/15 text-green-700 dark:text-green-400',
+  draft: 'bg-field-warning/15 text-field-warning',
+  submitted: 'bg-field-info/15 text-field-info',
+  finalized: 'bg-field-success/15 text-field-success',
 };
 
 const STATUS_ICONS: Record<ReportStatus, React.ReactNode> = {
@@ -200,7 +200,7 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
             <Section icon={CalendarCheck} title="Work Summary">
               <div className="space-y-4">
                 <TextBlock label="Work Completed" value={report.workCompleted} />
-                <TextBlock label="Issues Encountered" value={report.issuesEncountered} icon={<AlertTriangle className="h-3 w-3 text-yellow-500" />} />
+                <TextBlock label="Issues Encountered" value={report.issuesEncountered} icon={<AlertTriangle className="h-3 w-3 text-field-warning" />} />
                 <TextBlock label="Work Planned Next" value={report.workPlannedNext} />
               </div>
             </Section>
@@ -221,7 +221,7 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
             <Section icon={Users} title="Coordination">
               <div className="space-y-4">
                 <TextBlock label="Coordination Notes" value={report.coordinationNotes} />
-                <TextBlock label="Safety Notes" value={report.safetyNotes} icon={<Shield className="h-3 w-3 text-green-500" />} />
+                <TextBlock label="Safety Notes" value={report.safetyNotes} icon={<Shield className="h-3 w-3 text-field-success" />} />
               </div>
             </Section>
           )}

@@ -174,9 +174,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <span className="hidden sm:inline">Projects</span>
         </Button>
 
-        <div className="hidden sm:block min-w-0 flex-1">
+        <div className="min-w-0 flex-1">
           <h1 className="truncate text-sm font-semibold sm:text-base">{project.name}</h1>
-          <p className="truncate text-xs text-muted-foreground">
+          <p className="hidden sm:block truncate text-xs text-muted-foreground">
             {project.customerName} — {project.projectNumber}
             {activeTab !== 'overview' && (
               <span className="text-primary"> › {sections.find(s => s.id === activeTab)?.label}</span>
@@ -402,7 +402,7 @@ function OverviewSection({
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-semibold">Project Details</CardTitle>
-              <button onClick={() => setEditOpen(true)} className="rounded p-1 hover:bg-muted" title="Edit">
+              <button onClick={() => setEditOpen(true)} className="rounded p-1.5 hover:bg-muted" title="Edit">
                 <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
             </div>
@@ -447,10 +447,10 @@ function OverviewSection({
                       )}
                     </div>
                     <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-                      <button onClick={() => { setEditContact({ contact, index: i }); setContactDialogOpen(true); }} className="rounded p-1 hover:bg-muted" title="Edit">
+                      <button onClick={() => { setEditContact({ contact, index: i }); setContactDialogOpen(true); }} className="rounded p-1.5 hover:bg-muted" title="Edit">
                         <Edit2 className="h-3 w-3 text-muted-foreground" />
                       </button>
-                      <button onClick={() => setDeleteContactIndex(i)} className="rounded p-1 hover:bg-muted" title="Delete">
+                      <button onClick={() => setDeleteContactIndex(i)} className="rounded p-1.5 hover:bg-muted" title="Delete">
                         <Trash2 className="h-3 w-3 text-field-danger" />
                       </button>
                     </div>
@@ -474,7 +474,7 @@ function OverviewSection({
               {!editingPanelRoster && (
                 <button
                   onClick={() => { setPanelRosterDraft(project.panelRosterSummary || ''); setEditingPanelRoster(true); }}
-                  className="rounded p-1 hover:bg-muted" title="Edit"
+                  className="rounded p-1.5 hover:bg-muted" title="Edit"
                 >
                   <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                 </button>
@@ -520,15 +520,15 @@ function OverviewSection({
             {networkStats ? (
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-lg bg-muted/50 p-2">
-                  <p className="text-lg font-bold">{networkStats.total}</p>
+                  <p className="text-base sm:text-lg font-bold">{networkStats.total}</p>
                   <p className="text-[10px] text-muted-foreground uppercase">IPs</p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-2">
-                  <p className="text-lg font-bold">{networkStats.subnets}</p>
+                  <p className="text-base sm:text-lg font-bold">{networkStats.subnets}</p>
                   <p className="text-[10px] text-muted-foreground uppercase">Subnets</p>
                 </div>
                 <div className="rounded-lg bg-muted/50 p-2">
-                  <p className="text-lg font-bold">{networkStats.vlans}</p>
+                  <p className="text-base sm:text-lg font-bold">{networkStats.vlans}</p>
                   <p className="text-[10px] text-muted-foreground uppercase">VLANs</p>
                 </div>
               </div>
@@ -563,7 +563,7 @@ function OverviewSection({
             {!editingTechNotes && (
               <button
                 onClick={() => { setTechNotesDraft(project.technicianNotes || ''); setEditingTechNotes(true); }}
-                className="rounded p-1 hover:bg-muted" title="Edit"
+                className="rounded p-1.5 hover:bg-muted" title="Edit"
               >
                 <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
               </button>
@@ -602,12 +602,12 @@ function OverviewSection({
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4">
         {[
           { key: 'panel-databases', label: 'Panel Databases', icon: Database, color: 'text-primary' },
-          { key: 'wiring-diagrams', label: 'Wiring Diagrams', icon: FileText, color: 'text-blue-500' },
-          { key: 'sequences', label: 'Sequences', icon: FileText, color: 'text-purple-500' },
-          { key: 'ip-plan', label: 'IP Plan', icon: Network, color: 'text-green-500' },
-          { key: 'device-list', label: 'Devices', icon: Server, color: 'text-amber-500' },
-          { key: 'backups', label: 'Backups', icon: HardDrive, color: 'text-red-500' },
-          { key: 'general-documents', label: 'General Docs', icon: FolderOpen, color: 'text-slate-500' },
+          { key: 'wiring-diagrams', label: 'Wiring Diagrams', icon: FileText, color: 'text-field-info' },
+          { key: 'sequences', label: 'Sequences', icon: FileText, color: 'text-primary' },
+          { key: 'ip-plan', label: 'IP Plan', icon: Network, color: 'text-field-success' },
+          { key: 'device-list', label: 'Devices', icon: Server, color: 'text-field-warning' },
+          { key: 'backups', label: 'Backups', icon: HardDrive, color: 'text-field-danger' },
+          { key: 'general-documents', label: 'General Docs', icon: FolderOpen, color: 'text-muted-foreground' },
         ].map(({ key, label, icon: Icon, color }) => {
           const count = key === 'device-list' ? devices.length : key === 'ip-plan' ? ipEntries.length : files.filter((f) => f.category === key).length;
           return (

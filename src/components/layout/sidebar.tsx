@@ -120,11 +120,11 @@ export function Sidebar() {
                       if (window.innerWidth < 768) setSidebarOpen(false);
                     }}
                     className={cn(
-                      'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                      'relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                       'hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                       'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       isActive
-                        ? 'bg-sidebar-accent text-sidebar-primary'
+                        ? 'bg-sidebar-accent text-sidebar-primary before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-4 before:w-[3px] before:rounded-full before:bg-sidebar-primary'
                         : 'text-sidebar-foreground/70'
                     )}
                   >
@@ -162,7 +162,7 @@ export function Sidebar() {
           </div>
         )}
         {sidebarOpen && (
-          <p className="mb-1 text-center text-[10px] text-muted-foreground/50 hidden md:block">
+          <p className="mb-1 text-center text-[10px] text-muted-foreground/70 hidden md:block">
             v{APP_VERSION}
           </p>
         )}

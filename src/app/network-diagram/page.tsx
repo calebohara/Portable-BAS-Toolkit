@@ -566,7 +566,7 @@ export default function NetworkDiagramPage() {
             )}
 
             {connectFrom && (
-              <Badge variant="outline" className="text-[10px] gap-1 text-blue-500">
+              <Badge variant="outline" className="text-[10px] gap-1 text-field-info">
                 <LinkIcon className="h-2.5 w-2.5" /> Connecting...
                 <button onClick={() => setConnectFrom(null)}><X className="h-2.5 w-2.5" /></button>
               </Badge>

@@ -156,11 +156,11 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 {state === 'ready' && previewType === 'pdf' && (
-                  <Button variant="ghost" size="sm" onClick={handleOpenNewTab} title="Open in new tab" className="h-8 w-8 p-0">
+                  <Button variant="ghost" size="sm" onClick={handleOpenNewTab} title="Open in new tab" aria-label="Open in new tab" className="h-8 w-8 p-0">
                     <ExternalLink className="h-4 w-4" />
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={handleDownload} title="Download" className="h-8 w-8 p-0">
+                <Button variant="ghost" size="sm" onClick={handleDownload} title="Download" aria-label="Download" className="h-8 w-8 p-0">
                   <Download className="h-4 w-4" />
                 </Button>
               </div>

@@ -263,7 +263,7 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
       {/* Sensitive Content Toggle */}
       <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
         <div className="flex items-center gap-2">
-          {content.hideSensitive ? <EyeOff className="h-4 w-4 text-amber-500" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
+          {content.hideSensitive ? <EyeOff className="h-4 w-4 text-field-warning" /> : <Eye className="h-4 w-4 text-muted-foreground" />}
           <div>
             <p className="text-sm font-medium">Hide Sensitive Data</p>
             <p className="text-[10px] text-muted-foreground">Mask IPs, MACs, emails, and phone numbers</p>

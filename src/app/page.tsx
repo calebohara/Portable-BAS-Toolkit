@@ -70,9 +70,11 @@ export default function DashboardPage() {
               <button
                 key={label}
                 onClick={onClick}
-                className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-3 text-center transition-colors hover:bg-accent hover:border-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-3 text-center transition-all hover:bg-accent hover:border-primary/20 hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <Icon className="h-5 w-5 text-primary" />
+                <div className="rounded-lg bg-primary/10 p-1.5">
+                  <Icon className="h-4 w-4 text-primary" />
+                </div>
                 <span className="text-xs font-medium">{label}</span>
               </button>
             ))}
@@ -200,7 +202,7 @@ export default function DashboardPage() {
 
 function ProjectCard({ project, onClick }: { project: Project; onClick: () => void }) {
   return (
-    <Card className="cursor-pointer transition-all hover:shadow-md hover:border-primary/20" onClick={onClick}>
+    <Card role="button" tabIndex={0} className="cursor-pointer transition-all hover:shadow-md hover:border-primary/20 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" onClick={onClick} onKeyDown={(e) => { if (e.key === 'Enter') onClick(); }}>
       <CardContent className="p-4">
         <div className="mb-2 flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">

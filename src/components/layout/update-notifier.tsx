@@ -120,7 +120,7 @@ export function UpdateNotifier() {
 
       {/* Update dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleDismiss(); else setDialogOpen(true); }}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>
               {state === 'available' && 'Update Available'}
@@ -166,7 +166,7 @@ export function UpdateNotifier() {
           {/* Status icons */}
           {state === 'up-to-date' && (
             <div className="flex justify-center py-4">
-              <CheckCircle2 className="h-12 w-12 text-green-500" />
+              <CheckCircle2 className="h-12 w-12 text-field-success" />
             </div>
           )}
           {state === 'error' && (
@@ -219,7 +219,7 @@ function ManualCheckButton({
       size="sm"
       onClick={onClick}
       disabled={state === 'checking' || state === 'downloading'}
-      className="w-full justify-center gap-1.5 text-[10px] text-muted-foreground/50 hover:text-muted-foreground h-6"
+      className="w-full justify-center gap-1.5 text-[10px] text-muted-foreground/70 hover:text-muted-foreground h-6"
     >
       <RefreshCw className={`h-3 w-3 ${state === 'checking' ? 'animate-spin' : ''}`} />
       {state === 'checking' ? 'Checking...' : state === 'available' ? 'Update Available!' : 'Check for Updates'}

@@ -174,10 +174,10 @@ async function checkReachabilityNative(host: string, port?: number): Promise<Pin
 
 // ─── Status UI ──────────────────────────────────────────────
 const STATUS_CONFIG: Record<PingStatus, { label: string; color: string; icon: typeof CheckCircle2 }> = {
-  reachable: { label: 'Reachable', color: 'text-green-500', icon: CheckCircle2 },
-  unreachable: { label: 'Unreachable', color: 'text-red-500', icon: XCircle },
-  pending: { label: 'Testing...', color: 'text-yellow-500', icon: Loader2 },
-  error: { label: 'Error', color: 'text-orange-500', icon: AlertTriangle },
+  reachable: { label: 'Reachable', color: 'text-field-success', icon: CheckCircle2 },
+  unreachable: { label: 'Unreachable', color: 'text-field-danger', icon: XCircle },
+  pending: { label: 'Testing...', color: 'text-field-warning', icon: Loader2 },
+  error: { label: 'Error', color: 'text-field-danger', icon: AlertTriangle },
 };
 
 // ─── Result Row ─────────────────────────────────────────────
@@ -462,8 +462,8 @@ export default function PingToolPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-6">
           {/* Disclaimer */}
-          <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 px-4 py-3 text-sm flex gap-3">
-            <Info className="h-4 w-4 text-blue-500 shrink-0 mt-0.5" />
+          <div className="rounded-lg border border-field-info/20 bg-field-info/5 px-4 py-3 text-sm flex gap-3">
+            <Info className="h-4 w-4 text-field-info shrink-0 mt-0.5" />
             <div className="text-muted-foreground space-y-1">
               {isDesktop ? (
                 <div>
@@ -664,8 +664,8 @@ export default function PingToolPage() {
                 const r = results[t.host];
                 return r && r[r.length - 1]?.status === 'unreachable';
               }) && (
-                <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 px-4 py-3 text-xs flex gap-3">
-                  <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
+                <div className="rounded-lg border border-field-warning/20 bg-field-warning/5 px-4 py-3 text-xs flex gap-3">
+                  <AlertTriangle className="h-4 w-4 text-field-warning shrink-0 mt-0.5" />
                   <div className="text-muted-foreground space-y-1">
                     <div><strong className="text-foreground">Host showing unreachable?</strong></div>
                     <ul className="list-disc ml-4 space-y-0.5">

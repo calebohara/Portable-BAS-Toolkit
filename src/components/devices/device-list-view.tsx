@@ -102,6 +102,10 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
     <TableHead
       className="cursor-pointer select-none hover:bg-muted/50 whitespace-nowrap"
       onClick={() => handleSort(field)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort(field); } }}
+      tabIndex={0}
+      role="columnheader"
+      aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
     >
       <div className="flex items-center gap-1">
         {children}
@@ -214,10 +218,10 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => openEdit(device)} className="rounded p-1 hover:bg-muted" title="Edit">
+                      <button onClick={() => openEdit(device)} className="rounded p-1.5 hover:bg-muted" title="Edit" aria-label="Edit">
                         <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                       </button>
-                      <button onClick={() => setDeleteTarget(device)} className="rounded p-1 hover:bg-muted" title="Delete">
+                      <button onClick={() => setDeleteTarget(device)} className="rounded p-1.5 hover:bg-muted" title="Delete" aria-label="Delete">
                         <Trash2 className="h-3.5 w-3.5 text-field-danger" />
                       </button>
                     </div>
@@ -247,10 +251,10 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
                   >
                     {device.status}
                   </Badge>
-                  <button onClick={() => openEdit(device)} className="rounded p-1 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity" title="Edit">
+                  <button onClick={() => openEdit(device)} className="rounded p-1.5 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity" title="Edit" aria-label="Edit">
                     <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
                   </button>
-                  <button onClick={() => setDeleteTarget(device)} className="rounded p-1 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity" title="Delete">
+                  <button onClick={() => setDeleteTarget(device)} className="rounded p-1.5 hover:bg-muted opacity-0 group-hover:opacity-100 transition-opacity" title="Delete" aria-label="Delete">
                     <Trash2 className="h-3.5 w-3.5 text-field-danger" />
                   </button>
                 </div>

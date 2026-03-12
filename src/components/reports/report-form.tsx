@@ -162,7 +162,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
         </Button>
 
         {isReadOnly && (
-          <div className="flex items-center gap-2 rounded-lg bg-yellow-500/10 p-3 text-sm text-yellow-700 dark:text-yellow-400">
+          <div className="flex items-center gap-2 rounded-lg bg-field-warning/10 p-3 text-sm text-field-warning">
             <Lock className="h-4 w-4" />
             This report is finalized and read-only. Change status to edit.
           </div>
@@ -251,7 +251,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
               <Textarea id="work-completed" value={workCompleted} onChange={e => setWorkCompleted(e.target.value)} placeholder="Describe work completed today..." rows={4} disabled={isReadOnly} className="mt-1.5 resize-y" />
             </div>
             <div>
-              <Label htmlFor="issues" className="flex items-center gap-1.5"><AlertTriangle className="h-3 w-3 text-yellow-500" /> Issues Encountered</Label>
+              <Label htmlFor="issues" className="flex items-center gap-1.5"><AlertTriangle className="h-3 w-3 text-field-warning" /> Issues Encountered</Label>
               <Textarea id="issues" value={issuesEncountered} onChange={e => setIssuesEncountered(e.target.value)} placeholder="Any problems, blockers, or concerns..." rows={3} disabled={isReadOnly} className="mt-1.5 resize-y" />
             </div>
             <div>
@@ -289,7 +289,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
               <Textarea id="coordination" value={coordinationNotes} onChange={e => setCoordinationNotes(e.target.value)} placeholder="Communication with other trades, GC, customer..." rows={3} disabled={isReadOnly} className="mt-1.5 resize-y" />
             </div>
             <div>
-              <Label htmlFor="safety" className="flex items-center gap-1.5"><Shield className="h-3 w-3 text-green-500" /> Safety Notes</Label>
+              <Label htmlFor="safety" className="flex items-center gap-1.5"><Shield className="h-3 w-3 text-field-success" /> Safety Notes</Label>
               <Textarea id="safety" value={safetyNotes} onChange={e => setSafetyNotes(e.target.value)} placeholder="Safety observations, PPE, hazards..." rows={2} disabled={isReadOnly} className="mt-1.5 resize-y" />
             </div>
           </div>

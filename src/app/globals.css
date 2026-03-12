@@ -138,6 +138,25 @@
   html {
     @apply font-sans scroll-smooth;
   }
+  /* Apply thin scrollbars globally for a cleaner look */
+  *::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: oklch(0.7 0 0 / 20%);
+    border-radius: 3px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: oklch(0.7 0 0 / 40%);
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.7 0 0 / 20%) transparent;
+  }
 }
 
 @layer utilities {

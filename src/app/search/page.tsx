@@ -207,7 +207,7 @@ export default function SearchPage() {
             {results.files.length > 0 && (
               <section>
                 <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                  <FileText className="h-4 w-4 text-blue-500" /> Files ({results.files.length})
+                  <FileText className="h-4 w-4 text-field-info" /> Files ({results.files.length})
                 </h3>
                 <div className="space-y-2">
                   {results.files.map((f) => (
@@ -234,7 +234,7 @@ export default function SearchPage() {
             {results.devices.length > 0 && (
               <section>
                 <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                  <Server className="h-4 w-4 text-amber-500" /> Devices ({results.devices.length})
+                  <Server className="h-4 w-4 text-field-warning" /> Devices ({results.devices.length})
                 </h3>
                 <div className="space-y-2">
                   {results.devices.map((d) => (
@@ -243,7 +243,7 @@ export default function SearchPage() {
                       onClick={() => navigateToProject(router, d.projectId, 'device-list')}
                       className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
-                      <Server className="h-5 w-5 text-amber-500 shrink-0" />
+                      <Server className="h-5 w-5 text-field-warning shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-mono font-medium"><Highlight text={d.deviceName} query={q} /></p>
                         <p className="truncate text-xs text-muted-foreground">
@@ -261,7 +261,7 @@ export default function SearchPage() {
             {results.ipEntries.length > 0 && (
               <section>
                 <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                  <Network className="h-4 w-4 text-green-500" /> IP Plan ({results.ipEntries.length})
+                  <Network className="h-4 w-4 text-field-success" /> IP Plan ({results.ipEntries.length})
                 </h3>
                 <div className="space-y-2">
                   {results.ipEntries.map((e) => (
@@ -270,7 +270,7 @@ export default function SearchPage() {
                       onClick={() => navigateToProject(router, e.projectId, 'ip-plan')}
                       className="flex w-full items-center gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
-                      <Network className="h-5 w-5 text-green-500 shrink-0" />
+                      <Network className="h-5 w-5 text-field-success shrink-0" />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-mono font-medium">
                           <Highlight text={`${e.ipAddress} — ${e.hostname}`} query={q} />
@@ -289,7 +289,7 @@ export default function SearchPage() {
             {results.notes.length > 0 && (
               <section>
                 <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold">
-                  <StickyNote className="h-4 w-4 text-yellow-500" /> Notes ({results.notes.length})
+                  <StickyNote className="h-4 w-4 text-field-warning" /> Notes ({results.notes.length})
                 </h3>
                 <div className="space-y-2">
                   {results.notes.map((n) => (
@@ -298,7 +298,7 @@ export default function SearchPage() {
                       onClick={() => navigateToProject(router, n.projectId, 'notes')}
                       className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"
                     >
-                      <StickyNote className="h-5 w-5 text-yellow-500 shrink-0 mt-0.5" />
+                      <StickyNote className="h-5 w-5 text-field-warning shrink-0 mt-0.5" />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm line-clamp-2"><Highlight text={n.content} query={q} /></p>
                         <p className="mt-1 text-xs text-muted-foreground">

@@ -19,9 +19,9 @@ import { navigateToReport } from '@/lib/routes';
 import type { ReportStatus } from '@/types';
 
 const STATUS_COLORS: Record<ReportStatus, string> = {
-  draft: 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-400',
-  submitted: 'bg-blue-500/15 text-blue-700 dark:text-blue-400',
-  finalized: 'bg-green-500/15 text-green-700 dark:text-green-400',
+  draft: 'bg-field-warning/15 text-field-warning',
+  submitted: 'bg-field-info/15 text-field-info',
+  finalized: 'bg-field-success/15 text-field-success',
 };
 
 export default function ReportsListPage() {
@@ -90,7 +90,7 @@ export default function ReportsListPage() {
             />
           </div>
           <Select value={projectFilter} onValueChange={(v) => v && setProjectFilter(v)}>
-            <SelectTrigger className="w-[180px] h-9">
+            <SelectTrigger className="w-full sm:w-[180px] h-9">
               <Filter className="h-3.5 w-3.5 mr-1.5 text-muted-foreground" />
               <SelectValue placeholder="All Projects" />
             </SelectTrigger>
@@ -102,7 +102,7 @@ export default function ReportsListPage() {
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={(v) => v && setStatusFilter(v)}>
-            <SelectTrigger className="w-[140px] h-9">
+            <SelectTrigger className="w-full sm:w-[140px] h-9">
               <SelectValue placeholder="All Status" />
             </SelectTrigger>
             <SelectContent>

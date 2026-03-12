@@ -76,7 +76,7 @@ export function NewProjectDialog({ open, onOpenChange, onCreate }: Props) {
             <div className="space-y-2">
               <Label htmlFor="projectNumber">Project Number *</Label>
               <Input id="projectNumber" placeholder="e.g. 44OP-001234" value={form.projectNumber} onChange={(e) => updateField('projectNumber', e.target.value)} onBlur={() => { const pn = form.projectNumber.trim(); if (pn && !/^44OP-\d{6}$/.test(pn)) setPnWarning('Expected format: 44OP-XXXXXX'); else setPnWarning(''); }} required />
-              {pnWarning && <p className="text-xs text-amber-500">{pnWarning}</p>}
+              {pnWarning && <p className="text-xs text-field-warning">{pnWarning}</p>}
             </div>
             <div className="space-y-2">
               <Label htmlFor="customerName">Customer / Site</Label>

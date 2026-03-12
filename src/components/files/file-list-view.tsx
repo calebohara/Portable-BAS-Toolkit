@@ -121,12 +121,16 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
             {filteredFiles.map((file) => (
               <Card
                 key={file.id}
+                role="button"
+                tabIndex={0}
+                aria-selected={selectedFileId === file.id}
                 className={cn(
                   'cursor-pointer transition-all hover:shadow-sm',
                   selectedFileId === file.id && 'ring-2 ring-primary border-primary/20'
                 )}
                 onClick={() => setSelectedFileId(file.id === selectedFileId ? null : file.id)}
                 onDoubleClick={() => setPreviewFile(file)}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedFileId(file.id === selectedFileId ? null : file.id); } }}
               >
                 <CardContent className="p-3">
                   <div className="flex items-start gap-3">
@@ -140,7 +144,7 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
                         <div className="flex items-center gap-1.5 shrink-0">
                           <FileStatusBadge status={file.status} />
                           {file.isPinned && <Pin className="h-3 w-3 text-primary" />}
-                          {file.isFavorite && <Star className="h-3 w-3 text-amber-500 fill-amber-500" />}
+                          {file.isFavorite && <Star className="h-3 w-3 text-field-warning fill-field-warning" />}
                         </div>
                       </div>
 

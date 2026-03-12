@@ -138,11 +138,14 @@ function ProjectsPageInner() {
             {filtered.map((project) => (
               <Card
                 key={project.id}
-                className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/20"
+                role="button"
+                tabIndex={0}
+                className="group cursor-pointer transition-all hover:shadow-md hover:border-primary/20 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                 onClick={() => {
                   useAppStore.getState().addRecentProject(project.id);
                   navigateToProject(router, project.id);
                 }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { useAppStore.getState().addRecentProject(project.id); navigateToProject(router, project.id); } }}
               >
                 <CardContent className="p-4">
                   <div className="mb-2 flex items-start justify-between gap-2">
