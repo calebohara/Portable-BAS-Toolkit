@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog } from '@/types';
+import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog, ConnectionProfile } from '@/types';
 import * as db from '@/lib/db';
 import { generateDemoData } from '@/lib/demo-data';
 import { v4 as uuid } from 'uuid';
@@ -762,4 +762,57 @@ export function useTerminalLogs(projectId: string) {
   }, [refresh]);
 
   return { logs, loading, refresh, addLog, removeLog };
+}
+
+// ─── Connection Profiles ────────────────────────────────────
+export function useConnectionProfiles(projectId?: string) {
+  const [profiles, setProfiles] = useState<ConnectionProfile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const all = projectId
+        ? await db.getProjectConnectionProfiles(projectId)
+        : await db.getAllConnectionProfiles();
+      setProfiles(all);
+    } catch (e) {
+      console.error('Failed to load profiles:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+
+  const addProfile = useCallback(async (data: Omit<ConnectionProfile, 'id' | 'createdAt' | 'updatedAt' | 'lastConnectedAt'>) => {
+    const now = new Date().toISOString();
+    const profile: ConnectionProfile = { ...data, id: uuid(), lastConnectedAt: '', createdAt: now, updatedAt: now };
+    await db.saveConnectionProfile(profile);
+    await refresh();
+    return profile;
+  }, [refresh]);
+
+  const updateProfile = useCallback(async (profile: ConnectionProfile) => {
+    profile.updatedAt = new Date().toISOString();
+    await db.saveConnectionProfile(profile);
+    await refresh();
+  }, [refresh]);
+
+  const removeProfile = useCallback(async (id: string) => {
+    await db.deleteConnectionProfile(id);
+    await refresh();
+  }, [refresh]);
+
+  const touchProfile = useCallback(async (id: string) => {
+    const all = await db.getAllConnectionProfiles();
+    const p = all.find(x => x.id === id);
+    if (p) {
+      p.lastConnectedAt = new Date().toISOString();
+      p.updatedAt = new Date().toISOString();
+      await db.saveConnectionProfile(p);
+      await refresh();
+    }
+  }, [refresh]);
+
+  return { profiles, loading, refresh, addProfile, updateProfile, removeProfile, touchProfile };
 }

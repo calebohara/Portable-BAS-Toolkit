@@ -309,6 +309,38 @@ export interface CommandSnippet {
   updatedAt: string;
 }
 
+// ─── Connection Profiles ────────────────────────────────────
+export type FlowControl = 'none' | 'hardware' | 'software';
+
+export interface ConnectionProfile {
+  id: string;
+  name: string;
+  connectionType: 'serial' | 'tcp';
+  // Serial settings
+  serialPort: string;
+  baudRate: number;
+  dataBits: number;
+  parity: string;
+  stopBits: string;
+  flowControl: FlowControl;
+  // TCP/Telnet settings
+  host: string;
+  port: number;
+  // Common settings
+  localEcho: boolean;
+  lineEnding: string;
+  logging: boolean;
+  // Organization
+  projectId: string;
+  notes: string;
+  isFavorite: boolean;
+  tags: string[];
+  // Metadata
+  lastConnectedAt: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Terminal Session Logs ───────────────────────────────────
 export interface TerminalSessionLog {
   id: string;

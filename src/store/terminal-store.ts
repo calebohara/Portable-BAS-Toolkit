@@ -6,7 +6,7 @@ import { persist } from 'zustand/middleware';
 // ─── Types ──────────────────────────────────────────────────
 export type ConnectionState = 'disconnected' | 'connecting' | 'connected' | 'error';
 export type ConnectionMode = 'serial' | 'tcp';
-export type BaudRate = 9600 | 19200 | 38400 | 57600 | 115200;
+export type BaudRate = 1200 | 2400 | 4800 | 9600 | 19200 | 38400 | 57600 | 115200;
 export type DataBits = 5 | 6 | 7 | 8;
 export type Parity = 'none' | 'odd' | 'even';
 export type StopBits = '1' | '2';
@@ -27,7 +27,14 @@ export const STOP_BITS_OPTIONS: { value: StopBits; label: string }[] = [
   { value: '2', label: '2' },
 ];
 
-export const BAUD_RATES: BaudRate[] = [9600, 19200, 38400, 57600, 115200];
+export type FlowControl = 'none' | 'hardware' | 'software';
+export const FLOW_CONTROL_OPTIONS: { value: FlowControl; label: string }[] = [
+  { value: 'none', label: 'None' },
+  { value: 'hardware', label: 'Hardware (RTS/CTS)' },
+  { value: 'software', label: 'Software (XON/XOFF)' },
+];
+
+export const BAUD_RATES: BaudRate[] = [1200, 2400, 4800, 9600, 19200, 38400, 57600, 115200];
 export const LINE_ENDINGS: { value: LineEnding; label: string }[] = [
   { value: 'crlf', label: 'CR+LF (\\r\\n)' },
   { value: 'cr', label: 'CR (\\r)' },
@@ -55,6 +62,7 @@ export interface TerminalSession {
   dataBits: DataBits;
   parity: Parity;
   stopBits: StopBits;
+  flowControl: FlowControl;
   // Common fields
   baudRate: BaudRate;
   lineEnding: LineEnding;
@@ -65,6 +73,7 @@ export interface TerminalSession {
   buffer: TerminalLine[];
   paused: boolean;
   logging: boolean;
+  sessionNotes: string;
   startedAt: string;
   endedAt: string;
 }
@@ -81,11 +90,15 @@ export interface SessionHistoryEntry {
 }
 
 // ─── Settings ───────────────────────────────────────────────
+export type FontSize = 10 | 11 | 12 | 13 | 14 | 16 | 18;
+export const FONT_SIZES: FontSize[] = [10, 11, 12, 13, 14, 16, 18];
+
 export interface TerminalSettings {
   defaultBaudRate: BaudRate;
   defaultLineEnding: LineEnding;
   defaultBufferSize: BufferSize;
   autoLogging: boolean;
+  fontSize: FontSize;
 }
 
 // ─── Store ──────────────────────────────────────────────────
@@ -130,6 +143,7 @@ function makeSession(opts?: { connectionMode?: ConnectionMode; host?: string; po
     dataBits: 8,
     parity: 'none',
     stopBits: '1',
+    flowControl: 'none',
     baudRate: opts?.baudRate || 115200,
     lineEnding: opts?.lineEnding || 'crlf',
     localEcho: false,
@@ -139,6 +153,7 @@ function makeSession(opts?: { connectionMode?: ConnectionMode; host?: string; po
     buffer: [],
     paused: false,
     logging: true,
+    sessionNotes: '',
     startedAt: new Date().toISOString(),
     endedAt: '',
   };
@@ -259,6 +274,7 @@ export const useTerminalStore = create<TerminalStore>()(
           defaultLineEnding: 'crlf' as LineEnding,
           defaultBufferSize: 1000,
           autoLogging: true,
+          fontSize: 12 as FontSize,
         },
         updateSettings: (patch) => {
           set(s => ({ settings: { ...s.settings, ...patch } }));
@@ -292,9 +308,11 @@ export const useTerminalStore = create<TerminalStore>()(
             dataBits: s.dataBits ?? (8 as DataBits),
             parity: s.parity ?? ('none' as Parity),
             stopBits: s.stopBits ?? ('1' as StopBits),
+            flowControl: s.flowControl ?? ('none' as FlowControl),
             lineEnding: s.lineEnding ?? ('crlf' as LineEnding),
             localEcho: s.localEcho ?? false,
             lineMode: s.lineMode ?? true,
+            sessionNotes: s.sessionNotes ?? '',
           })),
         };
       },

@@ -3,6 +3,7 @@ import type {
   Project, ProjectFile, FileVersion, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
+  ConnectionProfile,
 } from '@/types';
 
 interface BasToolkitDB extends DBSchema {
@@ -82,13 +83,18 @@ interface BasToolkitDB extends DBSchema {
     value: TerminalSessionLog;
     indexes: { 'by-project': string };
   };
+  connectionProfiles: {
+    key: string;
+    value: ConnectionProfile;
+    indexes: { 'by-project': string; 'by-type': string };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 4, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 5, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           // Projects
@@ -151,6 +157,13 @@ function getDB() {
           const terminalLogStore = db.createObjectStore('terminalLogs', { keyPath: 'id' });
           terminalLogStore.createIndex('by-project', 'projectId');
         }
+
+        if (oldVersion < 5) {
+          // Connection Profiles
+          const profileStore = db.createObjectStore('connectionProfiles', { keyPath: 'id' });
+          profileStore.createIndex('by-project', 'projectId');
+          profileStore.createIndex('by-type', 'connectionType');
+        }
       },
     }).catch((err) => {
       // Reset so next call retries instead of returning cached failure
@@ -180,7 +193,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles'], 'readwrite');
 
   try {
     // Delete associated data
@@ -222,6 +235,9 @@ export async function deleteProject(id: string): Promise<void> {
 
     const termLogs = await tx.objectStore('terminalLogs').index('by-project').getAll(id);
     for (const tl of termLogs) await tx.objectStore('terminalLogs').delete(tl.id);
+
+    const connProfiles = await tx.objectStore('connectionProfiles').index('by-project').getAll(id);
+    for (const cp of connProfiles) await tx.objectStore('connectionProfiles').delete(cp.id);
 
     await tx.objectStore('projects').delete(id);
     await tx.done;
@@ -578,6 +594,29 @@ export async function saveTerminalLog(log: TerminalSessionLog): Promise<void> {
 export async function deleteTerminalLog(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('terminalLogs', id);
+}
+
+// ─── Connection Profiles ─────────────────────────────────────
+export async function getAllConnectionProfiles(): Promise<ConnectionProfile[]> {
+  const db = await getDB();
+  const profiles = await db.getAll('connectionProfiles');
+  return profiles.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getProjectConnectionProfiles(projectId: string): Promise<ConnectionProfile[]> {
+  const db = await getDB();
+  const profiles = await db.getAllFromIndex('connectionProfiles', 'by-project', projectId);
+  return profiles.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function saveConnectionProfile(profile: ConnectionProfile): Promise<void> {
+  const db = await getDB();
+  await db.put('connectionProfiles', profile);
+}
+
+export async function deleteConnectionProfile(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('connectionProfiles', id);
 }
 
 // Global search across all projects

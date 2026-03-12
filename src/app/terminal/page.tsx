@@ -6,7 +6,8 @@ import {
   Terminal as TerminalIcon, Plug, Unplug, RotateCcw, Trash2, Pause, Play,
   Download, Plus, X, Settings2, History, FileText, ChevronDown, ChevronUp,
   AlertCircle, CheckCircle2, Loader2, Circle, BookOpen, Paperclip,
-  BookmarkPlus, Star, Tag, Search, Copy, PlayCircle,
+  BookmarkPlus, Star, Tag, Search, Copy, PlayCircle, Clock, StickyNote,
+  Wifi, WifiOff, Save, Edit2,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -23,13 +24,16 @@ import {
   useTerminalStore,
   BAUD_RATES, BUFFER_SIZES, LINE_ENDINGS, CONNECTION_MODES,
   DATA_BITS_OPTIONS, PARITY_OPTIONS, STOP_BITS_OPTIONS,
+  FLOW_CONTROL_OPTIONS, FONT_SIZES,
   type TerminalSession, type ConnectionState, type ConnectionMode,
   type BaudRate, type BufferSize, type DataBits, type Parity, type StopBits,
+  type FlowControl, type FontSize,
   type TerminalLine, type LineEnding,
 } from '@/store/terminal-store';
+import { useConnectionProfiles } from '@/hooks/use-projects';
 import { useProjects, useCommandSnippets } from '@/hooks/use-projects';
 // db imports handled via dynamic import in AttachDialog
-import type { CommandSnippet, SnippetCategory } from '@/types';
+import type { CommandSnippet, SnippetCategory, ConnectionProfile } from '@/types';
 import { SNIPPET_CATEGORY_LABELS } from '@/types';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
@@ -52,6 +56,7 @@ import {
   onSerialError,
   type NativeSerialPortInfo,
 } from '@/lib/tauri-bridge';
+import { parseAnsiLine, processCarriageReturns, containsClearScreen } from '@/lib/hmi/ansi-parser';
 
 // ─── Connection State UI ─────────────────────────────────────
 const STATE_CONFIG: Record<ConnectionState, { label: string; color: string; icon: typeof Circle }> = {
@@ -61,8 +66,193 @@ const STATE_CONFIG: Record<ConnectionState, { label: string; color: string; icon
   error: { label: 'Error', color: 'text-red-500', icon: AlertCircle },
 };
 
+// ─── Connection Duration Hook ────────────────────────────────
+function useConnectionDuration(session: TerminalSession) {
+  const [elapsed, setElapsed] = useState('');
+
+  useEffect(() => {
+    if (session.connectionState !== 'connected' || !session.startedAt) {
+      setElapsed('');
+      return;
+    }
+    const start = new Date(session.startedAt).getTime();
+    const tick = () => {
+      const diff = Math.floor((Date.now() - start) / 1000);
+      const h = Math.floor(diff / 3600);
+      const m = Math.floor((diff % 3600) / 60);
+      const s = diff % 60;
+      setElapsed(h > 0
+        ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+        : `${m}:${String(s).padStart(2, '0')}`
+      );
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [session.connectionState, session.startedAt]);
+
+  return elapsed;
+}
+
+// ─── Session Notes Panel ─────────────────────────────────────
+function SessionNotesPanel({ session }: { session: TerminalSession }) {
+  const updateSession = useTerminalStore(s => s.updateSession);
+  const [notes, setNotes] = useState(session.sessionNotes ?? '');
+
+  useEffect(() => { setNotes(session.sessionNotes ?? ''); }, [session.id, session.sessionNotes]);
+
+  const handleSave = () => {
+    updateSession(session.id, { sessionNotes: notes });
+    toast.success('Session notes saved');
+  };
+
+  return (
+    <div className="p-4 border-t border-border space-y-2">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold flex items-center gap-2">
+          <StickyNote className="h-4 w-4" /> Session Notes
+        </h3>
+        <Button size="sm" variant="outline" className="h-6 text-xs gap-1" onClick={handleSave}>
+          <Save className="h-3 w-3" /> Save
+        </Button>
+      </div>
+      <textarea
+        value={notes}
+        onChange={e => setNotes(e.target.value)}
+        placeholder="Add notes about this session (panel info, issues observed, etc.)..."
+        className="w-full min-h-[80px] rounded-lg border border-border bg-background p-2 text-xs font-mono resize-y outline-none focus:ring-1 focus:ring-ring"
+        spellCheck={false}
+      />
+    </div>
+  );
+}
+
+// ─── Connection Profiles Sidebar ─────────────────────────────
+function ProfilesSidebar({ session, onApplyProfile }: {
+  session: TerminalSession;
+  onApplyProfile: (profile: ConnectionProfile) => void;
+}) {
+  const { profiles, addProfile, updateProfile, removeProfile } = useConnectionProfiles();
+  const [showAdd, setShowAdd] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [profileName, setProfileName] = useState('');
+
+  const handleSaveCurrentAsProfile = async () => {
+    if (!profileName.trim()) {
+      toast.error('Profile name is required');
+      return;
+    }
+    await addProfile({
+      name: profileName,
+      connectionType: session.connectionMode,
+      serialPort: session.serialPort,
+      baudRate: session.baudRate,
+      dataBits: session.dataBits ?? 8,
+      parity: session.parity ?? 'none',
+      stopBits: session.stopBits ?? '1',
+      flowControl: session.flowControl ?? 'none',
+      host: session.host,
+      port: session.port,
+      localEcho: session.localEcho,
+      lineEnding: session.lineEnding,
+      logging: session.logging,
+      projectId: '',
+      notes: session.sessionNotes ?? '',
+      isFavorite: false,
+      tags: [],
+    });
+    toast.success(`Profile "${profileName}" saved`);
+    setProfileName('');
+    setShowAdd(false);
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    await removeProfile(id);
+    toast.success(`Profile "${name}" deleted`);
+  };
+
+  const handleToggleFav = async (profile: ConnectionProfile) => {
+    await updateProfile({ ...profile, isFavorite: !profile.isFavorite });
+  };
+
+  const sortedProfiles = [...profiles].sort((a, b) => {
+    if (a.isFavorite !== b.isFavorite) return a.isFavorite ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  return (
+    <div className="w-56 shrink-0 border-r border-border bg-muted/20 flex flex-col overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+        <h3 className="text-xs font-semibold">Profiles</h3>
+        <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setShowAdd(!showAdd)} title="Save current as profile">
+          <Plus className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+
+      {showAdd && (
+        <div className="px-3 py-2 border-b border-border space-y-2 bg-muted/30">
+          <Input
+            value={profileName}
+            onChange={e => setProfileName(e.target.value)}
+            placeholder="Profile name..."
+            className="h-7 text-xs"
+            onKeyDown={e => e.key === 'Enter' && handleSaveCurrentAsProfile()}
+          />
+          <div className="flex gap-1">
+            <Button size="sm" className="h-6 text-[10px] flex-1" onClick={handleSaveCurrentAsProfile}>Save</Button>
+            <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setShowAdd(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      <div className="flex-1 overflow-y-auto">
+        {sortedProfiles.length === 0 && (
+          <div className="px-3 py-6 text-center text-[10px] text-muted-foreground">
+            No saved profiles yet.
+            <br />Click + to save current settings.
+          </div>
+        )}
+        {sortedProfiles.map(p => (
+          <button
+            key={p.id}
+            onClick={() => onApplyProfile(p)}
+            className="w-full text-left px-3 py-2 text-xs hover:bg-muted/50 transition-colors border-b border-border/50 group"
+          >
+            <div className="flex items-center gap-1.5">
+              {p.isFavorite && <Star className="h-2.5 w-2.5 fill-yellow-500 text-yellow-500 shrink-0" />}
+              <span className="font-medium truncate">{p.name}</span>
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              {p.connectionType === 'serial'
+                ? `${p.serialPort || 'Serial'} @ ${p.baudRate}`
+                : `${p.host || '—'}:${p.port}`
+              }
+            </div>
+            <div className="flex gap-1 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button
+                onClick={e => { e.stopPropagation(); handleToggleFav(p); }}
+                className="p-0.5 rounded hover:bg-muted"
+                title={p.isFavorite ? 'Unfavorite' : 'Favorite'}
+              >
+                <Star className={cn('h-2.5 w-2.5', p.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-muted-foreground')} />
+              </button>
+              <button
+                onClick={e => { e.stopPropagation(); handleDelete(p.id, p.name); }}
+                className="p-0.5 rounded hover:bg-muted hover:text-destructive"
+                title="Delete profile"
+              >
+                <Trash2 className="h-2.5 w-2.5 text-muted-foreground" />
+              </button>
+            </div>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ─── Terminal Output ─────────────────────────────────────────
-function TerminalView({ session }: { session: TerminalSession }) {
+function TerminalView({ session, fontSize }: { session: TerminalSession; fontSize: number }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -75,7 +265,7 @@ function TerminalView({ session }: { session: TerminalSession }) {
   const lineColor = (type: TerminalLine['type']) => {
     switch (type) {
       case 'input': return 'text-green-400';
-      case 'output': return 'text-gray-300';
+      case 'output': return undefined; // ANSI-parsed spans handle color
       case 'system': return 'text-blue-400';
       case 'error': return 'text-red-400';
     }
@@ -84,7 +274,8 @@ function TerminalView({ session }: { session: TerminalSession }) {
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto bg-[#0d1117] p-3 font-mono text-xs leading-relaxed"
+      className="flex-1 overflow-y-auto bg-[#0d1117] p-3 font-mono leading-relaxed"
+      style={{ fontSize: `${fontSize}px` }}
     >
       {session.buffer.length === 0 && (
         <div className="text-gray-600 select-none">
@@ -98,12 +289,16 @@ function TerminalView({ session }: { session: TerminalSession }) {
       {session.buffer.map((line, i) => (
         <div key={i} className={cn('whitespace-pre-wrap break-all', lineColor(line.type))}>
           {session.logging && (
-            <span className="text-gray-600 mr-2 select-none text-[10px]">
+            <span className="text-gray-600 mr-2 select-none" style={{ fontSize: '10px' }}>
               {format(new Date(line.timestamp), 'HH:mm:ss')}
             </span>
           )}
           {line.type === 'input' && <span className="text-green-600 select-none">&gt; </span>}
-          {line.text}
+          {line.type === 'output' ? (
+            <TerminalLineSpans text={line.text} />
+          ) : (
+            line.text
+          )}
         </div>
       ))}
       {session.paused && (
@@ -111,6 +306,30 @@ function TerminalView({ session }: { session: TerminalSession }) {
       )}
       <div ref={bottomRef} />
     </div>
+  );
+}
+
+// Renders ANSI-styled spans for a single output line
+function TerminalLineSpans({ text }: { text: string }) {
+  const parsed = parseAnsiLine(text);
+  if (parsed.spans.length === 1 && !parsed.spans[0].bold && !parsed.spans[0].fgColor && !parsed.spans[0].bgColor) {
+    return <span className="text-gray-300">{parsed.spans[0].text}</span>;
+  }
+  return (
+    <>
+      {parsed.spans.map((span, i) => (
+        <span
+          key={i}
+          style={{
+            color: span.fgColor || '#abb2bf',
+            backgroundColor: span.bgColor,
+            fontWeight: span.bold ? 'bold' : undefined,
+          }}
+        >
+          {span.text}
+        </span>
+      ))}
+    </>
   );
 }
 
@@ -355,7 +574,7 @@ function SettingsPanel() {
       <h3 className="text-sm font-semibold flex items-center gap-2">
         <Settings2 className="h-4 w-4" /> Terminal Settings
       </h3>
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3 sm:grid-cols-5">
         <div className="space-y-1.5">
           <Label className="text-xs">Default Baud Rate</Label>
           <Select
@@ -389,6 +608,18 @@ function SettingsPanel() {
             <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
             <SelectContent>
               {BUFFER_SIZES.map(b => <SelectItem key={b} value={String(b)}>{b.toLocaleString()}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs">Font Size</Label>
+          <Select
+            value={String(settings.fontSize ?? 12)}
+            onValueChange={v => v && updateSettings({ fontSize: Number(v) as FontSize })}
+          >
+            <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {FONT_SIZES.map(fs => <SelectItem key={fs} value={String(fs)}>{fs}px</SelectItem>)}
             </SelectContent>
           </Select>
         </div>
@@ -642,9 +873,13 @@ export default function TelnetPage() {
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [showSnippets, setShowSnippets] = useState(false);
+  const [showNotes, setShowNotes] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
+  const [showProfiles, setShowProfiles] = useState(false);
   const [connPanelOpen, setConnPanelOpen] = useState(true);
   const [insertedCmd, setInsertedCmd] = useState('');
+
+  const connectionDuration = useConnectionDuration(session);
 
   const wsRef = useRef<WebSocket | null>(null);
   // Track Tauri event listener cleanup per session (key = session ID)
@@ -659,8 +894,16 @@ export default function TelnetPage() {
   const flushTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const processIncomingData = useCallback((sessionId: string, data: string) => {
+    // Handle ANSI clear screen — wipe buffer
+    if (containsClearScreen(data)) {
+      clearBuffer(sessionId);
+    }
+
+    // Process carriage returns (bare \r overwrites from column 0)
+    const processed = processCarriageReturns(data);
+
     const existing = lineBufferRef.current.get(sessionId) ?? '';
-    const combined = existing + data;
+    const combined = existing + processed;
 
     // Split on any newline variant: \r\n, \r, or \n
     const parts = combined.split(/\r\n|\r|\n/);
@@ -698,7 +941,7 @@ export default function TelnetPage() {
       }, 100);
       flushTimeoutRef.current.set(sessionId, timer);
     }
-  }, [appendLine]);
+  }, [appendLine, clearBuffer]);
 
   const flushLineBuffer = useCallback((sessionId: string) => {
     const timer = flushTimeoutRef.current.get(sessionId);
@@ -1029,13 +1272,38 @@ export default function TelnetPage() {
     };
   }, []);
 
+  const handleApplyProfile = useCallback((profile: ConnectionProfile) => {
+    updateSession(session.id, {
+      connectionMode: profile.connectionType as ConnectionMode,
+      serialPort: profile.serialPort,
+      baudRate: profile.baudRate as BaudRate,
+      dataBits: profile.dataBits as DataBits,
+      parity: profile.parity as Parity,
+      stopBits: profile.stopBits as StopBits,
+      flowControl: (profile.flowControl ?? 'none') as FlowControl,
+      host: profile.host,
+      port: profile.port,
+      localEcho: profile.localEcho,
+      lineEnding: profile.lineEnding as LineEnding,
+      logging: profile.logging,
+      label: profile.name,
+    });
+    toast.success(`Profile "${profile.name}" applied`);
+  }, [session.id, updateSession]);
+
   const stateConfig = STATE_CONFIG[session.connectionState];
   const StateIcon = stateConfig.icon;
 
   return (
     <>
-      <TopBar title="Telnet HMI Tool" />
-      <div className="flex flex-col" style={{ height: 'calc(100vh - 3.5rem)' }}>
+      <TopBar title="HMI Terminal" />
+      <div className="flex" style={{ height: 'calc(100vh - 3.5rem)' }}>
+        {/* Profiles Sidebar */}
+        {showProfiles && (
+          <ProfilesSidebar session={session} onApplyProfile={handleApplyProfile} />
+        )}
+
+        <div className="flex flex-col flex-1 min-w-0">
         {/* Session Tabs */}
         <div className="flex items-center border-b border-border bg-muted/30 shrink-0">
           <div className="flex flex-1 overflow-x-auto scrollbar-none">
@@ -1195,9 +1463,9 @@ export default function TelnetPage() {
                 )}
               </div>
 
-              {/* Serial-specific: Data Bits, Parity, Stop Bits, Line Ending */}
+              {/* Serial-specific: Data Bits, Parity, Stop Bits, Flow Control, Line Ending */}
               {session.connectionMode === 'serial' && (
-                <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                <div className="grid gap-3 grid-cols-2 sm:grid-cols-5">
                   <div className="space-y-1.5">
                     <Label className="text-xs">Data Bits</Label>
                     <Select
@@ -1231,6 +1499,18 @@ export default function TelnetPage() {
                       <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         {STOP_BITS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs">Flow Control</Label>
+                    <Select
+                      value={session.flowControl ?? 'none'}
+                      onValueChange={v => v && updateSession(session.id, { flowControl: v as FlowControl })}
+                    >
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {FLOW_CONTROL_OPTIONS.map(fc => <SelectItem key={fc.value} value={fc.value}>{fc.label}</SelectItem>)}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1376,8 +1656,17 @@ export default function TelnetPage() {
                 <div className="ml-auto flex gap-1">
                   <Button
                     size="sm"
+                    variant={showProfiles ? 'secondary' : 'ghost'}
+                    onClick={() => setShowProfiles(!showProfiles)}
+                    className="h-8 w-8 p-0"
+                    title="Connection profiles"
+                  >
+                    <Wifi className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
                     variant={showSnippets ? 'secondary' : 'ghost'}
-                    onClick={() => { setShowSnippets(!showSnippets); setShowHistory(false); setShowSettings(false); }}
+                    onClick={() => { setShowSnippets(!showSnippets); setShowHistory(false); setShowSettings(false); setShowNotes(false); }}
                     className="h-8 w-8 p-0"
                     title="Command snippets"
                   >
@@ -1385,8 +1674,17 @@ export default function TelnetPage() {
                   </Button>
                   <Button
                     size="sm"
+                    variant={showNotes ? 'secondary' : 'ghost'}
+                    onClick={() => { setShowNotes(!showNotes); setShowHistory(false); setShowSettings(false); setShowSnippets(false); }}
+                    className="h-8 w-8 p-0"
+                    title="Session notes"
+                  >
+                    <StickyNote className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
                     variant={showHistory ? 'secondary' : 'ghost'}
-                    onClick={() => { setShowHistory(!showHistory); setShowSettings(false); setShowSnippets(false); }}
+                    onClick={() => { setShowHistory(!showHistory); setShowSettings(false); setShowSnippets(false); setShowNotes(false); }}
                     className="h-8 w-8 p-0"
                     title="Session history"
                   >
@@ -1395,7 +1693,7 @@ export default function TelnetPage() {
                   <Button
                     size="sm"
                     variant={showSettings ? 'secondary' : 'ghost'}
-                    onClick={() => { setShowSettings(!showSettings); setShowHistory(false); setShowSnippets(false); }}
+                    onClick={() => { setShowSettings(!showSettings); setShowHistory(false); setShowSnippets(false); setShowNotes(false); }}
                     className="h-8 w-8 p-0"
                     title="Terminal settings"
                   >
@@ -1424,10 +1722,11 @@ export default function TelnetPage() {
           {showSettings && <SettingsPanel />}
           {showHistory && <HistoryPanel />}
           {showSnippets && <SnippetLibraryPanel onInsert={(cmd) => setInsertedCmd(cmd)} />}
+          {showNotes && <SessionNotesPanel session={session} />}
         </div>
 
         {/* Terminal View */}
-        <TerminalView session={session} />
+        <TerminalView session={session} fontSize={settings.fontSize ?? 12} />
 
         {/* Command Input */}
         <CommandInput session={session} insertedCmd={insertedCmd} onClearInserted={() => setInsertedCmd('')} onSend={handleSendCommand} />
@@ -1444,11 +1743,19 @@ export default function TelnetPage() {
             <span>{LINE_ENDINGS.find(le => le.value === session.lineEnding)?.label ?? 'CR+LF'}</span>
           </div>
           <div className="flex items-center gap-3">
+            {connectionDuration && (
+              <span className="flex items-center gap-1 text-green-500">
+                <Clock className="h-2.5 w-2.5" />
+                {connectionDuration}
+              </span>
+            )}
             <span>{session.buffer.length} lines</span>
             {session.logging && <span className="text-green-500">LOG</span>}
             {session.paused && <span className="text-yellow-500">PAUSED</span>}
+            {session.sessionNotes && <span className="text-blue-400">NOTES</span>}
           </div>
         </div>
+      </div>
       </div>
 
       {/* Attach dialog */}
