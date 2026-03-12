@@ -204,6 +204,18 @@ function LoginContent() {
             )}
             {tab === 'signin' ? 'Sign In' : 'Create Account'}
           </Button>
+
+          {tab === 'signin' && (
+            <div className="text-right">
+              <button
+                type="button"
+                onClick={() => router.push('/forgot-password')}
+                className="text-xs text-muted-foreground hover:text-primary transition-colors"
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
         </form>
 
         {/* Local mode option */}

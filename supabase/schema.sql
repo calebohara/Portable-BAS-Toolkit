@@ -1,15 +1,68 @@
--- ─── BAU Suite — Supabase Schema Reference ─────────────────────────────────
--- This file documents the planned Supabase schema for future cloud sync.
--- It is NOT applied automatically — use it as a reference when setting up
--- your Supabase project.
+-- ─── BAU Suite — Supabase Schema ────────────────────────────────────────────
+-- Run this SQL in the Supabase SQL Editor (Dashboard → SQL Editor → New query)
+-- to set up the database schema for BAU Suite.
 --
--- Current state: Auth only (v3.0.0). Data sync is a future milestone.
--- All data remains in IndexedDB. This schema mirrors the IndexedDB structure
--- so that a future sync layer can map 1:1.
+-- Current state: Auth + Profiles (v3.2.0). Data sync is a future milestone.
+-- All project data remains in IndexedDB. This schema mirrors the IndexedDB
+-- structure so that a future sync layer can map 1:1.
+--
+-- Prerequisites:
+--   - Email auth enabled in Supabase Dashboard → Authentication → Providers
+--   - Site URL configured in Authentication → URL Configuration
 -- ──────────────────────────────────────────────────────────────────────────────
 
--- ─── Enable RLS on all tables ───────────────────────────────────────────────
--- Every table uses Row Level Security so users can only access their own data.
+-- ─── Utility: updated_at trigger function ───────────────────────────────────
+-- Automatically sets updated_at = now() on any row update.
+create or replace function set_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+-- ─── Profiles ───────────────────────────────────────────────────────────────
+-- One profile per authenticated user. Auto-created on first sign-in via app
+-- code (upsert). Also bootstrapped via the trigger below on auth.users insert.
+create table if not exists profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text not null default '',
+  display_name text,
+  role text not null default 'user' check (role in ('user', 'admin')),
+  onboarding_complete boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table profiles enable row level security;
+
+create policy "Users can read their own profile"
+  on profiles for select using (auth.uid() = id);
+create policy "Users can update their own profile"
+  on profiles for update using (auth.uid() = id);
+create policy "Users can insert their own profile"
+  on profiles for insert with check (auth.uid() = id);
+
+create trigger profiles_updated_at
+  before update on profiles
+  for each row execute function set_updated_at();
+
+-- Auto-create profile when a new user signs up
+create or replace function handle_new_user()
+returns trigger as $$
+begin
+  insert into public.profiles (id, email)
+  values (new.id, coalesce(new.email, ''))
+  on conflict (id) do nothing;
+  return new;
+end;
+$$ language plpgsql security definer;
+
+-- Drop existing trigger if it exists, then create
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
+  after insert on auth.users
+  for each row execute function handle_new_user();
 
 -- ─── Projects ───────────────────────────────────────────────────────────────
 create table if not exists projects (
@@ -28,6 +81,9 @@ create table if not exists projects (
   network_summary text,
   is_pinned boolean not null default false,
   is_offline_available boolean not null default false,
+  -- Sync readiness fields (not used yet — reserved for future sync layer)
+  deleted_at timestamptz,
+  sync_version int not null default 1,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -35,6 +91,10 @@ create table if not exists projects (
 alter table projects enable row level security;
 create policy "Users can manage their own projects"
   on projects for all using (auth.uid() = user_id);
+
+create trigger projects_updated_at
+  before update on projects
+  for each row execute function set_updated_at();
 
 -- ─── Project Files ──────────────────────────────────────────────────────────
 create table if not exists project_files (
@@ -58,6 +118,10 @@ create table if not exists project_files (
   size bigint not null default 0,
   current_version_id text not null default '',
   versions jsonb not null default '[]',
+  -- Future: storage_path for Supabase Storage bucket reference
+  storage_path text,
+  deleted_at timestamptz,
+  sync_version int not null default 1,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -65,6 +129,10 @@ create table if not exists project_files (
 alter table project_files enable row level security;
 create policy "Users can manage their own files"
   on project_files for all using (auth.uid() = user_id);
+
+create trigger project_files_updated_at
+  before update on project_files
+  for each row execute function set_updated_at();
 
 -- ─── Field Notes ────────────────────────────────────────────────────────────
 create table if not exists field_notes (
@@ -77,6 +145,8 @@ create table if not exists field_notes (
   author text not null default '',
   is_pinned boolean not null default false,
   tags text[] not null default '{}',
+  deleted_at timestamptz,
+  sync_version int not null default 1,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -84,6 +154,10 @@ create table if not exists field_notes (
 alter table field_notes enable row level security;
 create policy "Users can manage their own notes"
   on field_notes for all using (auth.uid() = user_id);
+
+create trigger field_notes_updated_at
+  before update on field_notes
+  for each row execute function set_updated_at();
 
 -- ─── Devices ────────────────────────────────────────────────────────────────
 create table if not exists devices (
@@ -102,6 +176,8 @@ create table if not exists devices (
   area text not null default '',
   status text not null default 'Not Commissioned',
   notes text not null default '',
+  deleted_at timestamptz,
+  sync_version int not null default 1,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -109,6 +185,10 @@ create table if not exists devices (
 alter table devices enable row level security;
 create policy "Users can manage their own devices"
   on devices for all using (auth.uid() = user_id);
+
+create trigger devices_updated_at
+  before update on devices
+  for each row execute function set_updated_at();
 
 -- ─── IP Plan ────────────────────────────────────────────────────────────────
 create table if not exists ip_plan (
@@ -124,6 +204,8 @@ create table if not exists ip_plan (
   mac_address text,
   notes text not null default '',
   status text not null default 'active' check (status in ('active', 'reserved', 'available', 'conflict')),
+  deleted_at timestamptz,
+  sync_version int not null default 1,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -131,6 +213,10 @@ create table if not exists ip_plan (
 alter table ip_plan enable row level security;
 create policy "Users can manage their own IP entries"
   on ip_plan for all using (auth.uid() = user_id);
+
+create trigger ip_plan_updated_at
+  before update on ip_plan
+  for each row execute function set_updated_at();
 
 -- ─── Daily Reports ──────────────────────────────────────────────────────────
 create table if not exists daily_reports (
@@ -155,6 +241,8 @@ create table if not exists daily_reports (
   safety_notes text not null default '',
   general_notes text not null default '',
   attachments jsonb not null default '[]',
+  deleted_at timestamptz,
+  sync_version int not null default 1,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -162,6 +250,10 @@ create table if not exists daily_reports (
 alter table daily_reports enable row level security;
 create policy "Users can manage their own reports"
   on daily_reports for all using (auth.uid() = user_id);
+
+create trigger daily_reports_updated_at
+  before update on daily_reports
+  for each row execute function set_updated_at();
 
 -- ─── Activity Log ───────────────────────────────────────────────────────────
 create table if not exists activity_log (
@@ -187,6 +279,8 @@ create table if not exists network_diagrams (
   description text not null default '',
   nodes jsonb not null default '[]',
   connections jsonb not null default '[]',
+  deleted_at timestamptz,
+  sync_version int not null default 1,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -194,6 +288,72 @@ create table if not exists network_diagrams (
 alter table network_diagrams enable row level security;
 create policy "Users can manage their own diagrams"
   on network_diagrams for all using (auth.uid() = user_id);
+
+create trigger network_diagrams_updated_at
+  before update on network_diagrams
+  for each row execute function set_updated_at();
+
+-- ─── Command Snippets ───────────────────────────────────────────────────────
+create table if not exists command_snippets (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  command text not null,
+  label text not null,
+  description text not null default '',
+  category text not null default 'general',
+  tags text[] not null default '{}',
+  is_favorite boolean not null default false,
+  usage_count int not null default 0,
+  last_used_at timestamptz,
+  deleted_at timestamptz,
+  sync_version int not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table command_snippets enable row level security;
+create policy "Users can manage their own snippets"
+  on command_snippets for all using (auth.uid() = user_id);
+
+create trigger command_snippets_updated_at
+  before update on command_snippets
+  for each row execute function set_updated_at();
+
+-- ─── Connection Profiles ────────────────────────────────────────────────────
+create table if not exists connection_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  connection_type text not null default 'tcp',
+  serial_port text not null default '',
+  baud_rate int not null default 9600,
+  data_bits int not null default 8,
+  parity text not null default 'none',
+  stop_bits text not null default '1',
+  flow_control text not null default 'none',
+  host text not null default '',
+  port int not null default 23,
+  local_echo boolean not null default false,
+  line_ending text not null default '\r\n',
+  logging boolean not null default true,
+  project_id uuid references projects(id) on delete set null,
+  notes text not null default '',
+  is_favorite boolean not null default false,
+  tags text[] not null default '{}',
+  last_connected_at timestamptz,
+  deleted_at timestamptz,
+  sync_version int not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table connection_profiles enable row level security;
+create policy "Users can manage their own profiles"
+  on connection_profiles for all using (auth.uid() = user_id);
+
+create trigger connection_profiles_updated_at
+  before update on connection_profiles
+  for each row execute function set_updated_at();
 
 -- ─── Register Calculations ──────────────────────────────────────────────────
 create table if not exists register_calculations (
@@ -207,6 +367,8 @@ create table if not exists register_calculations (
   result jsonb not null default '{}',
   notes text not null default '',
   tags text[] not null default '{}',
+  deleted_at timestamptz,
+  sync_version int not null default 1,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -215,13 +377,89 @@ alter table register_calculations enable row level security;
 create policy "Users can manage their own calculations"
   on register_calculations for all using (auth.uid() = user_id);
 
+create trigger register_calculations_updated_at
+  before update on register_calculations
+  for each row execute function set_updated_at();
+
+-- ─── Ping Sessions ──────────────────────────────────────────────────────────
+create table if not exists ping_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid references projects(id) on delete set null,
+  targets jsonb not null default '[]',
+  results jsonb not null default '{}',
+  mode text not null default 'single',
+  interval_ms int not null default 1000,
+  completed_at timestamptz,
+  deleted_at timestamptz,
+  sync_version int not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table ping_sessions enable row level security;
+create policy "Users can manage their own ping sessions"
+  on ping_sessions for all using (auth.uid() = user_id);
+
+-- ─── Terminal Session Logs ──────────────────────────────────────────────────
+create table if not exists terminal_session_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid references projects(id) on delete set null,
+  session_label text not null default '',
+  connection_mode text not null default 'tcp',
+  host text not null default '',
+  port int not null default 23,
+  serial_port text not null default '',
+  baud_rate int not null default 9600,
+  line_count int not null default 0,
+  log_content text not null default '',
+  started_at timestamptz,
+  ended_at timestamptz,
+  deleted_at timestamptz,
+  sync_version int not null default 1,
+  created_at timestamptz not null default now()
+);
+
+alter table terminal_session_logs enable row level security;
+create policy "Users can manage their own terminal logs"
+  on terminal_session_logs for all using (auth.uid() = user_id);
+
+-- ─── User Settings ──────────────────────────────────────────────────────────
+-- Per-user app preferences that may sync across devices in the future.
+-- Currently stored in Zustand/localStorage; this table is for future sync.
+create table if not exists user_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  theme text not null default 'system' check (theme in ('system', 'light', 'dark')),
+  sidebar_collapsed boolean not null default false,
+  preferences jsonb not null default '{}',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table user_settings enable row level security;
+create policy "Users can manage their own settings"
+  on user_settings for all using (auth.uid() = user_id);
+
+create trigger user_settings_updated_at
+  before update on user_settings
+  for each row execute function set_updated_at();
+
 -- ─── Indexes ────────────────────────────────────────────────────────────────
 create index if not exists idx_projects_user on projects(user_id);
+create index if not exists idx_projects_status on projects(user_id, status);
 create index if not exists idx_files_project on project_files(project_id);
+create index if not exists idx_files_user on project_files(user_id);
 create index if not exists idx_notes_project on field_notes(project_id);
 create index if not exists idx_devices_project on devices(project_id);
 create index if not exists idx_ip_plan_project on ip_plan(project_id);
 create index if not exists idx_reports_project on daily_reports(project_id);
+create index if not exists idx_reports_date on daily_reports(user_id, date);
 create index if not exists idx_activity_project on activity_log(project_id);
+create index if not exists idx_activity_timestamp on activity_log(project_id, timestamp);
 create index if not exists idx_diagrams_project on network_diagrams(project_id);
+create index if not exists idx_snippets_user on command_snippets(user_id);
+create index if not exists idx_conn_profiles_user on connection_profiles(user_id);
 create index if not exists idx_calcs_project on register_calculations(project_id);
+create index if not exists idx_ping_project on ping_sessions(project_id);
+create index if not exists idx_terminal_project on terminal_session_logs(project_id);

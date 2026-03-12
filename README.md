@@ -7,7 +7,7 @@
 *A field-ready project container for BAS engineers and technicians.*
 *Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-3.1.0-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-3.2.0-00BCD4?style=flat-square)](#application-versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -22,7 +22,7 @@
 
 ## Version
 
-**Current Release: v3.1.0**
+**Current Release: v3.2.0**
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
 
@@ -609,6 +609,60 @@ The `/offline` page provides:
 - Storage usage monitoring (quota and usage)
 - Cache clearing controls
 - Per-project offline toggle
+
+---
+
+## Authentication & Cloud Setup (Optional)
+
+BAU Suite supports optional Supabase authentication. When configured, users can create accounts and sign in. All project data remains stored locally in IndexedDB — cloud sync is a planned future milestone. Auth establishes user identity for when sync becomes available.
+
+### Quick Setup
+
+1. **Create a Supabase project** at [supabase.com](https://supabase.com)
+2. **Copy your project URL and anon key** from Settings → API
+3. **Configure authentication** in the Supabase Dashboard:
+   - Authentication → Providers → Enable Email
+   - Authentication → URL Configuration → Set Site URL to your app URL (e.g., `https://bau-suite.vercel.app` or `http://localhost:3000`)
+   - Authentication → URL Configuration → Add Redirect URLs: `http://localhost:3000/reset-password`, `https://your-domain.vercel.app/reset-password`
+4. **Run the SQL schema** — open SQL Editor in the Supabase Dashboard and paste the contents of `supabase/schema.sql`
+5. **Set environment variables** in `.env.local`:
+   ```env
+   NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...your-anon-key
+   ```
+6. **Start the app** — `npm run dev`
+7. **Test sign-up** — create an account, confirm your email, sign in
+
+### What's Active Now
+
+| Feature | Status |
+|---------|--------|
+| Email/password sign-up | Active |
+| Email/password sign-in | Active |
+| Sign out | Active |
+| Password reset (email link) | Active |
+| Email confirmation | Active |
+| User profiles table | Active (auto-created on sign-up) |
+| RLS policies (per-user data isolation) | Active |
+| Project data cloud sync | **Not yet** — data remains in IndexedDB |
+| File storage in Supabase Storage | **Not yet** — files remain in IndexedDB |
+| Multi-device sync | **Not yet** — planned future milestone |
+
+### Without Supabase
+
+If you don't set the environment variables, the app runs in **local-only mode**:
+- No sign-in UI appears
+- All features work as normal
+- Data is stored entirely in browser IndexedDB
+- No external connections except GitHub update checks
+
+### Security Model
+
+- Every Supabase table has Row Level Security (RLS) enabled
+- Users can only read, create, update, and delete their own records
+- The anon key is safe for client-side use (RLS enforces access control)
+- Session tokens are stored in localStorage (standard Supabase pattern)
+- Passwords are never stored client-side — handled entirely by Supabase Auth
 
 ---
 

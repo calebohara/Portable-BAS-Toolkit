@@ -11,7 +11,7 @@ import { WebUpdateBanner } from './web-update-banner';
 import { cn } from '@/lib/utils';
 
 // Routes that render their own full-page layout (no sidebar)
-const FULL_PAGE_ROUTES = ['/', '/login'];
+const FULL_PAGE_ROUTES = ['/', '/login', '/forgot-password', '/reset-password'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
