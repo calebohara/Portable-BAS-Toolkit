@@ -28,6 +28,8 @@ export interface AuthState {
   resetPassword: (email: string) => Promise<{ error: AuthError | null }>;
   /** Update password (used after reset link callback) */
   updatePassword: (newPassword: string) => Promise<{ error: AuthError | null }>;
+  /** Update email (sends confirmation to new address) */
+  updateEmail: (newEmail: string) => Promise<{ error: AuthError | null }>;
 }
 
 // ─── Not-configured error helper ────────────────────────────
@@ -135,12 +137,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error };
   }, [client]);
 
+  const updateEmail = useCallback(async (newEmail: string) => {
+    if (!client) return { error: notConfiguredError };
+    const { error } = await client.auth.updateUser({ email: newEmail });
+    return { error };
+  }, [client]);
+
   const mode: AuthMode = user ? 'authenticated' : 'local';
 
   return (
     <AuthContext.Provider value={{
       mode, user, session, loading, isConfigured: configured,
-      signIn, signUp, signOut, resetPassword, updatePassword,
+      signIn, signUp, signOut, resetPassword, updatePassword, updateEmail,
     }}>
       {children}
     </AuthContext.Provider>

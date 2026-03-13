@@ -879,6 +879,25 @@ export async function bulkPutSilent(
 }
 
 /**
+ * Clear ALL data from every IndexedDB store.
+ * Used for account deletion — wipes the entire local database.
+ */
+export async function clearAllData(): Promise<void> {
+  const db = await getDB();
+  const storeNames = [
+    'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
+    'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
+    'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
+    'syncQueue',
+  ] as const;
+  for (const name of storeNames) {
+    const tx = db.transaction(name, 'readwrite');
+    await tx.store.clear();
+    await tx.done;
+  }
+}
+
+/**
  * Delete items from any store by ID WITHOUT triggering the sync bridge.
  * Used by pull sync to apply soft-deletes from the cloud.
  */
