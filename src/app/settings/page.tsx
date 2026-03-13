@@ -11,6 +11,7 @@ import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { BackupDialog } from '@/components/settings/backup-dialog';
 import { RestoreDialog } from '@/components/settings/restore-dialog';
+import { DataCleanupDialog } from '@/components/settings/data-cleanup-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showBackupDialog, setShowBackupDialog] = useState(false);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [showCleanupDialog, setShowCleanupDialog] = useState(false);
   const startTour = useAppStore((s) => s.startTour);
   const { isWindowsDesktopWeb, isTauriRuntime } = useDeviceClass();
 
@@ -245,6 +247,16 @@ export default function SettingsPage() {
                     <Trash2 className="h-3.5 w-3.5" /> Clear
                   </Button>
                 </div>
+                <Separator />
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <p className="text-sm">Clean Up Local Data</p>
+                    <p className="text-xs text-muted-foreground">Remove unwanted projects and all their data from this browser.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setShowCleanupDialog(true)} className="gap-1.5">
+                    <Trash2 className="h-3.5 w-3.5" /> Clean Up
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -343,6 +355,11 @@ export default function SettingsPage() {
         onOpenChange={setShowRestoreDialog}
         lastPulledAt={lastPulledAt}
         triggerPullSync={triggerPullSync}
+      />
+
+      <DataCleanupDialog
+        open={showCleanupDialog}
+        onOpenChange={setShowCleanupDialog}
       />
     </>
   );
