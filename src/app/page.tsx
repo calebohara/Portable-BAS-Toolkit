@@ -5,7 +5,7 @@ import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
   Wrench, Shield, WifiOff, ArrowRight, UserPlus,
-  Zap, Layers, Monitor, ChevronRight, Wifi, Clock,
+  Zap, Layers, Monitor, ChevronRight, Wifi, Clock, Heart, Code,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -293,6 +293,69 @@ export default function HomePage() {
         {/* Section divider */}
         <div className="hp-divider" />
       </section>
+
+      {/* ── Support the Platform ──────────────────────────────────────── */}
+      <section
+        className="relative"
+        style={{ paddingTop: 'clamp(3rem, 6vw, 5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}
+      >
+        <div className="absolute inset-0 bg-muted/30 dark:bg-muted/10" />
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="hp-reveal">
+            <div className="grid lg:grid-cols-5 gap-8 lg:gap-12 items-center">
+              {/* Left: narrative — 3 columns */}
+              <div className="lg:col-span-3">
+                <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Support the project</p>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-4">
+                  Independently built.
+                  <br />
+                  Community supported.
+                </h2>
+                <p className="text-base text-muted-foreground leading-relaxed max-w-lg mb-5">
+                  BAU Suite is designed, built, and maintained by one developer for BAS technicians
+                  and controls engineers. Your support helps fund new tools, infrastructure,
+                  and continued development of the platform.
+                </p>
+                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Code className="h-4 w-4 text-primary" />
+                    <span>Active development</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Wrench className="h-4 w-4 text-primary" />
+                    <span>14+ field tools</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Shield className="h-4 w-4 text-primary" />
+                    <span>Secure & free to use</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: CTA card — 2 columns */}
+              <div className="lg:col-span-2">
+                <div className="hp-card-surface p-6 sm:p-8 text-center">
+                  <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-xl bg-primary/10 border border-primary/15 mb-4">
+                    <Heart className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-bold tracking-tight mb-2">Back the project</h3>
+                  <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                    Help keep BAU Suite growing. Every contribution funds development, hosting, and new features.
+                  </p>
+                  <Button size="lg" onClick={() => router.push('/donate')} className="w-full gap-2 hp-btn-glow">
+                    <Heart className="h-4 w-4" /> Support BAU Suite
+                  </Button>
+                  <p className="mt-3 text-[11px] text-muted-foreground">
+                    One-time and monthly options available
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="hp-divider" />
 
       {/* ── Platform Positioning ──────────────────────────────────────── */}
       <section style={{ paddingTop: 'clamp(3rem, 6vw, 5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}>

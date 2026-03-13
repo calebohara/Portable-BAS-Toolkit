@@ -25,8 +25,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const setOnline = useAppStore((s) => s.setOnline);
-  const isFullPage = FULL_PAGE_ROUTES.includes(pathname);
-  const isPublic = PUBLIC_ROUTES.includes(pathname);
+  const isFullPage = FULL_PAGE_ROUTES.includes(pathname) || pathname.startsWith('/donate/');
+  const isPublic = PUBLIC_ROUTES.includes(pathname) || pathname.startsWith('/donate/');
 
   // Auth guard: redirect unauthenticated users to /login
   useEffect(() => {
