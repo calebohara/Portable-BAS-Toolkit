@@ -284,6 +284,47 @@ export class SyncManager implements SyncManagerInterface {
   }
 
   /**
+   * Full restore: undelete all soft-deleted rows in Supabase, then do a
+   * complete (non-incremental) pull. Used by the "Restore from Cloud" button.
+   */
+  async restoreFromCloud(): Promise<{
+    pulled: number;
+    deleted: number;
+    errors: string[];
+    newPulledAt: string;
+  }> {
+    console.info(`${LOG_PREFIX} Restore from cloud — reversing soft-deletes…`);
+
+    // Undelete all user's soft-deleted rows across all tables (except activityLog which has no deleted_at)
+    const tablesWithDeletedAt = SYNC_ORDER.filter((t) => t !== 'activityLog');
+    for (const entityType of tablesWithDeletedAt) {
+      try {
+        const table = entityTypeToTable[entityType];
+        const { data, error } = await this.client
+          .from(table)
+          .update({ deleted_at: null })
+          .eq('user_id', this.userId)
+          .not('deleted_at', 'is', null)
+          .select('id');
+
+        if (error) {
+          console.warn(`${LOG_PREFIX} Undelete failed for ${entityType}:`, error.message);
+          continue;
+        }
+        const count = data?.length ?? 0;
+        if (count > 0) {
+          console.info(`${LOG_PREFIX} Undeleted ${count} ${entityType} row(s)`);
+        }
+      } catch (err) {
+        console.warn(`${LOG_PREFIX} Undelete error for ${entityType}:`, err);
+      }
+    }
+
+    // Now do a full (non-incremental) pull
+    return this.pullSync(null);
+  }
+
+  /**
    * Pull sync: download data from Supabase into IndexedDB.
    * Uses silent writes to avoid re-pushing pulled data.
    * Supports incremental pulls via lastPulledAt timestamp.
@@ -321,12 +362,13 @@ export class SyncManager implements SyncManagerInterface {
 
           // Incremental: only fetch rows updated since last pull
           if (lastPulledAt) {
-            if (isActivityLog) {
-              // activity_log has no updated_at — use timestamp
-              query = query.gte('timestamp', lastPulledAt);
-            } else {
-              query = query.gte('updated_at', lastPulledAt);
-            }
+            // Some tables don't have updated_at — use their creation timestamp instead
+            const timestampCol =
+              entityType === 'activityLog' ? 'timestamp' :
+              entityType === 'pingSessions' ? 'created_at' :
+              entityType === 'terminalLogs' ? 'created_at' :
+              'updated_at';
+            query = query.gte(timestampCol, lastPulledAt);
           }
 
           const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);

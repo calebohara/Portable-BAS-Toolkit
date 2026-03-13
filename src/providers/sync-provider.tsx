@@ -109,8 +109,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   const triggerPullSync = useCallback(async () => {
     if (!managerRef.current) return null;
-    const lastPulledAt = useAppStore.getState().lastPulledAt;
-    const result = await managerRef.current.pullSync(lastPulledAt);
+    // "Restore from Cloud" does a full restore: undeletes soft-deleted rows,
+    // then does a complete non-incremental pull to bring everything back.
+    const result = await managerRef.current.restoreFromCloud();
     if (result.errors.length === 0) {
       useAppStore.getState().setLastPulledAt(result.newPulledAt);
     }
