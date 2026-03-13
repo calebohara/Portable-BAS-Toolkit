@@ -31,10 +31,10 @@ export default function ForgotPasswordPage() {
           </div>
           <h1 className="text-xl font-semibold">Authentication Not Configured</h1>
           <p className="text-sm text-muted-foreground">
-            Supabase is not configured. Password reset is not available in local-only mode.
+            Supabase is not configured. Password reset is not available.
           </p>
-          <Button variant="outline" onClick={() => router.push('/dashboard')} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Continue in Local Mode
+          <Button variant="outline" onClick={() => router.push('/login')} className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Back to Sign In
           </Button>
         </div>
       </div>

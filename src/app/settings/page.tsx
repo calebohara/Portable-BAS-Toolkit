@@ -71,45 +71,24 @@ export default function SettingsPage() {
                 <User className="h-4 w-4" /> Account
               </CardTitle>
               <CardDescription>
-                {isConfigured
-                  ? mode === 'authenticated'
-                    ? 'You are signed in. Your data is stored locally on this device.'
-                    : 'Sign in to enable cloud features in a future update.'
-                  : 'Cloud authentication is not configured. All data is stored locally.'}
+                You are signed in. Your data is stored locally and synced to the cloud.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              {isConfigured && mode === 'authenticated' && user ? (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{user.email}</p>
-                    <p className="text-xs text-muted-foreground">Signed in · Data stored locally</p>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={async () => { await signOut(); }}
-                  >
-                    <LogOut className="h-3.5 w-3.5" /> Sign Out
-                  </Button>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">{user?.email}</p>
+                  <p className="text-xs text-muted-foreground">Signed in · Data stored locally</p>
                 </div>
-              ) : isConfigured ? (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">Local Mode</p>
-                    <p className="text-xs text-muted-foreground">All data stored on this device only.</p>
-                  </div>
-                  <Button variant="outline" size="sm" onClick={() => router.push('/login')}>
-                    Sign In
-                  </Button>
-                </div>
-              ) : (
-                <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-                  <p>Running in local-only mode. No cloud backend is configured.</p>
-                  <p className="text-xs mt-1">All projects, files, and settings are stored in your browser&apos;s IndexedDB.</p>
-                </div>
-              )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={async () => { await signOut(); }}
+                >
+                  <LogOut className="h-3.5 w-3.5" /> Sign Out
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </section>

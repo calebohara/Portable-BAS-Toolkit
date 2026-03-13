@@ -6,7 +6,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, LogIn, UserPlus, ArrowLeft, Loader2 } from 'lucide-react';
+import { AlertCircle, LogIn, UserPlus, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   return (
@@ -59,16 +59,12 @@ function LoginContent() {
           </div>
           <h1 className="text-xl font-semibold">Authentication Not Configured</h1>
           <p className="text-sm text-muted-foreground">
-            Supabase environment variables are not set. The app is running in local-only mode.
-            All features work — data is stored locally on this device.
+            Supabase environment variables are not set. An account is required to use BAU Suite.
           </p>
           <p className="text-xs text-muted-foreground">
             To enable authentication, set <code className="text-foreground">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
             <code className="text-foreground">NEXT_PUBLIC_SUPABASE_ANON_KEY</code> in your environment.
           </p>
-          <Button variant="outline" onClick={() => router.push('/dashboard')} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Continue in Local Mode
-          </Button>
         </div>
       </div>
     );
@@ -228,15 +224,10 @@ function LoginContent() {
           )}
         </form>
 
-        {/* Local mode option */}
         <div className="text-center">
-          <Button variant="ghost" size="sm" className="text-xs text-muted-foreground" onClick={() => router.push('/dashboard')}>
-            <ArrowLeft className="h-3 w-3 mr-1" />
-            Continue without signing in
-          </Button>
-          <p className="text-[10px] text-muted-foreground mt-1">
-            All features work in local mode. Sign in to prepare for future cloud sync.
-          </p>
+          <button onClick={() => router.push('/')} className="text-xs text-muted-foreground hover:text-primary transition-colors">
+            &larr; Back to home
+          </button>
         </div>
       </div>
     </div>

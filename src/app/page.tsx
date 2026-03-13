@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
-  Wrench, Shield, WifiOff, ArrowRight, LogIn, UserPlus, ChevronRight,
+  Wrench, Shield, WifiOff, ArrowRight, LogIn, UserPlus,
   CheckCircle2, Zap, Layers,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
@@ -68,7 +68,7 @@ const fieldBenefits = [
 
 export default function HomePage() {
   const router = useRouter();
-  const { mode, user, isConfigured, loading } = useAuth();
+  const { mode, user } = useAuth();
   const isAuthed = mode === 'authenticated';
 
   return (
@@ -95,13 +95,11 @@ export default function HomePage() {
               </>
             ) : (
               <>
-                {isConfigured && (
-                  <Button variant="ghost" size="sm" onClick={() => router.push('/login')} className="gap-1.5 text-muted-foreground">
-                    <LogIn className="h-3.5 w-3.5" /> Sign In
-                  </Button>
-                )}
-                <Button size="sm" onClick={() => router.push('/dashboard')} className="gap-1.5">
-                  Open App <ArrowRight className="h-3.5 w-3.5" />
+                <Button variant="ghost" size="sm" onClick={() => router.push('/login')} className="gap-1.5 text-muted-foreground">
+                  <LogIn className="h-3.5 w-3.5" /> Sign In
+                </Button>
+                <Button size="sm" onClick={() => router.push('/login?tab=signup')} className="gap-1.5">
+                  Create Account <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               </>
             )}
@@ -139,13 +137,11 @@ export default function HomePage() {
                 </Button>
               ) : (
                 <>
-                  {isConfigured && (
-                    <Button size="lg" onClick={() => router.push('/login?tab=signup')} className="gap-2">
-                      <UserPlus className="h-4 w-4" /> Create Account
-                    </Button>
-                  )}
-                  <Button size="lg" variant={isConfigured ? 'outline' : 'default'} onClick={() => router.push('/dashboard')} className="gap-2">
-                    {isConfigured ? 'Continue as Guest' : 'Open App'} <ArrowRight className="h-4 w-4" />
+                  <Button size="lg" onClick={() => router.push('/login?tab=signup')} className="gap-2">
+                    <UserPlus className="h-4 w-4" /> Create Account
+                  </Button>
+                  <Button size="lg" variant="outline" onClick={() => router.push('/login')} className="gap-2">
+                    Sign In <ArrowRight className="h-4 w-4" />
                   </Button>
                 </>
               )}
@@ -322,33 +318,16 @@ export default function HomePage() {
                 Ready to get started?
               </h2>
               <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-                {isConfigured
-                  ? 'Create an account with secure password reset and user profiles, or continue in local mode — all features work either way.'
-                  : 'All features work locally with no account required. Data is stored on your device.'}
+                Create an account to start managing your projects with secure cloud sync and password recovery.
               </p>
               <div className="mt-6 flex flex-wrap gap-3 justify-center">
-                {isConfigured && (
-                  <Button size="lg" onClick={() => router.push('/login?tab=signup')} className="gap-2">
-                    <UserPlus className="h-4 w-4" /> Create Account
-                  </Button>
-                )}
-                <Button
-                  size="lg"
-                  variant={isConfigured ? 'outline' : 'default'}
-                  onClick={() => router.push('/dashboard')}
-                  className="gap-2"
-                >
-                  {isConfigured ? 'Continue as Guest' : 'Open App'} <ArrowRight className="h-4 w-4" />
+                <Button size="lg" onClick={() => router.push('/login?tab=signup')} className="gap-2">
+                  <UserPlus className="h-4 w-4" /> Create Account
+                </Button>
+                <Button size="lg" variant="outline" onClick={() => router.push('/login')} className="gap-2">
+                  Sign In <ArrowRight className="h-4 w-4" />
                 </Button>
               </div>
-              {isConfigured && (
-                <p className="mt-4 text-[11px] text-muted-foreground">
-                  Already have an account?{' '}
-                  <button onClick={() => router.push('/login')} className="text-primary hover:underline">
-                    Sign in
-                  </button>
-                </p>
-              )}
             </>
           )}
         </div>

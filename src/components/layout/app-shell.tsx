@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useAuth } from '@/providers/auth-provider';
 import { useAppStore } from '@/store/app-store';
 import { Sidebar } from './sidebar';
 import { InstallPrompt } from '@/components/pwa/install-prompt';
@@ -13,13 +14,26 @@ import { cn } from '@/lib/utils';
 // Routes that render their own full-page layout (no sidebar)
 const FULL_PAGE_ROUTES = ['/', '/login', '/forgot-password', '/reset-password'];
 
+// Routes that don't require authentication
+const PUBLIC_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/offline'];
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { mode, loading: authLoading } = useAuth();
 
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const setOnline = useAppStore((s) => s.setOnline);
   const isFullPage = FULL_PAGE_ROUTES.includes(pathname);
+  const isPublic = PUBLIC_ROUTES.includes(pathname);
+
+  // Auth guard: redirect unauthenticated users to /login
+  useEffect(() => {
+    if (!authLoading && mode !== 'authenticated' && !isPublic) {
+      router.replace('/login');
+    }
+  }, [authLoading, mode, isPublic, router]);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);
@@ -79,6 +93,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return (
       <div className="min-h-screen">
         {children}
+      </div>
+    );
+  }
+
+  // While auth is loading or user is not authenticated, show spinner (redirect will fire)
+  if (authLoading || mode !== 'authenticated') {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );
   }

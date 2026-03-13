@@ -28,8 +28,8 @@ export default function ResetPasswordPage() {
         <div className="w-full max-w-sm space-y-6 text-center">
           <h1 className="text-xl font-semibold">Authentication Not Configured</h1>
           <p className="text-sm text-muted-foreground">Password reset is not available.</p>
-          <Button variant="outline" onClick={() => router.push('/dashboard')} className="gap-2">
-            <ArrowLeft className="h-4 w-4" /> Go to App
+          <Button variant="outline" onClick={() => router.push('/login')} className="gap-2">
+            <ArrowLeft className="h-4 w-4" /> Back to Sign In
           </Button>
         </div>
       </div>
@@ -57,7 +57,7 @@ export default function ResetPasswordPage() {
 
   // If user is not authenticated at all (no recovery session), they may have
   // navigated here directly. Show a helpful message.
-  if (mode === 'local') {
+  if (mode !== 'authenticated') {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-sm space-y-6 text-center">
