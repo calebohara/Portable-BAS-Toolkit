@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import {
   Palette, HardDrive, Info, Trash2, Download, PlayCircle, User, LogOut,
-  Cloud, Upload, AlertTriangle, Monitor, KeyRound, Mail, Shield, Database,
-  RefreshCw,
+  Cloud, Upload, AlertTriangle, Monitor, KeyRound, Mail, Database,
+  RefreshCw, ChevronRight,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
@@ -132,59 +132,72 @@ export default function SettingsPage() {
         {mode === 'authenticated' && (
           <section>
             <SectionHeading>Account</SectionHeading>
-            <Card>
-              <CardContent className="p-5 space-y-5">
-                {/* Profile row */}
-                <div className="flex items-center gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                    <User className="h-5 w-5 text-primary" />
+            <div className="space-y-3">
+              {/* Profile card */}
+              <Card>
+                <CardContent className="p-5">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <User className="h-5 w-5 text-primary" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold truncate">{user?.email}</p>
+                      <p className="text-xs text-muted-foreground">Signed in · Data stored locally & synced to cloud</p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 shrink-0"
+                      onClick={async () => { await signOut(); }}
+                    >
+                      <LogOut className="h-3.5 w-3.5" /> Sign Out
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Change Password */}
+              <Card className="transition-colors hover:border-primary/30 cursor-pointer" onClick={() => setShowPasswordDialog(true)}>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <KeyRound className="h-4.5 w-4.5 text-primary" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate">{user?.email}</p>
-                    <p className="text-xs text-muted-foreground">Signed in · Data stored locally & synced to cloud</p>
+                    <p className="text-sm font-medium">Change Password</p>
+                    <p className="text-xs text-muted-foreground">Update your sign-in password</p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 shrink-0"
-                    onClick={async () => { await signOut(); }}
-                  >
-                    <LogOut className="h-3.5 w-3.5" /> Sign Out
-                  </Button>
-                </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </CardContent>
+              </Card>
 
-                <Separator />
+              {/* Change Email */}
+              <Card className="transition-colors hover:border-primary/30 cursor-pointer" onClick={() => setShowEmailDialog(true)}>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                    <Mail className="h-4.5 w-4.5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Change Email</p>
+                    <p className="text-xs text-muted-foreground">Update your email address</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </CardContent>
+              </Card>
 
-                {/* Account actions */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setShowPasswordDialog(true)}
-                    className="flex items-center gap-3 rounded-xl border border-border p-3.5 text-left transition-all hover:border-primary/30 hover:bg-muted/40 group"
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 group-hover:bg-primary/15 transition-colors">
-                      <KeyRound className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Change Password</p>
-                      <p className="text-xs text-muted-foreground">Update your sign-in password</p>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => setShowEmailDialog(true)}
-                    className="flex items-center gap-3 rounded-xl border border-border p-3.5 text-left transition-all hover:border-primary/30 hover:bg-muted/40 group"
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 group-hover:bg-primary/15 transition-colors">
-                      <Mail className="h-4 w-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium">Change Email</p>
-                      <p className="text-xs text-muted-foreground">Update your email address</p>
-                    </div>
-                  </button>
-                </div>
-              </CardContent>
-            </Card>
+              {/* Delete Account */}
+              <Card className="border-destructive/30 transition-colors hover:border-destructive/50 cursor-pointer" onClick={() => setShowDeleteDialog(true)}>
+                <CardContent className="p-4 flex items-center gap-4">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10">
+                    <Trash2 className="h-4.5 w-4.5 text-destructive" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-destructive">Delete Account</p>
+                    <p className="text-xs text-muted-foreground">Permanently delete your account and all data</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                </CardContent>
+              </Card>
+            </div>
           </section>
         )}
 
@@ -465,40 +478,7 @@ export default function SettingsPage() {
           </Card>
         </section>
 
-        {/* ═══════════════════════════════════════════════════════════
-            DANGER ZONE
-        ═══════════════════════════════════════════════════════════ */}
-        {mode === 'authenticated' && (
-          <section>
-            <SectionHeading>Danger Zone</SectionHeading>
-            <Card className="border-destructive/30">
-              <CardContent className="p-5">
-                <div className="flex items-start gap-4">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-destructive/10">
-                    <Shield className="h-5 w-5 text-destructive" />
-                  </div>
-                  <div className="flex-1 min-w-0 space-y-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-destructive">Delete Account</h3>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        Permanently delete your account, all cloud-synced data, and local data.
-                        This action cannot be undone.
-                      </p>
-                    </div>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      className="gap-1.5"
-                      onClick={() => setShowDeleteDialog(true)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" /> Delete Account
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </section>
-        )}
+        {/* Danger Zone removed — Delete Account is now in the Account section above */}
       </div>
 
       {/* ═══════════════════════════════════════════════════════════
