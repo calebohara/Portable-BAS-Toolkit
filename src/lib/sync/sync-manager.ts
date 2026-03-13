@@ -500,31 +500,47 @@ export class SyncManager implements SyncManagerInterface {
   }
 
   /**
-   * Remove orphaned records from local IndexedDB — files and other entities
-   * that have no projectId (leftover demo data pulled before filtering was added).
+   * Remove orphaned records from local IndexedDB — entities with no projectId
+   * or whose projectId references a project that no longer exists locally.
+   * Also clears matching items from the sync queue to prevent FK push errors.
    */
   private async purgeLocalOrphans(): Promise<void> {
-    // Entity types that should always have a projectId locally
+    // Build set of valid local project IDs
+    const projects = await getAllFromStore('projects') as Record<string, unknown>[];
+    const validProjectIds = new Set(projects.map((p) => p.id as string));
+
+    // Entity types that should always have a valid projectId locally
     const storesToClean: SyncEntityType[] = [
       'files', 'notes', 'devices', 'ipPlan', 'dailyReports',
       'activityLog', 'networkDiagrams', 'pingSessions',
       'terminalLogs', 'connectionProfiles', 'registerCalculations',
     ];
 
+    let totalRemoved = 0;
     for (const storeName of storesToClean) {
       try {
         const items = await getAllFromStore(storeName) as Record<string, unknown>[];
         const orphanIds = items
-          .filter((item) => !item.projectId)
+          .filter((item) => !item.projectId || !validProjectIds.has(item.projectId as string))
           .map((item) => item.id as string);
 
         if (orphanIds.length > 0) {
           await bulkDeleteSilent(storeName, orphanIds);
+          totalRemoved += orphanIds.length;
           console.info(`${LOG_PREFIX} Removed ${orphanIds.length} local orphaned ${storeName} record(s)`);
+
+          // Also remove these from the sync queue so they don't try to push
+          for (const id of orphanIds) {
+            await deleteSyncItem(`${storeName}-${id}`).catch(() => {});
+          }
         }
       } catch {
         // Store may not exist or be empty — ignore
       }
+    }
+
+    if (totalRemoved > 0) {
+      console.info(`${LOG_PREFIX} Local orphan cleanup: removed ${totalRemoved} total record(s)`);
     }
   }
 
