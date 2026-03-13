@@ -22,12 +22,11 @@
 
 // ─── Configuration ──────────────────────────────────────────────
 
-/** Whether Stripe is fully configured and ready for live payments */
+/** Whether Stripe is fully configured and ready for live payments.
+ *  Only checks the publishable key since this runs client-side where
+ *  STRIPE_SECRET_KEY (non-NEXT_PUBLIC_) is not available. */
 export function isStripeConfigured(): boolean {
-  return Boolean(
-    process.env.STRIPE_SECRET_KEY &&
-    process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY
-  );
+  return Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY);
 }
 
 /** Publishable key — safe for client-side use */
