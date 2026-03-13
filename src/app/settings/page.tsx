@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
   Palette, HardDrive, Info, Trash2, Download, PlayCircle, User, LogOut,
-  Cloud, Upload, AlertTriangle,
+  Cloud, Upload, AlertTriangle, Monitor,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
@@ -21,6 +21,7 @@ import { useSyncContext } from '@/providers/sync-provider';
 import { getStorageEstimate, clearFileCache, resetFailedSyncItems, getFirstSyncError } from '@/lib/db';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { APP_VERSION } from '@/lib/version';
+import { useDeviceClass } from '@/hooks/use-device-class';
 import { toast } from 'sonner';
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
@@ -44,6 +45,7 @@ export default function SettingsPage() {
   const [showBackupDialog, setShowBackupDialog] = useState(false);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const startTour = useAppStore((s) => s.startTour);
+  const { isWindowsDesktopWeb, isTauriRuntime } = useDeviceClass();
 
   useEffect(() => {
     getStorageEstimate().then(setStorage).catch(() => {});
@@ -264,18 +266,44 @@ export default function SettingsPage() {
                 </Button>
               </div>
 
-              {/* Install as App */}
-              <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground space-y-2">
-                <p className="font-medium text-foreground flex items-center gap-2">
-                  <Download className="h-4 w-4" /> Install as App
-                </p>
-                <ol className="list-decimal list-inside space-y-1 text-xs">
-                  <li>Open this page in Chrome, Edge, or Safari</li>
-                  <li>Look for the install icon in the address bar or browser menu</li>
-                  <li>Click &ldquo;Install&rdquo; or &ldquo;Add to Home Screen&rdquo;</li>
-                </ol>
-                <p className="text-xs">Once installed, the app works offline and opens like a native application.</p>
-              </div>
+              {/* Desktop App — only shown on desktop web, not in Tauri or on phones */}
+              {isWindowsDesktopWeb && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      <Monitor className="h-4 w-4 text-muted-foreground" /> Desktop App
+                    </p>
+                    <p className="text-xs text-muted-foreground">Native Windows app with full network access and ICMP ping.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => router.push('/desktop')} className="gap-1.5">
+                    <Monitor className="h-3.5 w-3.5" /> Learn More
+                  </Button>
+                </div>
+              )}
+
+              {isTauriRuntime && (
+                <div className="flex items-center gap-3">
+                  <Monitor className="h-4 w-4 text-primary shrink-0" />
+                  <p className="text-sm text-muted-foreground">
+                    You&apos;re using the <strong className="text-foreground">desktop app</strong>.
+                  </p>
+                </div>
+              )}
+
+              {/* Install as PWA */}
+              {!isTauriRuntime && (
+                <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground space-y-2">
+                  <p className="font-medium text-foreground flex items-center gap-2">
+                    <Download className="h-4 w-4" /> Install as App
+                  </p>
+                  <ol className="list-decimal list-inside space-y-1 text-xs">
+                    <li>Open this page in Chrome, Edge, or Safari</li>
+                    <li>Look for the install icon in the address bar or browser menu</li>
+                    <li>Click &ldquo;Install&rdquo; or &ldquo;Add to Home Screen&rdquo;</li>
+                  </ol>
+                  <p className="text-xs">Once installed, the app works offline and opens like a native application.</p>
+                </div>
+              )}
 
               <Separator />
 

@@ -523,7 +523,6 @@ export default function HomePage() {
               <span>BAU Suite v{APP_VERSION}</span>
             </div>
             <div className="flex items-center gap-5">
-              <button onClick={() => router.push('/help')} className="hover:text-foreground transition-colors">Help</button>
               <button onClick={() => router.push('/settings')} className="hover:text-foreground transition-colors">Settings</button>
               <button onClick={() => router.push('/donate')} className="hover:text-foreground transition-colors">Donate</button>
             </div>

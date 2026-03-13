@@ -12,10 +12,10 @@ import { WebUpdateBanner } from './web-update-banner';
 import { cn } from '@/lib/utils';
 
 // Routes that render their own full-page layout (no sidebar)
-const FULL_PAGE_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/donate'];
+const FULL_PAGE_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/donate', '/desktop'];
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/offline', '/donate'];
+const PUBLIC_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/offline', '/donate', '/desktop'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
