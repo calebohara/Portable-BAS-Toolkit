@@ -4,7 +4,7 @@ import { useState, useMemo, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import {
-  Plus, Search, Filter, Pin, MapPin, Hash, Trash2, Database,
+  Plus, Search, Filter, Pin, MapPin, Hash, Trash2, Database, Upload,
 } from 'lucide-react';
 import { useProjects } from '@/hooks/use-projects';
 import { useAppStore } from '@/store/app-store';
@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { NewProjectDialog } from '@/components/projects/new-project-dialog';
 import { DataCleanupDialog } from '@/components/settings/data-cleanup-dialog';
+import { ImportProjectDialog } from '@/components/share/import-project-dialog';
 import { toast } from 'sonner';
 import { navigateToProject } from '@/lib/routes';
 import type { Project, ProjectStatus } from '@/types';
@@ -39,6 +40,7 @@ function ProjectsPageInner() {
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showCleanupDialog, setShowCleanupDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
 
   const handleDeleteProject = async () => {
     if (!deleteTarget) return;
@@ -121,6 +123,16 @@ function ProjectsPageInner() {
             >
               <Database className="h-4 w-4" />
               <span className="hidden sm:inline">Clean Up</span>
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setShowImportDialog(true)}
+              title="Import a shared project"
+            >
+              <Upload className="h-4 w-4" />
+              <span className="hidden sm:inline">Import</span>
             </Button>
             <Button onClick={() => setShowNewDialog(true)} size="sm" className="gap-1.5">
               <Plus className="h-4 w-4" />
@@ -240,6 +252,16 @@ function ProjectsPageInner() {
       <DataCleanupDialog
         open={showCleanupDialog}
         onOpenChange={setShowCleanupDialog}
+      />
+
+      <ImportProjectDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImported={(projectId) => {
+          setShowImportDialog(false);
+          useAppStore.getState().addRecentProject(projectId);
+          navigateToProject(router, projectId);
+        }}
       />
     </>
   );
