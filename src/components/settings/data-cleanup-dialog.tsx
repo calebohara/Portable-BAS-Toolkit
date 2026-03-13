@@ -12,7 +12,16 @@ import {
 } from '@/components/ui/dialog';
 import { ProjectStatusBadge } from '@/components/shared/status-badge';
 import { getAllProjects, deleteProject } from '@/lib/db';
+import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import type { Project } from '@/types';
+
+/** Supabase child tables that reference project_id (order: children before parent) */
+const SUPABASE_PROJECT_CHILD_TABLES = [
+  'project_files', 'field_notes', 'devices', 'ip_plan',
+  'daily_reports', 'activity_log', 'network_diagrams',
+  'ping_sessions', 'terminal_session_logs', 'connection_profiles',
+  'register_calculations',
+];
 
 type Phase = 'loading' | 'select' | 'confirm' | 'deleting' | 'success' | 'error';
 
@@ -77,12 +86,27 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
   const handleDelete = useCallback(async () => {
     setPhase('deleting');
     try {
-      let count = 0;
-      for (const id of selected) {
-        await deleteProject(id);
-        count++;
+      const ids = Array.from(selected);
+
+      // 1. Hard-delete from Supabase first (so restore can't bring them back)
+      if (isSupabaseConfigured()) {
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          // Delete children first (FK order), then projects
+          for (const table of SUPABASE_PROJECT_CHILD_TABLES) {
+            await supabase.from(table).delete().in('project_id', ids).then(() => {});
+          }
+          // Delete the projects themselves
+          await supabase.from('projects').delete().in('id', ids).then(() => {});
+        }
       }
-      setDeletedCount(count);
+
+      // 2. Delete from local IndexedDB
+      for (const id of ids) {
+        await deleteProject(id);
+      }
+
+      setDeletedCount(ids.length);
       setPhase('success');
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -258,7 +282,7 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
               <DialogTitle className="text-center">Are you sure?</DialogTitle>
               <DialogDescription className="text-center">
                 This will permanently delete <strong>{selected.size} project{selected.size !== 1 ? 's' : ''}</strong> and
-                all associated data from this browser. This cannot be undone.
+                all associated data from this browser and cloud. This cannot be undone.
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
@@ -313,7 +337,7 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
               <DialogTitle className="text-center">Cleanup Complete</DialogTitle>
               <DialogDescription className="text-center">
                 {deletedCount} project{deletedCount !== 1 ? 's' : ''} and all associated
-                data removed from local storage.
+                data removed from local storage and cloud.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
