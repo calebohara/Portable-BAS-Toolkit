@@ -17,34 +17,26 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   registerCalculations: 'register_calculations',
 };
 
-// Fields to strip from local entities before pushing to Supabase
+// Fields to strip from local entities before pushing to Supabase.
+// These only exist locally and have no corresponding Supabase column.
 const LOCAL_ONLY_FIELDS = new Set([
-  'isOfflineCached',  // files only
-  'isOfflineAvailable', // projects — maps to is_offline_available in schema but keep for now
+  'isOfflineCached', // files — local-only blob cache indicator
 ]);
+
+// Per-entity fields to SKIP (field exists locally but NOT in the Supabase schema).
+// Unlike LOCAL_ONLY_FIELDS which applies globally, these are entity-specific.
+const SKIP_FIELDS: Partial<Record<SyncEntityType, Set<string>>> = {
+  activityLog: new Set(['user']), // local `user` field — Supabase uses `user_id` instead
+};
 
 // camelCase → snake_case conversion
 function toSnakeCase(str: string): string {
   return str.replace(/([A-Z])/g, '_$1').toLowerCase();
 }
 
-// Per-entity field overrides (where auto snake_case doesn't match the schema)
+// Per-entity field overrides (where auto snake_case doesn't match the schema,
+// or where we need explicit mapping for clarity)
 const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> = {
-  files: {
-    panelSystem: 'panel_system',
-    revisionNumber: 'revision_number',
-    revisionDate: 'revision_date',
-    uploadedBy: 'uploaded_by',
-    mimeType: 'mime_type',
-    fileType: 'file_type',
-    fileName: 'file_name',
-    isPinned: 'is_pinned',
-    isFavorite: 'is_favorite',
-    currentVersionId: 'current_version_id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-    projectId: 'project_id',
-  },
   projects: {
     customerName: 'customer_name',
     siteAddress: 'site_address',
@@ -55,6 +47,46 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     networkSummary: 'network_summary',
     isPinned: 'is_pinned',
     isOfflineAvailable: 'is_offline_available',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
+  files: {
+    projectId: 'project_id',
+    fileName: 'file_name',
+    fileType: 'file_type',
+    mimeType: 'mime_type',
+    panelSystem: 'panel_system',
+    revisionNumber: 'revision_number',
+    revisionDate: 'revision_date',
+    uploadedBy: 'uploaded_by',
+    isPinned: 'is_pinned',
+    isFavorite: 'is_favorite',
+    currentVersionId: 'current_version_id',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
+  notes: {
+    projectId: 'project_id',
+    fileId: 'file_id',
+    isPinned: 'is_pinned',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
+  devices: {
+    projectId: 'project_id',
+    deviceName: 'device_name',
+    controllerType: 'controller_type',
+    macAddress: 'mac_address',
+    instanceNumber: 'instance_number',
+    ipAddress: 'ip_address',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
+  ipPlan: {
+    projectId: 'project_id',
+    ipAddress: 'ip_address',
+    deviceRole: 'device_role',
+    macAddress: 'mac_address',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
@@ -76,6 +108,40 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  activityLog: {
+    projectId: 'project_id',
+    fileId: 'file_id',
+  },
+  networkDiagrams: {
+    projectId: 'project_id',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
+  commandSnippets: {
+    isFavorite: 'is_favorite',
+    usageCount: 'usage_count',
+    lastUsedAt: 'last_used_at',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
+  pingSessions: {
+    projectId: 'project_id',
+    intervalMs: 'interval_ms',
+    createdAt: 'created_at',
+    completedAt: 'completed_at',
+  },
+  terminalLogs: {
+    projectId: 'project_id',
+    sessionLabel: 'session_label',
+    connectionMode: 'connection_mode',
+    serialPort: 'serial_port',
+    baudRate: 'baud_rate',
+    lineCount: 'line_count',
+    logContent: 'log_content',
+    startedAt: 'started_at',
+    endedAt: 'ended_at',
+    createdAt: 'created_at',
+  },
   connectionProfiles: {
     connectionType: 'connection_type',
     serialPort: 'serial_port',
@@ -91,30 +157,10 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
-  terminalLogs: {
+  registerCalculations: {
     projectId: 'project_id',
-    sessionLabel: 'session_label',
-    connectionMode: 'connection_mode',
-    serialPort: 'serial_port',
-    baudRate: 'baud_rate',
-    lineCount: 'line_count',
-    logContent: 'log_content',
-    startedAt: 'started_at',
-    endedAt: 'ended_at',
-    createdAt: 'created_at',
-  },
-  commandSnippets: {
-    isFavorite: 'is_favorite',
-    usageCount: 'usage_count',
-    lastUsedAt: 'last_used_at',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
-  },
-  pingSessions: {
-    projectId: 'project_id',
-    intervalMs: 'interval_ms',
-    createdAt: 'created_at',
-    completedAt: 'completed_at',
   },
 };
 
@@ -128,10 +174,14 @@ export function toSupabaseRow(
   userId: string,
 ): Record<string, unknown> {
   const overrides = FIELD_OVERRIDES[entityType] ?? {};
+  const skipFields = SKIP_FIELDS[entityType];
   const row: Record<string, unknown> = { user_id: userId };
 
   for (const [key, value] of Object.entries(localEntity)) {
+    // Strip globally local-only fields
     if (LOCAL_ONLY_FIELDS.has(key)) continue;
+    // Strip entity-specific fields that don't exist in Supabase
+    if (skipFields?.has(key)) continue;
 
     // Use explicit override, or auto-convert to snake_case
     const snakeKey = overrides[key] ?? toSnakeCase(key);

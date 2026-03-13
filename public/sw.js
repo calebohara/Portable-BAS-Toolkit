@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'bau-suite-v5';
+const CACHE_VERSION = 'bau-suite-v6';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 

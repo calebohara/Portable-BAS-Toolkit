@@ -10,6 +10,7 @@ import type { SyncManagerInterface } from './sync-bridge';
 const MAX_RETRIES = 5;
 const PROCESS_INTERVAL_MS = 5000;
 const BATCH_SIZE = 20;
+const LOG_PREFIX = '[sync]';
 
 type StatusCallback = (status: 'idle' | 'syncing' | 'error', pendingCount: number) => void;
 
@@ -31,6 +32,7 @@ export class SyncManager implements SyncManagerInterface {
 
   start(): void {
     if (this.intervalId) return;
+    console.info(`${LOG_PREFIX} Manager started (user=${this.userId.substring(0, 8)}…)`);
     this.intervalId = setInterval(() => this.processQueue(), PROCESS_INTERVAL_MS);
     // Immediate first run
     this.processQueue();
@@ -40,6 +42,7 @@ export class SyncManager implements SyncManagerInterface {
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
+      console.info(`${LOG_PREFIX} Manager stopped`);
     }
   }
 
@@ -76,6 +79,7 @@ export class SyncManager implements SyncManagerInterface {
         return;
       }
 
+      console.info(`${LOG_PREFIX} Processing ${items.length} queued item(s)…`);
       this.onStatusChange?.('syncing', items.length);
 
       // Sort: projects first to satisfy FK constraints
@@ -85,19 +89,29 @@ export class SyncManager implements SyncManagerInterface {
         return orderA - orderB;
       });
 
+      let successCount = 0;
+      let failCount = 0;
+
       for (const item of items) {
-        await this.processItem(item);
+        const ok = await this.processItem(item);
+        if (ok) successCount++;
+        else failCount++;
+      }
+
+      if (successCount > 0 || failCount > 0) {
+        console.info(`${LOG_PREFIX} Batch complete: ${successCount} synced, ${failCount} failed`);
       }
 
       this.reportStatus();
-    } catch {
+    } catch (err) {
+      console.error(`${LOG_PREFIX} Queue processing error:`, err);
       this.onStatusChange?.('error', 0);
     } finally {
       this.processing = false;
     }
   }
 
-  private async processItem(item: SyncQueueItem): Promise<void> {
+  private async processItem(item: SyncQueueItem): Promise<boolean> {
     // Mark as syncing
     await updateSyncItem({ ...item, status: 'syncing' });
 
@@ -107,17 +121,19 @@ export class SyncManager implements SyncManagerInterface {
       if (item.action === 'delete') {
         // Use soft delete for tables that have deleted_at, hard delete for activity_log
         if (item.entityType === 'activityLog') {
-          await this.client
+          const { error } = await this.client
             .from(table)
             .delete()
             .eq('id', item.entityId)
             .eq('user_id', this.userId);
+          if (error) throw error;
         } else {
-          await this.client
+          const { error } = await this.client
             .from(table)
             .update({ deleted_at: new Date().toISOString() })
             .eq('id', item.entityId)
             .eq('user_id', this.userId);
+          if (error) throw error;
         }
       } else {
         // create or update → upsert
@@ -135,9 +151,15 @@ export class SyncManager implements SyncManagerInterface {
 
       // Success — remove from queue
       await deleteSyncItem(item.id);
+      return true;
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : String(err);
       const newRetryCount = item.retriedCount + 1;
+
+      console.warn(
+        `${LOG_PREFIX} Failed to sync ${item.entityType}/${item.entityId} (attempt ${newRetryCount}/${MAX_RETRIES}):`,
+        errorMsg,
+      );
 
       if (newRetryCount >= MAX_RETRIES) {
         await updateSyncItem({
@@ -146,6 +168,9 @@ export class SyncManager implements SyncManagerInterface {
           retriedCount: newRetryCount,
           lastError: errorMsg,
         });
+        console.error(
+          `${LOG_PREFIX} Permanently failed: ${item.entityType}/${item.entityId} — ${errorMsg}`,
+        );
       } else {
         await updateSyncItem({
           ...item,
@@ -154,20 +179,30 @@ export class SyncManager implements SyncManagerInterface {
           lastError: errorMsg,
         });
       }
+      return false;
     }
   }
 
   async fullSync(): Promise<void> {
+    console.info(`${LOG_PREFIX} Full sync started — reading all stores…`);
+    let totalEnqueued = 0;
+
     for (const entityType of SYNC_ORDER) {
       try {
         const items = await getAllFromStore(entityType) as Record<string, unknown>[];
         for (const item of items) {
           await this.enqueue('update', entityType, item.id as string, item);
+          totalEnqueued++;
         }
-      } catch {
-        // Skip stores that fail to read
+        if (items.length > 0) {
+          console.info(`${LOG_PREFIX} Enqueued ${items.length} ${entityType} item(s)`);
+        }
+      } catch (err) {
+        console.warn(`${LOG_PREFIX} Failed to read store "${entityType}":`, err);
       }
     }
+
+    console.info(`${LOG_PREFIX} Full sync: ${totalEnqueued} total items enqueued`);
     // Kick off processing immediately
     this.processQueue();
   }
