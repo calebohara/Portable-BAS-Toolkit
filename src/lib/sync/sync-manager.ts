@@ -57,11 +57,15 @@ export class SyncManager implements SyncManagerInterface {
     entityId: string,
     payload: unknown,
   ): Promise<void> {
-    // Pre-flight: validate the entity is syncable before wasting a queue slot
+    // Pre-flight: entity ID must be a valid UUID (non-UUID = demo/seed data
+    // that never existed in Supabase, so there's nothing to create/update/delete)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId)) {
+      return;
+    }
+    // For create/update: also validate required FKs (e.g. project_id NOT NULL)
     if (action !== 'delete') {
       const reason = validateSyncable(entityType, (payload ?? {}) as Record<string, unknown>);
       if (reason) {
-        // Silently skip unsyncable items (demo data, missing FKs, etc.)
         return;
       }
     }

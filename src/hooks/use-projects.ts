@@ -3,32 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog, ConnectionProfile } from '@/types';
 import * as db from '@/lib/db';
-import { generateDemoData } from '@/lib/demo-data';
 import { v4 as uuid } from 'uuid';
-
-let demoSeedPromise: Promise<void> | null = null;
-
-function ensureDemoData(): Promise<void> {
-  if (!demoSeedPromise) {
-    demoSeedPromise = (async () => {
-      const existing = await db.getAllProjects();
-      if (existing.length > 0) return;
-
-      const demo = generateDemoData();
-      for (const p of demo.projects) await db.saveProject(p);
-      for (const f of demo.files) await db.saveFile(f);
-      for (const n of demo.notes) await db.saveNote(n);
-      for (const d of demo.devices) await db.saveDevice(d);
-      for (const ip of demo.ipEntries) await db.saveIpEntry(ip);
-      for (const a of demo.activityLog) await db.addActivity(a);
-    })().catch((err) => {
-      // Reset so next attempt retries instead of returning cached failure
-      demoSeedPromise = null;
-      throw err;
-    });
-  }
-  return demoSeedPromise;
-}
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -36,7 +11,6 @@ export function useProjects() {
 
   const refresh = useCallback(async () => {
     try {
-      await ensureDemoData();
       const all = await db.getAllProjects();
       setProjects(all);
     } catch (e) {
@@ -95,7 +69,6 @@ export function useProject(id: string) {
 
   const refresh = useCallback(async () => {
     try {
-      await ensureDemoData();
       const p = await db.getProject(id);
       setProject(p || null);
     } catch (e) {
@@ -110,8 +83,7 @@ export function useProject(id: string) {
     let stale = false;
     (async () => {
       try {
-        await ensureDemoData();
-        const p = await db.getProject(id);
+          const p = await db.getProject(id);
         if (!stale) {
           setProject(p || null);
           setLoading(false);
@@ -147,7 +119,6 @@ export function useProjectFiles(projectId: string, category?: string) {
 
   const refresh = useCallback(async () => {
     try {
-      await ensureDemoData();
       const allFiles = category
         ? await db.getFilesByCategory(projectId, category)
         : await db.getProjectFiles(projectId);
@@ -164,8 +135,7 @@ export function useProjectFiles(projectId: string, category?: string) {
     let stale = false;
     (async () => {
       try {
-        await ensureDemoData();
-        const allFiles = category
+          const allFiles = category
           ? await db.getFilesByCategory(projectId, category)
           : await db.getProjectFiles(projectId);
         if (!stale) {
@@ -191,7 +161,6 @@ export function useProjectNotes(projectId: string) {
 
   const refresh = useCallback(async () => {
     try {
-      await ensureDemoData();
       const all = await db.getProjectNotes(projectId);
       setNotes(all);
     } catch (e) {
@@ -205,8 +174,7 @@ export function useProjectNotes(projectId: string) {
     let stale = false;
     (async () => {
       try {
-        await ensureDemoData();
-        const all = await db.getProjectNotes(projectId);
+          const all = await db.getProjectNotes(projectId);
         if (!stale) { setNotes(all); setLoading(false); }
       } catch (e) {
         if (!stale) { console.error('Failed to load notes:', e); setLoading(false); }
@@ -266,7 +234,6 @@ export function useProjectDevices(projectId: string) {
 
   const refresh = useCallback(async () => {
     try {
-      await ensureDemoData();
       const all = await db.getProjectDevices(projectId);
       setDevices(all);
     } catch (e) {
@@ -280,8 +247,7 @@ export function useProjectDevices(projectId: string) {
     let stale = false;
     (async () => {
       try {
-        await ensureDemoData();
-        const all = await db.getProjectDevices(projectId);
+          const all = await db.getProjectDevices(projectId);
         if (!stale) { setDevices(all); setLoading(false); }
       } catch (e) {
         if (!stale) { console.error('Failed to load devices:', e); setLoading(false); }
@@ -339,7 +305,6 @@ export function useProjectIpPlan(projectId: string) {
 
   const refresh = useCallback(async () => {
     try {
-      await ensureDemoData();
       const all = await db.getProjectIpPlan(projectId);
       setEntries(all);
     } catch (e) {
@@ -353,8 +318,7 @@ export function useProjectIpPlan(projectId: string) {
     let stale = false;
     (async () => {
       try {
-        await ensureDemoData();
-        const all = await db.getProjectIpPlan(projectId);
+          const all = await db.getProjectIpPlan(projectId);
         if (!stale) { setEntries(all); setLoading(false); }
       } catch (e) {
         if (!stale) { console.error('Failed to load IP plan:', e); setLoading(false); }
@@ -412,7 +376,6 @@ export function useProjectActivity(projectId: string) {
 
   const refresh = useCallback(async () => {
     try {
-      await ensureDemoData();
       const all = await db.getProjectActivity(projectId);
       setActivity(all);
     } catch (e) {
@@ -426,8 +389,7 @@ export function useProjectActivity(projectId: string) {
     let stale = false;
     (async () => {
       try {
-        await ensureDemoData();
-        const all = await db.getProjectActivity(projectId);
+          const all = await db.getProjectActivity(projectId);
         if (!stale) { setActivity(all); setLoading(false); }
       } catch (e) {
         if (!stale) { console.error('Failed to load activity:', e); setLoading(false); }
@@ -446,7 +408,6 @@ export function useDailyReports(projectId?: string) {
 
   const refresh = useCallback(async () => {
     try {
-      await ensureDemoData();
       const all = projectId
         ? await db.getProjectDailyReports(projectId)
         : await db.getAllDailyReports();
@@ -514,7 +475,6 @@ export function useDailyReport(id: string) {
 
   const refresh = useCallback(async () => {
     try {
-      await ensureDemoData();
       const r = await db.getDailyReport(id);
       setReport(r || null);
     } catch (e) {
@@ -547,7 +507,6 @@ export function useNetworkDiagrams(projectId?: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    await ensureDemoData();
     const all = projectId
       ? await db.getProjectDiagrams(projectId)
       : await db.getAllDiagrams();
