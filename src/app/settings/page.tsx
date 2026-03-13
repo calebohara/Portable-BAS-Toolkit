@@ -137,10 +137,20 @@ export default function SettingsPage() {
                   onClick={async () => {
                     setSyncing(true);
                     try {
-                      await triggerFullSync();
-                      toast.success('Full backup started');
-                    } catch {
-                      toast.error('Backup failed');
+                      const result = await triggerFullSync();
+                      if (!result) {
+                        toast.error('Sync not available — are you signed in?');
+                      } else if (result.enqueued === 0 && result.errors.length === 0) {
+                        toast.info('Nothing to back up — all stores are empty');
+                      } else if (result.errors.length > 0) {
+                        toast.warning(`Enqueued ${result.enqueued} item(s) with ${result.errors.length} store error(s)`);
+                      } else {
+                        toast.success(`Backing up ${result.enqueued} item(s)…`);
+                      }
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : String(err);
+                      toast.error(`Backup failed: ${msg}`);
+                      console.error('[sync] Full backup error:', err);
                     } finally {
                       setSyncing(false);
                     }

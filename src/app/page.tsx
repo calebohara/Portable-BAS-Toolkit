@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
@@ -74,8 +74,10 @@ export default function HomePage() {
 
   // Auto-redirect authenticated users to dashboard
   // (handles post-confirmation redirect from Supabase)
+  const didRedirect = useRef(false);
   useEffect(() => {
-    if (!loading && isAuthed) {
+    if (!loading && isAuthed && !didRedirect.current) {
+      didRedirect.current = true;
       router.replace('/dashboard');
     }
   }, [loading, isAuthed, router]);

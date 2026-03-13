@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -34,10 +34,21 @@ function LoginContent() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // If already authenticated, redirect to dashboard
+  // If already authenticated, redirect to dashboard (via useEffect to avoid render-loop)
+  const didRedirect = useRef(false);
+  useEffect(() => {
+    if (mode === 'authenticated' && !didRedirect.current) {
+      didRedirect.current = true;
+      router.replace('/dashboard');
+    }
+  }, [mode, router]);
+
   if (mode === 'authenticated') {
-    router.replace('/dashboard');
-    return null;
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </div>
+    );
   }
 
   if (!isConfigured) {

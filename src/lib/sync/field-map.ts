@@ -23,6 +23,13 @@ const LOCAL_ONLY_FIELDS = new Set([
   'isOfflineCached', // files — local-only blob cache indicator
 ]);
 
+// Snake_case column names that are uuid foreign-key references in Supabase.
+// Empty strings must be converted to null (Postgres rejects '' for uuid columns).
+const UUID_FK_COLUMNS = new Set([
+  'project_id',
+  'file_id',
+]);
+
 // Per-entity fields to SKIP (field exists locally but NOT in the Supabase schema).
 // Unlike LOCAL_ONLY_FIELDS which applies globally, these are entity-specific.
 const SKIP_FIELDS: Partial<Record<SyncEntityType, Set<string>>> = {
@@ -182,9 +189,19 @@ export function toSupabaseRow(
     if (LOCAL_ONLY_FIELDS.has(key)) continue;
     // Strip entity-specific fields that don't exist in Supabase
     if (skipFields?.has(key)) continue;
+    // Skip undefined values entirely (don't send to Supabase)
+    if (value === undefined) continue;
 
     // Use explicit override, or auto-convert to snake_case
     const snakeKey = overrides[key] ?? toSnakeCase(key);
+
+    // Convert empty strings to null for uuid FK columns
+    // (Postgres rejects '' for uuid type)
+    if (UUID_FK_COLUMNS.has(snakeKey) && value === '') {
+      row[snakeKey] = null;
+      continue;
+    }
+
     row[snakeKey] = value;
   }
 

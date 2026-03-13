@@ -8,10 +8,10 @@ import { SyncManager } from '@/lib/sync/sync-manager';
 import { registerSyncManager, unregisterSyncManager } from '@/lib/sync/sync-bridge';
 
 interface SyncContextValue {
-  triggerFullSync: () => Promise<void>;
+  triggerFullSync: () => Promise<{ enqueued: number; errors: string[] } | null>;
 }
 
-const SyncContext = createContext<SyncContextValue>({ triggerFullSync: async () => {} });
+const SyncContext = createContext<SyncContextValue>({ triggerFullSync: async () => null });
 
 export function useSyncContext() {
   return useContext(SyncContext);
@@ -76,8 +76,9 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   const triggerFullSync = useCallback(async () => {
     if (managerRef.current) {
-      await managerRef.current.fullSync();
+      return managerRef.current.fullSync();
     }
+    return null;
   }, []);
 
   return (

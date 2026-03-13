@@ -183,28 +183,37 @@ export class SyncManager implements SyncManagerInterface {
     }
   }
 
-  async fullSync(): Promise<void> {
+  async fullSync(): Promise<{ enqueued: number; errors: string[] }> {
     console.info(`${LOG_PREFIX} Full sync started — reading all stores…`);
     let totalEnqueued = 0;
+    const errors: string[] = [];
 
     for (const entityType of SYNC_ORDER) {
       try {
         const items = await getAllFromStore(entityType) as Record<string, unknown>[];
         for (const item of items) {
-          await this.enqueue('update', entityType, item.id as string, item);
+          const id = item.id as string | undefined;
+          if (!id) {
+            console.warn(`${LOG_PREFIX} Skipping ${entityType} item with missing id`);
+            continue;
+          }
+          await this.enqueue('update', entityType, id, item);
           totalEnqueued++;
         }
         if (items.length > 0) {
           console.info(`${LOG_PREFIX} Enqueued ${items.length} ${entityType} item(s)`);
         }
       } catch (err) {
-        console.warn(`${LOG_PREFIX} Failed to read store "${entityType}":`, err);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`${LOG_PREFIX} Failed to read store "${entityType}":`, msg);
+        errors.push(`${entityType}: ${msg}`);
       }
     }
 
     console.info(`${LOG_PREFIX} Full sync: ${totalEnqueued} total items enqueued`);
-    // Kick off processing immediately
+    // Kick off processing immediately (don't await — runs in background)
     this.processQueue();
+    return { enqueued: totalEnqueued, errors };
   }
 
   private async reportStatus(): Promise<void> {
