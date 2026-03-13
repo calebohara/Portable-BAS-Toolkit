@@ -1,5 +1,8 @@
 import type { SyncEntityType } from '@/types';
 
+// UUID v4 regex — Supabase uuid columns reject non-UUID strings
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Maps IndexedDB store names to Supabase table names
 export const entityTypeToTable: Record<SyncEntityType, string> = {
   projects: 'projects',
@@ -195,11 +198,13 @@ export function toSupabaseRow(
     // Use explicit override, or auto-convert to snake_case
     const snakeKey = overrides[key] ?? toSnakeCase(key);
 
-    // Convert empty strings to null for uuid FK columns
-    // (Postgres rejects '' for uuid type)
-    if (UUID_FK_COLUMNS.has(snakeKey) && value === '') {
-      row[snakeKey] = null;
-      continue;
+    // Sanitize uuid FK columns: convert empty strings and non-UUID values to null
+    // (Postgres rejects '' and non-UUID strings like "proj-ahu-upgrade" for uuid columns)
+    if (UUID_FK_COLUMNS.has(snakeKey)) {
+      if (typeof value !== 'string' || value === '' || !UUID_RE.test(value)) {
+        row[snakeKey] = null;
+        continue;
+      }
     }
 
     row[snakeKey] = value;

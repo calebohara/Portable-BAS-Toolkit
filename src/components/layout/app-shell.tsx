@@ -15,6 +15,7 @@ const FULL_PAGE_ROUTES = ['/', '/login', '/forgot-password', '/reset-password'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const setOnline = useAppStore((s) => s.setOnline);
@@ -32,13 +33,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [setOnline]);
 
-  // Register service worker (skip in Tauri — SW intercepts navigation requests
-  // and breaks client-side routing in the static export)
+  // Register service worker (skip in dev mode and Tauri)
   useEffect(() => {
-    if ('serviceWorker' in navigator && !('__TAURI_INTERNALS__' in window)) {
+    const isDev = process.env.NODE_ENV === 'development';
+    const isTauri = '__TAURI_INTERNALS__' in window;
+
+    if ('serviceWorker' in navigator && !isDev && !isTauri) {
       navigator.serviceWorker.register('/sw.js').catch(() => {});
-    } else if ('serviceWorker' in navigator && '__TAURI_INTERNALS__' in window) {
-      // Unregister any previously registered SW in Tauri to prevent stale caches
+    } else if ('serviceWorker' in navigator && (isDev || isTauri)) {
+      // Unregister any previously registered SW to prevent stale caches
       navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const registration of registrations) {
           registration.unregister();
@@ -47,8 +50,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Auto-launch tour for first-time users
+  // Auto-launch tour for first-time users (only on dashboard)
   useEffect(() => {
+    if (pathname !== '/dashboard') return;
     const state = useAppStore.getState();
     if (!state.hasCompletedTour && !state.tourActive) {
       // Small delay to let the app render first
@@ -57,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       }, 800);
       return () => clearTimeout(timer);
     }
-  }, []);
+  }, [pathname]);
 
   // Close sidebar on mobile by default
   useEffect(() => {

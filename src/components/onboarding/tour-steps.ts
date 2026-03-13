@@ -15,7 +15,7 @@ export const TOUR_STEPS: TourStep[] = [
     title: 'Welcome to BAU Suite',
     content: 'Your portable project toolkit for Building Automation Systems. Let\'s take a quick tour of the key features.',
     placement: 'right',
-    route: '/',
+    route: '/dashboard',
     action: 'open-sidebar',
   },
   {
@@ -24,7 +24,7 @@ export const TOUR_STEPS: TourStep[] = [
     title: 'Quick Actions',
     content: 'Jump to common tasks — create projects, upload files, add notes, or check offline files.',
     placement: 'bottom',
-    route: '/',
+    route: '/dashboard',
   },
   {
     id: 'upload-btn',

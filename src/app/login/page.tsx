@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState, useEffect, useRef } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -34,14 +34,13 @@ function LoginContent() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // If already authenticated, redirect to dashboard (via useEffect to avoid render-loop)
-  const didRedirect = useRef(false);
+  // If already authenticated, redirect to dashboard via hard navigation
+  // (window.location breaks out of React rendering cycle to prevent redirect loops)
   useEffect(() => {
-    if (mode === 'authenticated' && !didRedirect.current) {
-      didRedirect.current = true;
-      router.replace('/dashboard');
+    if (mode === 'authenticated') {
+      window.location.replace('/dashboard');
     }
-  }, [mode, router]);
+  }, [mode]);
 
   if (mode === 'authenticated') {
     return (
@@ -103,7 +102,7 @@ function LoginContent() {
         if (err) {
           setError(err.message);
         } else {
-          router.replace('/dashboard');
+          window.location.replace('/dashboard');
         }
       } else {
         const { error: err } = await signUp(email, password);

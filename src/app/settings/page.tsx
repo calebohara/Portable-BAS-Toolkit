@@ -141,7 +141,7 @@ export default function SettingsPage() {
                       if (!result) {
                         toast.error('Sync not available — are you signed in?');
                       } else if (result.enqueued === 0 && result.errors.length === 0) {
-                        toast.info('Nothing to back up — all stores are empty');
+                        toast.info('Nothing to back up — no user-created data found (demo data is excluded)');
                       } else if (result.errors.length > 0) {
                         toast.warning(`Enqueued ${result.enqueued} item(s) with ${result.errors.length} store error(s)`);
                       } else {

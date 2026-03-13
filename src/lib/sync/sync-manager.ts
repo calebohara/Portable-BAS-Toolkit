@@ -12,6 +12,9 @@ const PROCESS_INTERVAL_MS = 5000;
 const BATCH_SIZE = 20;
 const LOG_PREFIX = '[sync]';
 
+// UUID v4 regex — Supabase uuid columns reject non-UUID strings
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 type StatusCallback = (status: 'idle' | 'syncing' | 'error', pendingCount: number) => void;
 
 export class SyncManager implements SyncManagerInterface {
@@ -195,6 +198,7 @@ export class SyncManager implements SyncManagerInterface {
 
     for (const entityType of SYNC_ORDER) {
       try {
+        const prevTotal = totalEnqueued;
         const items = await getAllFromStore(entityType) as Record<string, unknown>[];
         for (const item of items) {
           const id = item.id as string | undefined;
@@ -202,11 +206,24 @@ export class SyncManager implements SyncManagerInterface {
             console.warn(`${LOG_PREFIX} Skipping ${entityType} item with missing id`);
             continue;
           }
+          // Skip demo/seed data with non-UUID IDs (Supabase uuid columns reject them)
+          if (!UUID_RE.test(id)) {
+            continue;
+          }
+          // Skip items whose projectId is a non-UUID demo reference
+          // (tables like ip_plan, activity_log have NOT NULL project_id FK)
+          const projectId = item.projectId as string | undefined;
+          if (projectId && !UUID_RE.test(projectId)) {
+            continue;
+          }
           await this.enqueue('update', entityType, id, item);
           totalEnqueued++;
         }
-        if (items.length > 0) {
-          console.info(`${LOG_PREFIX} Enqueued ${items.length} ${entityType} item(s)`);
+        const storeEnqueued = totalEnqueued - prevTotal;
+        if (storeEnqueued > 0) {
+          console.info(`${LOG_PREFIX} Enqueued ${storeEnqueued} ${entityType} item(s) (${items.length - storeEnqueued} skipped)`);
+        } else if (items.length > 0) {
+          console.info(`${LOG_PREFIX} Skipped all ${items.length} ${entityType} item(s) (demo data)`);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
