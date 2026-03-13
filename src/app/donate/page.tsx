@@ -304,23 +304,23 @@ export default function DonatePage() {
 
                   {stripeReady ? (
                     <Button
-                      size="sm"
-                      className={`w-full gap-1.5 ${tier.featured ? 'hp-btn-glow' : ''}`}
+                      className={`w-full ${tier.featured ? 'hp-btn-glow' : ''}`}
                       variant={tier.featured ? 'default' : 'outline'}
                       disabled={loading === tier.amount}
                       onClick={() => handleDonate(tier)}
                     >
                       {loading === tier.amount ? (
-                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        <>
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                          Redirecting…
+                        </>
                       ) : (
-                        <Heart className="h-3.5 w-3.5" />
+                        'Support'
                       )}
-                      {loading === tier.amount ? 'Redirecting...' : 'Support'}
                     </Button>
                   ) : (
                     <Button
-                      size="sm"
-                      className="w-full gap-1.5"
+                      className="w-full"
                       variant="outline"
                       disabled
                     >
