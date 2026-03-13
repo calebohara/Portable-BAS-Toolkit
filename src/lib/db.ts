@@ -868,6 +868,9 @@ export async function purgeOrphanedRecords(): Promise<number> {
 
   let totalDeleted = 0;
 
+  // Collect orphaned file blob keys so we can clean up fileBlobs store after
+  const orphanedBlobKeys: string[] = [];
+
   for (const storeName of childStores) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tx = db.transaction(storeName as any, 'readwrite');
@@ -877,11 +880,27 @@ export async function purgeOrphanedRecords(): Promise<number> {
       const pid = rec.projectId as string | undefined;
       // Delete if projectId is missing, empty, non-UUID, or references a deleted project
       if (!pid || !UUID_RE.test(pid) || !validIds.has(pid)) {
+        // If this is a file record, collect its blob keys for cleanup
+        if (storeName === 'files') {
+          const versions = (rec.versions ?? []) as Array<{ blobKey?: string }>;
+          for (const v of versions) {
+            if (v.blobKey) orphanedBlobKeys.push(v.blobKey);
+          }
+        }
         await tx.store.delete(rec.id as string);
         totalDeleted++;
       }
     }
     await tx.done;
+  }
+
+  // Clean up fileBlobs for orphaned files
+  if (orphanedBlobKeys.length > 0) {
+    const blobTx = db.transaction('fileBlobs', 'readwrite');
+    for (const key of orphanedBlobKeys) {
+      await blobTx.store.delete(key);
+    }
+    await blobTx.done;
   }
 
   return totalDeleted;

@@ -20,7 +20,7 @@ const SUPABASE_PROJECT_CHILD_TABLES = [
   'project_files', 'field_notes', 'devices', 'ip_plan',
   'daily_reports', 'activity_log', 'network_diagrams',
   'ping_sessions', 'terminal_session_logs', 'connection_profiles',
-  'register_calculations',
+  'register_calculations', 'command_snippets',
 ];
 
 type Phase = 'loading' | 'select' | 'confirm' | 'deleting' | 'success' | 'error';
@@ -94,10 +94,17 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
         if (supabase) {
           // Delete children first (FK order), then projects
           for (const table of SUPABASE_PROJECT_CHILD_TABLES) {
-            await supabase.from(table).delete().in('project_id', ids).then(() => {});
+            const { error } = await supabase.from(table).delete().in('project_id', ids);
+            if (error) console.warn(`[cleanup] Failed to delete from ${table}:`, error.message);
+          }
+          // Also delete any orphaned rows with NULL project_id
+          for (const table of SUPABASE_PROJECT_CHILD_TABLES) {
+            const { error } = await supabase.from(table).delete().is('project_id', null);
+            if (error) console.warn(`[cleanup] Failed to purge NULL rows from ${table}:`, error.message);
           }
           // Delete the projects themselves
-          await supabase.from('projects').delete().in('id', ids).then(() => {});
+          const { error: projErr } = await supabase.from('projects').delete().in('id', ids);
+          if (projErr) console.warn('[cleanup] Failed to delete projects:', projErr.message);
         }
       }
 
