@@ -24,19 +24,24 @@ export function useSyncContext() {
 export function SyncProvider({ children }: { children: React.ReactNode }) {
   const { mode, user } = useAuth();
   const managerRef = useRef<SyncManager | null>(null);
+  const autoPullFiredRef = useRef(false);
   const setSyncStatus = useAppStore((s) => s.setSyncStatus);
   const setPendingSyncCount = useAppStore((s) => s.setPendingSyncCount);
   const setLastSyncedAt = useAppStore((s) => s.setLastSyncedAt);
   const setLastPulledAt = useAppStore((s) => s.setLastPulledAt);
 
+  // Stabilise identity: only re-run when the user ID actually changes
+  const userId = user?.id ?? null;
+
   useEffect(() => {
-    if (mode !== 'authenticated' || !user) {
+    if (mode !== 'authenticated' || !userId) {
       // Not authenticated — tear down and disable
       if (managerRef.current) {
         managerRef.current.stop();
         unregisterSyncManager();
         managerRef.current = null;
       }
+      autoPullFiredRef.current = false;
       setSyncStatus('disabled');
       setPendingSyncCount(0);
       return;
@@ -49,7 +54,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     }
 
     // Create and start manager
-    const manager = new SyncManager(client, user.id);
+    const manager = new SyncManager(client, userId);
     manager.setStatusCallback((status, pendingCount) => {
       if (status === 'idle' && pendingCount === 0) {
         setLastSyncedAt(new Date().toISOString());
@@ -71,9 +76,10 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const handleOnline = () => manager.processQueue();
     window.addEventListener('online', handleOnline);
 
-    // Auto-pull on first login (new device scenario)
+    // Auto-pull on first login (new device scenario) — only once per session
     const storedLastPulledAt = useAppStore.getState().lastPulledAt;
-    if (!storedLastPulledAt) {
+    if (!storedLastPulledAt && !autoPullFiredRef.current) {
+      autoPullFiredRef.current = true;
       console.info('[sync] First login — auto-pulling all data from cloud…');
       manager.pullSync(null).then((result) => {
         if (result.errors.length === 0) {
@@ -92,7 +98,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       unregisterSyncManager();
       managerRef.current = null;
     };
-  }, [mode, user, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt]);
+  }, [mode, userId, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt]);
 
   const triggerFullSync = useCallback(async () => {
     if (managerRef.current) {
