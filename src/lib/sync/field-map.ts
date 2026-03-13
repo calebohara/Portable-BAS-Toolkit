@@ -244,10 +244,13 @@ export function validateSyncable(
   if (!id || !UUID_RE.test(id)) {
     return `invalid id: ${id ?? 'missing'}`;
   }
-  if (REQUIRES_PROJECT_ID.has(entityType)) {
+  // All entity types with a projectId field must have a valid UUID projectId.
+  // This prevents orphaned demo data (non-UUID projectIds like "proj-ahu-upgrade")
+  // from being pushed to Supabase where they'd become NULL project_id rows.
+  if (entityType !== 'projects' && entityType !== 'commandSnippets') {
     const projectId = localEntity.projectId as string | undefined;
     if (!projectId || !UUID_RE.test(projectId)) {
-      return `invalid projectId: ${projectId ?? 'missing'} (required for ${entityType})`;
+      return `invalid projectId: ${projectId ?? 'missing'} (${entityType})`;
     }
   }
   return null; // syncable

@@ -850,6 +850,43 @@ export async function getFirstSyncError(): Promise<string | null> {
   return `${failed.length} failed item(s) with no error details`;
 }
 
+/**
+ * Delete orphaned child records from IndexedDB — records whose projectId
+ * doesn't match any existing project. Returns count of deleted records.
+ */
+export async function purgeOrphanedRecords(): Promise<number> {
+  const db = await getDB();
+  const projects = await db.getAll('projects');
+  const validIds = new Set(projects.map((p) => p.id));
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  const childStores = [
+    'files', 'notes', 'devices', 'ipPlan', 'activityLog',
+    'dailyReports', 'networkDiagrams', 'pingSessions',
+    'terminalLogs', 'connectionProfiles', 'registerCalculations',
+  ] as const;
+
+  let totalDeleted = 0;
+
+  for (const storeName of childStores) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tx = db.transaction(storeName as any, 'readwrite');
+    const allItems = await tx.store.getAll();
+    for (const item of allItems) {
+      const rec = item as Record<string, unknown>;
+      const pid = rec.projectId as string | undefined;
+      // Delete if projectId is missing, empty, non-UUID, or references a deleted project
+      if (!pid || !UUID_RE.test(pid) || !validIds.has(pid)) {
+        await tx.store.delete(rec.id as string);
+        totalDeleted++;
+      }
+    }
+    await tx.done;
+  }
+
+  return totalDeleted;
+}
+
 // Get all items from a store (for full sync)
 export async function getAllFromStore(storeName: string): Promise<unknown[]> {
   const db = await getDB();

@@ -11,7 +11,7 @@ import {
   DialogDescription, DialogBody, DialogFooter,
 } from '@/components/ui/dialog';
 import { ProjectStatusBadge } from '@/components/shared/status-badge';
-import { getAllProjects, deleteProject } from '@/lib/db';
+import { getAllProjects, deleteProject, purgeOrphanedRecords } from '@/lib/db';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import type { Project } from '@/types';
 
@@ -105,6 +105,9 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
       for (const id of ids) {
         await deleteProject(id);
       }
+
+      // 3. Purge any orphaned child records (e.g. demo files with non-UUID projectIds)
+      await purgeOrphanedRecords();
 
       setDeletedCount(ids.length);
       setPhase('success');
