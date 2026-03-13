@@ -3,8 +3,9 @@ import type {
   Project, ProjectFile, FileVersion, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
-  ConnectionProfile, SavedCalculation,
+  ConnectionProfile, SavedCalculation, SyncQueueItem,
 } from '@/types';
+import { notifySync } from '@/lib/sync/sync-bridge';
 
 interface BasToolkitDB extends DBSchema {
   projects: {
@@ -93,13 +94,18 @@ interface BasToolkitDB extends DBSchema {
     value: SavedCalculation;
     indexes: { 'by-project': string; 'by-module': string };
   };
+  syncQueue: {
+    key: string;
+    value: SyncQueueItem;
+    indexes: { 'by-status': string; 'by-created': string };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 6, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 7, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           // Projects
@@ -176,6 +182,13 @@ function getDB() {
           calcStore.createIndex('by-project', 'projectId');
           calcStore.createIndex('by-module', 'module');
         }
+
+        if (oldVersion < 7) {
+          // Sync Queue for cloud backup
+          const syncStore = db.createObjectStore('syncQueue', { keyPath: 'id' });
+          syncStore.createIndex('by-status', 'status');
+          syncStore.createIndex('by-created', 'createdAt');
+        }
       },
     }).catch((err) => {
       // Reset so next call retries instead of returning cached failure
@@ -201,6 +214,7 @@ export async function getProject(id: string): Promise<Project | undefined> {
 export async function saveProject(project: Project): Promise<void> {
   const db = await getDB();
   await db.put('projects', project);
+  notifySync('update', 'projects', project.id, project);
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -256,6 +270,7 @@ export async function deleteProject(id: string): Promise<void> {
 
     await tx.objectStore('projects').delete(id);
     await tx.done;
+    notifySync('delete', 'projects', id, null);
   } catch (e) {
     tx.abort();
     throw e;
@@ -293,6 +308,7 @@ export async function getFile(id: string): Promise<ProjectFile | undefined> {
 export async function saveFile(file: ProjectFile): Promise<void> {
   const db = await getDB();
   await db.put('files', file);
+  notifySync('update', 'files', file.id, file);
 }
 
 export async function deleteFile(id: string): Promise<void> {
@@ -309,6 +325,7 @@ export async function deleteFile(id: string): Promise<void> {
     await db.delete('notes', note.id);
   }
   await db.delete('files', id);
+  notifySync('delete', 'files', id, null);
 }
 
 // File Blobs
@@ -343,11 +360,13 @@ export async function getFileNotes(fileId: string): Promise<FieldNote[]> {
 export async function saveNote(note: FieldNote): Promise<void> {
   const db = await getDB();
   await db.put('notes', note);
+  notifySync('update', 'notes', note.id, note);
 }
 
 export async function deleteNote(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('notes', id);
+  notifySync('delete', 'notes', id, null);
 }
 
 // Devices
@@ -359,11 +378,13 @@ export async function getProjectDevices(projectId: string): Promise<DeviceEntry[
 export async function saveDevice(device: DeviceEntry): Promise<void> {
   const db = await getDB();
   await db.put('devices', device);
+  notifySync('update', 'devices', device.id, device);
 }
 
 export async function deleteDevice(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('devices', id);
+  notifySync('delete', 'devices', id, null);
 }
 
 export async function saveDevices(devices: DeviceEntry[]): Promise<void> {
@@ -373,6 +394,7 @@ export async function saveDevices(devices: DeviceEntry[]): Promise<void> {
     await tx.store.put(device);
   }
   await tx.done;
+  for (const device of devices) notifySync('update', 'devices', device.id, device);
 }
 
 // IP Plan
@@ -384,11 +406,13 @@ export async function getProjectIpPlan(projectId: string): Promise<IpPlanEntry[]
 export async function saveIpEntry(entry: IpPlanEntry): Promise<void> {
   const db = await getDB();
   await db.put('ipPlan', entry);
+  notifySync('update', 'ipPlan', entry.id, entry);
 }
 
 export async function deleteIpEntry(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('ipPlan', id);
+  notifySync('delete', 'ipPlan', id, null);
 }
 
 export async function saveIpEntries(entries: IpPlanEntry[]): Promise<void> {
@@ -398,6 +422,7 @@ export async function saveIpEntries(entries: IpPlanEntry[]): Promise<void> {
     await tx.store.put(entry);
   }
   await tx.done;
+  for (const entry of entries) notifySync('update', 'ipPlan', entry.id, entry);
 }
 
 // Activity Log
@@ -410,6 +435,7 @@ export async function getProjectActivity(projectId: string): Promise<ActivityLog
 export async function addActivity(entry: ActivityLogEntry): Promise<void> {
   const db = await getDB();
   await db.put('activityLog', entry);
+  notifySync('update', 'activityLog', entry.id, entry);
 }
 
 // Daily Reports
@@ -433,6 +459,7 @@ export async function getDailyReport(id: string): Promise<DailyReport | undefine
 export async function saveDailyReport(report: DailyReport): Promise<void> {
   const db = await getDB();
   await db.put('dailyReports', report);
+  notifySync('update', 'dailyReports', report.id, report);
 }
 
 export async function deleteDailyReport(id: string): Promise<void> {
@@ -445,6 +472,7 @@ export async function deleteDailyReport(id: string): Promise<void> {
     }
   }
   await db.delete('dailyReports', id);
+  notifySync('delete', 'dailyReports', id, null);
 }
 
 export async function getNextReportNumber(projectId: string): Promise<number> {
@@ -542,11 +570,13 @@ export async function getDiagram(id: string): Promise<NetworkDiagram | undefined
 export async function saveDiagram(diagram: NetworkDiagram): Promise<void> {
   const db = await getDB();
   await db.put('networkDiagrams', diagram);
+  notifySync('update', 'networkDiagrams', diagram.id, diagram);
 }
 
 export async function deleteDiagram(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('networkDiagrams', id);
+  notifySync('delete', 'networkDiagrams', id, null);
 }
 
 // ─── Command Snippets ───────────────────────────────────────
@@ -564,11 +594,13 @@ export async function getSnippetsByCategory(category: string): Promise<CommandSn
 export async function saveSnippet(snippet: CommandSnippet): Promise<void> {
   const db = await getDB();
   await db.put('commandSnippets', snippet);
+  notifySync('update', 'commandSnippets', snippet.id, snippet);
 }
 
 export async function deleteSnippet(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('commandSnippets', id);
+  notifySync('delete', 'commandSnippets', id, null);
 }
 
 // ─── Ping Sessions ──────────────────────────────────────────
@@ -587,11 +619,13 @@ export async function getAllPingSessions(): Promise<PingSession[]> {
 export async function savePingSession(session: PingSession): Promise<void> {
   const db = await getDB();
   await db.put('pingSessions', session);
+  notifySync('update', 'pingSessions', session.id, session);
 }
 
 export async function deletePingSession(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('pingSessions', id);
+  notifySync('delete', 'pingSessions', id, null);
 }
 
 // ─── Terminal Session Logs ────────────────────────────────────
@@ -604,11 +638,13 @@ export async function getProjectTerminalLogs(projectId: string): Promise<Termina
 export async function saveTerminalLog(log: TerminalSessionLog): Promise<void> {
   const db = await getDB();
   await db.put('terminalLogs', log);
+  notifySync('update', 'terminalLogs', log.id, log);
 }
 
 export async function deleteTerminalLog(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('terminalLogs', id);
+  notifySync('delete', 'terminalLogs', id, null);
 }
 
 // ─── Connection Profiles ─────────────────────────────────────
@@ -627,11 +663,13 @@ export async function getProjectConnectionProfiles(projectId: string): Promise<C
 export async function saveConnectionProfile(profile: ConnectionProfile): Promise<void> {
   const db = await getDB();
   await db.put('connectionProfiles', profile);
+  notifySync('update', 'connectionProfiles', profile.id, profile);
 }
 
 export async function deleteConnectionProfile(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('connectionProfiles', id);
+  notifySync('delete', 'connectionProfiles', id, null);
 }
 
 // ─── Register Calculations ───────────────────────────────────
@@ -650,11 +688,13 @@ export async function getProjectRegisterCalculations(projectId: string): Promise
 export async function saveRegisterCalculation(calc: SavedCalculation): Promise<void> {
   const db = await getDB();
   await db.put('registerCalculations', calc);
+  notifySync('update', 'registerCalculations', calc.id, calc);
 }
 
 export async function deleteRegisterCalculation(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('registerCalculations', id);
+  notifySync('delete', 'registerCalculations', id, null);
 }
 
 // Global search across all projects
@@ -721,4 +761,60 @@ export async function searchGlobal(query: string): Promise<{
       r.date.includes(q)
     ),
   };
+}
+
+// ─── Sync Queue ─────────────────────────────────────────────
+export async function addSyncItem(item: SyncQueueItem): Promise<void> {
+  const db = await getDB();
+  await db.put('syncQueue', item);
+}
+
+export async function getPendingSyncItems(limit = 20): Promise<SyncQueueItem[]> {
+  const db = await getDB();
+  const all = await db.getAllFromIndex('syncQueue', 'by-status', 'pending');
+  return all.slice(0, limit);
+}
+
+export async function updateSyncItem(item: SyncQueueItem): Promise<void> {
+  const db = await getDB();
+  await db.put('syncQueue', item);
+}
+
+export async function deleteSyncItem(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('syncQueue', id);
+}
+
+export async function getSyncQueueCount(): Promise<{ pending: number; failed: number }> {
+  const db = await getDB();
+  const pending = await db.countFromIndex('syncQueue', 'by-status', 'pending');
+  const failed = await db.countFromIndex('syncQueue', 'by-status', 'failed');
+  return { pending, failed };
+}
+
+export async function clearCompletedSyncItems(): Promise<void> {
+  const db = await getDB();
+  const completed = await db.getAllFromIndex('syncQueue', 'by-status', 'completed');
+  const tx = db.transaction('syncQueue', 'readwrite');
+  for (const item of completed) {
+    await tx.store.delete(item.id);
+  }
+  await tx.done;
+}
+
+export async function resetFailedSyncItems(): Promise<number> {
+  const db = await getDB();
+  const failed = await db.getAllFromIndex('syncQueue', 'by-status', 'failed');
+  const tx = db.transaction('syncQueue', 'readwrite');
+  for (const item of failed) {
+    await tx.store.put({ ...item, status: 'pending', retriedCount: 0, lastError: undefined });
+  }
+  await tx.done;
+  return failed.length;
+}
+
+// Get all items from a store (for full sync)
+export async function getAllFromStore(storeName: string): Promise<unknown[]> {
+  const db = await getDB();
+  return db.getAll(storeName as keyof BasToolkitDB);
 }

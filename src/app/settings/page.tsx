@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import {
   Palette, HardDrive, Info, Trash2, Download, PlayCircle, HelpCircle, User, LogOut,
+  Cloud, RefreshCw, AlertTriangle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
@@ -14,7 +15,8 @@ import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/providers/auth-provider';
-import { getStorageEstimate, clearFileCache } from '@/lib/db';
+import { useSyncContext } from '@/providers/sync-provider';
+import { getStorageEstimate, clearFileCache, resetFailedSyncItems } from '@/lib/db';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { APP_VERSION } from '@/lib/version';
 import { toast } from 'sonner';
@@ -22,8 +24,13 @@ import { toast } from 'sonner';
 export default function SettingsPage() {
   const router = useRouter();
   const { mode, user, isConfigured, signOut } = useAuth();
+  const { triggerFullSync } = useSyncContext();
+  const syncStatus = useAppStore((s) => s.syncStatus);
+  const pendingSyncCount = useAppStore((s) => s.pendingSyncCount);
+  const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [syncing, setSyncing] = useState(false);
   const startTour = useAppStore((s) => s.startTour);
 
   useEffect(() => {
@@ -92,6 +99,80 @@ export default function SettingsPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Cloud Backup */}
+        {mode === 'authenticated' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Cloud className="h-4 w-4" /> Cloud Backup
+              </CardTitle>
+              <CardDescription>
+                Your data is stored locally. When signed in, changes are backed up to the cloud automatically.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">
+                    {syncStatus === 'idle' && 'Backed up'}
+                    {syncStatus === 'syncing' && 'Syncing...'}
+                    {syncStatus === 'error' && 'Sync errors'}
+                    {syncStatus === 'offline' && 'Offline'}
+                    {syncStatus === 'disabled' && 'Disabled'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {pendingSyncCount > 0
+                      ? `${pendingSyncCount} item(s) pending`
+                      : lastSyncedAt
+                        ? `Last backed up ${new Date(lastSyncedAt).toLocaleString()}`
+                        : 'No backup yet'}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={syncing || syncStatus === 'offline'}
+                  onClick={async () => {
+                    setSyncing(true);
+                    try {
+                      await triggerFullSync();
+                      toast.success('Full backup started');
+                    } catch {
+                      toast.error('Backup failed');
+                    } finally {
+                      setSyncing(false);
+                    }
+                  }}
+                >
+                  <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} /> Back Up Now
+                </Button>
+              </div>
+              {syncStatus === 'error' && pendingSyncCount > 0 && (
+                <>
+                  <Separator />
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-field-warning">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      <span>{pendingSyncCount} failed item(s)</span>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={async () => {
+                        const count = await resetFailedSyncItems();
+                        toast.success(`Reset ${count} failed item(s) for retry`);
+                      }}
+                    >
+                      Retry All
+                    </Button>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Appearance */}
         <Card>

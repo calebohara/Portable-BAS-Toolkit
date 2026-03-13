@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/components/theme/theme-provider';
 import { AppShell } from '@/components/layout/app-shell';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 import { AuthProvider } from '@/providers/auth-provider';
+import { SyncProvider } from '@/providers/sync-provider';
 import './globals.css';
 
 const inter = Inter({ variable: '--font-sans', subsets: ['latin'], display: 'swap' });
@@ -76,12 +77,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.variable} ${jetbrainsMono.variable} font-sans antialiased`}>
         <ThemeProvider>
           <AuthProvider>
-            <TooltipProvider delay={200}>
-              <ErrorBoundary>
-                <AppShell>{children}</AppShell>
-              </ErrorBoundary>
-              <Toaster position="bottom-right" richColors />
-            </TooltipProvider>
+            <SyncProvider>
+              <TooltipProvider delay={200}>
+                <ErrorBoundary>
+                  <AppShell>{children}</AppShell>
+                </ErrorBoundary>
+                <Toaster position="bottom-right" richColors />
+              </TooltipProvider>
+            </SyncProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

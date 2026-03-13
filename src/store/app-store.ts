@@ -3,6 +3,8 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+import type { SyncStatus } from '@/types';
+
 export type ThemeMode = 'system' | 'light' | 'dark';
 
 interface AppState {
@@ -19,6 +21,13 @@ interface AppState {
   recentSearches: string[];
   addRecentSearch: (query: string) => void;
   clearRecentSearches: () => void;
+  // Sync
+  syncStatus: SyncStatus;
+  setSyncStatus: (status: SyncStatus) => void;
+  pendingSyncCount: number;
+  setPendingSyncCount: (count: number) => void;
+  lastSyncedAt: string | null;
+  setLastSyncedAt: (ts: string | null) => void;
   // Onboarding
   hasCompletedTour: boolean;
   tourActive: boolean;
@@ -56,6 +65,13 @@ export const useAppStore = create<AppState>()(
         set({ recentSearches: [trimmed, ...current].slice(0, 10) });
       },
       clearRecentSearches: () => set({ recentSearches: [] }),
+      // Sync
+      syncStatus: 'disabled' as SyncStatus,
+      setSyncStatus: (status) => set({ syncStatus: status }),
+      pendingSyncCount: 0,
+      setPendingSyncCount: (count) => set({ pendingSyncCount: count }),
+      lastSyncedAt: null,
+      setLastSyncedAt: (ts) => set({ lastSyncedAt: ts }),
       // Onboarding
       hasCompletedTour: false,
       tourActive: false,
@@ -74,6 +90,7 @@ export const useAppStore = create<AppState>()(
         recentProjectIds: state.recentProjectIds,
         recentSearches: state.recentSearches,
         hasCompletedTour: state.hasCompletedTour,
+        lastSyncedAt: state.lastSyncedAt,
       }),
     }
   )

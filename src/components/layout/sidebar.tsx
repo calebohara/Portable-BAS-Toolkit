@@ -12,6 +12,7 @@ import { useAppStore } from '@/store/app-store';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { UpdateNotifier } from './update-notifier';
+import { SyncStatusIndicator } from './sync-status';
 import { APP_VERSION } from '@/lib/version';
 
 const navGroups = [
@@ -156,6 +157,7 @@ export function Sidebar() {
 
       {/* Online status, version & collapse */}
       <div className="border-t border-sidebar-border px-3 py-2">
+        <SyncStatusIndicator collapsed={!sidebarOpen} />
         {!isOnline && (
           <div className="mb-2 flex items-center gap-2 rounded-md bg-field-warning/10 px-2 py-1.5 text-xs text-field-warning">
             <WifiOff className="h-3.5 w-3.5" />

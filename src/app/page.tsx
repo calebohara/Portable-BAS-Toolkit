@@ -61,7 +61,7 @@ const fieldBenefits = [
   { icon: Layers, title: 'One platform, not ten apps', desc: 'Stop switching between spreadsheets, file shares, note apps, terminal emulators, and IP scanners. Everything lives here.' },
   { icon: WifiOff, title: 'Works offline in the field', desc: 'All data is stored locally. Pin projects before heading to the job site. No Wi-Fi, VPN, or cellular required.' },
   { icon: Zap, title: 'Built for field speed', desc: 'Quick upload from any page. Keyboard shortcuts. Fast search across all project data. No loading spinners in the field.' },
-  { icon: Shield, title: 'Professional documentation', desc: 'Structured daily reports, versioned files, activity logs, and export-ready output that stands up to audits and handoffs.' },
+  { icon: Shield, title: 'Secure by default', desc: 'Optional Supabase auth with user profiles, password reset, and Row Level Security. Professional daily reports, versioned files, and audit trails.' },
 ];
 
 // ─── Page Component ─────────────────────────────────────────────────────────
@@ -121,7 +121,7 @@ export default function HomePage() {
           <div className="max-w-3xl">
             <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-border bg-muted/50 px-3 py-1 text-xs font-medium text-muted-foreground">
               <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-              v{APP_VERSION} — Local-first with optional cloud auth
+              v{APP_VERSION} — Now with secure auth, profiles &amp; password reset
             </div>
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.15]">
               The field platform for
@@ -205,8 +205,8 @@ export default function HomePage() {
               desc="Use in the browser as a PWA, or install the native desktop app via Tauri for ICMP ping and VPN access."
             />
             <InfoCard
-              title="Cloud-ready foundation"
-              desc="Optional Supabase authentication establishes user identity. Data sync is a planned future milestone."
+              title="Secure cloud authentication"
+              desc="Supabase-backed auth with user profiles, password reset flow, and Row Level Security — ready for future cloud sync."
             />
           </div>
         </div>
@@ -310,7 +310,7 @@ export default function HomePage() {
                 You&apos;re signed in
               </h2>
               <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
-                Your account is ready. All data is stored locally — cloud sync is a future milestone.
+                Your account is secured with Row Level Security. All data is stored locally — cloud sync is a future milestone.
               </p>
               <Button size="lg" className="mt-6 gap-2" onClick={() => router.push('/dashboard')}>
                 Go to Dashboard <ArrowRight className="h-4 w-4" />
@@ -323,7 +323,7 @@ export default function HomePage() {
               </h2>
               <p className="mt-2 text-sm text-muted-foreground max-w-md mx-auto">
                 {isConfigured
-                  ? 'Create an account to prepare for future cloud sync, or continue in local mode — all features work either way.'
+                  ? 'Create an account with secure password reset and user profiles, or continue in local mode — all features work either way.'
                   : 'All features work locally with no account required. Data is stored on your device.'}
               </p>
               <div className="mt-6 flex flex-wrap gap-3 justify-center">

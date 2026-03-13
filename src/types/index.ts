@@ -172,14 +172,26 @@ export interface DailyReport {
   attachments: ReportAttachment[];
 }
 
+// ─── Sync Types ─────────────────────────────────────────────
+export type SyncEntityType =
+  | 'projects' | 'files' | 'notes' | 'devices' | 'ipPlan'
+  | 'dailyReports' | 'activityLog' | 'networkDiagrams'
+  | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
+  | 'connectionProfiles' | 'registerCalculations';
+
+export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
+
 export interface SyncQueueItem {
   id: string;
   action: 'create' | 'update' | 'delete';
-  entityType: 'project' | 'file' | 'note' | 'device' | 'ipPlan';
+  entityType: SyncEntityType;
   entityId: string;
-  data: unknown;
-  timestamp: string;
-  status: 'pending' | 'syncing' | 'failed';
+  payload: unknown;
+  userId: string;
+  status: 'pending' | 'syncing' | 'failed' | 'completed';
+  createdAt: string;
+  retriedCount: number;
+  lastError?: string;
 }
 
 export const FILE_CATEGORY_LABELS: Record<FileCategory, string> = {
