@@ -841,3 +841,43 @@ export async function getAllFromStore(storeName: string): Promise<unknown[]> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return db.getAll(storeName as any);
 }
+
+// ── Pull sync helpers (bypass notifySync to avoid re-pushing pulled data) ──
+
+/**
+ * Bulk-write items to any store WITHOUT triggering the sync bridge.
+ * Used by pull sync so downloaded data isn't re-pushed to Supabase.
+ */
+export async function bulkPutSilent(
+  storeName: string,
+  items: Record<string, unknown>[],
+): Promise<number> {
+  if (items.length === 0) return 0;
+  const db = await getDB();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tx = db.transaction(storeName as any, 'readwrite');
+  for (const item of items) {
+    await tx.store.put(item);
+  }
+  await tx.done;
+  return items.length;
+}
+
+/**
+ * Delete items from any store by ID WITHOUT triggering the sync bridge.
+ * Used by pull sync to apply soft-deletes from the cloud.
+ */
+export async function bulkDeleteSilent(
+  storeName: string,
+  ids: string[],
+): Promise<number> {
+  if (ids.length === 0) return 0;
+  const db = await getDB();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tx = db.transaction(storeName as any, 'readwrite');
+  for (const id of ids) {
+    await tx.store.delete(id);
+  }
+  await tx.done;
+  return ids.length;
+}

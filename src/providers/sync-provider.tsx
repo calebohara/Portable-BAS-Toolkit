@@ -5,13 +5,17 @@ import { useAuth } from './auth-provider';
 import { useAppStore } from '@/store/app-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { SyncManager } from '@/lib/sync/sync-manager';
-import { registerSyncManager, unregisterSyncManager } from '@/lib/sync/sync-bridge';
+import { registerSyncManager, unregisterSyncManager, emitPullComplete } from '@/lib/sync/sync-bridge';
 
 interface SyncContextValue {
   triggerFullSync: () => Promise<{ enqueued: number; errors: string[] } | null>;
+  triggerPullSync: () => Promise<{ pulled: number; deleted: number; errors: string[] } | null>;
 }
 
-const SyncContext = createContext<SyncContextValue>({ triggerFullSync: async () => null });
+const SyncContext = createContext<SyncContextValue>({
+  triggerFullSync: async () => null,
+  triggerPullSync: async () => null,
+});
 
 export function useSyncContext() {
   return useContext(SyncContext);
@@ -23,6 +27,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const setSyncStatus = useAppStore((s) => s.setSyncStatus);
   const setPendingSyncCount = useAppStore((s) => s.setPendingSyncCount);
   const setLastSyncedAt = useAppStore((s) => s.setLastSyncedAt);
+  const setLastPulledAt = useAppStore((s) => s.setLastPulledAt);
 
   useEffect(() => {
     if (mode !== 'authenticated' || !user) {
@@ -66,13 +71,28 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const handleOnline = () => manager.processQueue();
     window.addEventListener('online', handleOnline);
 
+    // Auto-pull on first login (new device scenario)
+    const storedLastPulledAt = useAppStore.getState().lastPulledAt;
+    if (!storedLastPulledAt) {
+      console.info('[sync] First login — auto-pulling all data from cloud…');
+      manager.pullSync(null).then((result) => {
+        if (result.errors.length === 0) {
+          useAppStore.getState().setLastPulledAt(result.newPulledAt);
+        }
+        emitPullComplete();
+        console.info(`[sync] Auto-pull complete: ${result.pulled} pulled, ${result.deleted} deleted`);
+      }).catch((err) => {
+        console.error('[sync] Auto-pull failed:', err);
+      });
+    }
+
     return () => {
       window.removeEventListener('online', handleOnline);
       manager.stop();
       unregisterSyncManager();
       managerRef.current = null;
     };
-  }, [mode, user, setSyncStatus, setPendingSyncCount, setLastSyncedAt]);
+  }, [mode, user, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt]);
 
   const triggerFullSync = useCallback(async () => {
     if (managerRef.current) {
@@ -81,8 +101,19 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return null;
   }, []);
 
+  const triggerPullSync = useCallback(async () => {
+    if (!managerRef.current) return null;
+    const lastPulledAt = useAppStore.getState().lastPulledAt;
+    const result = await managerRef.current.pullSync(lastPulledAt);
+    if (result.errors.length === 0) {
+      useAppStore.getState().setLastPulledAt(result.newPulledAt);
+    }
+    emitPullComplete();
+    return result;
+  }, []);
+
   return (
-    <SyncContext.Provider value={{ triggerFullSync }}>
+    <SyncContext.Provider value={{ triggerFullSync, triggerPullSync }}>
       {children}
     </SyncContext.Provider>
   );

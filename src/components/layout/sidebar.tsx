@@ -155,25 +155,32 @@ export function Sidebar() {
         ))}
       </nav>
 
-      {/* Online status, version & collapse */}
-      <div className="border-t border-sidebar-border px-3 py-2">
+      {/* Footer: sync status, offline warning, version & collapse */}
+      <div className="border-t border-sidebar-border px-2 py-2 space-y-1.5">
+        {/* Sync indicator — always visible, full-width tap target */}
         <SyncStatusIndicator collapsed={!sidebarOpen} />
+
+        {/* Offline warning */}
         {!isOnline && (
-          <div className="mb-2 flex items-center gap-2 rounded-md bg-field-warning/10 px-2 py-1.5 text-xs text-field-warning">
-            <WifiOff className="h-3.5 w-3.5" />
-            <span>Offline Mode</span>
+          <div className="flex items-center gap-2 rounded-lg bg-field-warning/10 px-3 py-2 text-xs text-field-warning">
+            <WifiOff className="h-3.5 w-3.5 shrink-0" />
+            {sidebarOpen && <span>Offline Mode</span>}
           </div>
         )}
+
+        {/* Version + update notifier */}
         {sidebarOpen && (
-          <p className="mb-1 text-center text-[10px] text-muted-foreground/70 hidden md:block">
-            v{APP_VERSION}
-          </p>
-        )}
-        {sidebarOpen && (
-          <div className="mb-1.5 hidden md:block">
-            <UpdateNotifier />
+          <div className="hidden md:block space-y-1">
+            <div className="mb-0.5">
+              <UpdateNotifier />
+            </div>
+            <p className="text-center text-[10px] text-muted-foreground/60">
+              v{APP_VERSION}
+            </p>
           </div>
         )}
+
+        {/* Collapse toggle — desktop only */}
         <Button
           variant="ghost"
           size="sm"

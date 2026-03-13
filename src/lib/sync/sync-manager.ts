@@ -3,8 +3,9 @@ import type { SyncEntityType, SyncQueueItem } from '@/types';
 import {
   addSyncItem, getPendingSyncItems, updateSyncItem, deleteSyncItem,
   getSyncQueueCount, getAllFromStore, clearSyncQueue,
+  bulkPutSilent, bulkDeleteSilent,
 } from '@/lib/db';
-import { entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER } from './field-map';
+import { entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER, fromSupabaseRow, isDeletedRow } from './field-map';
 import type { SyncManagerInterface } from './sync-bridge';
 
 const MAX_RETRIES = 5;
@@ -277,6 +278,107 @@ export class SyncManager implements SyncManagerInterface {
     }
 
     return { enqueued: totalEnqueued, errors };
+  }
+
+  /**
+   * Pull sync: download data from Supabase into IndexedDB.
+   * Uses silent writes to avoid re-pushing pulled data.
+   * Supports incremental pulls via lastPulledAt timestamp.
+   */
+  async pullSync(lastPulledAt: string | null): Promise<{
+    pulled: number;
+    deleted: number;
+    errors: string[];
+    newPulledAt: string;
+  }> {
+    console.info(`${LOG_PREFIX} Pull sync started (since=${lastPulledAt ?? 'never'})…`);
+
+    // Capture timestamp BEFORE querying so rows modified during pull aren't missed
+    const newPulledAt = new Date().toISOString();
+    const PAGE_SIZE = 1000;
+
+    let totalPulled = 0;
+    let totalDeleted = 0;
+    const errors: string[] = [];
+
+    for (const entityType of SYNC_ORDER) {
+      try {
+        const table = entityTypeToTable[entityType];
+        const isActivityLog = entityType === 'activityLog';
+
+        // Fetch all pages
+        let allRows: Record<string, unknown>[] = [];
+        let offset = 0;
+
+        while (true) {
+          let query = this.client
+            .from(table)
+            .select('*')
+            .eq('user_id', this.userId);
+
+          // Incremental: only fetch rows updated since last pull
+          if (lastPulledAt) {
+            if (isActivityLog) {
+              // activity_log has no updated_at — use timestamp
+              query = query.gte('timestamp', lastPulledAt);
+            } else {
+              query = query.gte('updated_at', lastPulledAt);
+            }
+          }
+
+          const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
+          if (error) throw error;
+          if (!data || data.length === 0) break;
+
+          allRows = allRows.concat(data as Record<string, unknown>[]);
+          if (data.length < PAGE_SIZE) break;
+          offset += PAGE_SIZE;
+        }
+
+        if (allRows.length === 0) continue;
+
+        // Separate live rows from soft-deleted rows
+        const toUpsert: Record<string, unknown>[] = [];
+        const toDeleteIds: string[] = [];
+
+        for (const row of allRows) {
+          if (!isActivityLog && isDeletedRow(row)) {
+            toDeleteIds.push(row.id as string);
+          } else {
+            toUpsert.push(fromSupabaseRow(entityType, row));
+          }
+        }
+
+        // Write to IndexedDB silently (no sync bridge trigger)
+        if (toUpsert.length > 0) {
+          await bulkPutSilent(entityType, toUpsert);
+          totalPulled += toUpsert.length;
+        }
+        if (toDeleteIds.length > 0) {
+          await bulkDeleteSilent(entityType, toDeleteIds);
+          totalDeleted += toDeleteIds.length;
+        }
+
+        if (toUpsert.length > 0 || toDeleteIds.length > 0) {
+          console.info(
+            `${LOG_PREFIX} ${entityType}: ${toUpsert.length} pulled, ${toDeleteIds.length} deleted`,
+          );
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message
+          : (err && typeof err === 'object' && 'message' in err)
+            ? String((err as { message: string }).message)
+            : String(err);
+        console.warn(`${LOG_PREFIX} Pull failed for "${entityType}":`, msg);
+        errors.push(`${entityType}: ${msg}`);
+      }
+    }
+
+    console.info(
+      `${LOG_PREFIX} Pull sync complete: ${totalPulled} pulled, ${totalDeleted} deleted`,
+    );
+
+    return { pulled: totalPulled, deleted: totalDeleted, errors, newPulledAt };
   }
 
   private async reportStatus(): Promise<void> {

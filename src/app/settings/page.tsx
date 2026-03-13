@@ -24,13 +24,15 @@ import { toast } from 'sonner';
 export default function SettingsPage() {
   const router = useRouter();
   const { mode, user, isConfigured, signOut } = useAuth();
-  const { triggerFullSync } = useSyncContext();
+  const { triggerFullSync, triggerPullSync } = useSyncContext();
   const syncStatus = useAppStore((s) => s.syncStatus);
   const pendingSyncCount = useAppStore((s) => s.pendingSyncCount);
   const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
+  const lastPulledAt = useAppStore((s) => s.lastPulledAt);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [pulling, setPulling] = useState(false);
   const startTour = useAppStore((s) => s.startTour);
 
   useEffect(() => {
@@ -198,6 +200,46 @@ export default function SettingsPage() {
                   </div>
                 </>
               )}
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Restore from Cloud</p>
+                  <p className="text-xs text-muted-foreground">
+                    {lastPulledAt
+                      ? `Last restored ${new Date(lastPulledAt).toLocaleString()}`
+                      : 'Download your data from the cloud to this device'}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={pulling || syncStatus === 'offline'}
+                  onClick={async () => {
+                    setPulling(true);
+                    try {
+                      const result = await triggerPullSync();
+                      if (!result) {
+                        toast.error('Restore not available — are you signed in?');
+                      } else if (result.pulled === 0 && result.deleted === 0 && result.errors.length === 0) {
+                        toast.info('Everything is up to date — no new data to restore');
+                      } else if (result.errors.length > 0) {
+                        toast.warning(`Restored ${result.pulled} item(s) with ${result.errors.length} error(s)`);
+                      } else {
+                        toast.success(`Restored ${result.pulled} item(s), removed ${result.deleted} deleted item(s)`);
+                      }
+                    } catch (err) {
+                      const msg = err instanceof Error ? err.message : String(err);
+                      toast.error(`Restore failed: ${msg}`);
+                      console.error('[sync] Pull sync error:', err);
+                    } finally {
+                      setPulling(false);
+                    }
+                  }}
+                >
+                  <Download className={`h-3.5 w-3.5 ${pulling ? 'animate-bounce' : ''}`} /> Restore
+                </Button>
+              </div>
             </CardContent>
           </Card>
         )}

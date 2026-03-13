@@ -44,6 +44,11 @@ function toSnakeCase(str: string): string {
   return str.replace(/([A-Z])/g, '_$1').toLowerCase();
 }
 
+// snake_case → camelCase conversion (inverse of toSnakeCase)
+function toCamelCase(str: string): string {
+  return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
+
 // Per-entity field overrides (where auto snake_case doesn't match the schema,
 // or where we need explicit mapping for clarity)
 const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> = {
@@ -246,6 +251,53 @@ export function validateSyncable(
     }
   }
   return null; // syncable
+}
+
+// ── Pull sync helpers ──────────────────────────────────────────────
+
+// Build reverse lookup: { snake_key → camelKey } per entity type
+const REVERSE_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> = {};
+for (const [entityType, overrides] of Object.entries(FIELD_OVERRIDES)) {
+  const reversed: Record<string, string> = {};
+  for (const [camel, snake] of Object.entries(overrides)) {
+    reversed[snake] = camel;
+  }
+  REVERSE_OVERRIDES[entityType as SyncEntityType] = reversed;
+}
+
+// Supabase-only columns that don't exist in local IndexedDB entities
+const SUPABASE_ONLY_FIELDS = new Set(['user_id', 'sync_version', 'deleted_at']);
+
+/**
+ * Converts a Supabase row (snake_case) back to a local IndexedDB entity (camelCase).
+ * Inverse of toSupabaseRow(). Used by pull sync.
+ */
+export function fromSupabaseRow(
+  entityType: SyncEntityType,
+  row: Record<string, unknown>,
+): Record<string, unknown> {
+  const reverseMap = REVERSE_OVERRIDES[entityType] ?? {};
+  const entity: Record<string, unknown> = {};
+
+  for (const [snakeKey, value] of Object.entries(row)) {
+    if (SUPABASE_ONLY_FIELDS.has(snakeKey)) continue;
+    // Skip null values for optional FK columns — keep them absent rather than null
+    // (local code often checks `if (entity.fileId)` which treats null as falsy anyway)
+    const camelKey = reverseMap[snakeKey] ?? toCamelCase(snakeKey);
+    entity[camelKey] = value;
+  }
+
+  // Entity-specific fixups
+  if (entityType === 'activityLog') {
+    entity.user = 'User'; // local-only field not stored in Supabase
+  }
+
+  return entity;
+}
+
+/** Check if a Supabase row has been soft-deleted */
+export function isDeletedRow(row: Record<string, unknown>): boolean {
+  return row.deleted_at != null;
 }
 
 // Dependency order for full sync (projects first due to FK constraints)

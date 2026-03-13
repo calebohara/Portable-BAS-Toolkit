@@ -28,6 +28,8 @@ interface AppState {
   setPendingSyncCount: (count: number) => void;
   lastSyncedAt: string | null;
   setLastSyncedAt: (ts: string | null) => void;
+  lastPulledAt: string | null;
+  setLastPulledAt: (ts: string | null) => void;
   // Onboarding
   hasCompletedTour: boolean;
   tourActive: boolean;
@@ -72,6 +74,8 @@ export const useAppStore = create<AppState>()(
       setPendingSyncCount: (count) => set({ pendingSyncCount: count }),
       lastSyncedAt: null,
       setLastSyncedAt: (ts) => set({ lastSyncedAt: ts }),
+      lastPulledAt: null,
+      setLastPulledAt: (ts) => set({ lastPulledAt: ts }),
       // Onboarding
       hasCompletedTour: false,
       tourActive: false,
@@ -91,6 +95,7 @@ export const useAppStore = create<AppState>()(
         recentSearches: state.recentSearches,
         hasCompletedTour: state.hasCompletedTour,
         lastSyncedAt: state.lastSyncedAt,
+        lastPulledAt: state.lastPulledAt,
       }),
     }
   )

@@ -28,3 +28,21 @@ export function notifySync(
   // Fire and forget — never block the caller
   syncManager.enqueue(action, entityType, entityId, payload).catch(() => {});
 }
+
+// ── Pull sync event ──────────────────────────────────────────────
+
+const PULL_COMPLETE_EVENT = 'bau-suite:pull-complete';
+
+/** Emit after pull sync writes data to IndexedDB, so React hooks re-read. */
+export function emitPullComplete(): void {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event(PULL_COMPLETE_EVENT));
+  }
+}
+
+/** Subscribe to pull-complete events. Returns an unsubscribe function. */
+export function onPullComplete(cb: () => void): () => void {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(PULL_COMPLETE_EVENT, cb);
+  return () => window.removeEventListener(PULL_COMPLETE_EVENT, cb);
+}

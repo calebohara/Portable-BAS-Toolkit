@@ -3,7 +3,13 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog, ConnectionProfile } from '@/types';
 import * as db from '@/lib/db';
+import { onPullComplete } from '@/lib/sync/sync-bridge';
 import { v4 as uuid } from 'uuid';
+
+/** Auto-refresh hook data when pull sync writes new data to IndexedDB */
+function usePullRefresh(refresh: () => void) {
+  useEffect(() => onPullComplete(refresh), [refresh]);
+}
 
 export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -21,6 +27,7 @@ export function useProjects() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
 
   const createProject = useCallback(async (data: Omit<Project, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -97,6 +104,7 @@ export function useProject(id: string) {
     })();
     return () => { stale = true; };
   }, [id]);
+  usePullRefresh(refresh);
 
   const update = useCallback(async (data: Partial<Project>) => {
     if (!project) return;
@@ -151,6 +159,7 @@ export function useProjectFiles(projectId: string, category?: string) {
     })();
     return () => { stale = true; };
   }, [projectId, category]);
+  usePullRefresh(refresh);
 
   return { files, loading, refresh };
 }
@@ -182,6 +191,7 @@ export function useProjectNotes(projectId: string) {
     })();
     return () => { stale = true; };
   }, [projectId]);
+  usePullRefresh(refresh);
 
   const addNote = useCallback(async (data: Omit<FieldNote, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -255,6 +265,7 @@ export function useProjectDevices(projectId: string) {
     })();
     return () => { stale = true; };
   }, [projectId]);
+  usePullRefresh(refresh);
 
   const addDevice = useCallback(async (data: Omit<DeviceEntry, 'id'>) => {
     const device: DeviceEntry = { ...data, id: uuid() };
@@ -326,6 +337,7 @@ export function useProjectIpPlan(projectId: string) {
     })();
     return () => { stale = true; };
   }, [projectId]);
+  usePullRefresh(refresh);
 
   const addIpEntry = useCallback(async (data: Omit<IpPlanEntry, 'id'>) => {
     const entry: IpPlanEntry = { ...data, id: uuid() };
@@ -397,6 +409,7 @@ export function useProjectActivity(projectId: string) {
     })();
     return () => { stale = true; };
   }, [projectId]);
+  usePullRefresh(refresh);
 
   return { activity, loading, refresh };
 }
@@ -420,6 +433,7 @@ export function useDailyReports(projectId?: string) {
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
 
   const createReport = useCallback(async (data: Omit<DailyReport, 'id' | 'createdAt' | 'updatedAt' | 'reportNumber'>) => {
     const now = new Date().toISOString();
@@ -485,6 +499,7 @@ export function useDailyReport(id: string) {
   }, [id]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
 
   const update = useCallback(async (data: Partial<DailyReport>) => {
     if (!report) return;
@@ -515,6 +530,7 @@ export function useNetworkDiagrams(projectId?: string) {
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
 
   const createDiagram = useCallback(async (data: Omit<NetworkDiagram, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -571,6 +587,7 @@ export function useCommandSnippets() {
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
 
   const addSnippet = useCallback(async (data: Omit<CommandSnippet, 'id' | 'createdAt' | 'updatedAt' | 'usageCount' | 'lastUsedAt'>) => {
     const now = new Date().toISOString();
@@ -639,6 +656,7 @@ export function usePingSessions(projectId?: string) {
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
 
   const saveSession = useCallback(async (session: PingSession) => {
     try {
@@ -691,6 +709,7 @@ export function useTerminalLogs(projectId: string) {
     })();
     return () => { stale = true; };
   }, [projectId]);
+  usePullRefresh(refresh);
 
   const addLog = useCallback(async (data: Omit<TerminalSessionLog, 'id' | 'createdAt'>) => {
     const now = new Date().toISOString();
@@ -742,6 +761,7 @@ export function useConnectionProfiles(projectId?: string) {
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
 
   const addProfile = useCallback(async (data: Omit<ConnectionProfile, 'id' | 'createdAt' | 'updatedAt' | 'lastConnectedAt'>) => {
     const now = new Date().toISOString();
