@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import {
   Palette, HardDrive, Info, Trash2, Download, PlayCircle, User, LogOut,
-  Cloud, RefreshCw, AlertTriangle,
+  Cloud, Upload, AlertTriangle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { BackupDialog } from '@/components/settings/backup-dialog';
 import { RestoreDialog } from '@/components/settings/restore-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -40,8 +41,8 @@ export default function SettingsPage() {
   const lastPulledAt = useAppStore((s) => s.lastPulledAt);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showBackupDialog, setShowBackupDialog] = useState(false);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
-  const [syncing, setSyncing] = useState(false);
   const startTour = useAppStore((s) => s.startTour);
 
   useEffect(() => {
@@ -125,7 +126,9 @@ export default function SettingsPage() {
                     <Cloud className="h-4 w-4" /> Cloud Backup
                   </CardTitle>
                   <CardDescription>
-                    Changes are backed up to the cloud automatically.
+                    {lastSyncedAt
+                      ? `Last backed up ${new Date(lastSyncedAt).toLocaleString()}`
+                      : 'Back up your local data to the cloud.'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -141,76 +144,52 @@ export default function SettingsPage() {
                       <p className="text-xs text-muted-foreground">
                         {pendingSyncCount > 0
                           ? `${pendingSyncCount} item(s) pending`
-                          : lastSyncedAt
-                            ? `Last backed up ${new Date(lastSyncedAt).toLocaleString()}`
-                            : 'No backup yet'}
+                          : 'Changes are backed up automatically'}
                       </p>
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
                       className="gap-1.5"
-                      disabled={syncing || syncStatus === 'offline'}
-                      onClick={async () => {
-                        setSyncing(true);
-                        try {
-                          const result = await triggerFullSync();
-                          if (!result) {
-                            toast.error('Sync not available — are you signed in?');
-                          } else if (result.enqueued === 0 && result.errors.length === 0) {
-                            toast.info('Nothing to back up — no user-created data found (demo data is excluded)');
-                          } else if (result.errors.length > 0) {
-                            toast.warning(`Enqueued ${result.enqueued} item(s) with ${result.errors.length} store error(s)`);
-                          } else {
-                            toast.success(`Backing up ${result.enqueued} item(s)…`);
-                          }
-                        } catch (err) {
-                          const msg = err instanceof Error ? err.message : String(err);
-                          toast.error(`Backup failed: ${msg}`);
-                          console.error('[sync] Full backup error:', err);
-                        } finally {
-                          setSyncing(false);
-                        }
-                      }}
+                      disabled={syncStatus === 'offline'}
+                      onClick={() => setShowBackupDialog(true)}
                     >
-                      <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} /> Back Up Now
+                      <Upload className="h-3.5 w-3.5" /> Back Up Now
                     </Button>
                   </div>
                   {syncStatus === 'error' && pendingSyncCount > 0 && (
                     <>
                       <Separator />
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-sm text-field-warning">
-                            <AlertTriangle className="h-3.5 w-3.5" />
-                            <span>{pendingSyncCount} failed item(s)</span>
-                          </div>
-                          <div className="flex gap-1.5">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={async () => {
-                                const err = await getFirstSyncError();
-                                if (err) {
-                                  toast.error(err, { duration: 10000 });
-                                } else {
-                                  toast.info('No error details available');
-                                }
-                              }}
-                            >
-                              Show Error
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={async () => {
-                                const count = await resetFailedSyncItems();
-                                toast.success(`Reset ${count} failed item(s) for retry`);
-                              }}
-                            >
-                              Retry All
-                            </Button>
-                          </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 text-sm text-field-warning">
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          <span>{pendingSyncCount} failed item(s)</span>
+                        </div>
+                        <div className="flex gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              const err = await getFirstSyncError();
+                              if (err) {
+                                toast.error(err, { duration: 10000 });
+                              } else {
+                                toast.info('No error details available');
+                              }
+                            }}
+                          >
+                            Show Error
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={async () => {
+                              const count = await resetFailedSyncItems();
+                              toast.success(`Reset ${count} failed item(s) for retry`);
+                            }}
+                          >
+                            Retry All
+                          </Button>
                         </div>
                       </div>
                     </>
@@ -343,6 +322,13 @@ export default function SettingsPage() {
         confirmLabel="Clear Cache"
         variant="destructive"
         onConfirm={handleClearCache}
+      />
+
+      <BackupDialog
+        open={showBackupDialog}
+        onOpenChange={setShowBackupDialog}
+        lastSyncedAt={lastSyncedAt}
+        triggerFullSync={triggerFullSync}
       />
 
       <RestoreDialog
