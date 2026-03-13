@@ -176,3 +176,267 @@
     background: transparent;
   }
 }
+
+/* ─── Homepage Premium Animations ─────────────────────────────────────────── */
+
+@keyframes hp-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes hp-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes hp-scale-in {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes hp-slide-right {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes hp-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes hp-float-slow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-6px) rotate(0.5deg); }
+  66% { transform: translateY(2px) rotate(-0.3deg); }
+}
+
+@keyframes hp-glow-pulse {
+  0%, 100% { opacity: 0.4; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(1.05); }
+}
+
+@keyframes hp-grid-fade {
+  from { opacity: 0; }
+  to { opacity: 0.03; }
+}
+
+.dark .hp-grid-bg {
+  animation: hp-grid-fade 1.5s ease-out forwards;
+}
+
+:root .hp-grid-bg {
+  animation: hp-grid-fade 1.5s ease-out forwards;
+}
+
+@keyframes hp-line-draw {
+  from { stroke-dashoffset: 100; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes hp-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+/* Scroll reveal base class */
+.hp-reveal {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hp-reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Stagger children */
+.hp-stagger > .hp-reveal:nth-child(1) { transition-delay: 0ms; }
+.hp-stagger > .hp-reveal:nth-child(2) { transition-delay: 80ms; }
+.hp-stagger > .hp-reveal:nth-child(3) { transition-delay: 160ms; }
+.hp-stagger > .hp-reveal:nth-child(4) { transition-delay: 240ms; }
+.hp-stagger > .hp-reveal:nth-child(5) { transition-delay: 320ms; }
+.hp-stagger > .hp-reveal:nth-child(6) { transition-delay: 400ms; }
+
+/* Premium card surface */
+.hp-card-surface {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.35s ease;
+}
+
+.hp-card-surface:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+}
+
+:root .hp-card-surface {
+  box-shadow: 0 1px 3px oklch(0 0 0 / 4%),
+              0 4px 12px oklch(0 0 0 / 3%),
+              0 0 0 1px oklch(0 0 0 / 2%);
+}
+
+:root .hp-card-surface:hover {
+  box-shadow: 0 4px 16px oklch(0 0 0 / 8%),
+              0 8px 32px oklch(0 0 0 / 5%),
+              0 0 0 1px var(--primary) / 20%;
+}
+
+.dark .hp-card-surface {
+  box-shadow: 0 1px 3px oklch(0 0 0 / 20%),
+              0 4px 12px oklch(0 0 0 / 15%),
+              inset 0 1px 0 oklch(1 0 0 / 3%);
+}
+
+.dark .hp-card-surface:hover {
+  box-shadow: 0 4px 16px oklch(0 0 0 / 30%),
+              0 8px 32px oklch(0 0 0 / 20%),
+              inset 0 1px 0 oklch(1 0 0 / 5%);
+}
+
+/* Hero floating card */
+.hp-hero-card {
+  animation: hp-float-slow 6s ease-in-out infinite;
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+:root .hp-hero-card {
+  background: oklch(1 0 0 / 70%);
+  box-shadow: 0 8px 32px oklch(0 0 0 / 8%),
+              0 2px 8px oklch(0 0 0 / 4%),
+              inset 0 1px 0 oklch(1 0 0 / 80%);
+}
+
+.dark .hp-hero-card {
+  background: oklch(0.17 0.012 260 / 60%);
+  box-shadow: 0 8px 32px oklch(0 0 0 / 30%),
+              0 2px 8px oklch(0 0 0 / 20%),
+              inset 0 1px 0 oklch(1 0 0 / 6%);
+}
+
+/* Gradient orb */
+.hp-orb {
+  border-radius: 50%;
+  filter: blur(80px);
+  pointer-events: none;
+  animation: hp-glow-pulse 8s ease-in-out infinite;
+}
+
+/* Glass nav */
+.hp-glass-nav {
+  backdrop-filter: blur(16px) saturate(1.4);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+:root .hp-glass-nav {
+  background: oklch(0.98 0.002 240 / 80%);
+  box-shadow: 0 1px 0 oklch(0 0 0 / 5%);
+}
+
+.dark .hp-glass-nav {
+  background: oklch(0.13 0.01 260 / 75%);
+  box-shadow: 0 1px 0 oklch(1 0 0 / 5%);
+}
+
+/* Premium button glow */
+.hp-btn-glow {
+  position: relative;
+  overflow: hidden;
+}
+
+.hp-btn-glow::after {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+
+:root .hp-btn-glow::after {
+  background: linear-gradient(135deg, oklch(0.55 0.12 190 / 20%), oklch(0.55 0.12 190 / 5%));
+}
+
+.dark .hp-btn-glow::after {
+  background: linear-gradient(135deg, oklch(0.65 0.12 185 / 25%), oklch(0.65 0.12 185 / 5%));
+}
+
+.hp-btn-glow:hover::after {
+  opacity: 1;
+}
+
+/* Workflow connector line */
+.hp-connector {
+  position: relative;
+}
+
+.hp-connector::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 36px;
+  bottom: -12px;
+  width: 1px;
+  background: linear-gradient(to bottom, var(--primary) / 30%, transparent);
+}
+
+.hp-connector:last-child::before {
+  display: none;
+}
+
+/* Tool icon glow on hover */
+.hp-tool-icon {
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
+}
+
+.hp-tool-icon:hover {
+  transform: scale(1.05);
+}
+
+:root .hp-tool-icon:hover {
+  box-shadow: 0 0 20px oklch(0.55 0.12 190 / 15%);
+}
+
+.dark .hp-tool-icon:hover {
+  box-shadow: 0 0 20px oklch(0.65 0.12 185 / 20%);
+}
+
+/* Section divider gradient */
+.hp-divider {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    var(--border),
+    var(--primary) / 30%,
+    var(--border),
+    transparent
+  );
+}
+
+/* Reduce motion for accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .hp-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .hp-hero-card {
+    animation: none;
+  }
+  .hp-orb {
+    animation: none;
+  }
+  .hp-card-surface:hover {
+    transform: none;
+  }
+}
