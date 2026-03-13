@@ -816,5 +816,6 @@ export async function resetFailedSyncItems(): Promise<number> {
 // Get all items from a store (for full sync)
 export async function getAllFromStore(storeName: string): Promise<unknown[]> {
   const db = await getDB();
-  return db.getAll(storeName as keyof BasToolkitDB);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return db.getAll(storeName as any);
 }
