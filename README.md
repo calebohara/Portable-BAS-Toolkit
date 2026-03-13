@@ -13,7 +13,6 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
 [![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](#pwa-capabilities)
 [![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?style=flat-square&logo=tauri&logoColor=white)](#desktop-app)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?style=flat-square&logo=vercel)](https://vercel.com)
 
 </div>
@@ -897,12 +896,6 @@ All responses include Content-Security-Policy, X-Content-Type-Options, X-Frame-O
 - **Clear data** via Settings before transferring a device to another user
 
 For full details, see [SECURITY.md](SECURITY.md).
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
 
 ---
 

@@ -128,11 +128,11 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
             </DialogHeader>
             <DialogBody>
               {projects.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-6">
+                <p className="text-center text-sm text-muted-foreground py-8">
                   No projects found in local storage.
                 </p>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {/* Select all toggle */}
                   <button
                     type="button"
@@ -161,13 +161,17 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
                   </button>
 
                   {/* Project list */}
-                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1 -mr-1">
+                  <div className="space-y-2.5 max-h-80 overflow-y-auto pr-1 -mr-1">
                     {projects.map((project) => {
                       const isSelected = selected.has(project.id);
                       return (
-                        <label
+                        <div
                           key={project.id}
-                          className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => toggleProject(project.id)}
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleProject(project.id); } }}
+                          className={`flex items-start gap-3.5 rounded-xl border p-4 cursor-pointer transition-all select-none ${
                             isSelected
                               ? 'border-destructive/40 bg-destructive/5 shadow-sm'
                               : 'border-border hover:border-muted-foreground/30 hover:bg-muted/40'
@@ -189,7 +193,7 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
                           </div>
 
                           {/* Project info */}
-                          <div className="min-w-0 flex-1 space-y-1.5">
+                          <div className="min-w-0 flex-1 space-y-2">
                             <div className="flex items-center justify-between gap-2">
                               <h4 className="text-sm font-semibold truncate">
                                 {project.name || 'Untitled Project'}
@@ -222,7 +226,7 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
                               </span>
                             </div>
                           </div>
-                        </label>
+                        </div>
                       );
                     })}
                   </div>

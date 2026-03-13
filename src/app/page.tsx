@@ -239,7 +239,6 @@ export default function HomePage() {
                 {[
                   { value: '14+', label: 'Tools' },
                   { value: '100%', label: 'Offline' },
-                  { value: 'MIT', label: 'License' },
                 ].map(({ value, label }) => (
                   <div key={label}>
                     <p className="text-2xl font-bold tracking-tight">{value}</p>
