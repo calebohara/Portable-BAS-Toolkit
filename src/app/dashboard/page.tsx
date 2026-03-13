@@ -64,6 +64,38 @@ export default function DashboardPage() {
     <>
       <TopBar title="Dashboard" />
       <div className="p-4 md:p-6 space-y-6">
+        {/* Desktop App Banner — shown on Windows desktop browsers */}
+        {isWindowsDesktopWeb && (
+          <div
+            className="relative overflow-hidden rounded-xl border border-primary/20"
+            style={{ background: 'linear-gradient(135deg, var(--color-siemens-teal) 0%, var(--color-siemens-petrol) 100%)' }}
+          >
+            <div className="absolute inset-0 opacity-10" style={{
+              backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+              backgroundSize: '24px 24px',
+            }} />
+            <div className="relative flex items-center justify-between gap-4 px-5 py-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-white/15 p-2.5">
+                  <Monitor className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">Desktop App for Windows — Coming Soon</p>
+                  <p className="text-xs text-white/70">Native ICMP ping, full network access, and a focused workspace built with Tauri.</p>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => router.push('/desktop')}
+                className="gap-1.5 shrink-0 bg-white/15 text-white border-white/20 hover:bg-white/25 backdrop-blur-sm"
+                variant="outline"
+              >
+                Learn More <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Quick Actions */}
         <section>
           <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Quick Actions</h2>
@@ -170,26 +202,6 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
-
-        {/* Desktop App Banner — shown on Windows desktop browsers */}
-        {isWindowsDesktopWeb && (
-          <Card className="border-primary/20 bg-primary/5">
-            <CardContent className="flex items-center justify-between gap-4 p-4">
-              <div className="flex items-center gap-3">
-                <div className="rounded-lg bg-primary/10 p-2.5">
-                  <Monitor className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <p className="text-sm font-semibold">Desktop App Available</p>
-                  <p className="text-xs text-muted-foreground">Native ICMP ping, full network access, and a focused workspace for Windows.</p>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" onClick={() => router.push('/desktop')} className="gap-1.5 shrink-0">
-                Learn More <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Recent Projects */}
         {recentProjects.length > 0 && (

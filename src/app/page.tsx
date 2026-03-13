@@ -5,7 +5,7 @@ import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
   Wrench, Shield, WifiOff, ArrowRight, UserPlus,
-  Zap, Layers, Monitor, ChevronRight,
+  Zap, Layers, Monitor, ChevronRight, Wifi, Clock,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -511,6 +511,75 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ── Desktop App — Coming Soon ─────────────────────────────────── */}
+      <section
+        className="relative"
+        style={{ paddingTop: 'clamp(3rem, 6vw, 5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}
+      >
+        <div className="absolute inset-0 bg-muted/30 dark:bg-muted/10" />
+        <div className="relative mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="hp-reveal">
+            <div
+              className="relative overflow-hidden rounded-2xl border border-primary/15"
+              style={{ background: 'linear-gradient(135deg, var(--color-siemens-teal) 0%, var(--color-siemens-petrol) 100%)' }}
+            >
+              {/* Grid texture */}
+              <div className="absolute inset-0 opacity-10" style={{
+                backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+                backgroundSize: '32px 32px',
+              }} />
+
+              <div className="relative px-6 sm:px-12 py-10 sm:py-14">
+                <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
+                  {/* Left: Copy */}
+                  <div>
+                    <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm mb-5">
+                      <Clock className="h-3.5 w-3.5" />
+                      Coming Soon
+                    </div>
+
+                    <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                      Desktop App for Windows
+                    </h2>
+                    <p className="mt-3 text-sm sm:text-base text-white/70 leading-relaxed max-w-lg">
+                      A dedicated desktop experience built with Tauri. Full network access,
+                      native ICMP diagnostics, and a focused workspace — no browser limitations.
+                    </p>
+
+                    <Button
+                      size="lg"
+                      onClick={() => router.push('/desktop')}
+                      className="mt-6 gap-2 bg-white/15 text-white border-white/20 hover:bg-white/25 backdrop-blur-sm"
+                      variant="outline"
+                    >
+                      <Monitor className="h-4 w-4" /> Learn More <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Right: Feature highlights */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { icon: Activity, title: 'Native ICMP ping', desc: 'True reachability testing' },
+                      { icon: Wifi, title: 'Full network access', desc: 'VPN & internal subnets' },
+                      { icon: TerminalSquare, title: 'Desktop terminal', desc: 'Native performance' },
+                      { icon: Shield, title: 'Signed builds', desc: 'Auto-updating installer' },
+                    ].map(({ icon: Icon, title, desc }) => (
+                      <div key={title} className="rounded-xl border border-white/10 bg-white/8 backdrop-blur-sm p-4">
+                        <Icon className="h-5 w-5 text-white/80 mb-2" />
+                        <p className="text-sm font-semibold text-white">{title}</p>
+                        <p className="text-xs text-white/60">{desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div className="hp-divider" />
 
       {/* ── Footer ────────────────────────────────────────────────────── */}
       <footer className="border-t border-border/50 py-8 px-4 sm:px-6">
