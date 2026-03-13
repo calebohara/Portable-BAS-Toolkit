@@ -393,16 +393,15 @@ export class SyncManager implements SyncManagerInterface {
   }
 
   /**
-   * Delete orphaned rows from Supabase — rows with null project_id
-   * that were pushed from old demo/seed data before validation was added.
-   * Skips entity types where project_id is legitimately nullable (projects, commandSnippets).
+   * Delete orphaned rows from Supabase — rows with null project_id (old demo data)
+   * and all children of soft-deleted projects (to avoid FK violations).
+   * Also cleans up orphaned records from local IndexedDB.
    */
   async purgeOrphans(): Promise<number> {
     let totalDeleted = 0;
 
-    // Entity types that have a project_id column but it's nullable in Supabase
-    // (entities in REQUIRES_PROJECT_ID already enforce NOT NULL at the DB level)
-    const orphanableTables: { entityType: SyncEntityType; table: string }[] = [
+    // ── Step 1: Delete rows with null project_id (old demo data) ──
+    const nullProjectTables: { entityType: SyncEntityType; table: string }[] = [
       { entityType: 'files', table: entityTypeToTable.files },
       { entityType: 'pingSessions', table: entityTypeToTable.pingSessions },
       { entityType: 'terminalLogs', table: entityTypeToTable.terminalLogs },
@@ -410,7 +409,7 @@ export class SyncManager implements SyncManagerInterface {
       { entityType: 'registerCalculations', table: entityTypeToTable.registerCalculations },
     ];
 
-    for (const { entityType, table } of orphanableTables) {
+    for (const { entityType, table } of nullProjectTables) {
       try {
         const { data, error } = await this.client
           .from(table)
@@ -423,39 +422,110 @@ export class SyncManager implements SyncManagerInterface {
           console.warn(`${LOG_PREFIX} Orphan purge failed for ${entityType}:`, error.message);
           continue;
         }
-
         const count = data?.length ?? 0;
         if (count > 0) {
           totalDeleted += count;
-          console.info(`${LOG_PREFIX} Purged ${count} orphaned ${entityType} row(s) from Supabase`);
+          console.info(`${LOG_PREFIX} Purged ${count} orphaned ${entityType} row(s) (null project_id)`);
         }
       } catch (err) {
         console.warn(`${LOG_PREFIX} Orphan purge error for ${entityType}:`, err);
       }
     }
 
-    // Also hard-delete any soft-deleted projects (clean up fully)
+    // ── Step 2: Find soft-deleted projects, delete their children first, then the projects ──
     try {
-      const { data, error } = await this.client
+      const { data: deadProjects, error: fetchErr } = await this.client
         .from(entityTypeToTable.projects)
-        .delete()
+        .select('id')
         .eq('user_id', this.userId)
-        .not('deleted_at', 'is', null)
-        .select('id');
+        .not('deleted_at', 'is', null);
 
-      if (!error && data && data.length > 0) {
-        totalDeleted += data.length;
-        console.info(`${LOG_PREFIX} Purged ${data.length} soft-deleted project(s) from Supabase`);
+      if (fetchErr) {
+        console.warn(`${LOG_PREFIX} Failed to fetch soft-deleted projects:`, fetchErr.message);
+      } else if (deadProjects && deadProjects.length > 0) {
+        const deadIds = deadProjects.map((p) => p.id as string);
+        console.info(`${LOG_PREFIX} Found ${deadIds.length} soft-deleted project(s) — purging children first…`);
+
+        // Delete all child records referencing these projects (order: children before parents)
+        const childTables = SYNC_ORDER.filter((t) => t !== 'projects' && t !== 'commandSnippets');
+        for (const entityType of childTables) {
+          try {
+            const table = entityTypeToTable[entityType];
+            const { data, error } = await this.client
+              .from(table)
+              .delete()
+              .eq('user_id', this.userId)
+              .in('project_id', deadIds)
+              .select('id');
+
+            if (error) {
+              console.warn(`${LOG_PREFIX} Child purge failed for ${entityType}:`, error.message);
+              continue;
+            }
+            const count = data?.length ?? 0;
+            if (count > 0) {
+              totalDeleted += count;
+              console.info(`${LOG_PREFIX} Purged ${count} ${entityType} row(s) from deleted projects`);
+            }
+          } catch (err) {
+            console.warn(`${LOG_PREFIX} Child purge error for ${entityType}:`, err);
+          }
+        }
+
+        // Now safe to delete the projects themselves
+        const { data, error } = await this.client
+          .from(entityTypeToTable.projects)
+          .delete()
+          .eq('user_id', this.userId)
+          .in('id', deadIds)
+          .select('id');
+
+        if (!error && data && data.length > 0) {
+          totalDeleted += data.length;
+          console.info(`${LOG_PREFIX} Purged ${data.length} soft-deleted project(s)`);
+        }
       }
     } catch (err) {
       console.warn(`${LOG_PREFIX} Soft-deleted project purge error:`, err);
     }
 
+    // ── Step 3: Clean up local IndexedDB orphans ──
+    await this.purgeLocalOrphans();
+
     if (totalDeleted > 0) {
-      console.info(`${LOG_PREFIX} Orphan purge complete: ${totalDeleted} total row(s) removed`);
+      console.info(`${LOG_PREFIX} Orphan purge complete: ${totalDeleted} total row(s) removed from Supabase`);
     }
 
     return totalDeleted;
+  }
+
+  /**
+   * Remove orphaned records from local IndexedDB — files and other entities
+   * that have no projectId (leftover demo data pulled before filtering was added).
+   */
+  private async purgeLocalOrphans(): Promise<void> {
+    // Entity types that should always have a projectId locally
+    const storesToClean: SyncEntityType[] = [
+      'files', 'notes', 'devices', 'ipPlan', 'dailyReports',
+      'activityLog', 'networkDiagrams', 'pingSessions',
+      'terminalLogs', 'connectionProfiles', 'registerCalculations',
+    ];
+
+    for (const storeName of storesToClean) {
+      try {
+        const items = await getAllFromStore(storeName) as Record<string, unknown>[];
+        const orphanIds = items
+          .filter((item) => !item.projectId)
+          .map((item) => item.id as string);
+
+        if (orphanIds.length > 0) {
+          await bulkDeleteSilent(storeName, orphanIds);
+          console.info(`${LOG_PREFIX} Removed ${orphanIds.length} local orphaned ${storeName} record(s)`);
+        }
+      } catch {
+        // Store may not exist or be empty — ignore
+      }
+    }
   }
 
   private async reportStatus(): Promise<void> {
