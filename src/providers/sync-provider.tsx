@@ -80,8 +80,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     const storedLastPulledAt = useAppStore.getState().lastPulledAt;
     if (!storedLastPulledAt && !autoPullFiredRef.current) {
       autoPullFiredRef.current = true;
-      console.info('[sync] First login — auto-pulling all data from cloud…');
-      manager.pullSync(null).then((result) => {
+      console.info('[sync] First login — purging orphans then pulling all data from cloud…');
+      manager.purgeOrphans().then(() => manager.pullSync(null)).then((result) => {
         if (result.errors.length === 0) {
           useAppStore.getState().setLastPulledAt(result.newPulledAt);
         }

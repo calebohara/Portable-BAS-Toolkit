@@ -5,7 +5,7 @@ import {
   getSyncQueueCount, getAllFromStore, clearSyncQueue,
   bulkPutSilent, bulkDeleteSilent,
 } from '@/lib/db';
-import { entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER, fromSupabaseRow, isDeletedRow } from './field-map';
+import { entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER, fromSupabaseRow, isDeletedRow, REQUIRES_PROJECT_ID } from './field-map';
 import type { SyncManagerInterface } from './sync-bridge';
 
 const MAX_RETRIES = 5;
@@ -225,6 +225,9 @@ export class SyncManager implements SyncManagerInterface {
   async fullSync(): Promise<{ enqueued: number; errors: string[] }> {
     console.info(`${LOG_PREFIX} Full sync started — clearing queue and reading all stores…`);
 
+    // Step 0: Purge orphaned demo data from Supabase (null project_id rows, soft-deleted projects)
+    await this.purgeOrphans();
+
     // Step 1: Clear the entire queue to prevent duplicates.
     // This is safe because fullSync re-enqueues everything that needs syncing.
     const cleared = await clearSyncQueue();
@@ -337,16 +340,24 @@ export class SyncManager implements SyncManagerInterface {
 
         if (allRows.length === 0) continue;
 
-        // Separate live rows from soft-deleted rows
+        // Separate live rows from soft-deleted and orphaned rows
         const toUpsert: Record<string, unknown>[] = [];
         const toDeleteIds: string[] = [];
+        let orphanCount = 0;
 
         for (const row of allRows) {
           if (!isActivityLog && isDeletedRow(row)) {
             toDeleteIds.push(row.id as string);
+          } else if (entityType !== 'projects' && entityType !== 'commandSnippets' && !row.project_id) {
+            // Orphaned row: has no project association — skip it (old demo data)
+            orphanCount++;
           } else {
             toUpsert.push(fromSupabaseRow(entityType, row));
           }
+        }
+
+        if (orphanCount > 0) {
+          console.info(`${LOG_PREFIX} ${entityType}: skipped ${orphanCount} orphaned row(s) with null project_id`);
         }
 
         // Write to IndexedDB silently (no sync bridge trigger)
@@ -379,6 +390,72 @@ export class SyncManager implements SyncManagerInterface {
     );
 
     return { pulled: totalPulled, deleted: totalDeleted, errors, newPulledAt };
+  }
+
+  /**
+   * Delete orphaned rows from Supabase — rows with null project_id
+   * that were pushed from old demo/seed data before validation was added.
+   * Skips entity types where project_id is legitimately nullable (projects, commandSnippets).
+   */
+  async purgeOrphans(): Promise<number> {
+    let totalDeleted = 0;
+
+    // Entity types that have a project_id column but it's nullable in Supabase
+    // (entities in REQUIRES_PROJECT_ID already enforce NOT NULL at the DB level)
+    const orphanableTables: { entityType: SyncEntityType; table: string }[] = [
+      { entityType: 'files', table: entityTypeToTable.files },
+      { entityType: 'pingSessions', table: entityTypeToTable.pingSessions },
+      { entityType: 'terminalLogs', table: entityTypeToTable.terminalLogs },
+      { entityType: 'connectionProfiles', table: entityTypeToTable.connectionProfiles },
+      { entityType: 'registerCalculations', table: entityTypeToTable.registerCalculations },
+    ];
+
+    for (const { entityType, table } of orphanableTables) {
+      try {
+        const { data, error } = await this.client
+          .from(table)
+          .delete()
+          .eq('user_id', this.userId)
+          .is('project_id', null)
+          .select('id');
+
+        if (error) {
+          console.warn(`${LOG_PREFIX} Orphan purge failed for ${entityType}:`, error.message);
+          continue;
+        }
+
+        const count = data?.length ?? 0;
+        if (count > 0) {
+          totalDeleted += count;
+          console.info(`${LOG_PREFIX} Purged ${count} orphaned ${entityType} row(s) from Supabase`);
+        }
+      } catch (err) {
+        console.warn(`${LOG_PREFIX} Orphan purge error for ${entityType}:`, err);
+      }
+    }
+
+    // Also hard-delete any soft-deleted projects (clean up fully)
+    try {
+      const { data, error } = await this.client
+        .from(entityTypeToTable.projects)
+        .delete()
+        .eq('user_id', this.userId)
+        .not('deleted_at', 'is', null)
+        .select('id');
+
+      if (!error && data && data.length > 0) {
+        totalDeleted += data.length;
+        console.info(`${LOG_PREFIX} Purged ${data.length} soft-deleted project(s) from Supabase`);
+      }
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} Soft-deleted project purge error:`, err);
+    }
+
+    if (totalDeleted > 0) {
+      console.info(`${LOG_PREFIX} Orphan purge complete: ${totalDeleted} total row(s) removed`);
+    }
+
+    return totalDeleted;
   }
 
   private async reportStatus(): Promise<void> {
