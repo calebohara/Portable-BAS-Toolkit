@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
@@ -68,8 +69,16 @@ const fieldBenefits = [
 
 export default function HomePage() {
   const router = useRouter();
-  const { mode, user, isConfigured } = useAuth();
+  const { mode, user, isConfigured, loading } = useAuth();
   const isAuthed = mode === 'authenticated';
+
+  // Auto-redirect authenticated users to dashboard
+  // (handles post-confirmation redirect from Supabase)
+  useEffect(() => {
+    if (!loading && isAuthed) {
+      router.replace('/dashboard');
+    }
+  }, [loading, isAuthed, router]);
 
   return (
     <div className="min-h-screen bg-background">
