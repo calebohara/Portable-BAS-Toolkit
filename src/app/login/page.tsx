@@ -6,7 +6,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { AlertCircle, LogIn, UserPlus, Loader2 } from 'lucide-react';
+import { AlertCircle, LogIn, UserPlus, Loader2, MailCheck } from 'lucide-react';
 
 export default function LoginPage() {
   return (
@@ -146,83 +146,105 @@ function LoginContent() {
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="email" className="text-xs">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@company.com"
-              autoComplete="email"
-              className="h-9"
-            />
+        {/* Post-signup success state */}
+        {message ? (
+          <div className="space-y-6 text-center py-4">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10 animate-in zoom-in duration-300">
+              <MailCheck className="h-7 w-7 text-green-600 dark:text-green-400" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-base font-semibold">Check your email</h2>
+              <p className="text-sm text-muted-foreground">
+                We sent a confirmation link to <strong className="text-foreground">{email}</strong>.
+                Click the link to activate your account.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => {
+                setMessage('');
+                setPassword('');
+                setConfirmPassword('');
+                setTab('signin');
+              }}
+            >
+              <LogIn className="h-4 w-4 mr-2" /> Back to Sign In
+            </Button>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="password" className="text-xs">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Password"
-              autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
-              className="h-9"
-            />
-          </div>
-          {tab === 'signup' && (
+        ) : (
+          /* Form */
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="confirm-password" className="text-xs">Confirm Password</Label>
+              <Label htmlFor="email" className="text-xs">Email</Label>
               <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Confirm password"
-                autoComplete="new-password"
+                id="email"
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@company.com"
+                autoComplete="email"
                 className="h-9"
               />
             </div>
-          )}
-
-          {error && (
-            <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
-              <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-              <span>{error}</span>
+            <div className="space-y-1.5">
+              <Label htmlFor="password" className="text-xs">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                placeholder="Password"
+                autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
+                className="h-9"
+              />
             </div>
-          )}
-
-          {message && (
-            <div className="flex items-start gap-2 rounded-lg bg-green-500/10 border border-green-500/20 px-3 py-2 text-xs text-green-600 dark:text-green-400">
-              <span>{message}</span>
-            </div>
-          )}
-
-          <Button type="submit" className="w-full gap-2" disabled={loading}>
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : tab === 'signin' ? (
-              <LogIn className="h-4 w-4" />
-            ) : (
-              <UserPlus className="h-4 w-4" />
+            {tab === 'signup' && (
+              <div className="space-y-1.5">
+                <Label htmlFor="confirm-password" className="text-xs">Confirm Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={e => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm password"
+                  autoComplete="new-password"
+                  className="h-9"
+                />
+              </div>
             )}
-            {tab === 'signin' ? 'Sign In' : 'Create Account'}
-          </Button>
 
-          {tab === 'signin' && (
-            <div className="text-right">
-              <button
-                type="button"
-                onClick={() => router.push('/forgot-password')}
-                className="text-xs text-muted-foreground hover:text-primary transition-colors"
-              >
-                Forgot password?
-              </button>
-            </div>
-          )}
-        </form>
+            {error && (
+              <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+                <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <Button type="submit" className="w-full gap-2" disabled={loading}>
+              {loading ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : tab === 'signin' ? (
+                <LogIn className="h-4 w-4" />
+              ) : (
+                <UserPlus className="h-4 w-4" />
+              )}
+              {tab === 'signin' ? 'Sign In' : 'Create Account'}
+            </Button>
+
+            {tab === 'signin' && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => router.push('/forgot-password')}
+                  className="text-xs text-muted-foreground hover:text-primary transition-colors"
+                >
+                  Forgot password?
+                </button>
+              </div>
+            )}
+          </form>
+        )}
 
         <div className="text-center">
           <button onClick={() => router.push('/')} className="text-xs text-muted-foreground hover:text-primary transition-colors">

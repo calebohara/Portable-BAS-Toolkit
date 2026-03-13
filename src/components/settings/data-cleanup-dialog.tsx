@@ -1,12 +1,16 @@
 'use client';
 
 import { useState, useCallback, useEffect } from 'react';
-import { Trash2, RefreshCw, CheckCircle2, AlertTriangle, Database } from 'lucide-react';
+import {
+  Trash2, RefreshCw, CheckCircle2, AlertTriangle, Database,
+  MapPin, Hash, Calendar,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogBody, DialogFooter,
 } from '@/components/ui/dialog';
+import { ProjectStatusBadge } from '@/components/shared/status-badge';
 import { getAllProjects, deleteProject } from '@/lib/db';
 import type { Project } from '@/types';
 
@@ -24,7 +28,6 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
   const [deletedCount, setDeletedCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Load projects when dialog opens
   useEffect(() => {
     if (!open) return;
     setPhase('loading');
@@ -64,6 +67,13 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
     });
   }, []);
 
+  const toggleAll = useCallback(() => {
+    setSelected((prev) => {
+      if (prev.size === projects.length) return new Set();
+      return new Set(projects.map((p) => p.id));
+    });
+  }, [projects]);
+
   const handleDelete = useCallback(async () => {
     setPhase('deleting');
     try {
@@ -80,9 +90,11 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
     }
   }, [selected]);
 
+  const allSelected = projects.length > 0 && selected.size === projects.length;
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent showCloseButton={phase !== 'deleting'} className="sm:max-w-md">
+      <DialogContent showCloseButton={phase !== 'deleting'} className="sm:max-w-lg">
         {/* ── Loading ── */}
         {phase === 'loading' && (
           <>
@@ -93,7 +105,7 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
               <DialogTitle className="text-center">Loading local data&hellip;</DialogTitle>
             </DialogHeader>
             <DialogBody>
-              <div className="flex justify-center py-2">
+              <div className="flex justify-center py-4">
                 <RefreshCw className="h-5 w-5 text-muted-foreground animate-spin" />
               </div>
             </DialogBody>
@@ -110,48 +122,110 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
               </div>
               <DialogTitle className="text-center">Clean Up Local Data</DialogTitle>
               <DialogDescription className="text-center">
-                Select projects to permanently delete from this browser. All associated files,
-                notes, devices, and other records will be removed.
+                Select projects to permanently remove from this browser.
+                All files, notes, and records will be deleted.
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
               {projects.length === 0 ? (
-                <p className="text-center text-sm text-muted-foreground py-4">
+                <p className="text-center text-sm text-muted-foreground py-6">
                   No projects found in local storage.
                 </p>
               ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto">
-                  {projects.map((project) => (
-                    <label
-                      key={project.id}
-                      className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/50 transition-colors"
+                <div className="space-y-3">
+                  {/* Select all toggle */}
+                  <button
+                    type="button"
+                    onClick={toggleAll}
+                    className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors px-1"
+                  >
+                    <div
+                      className={`flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded border transition-colors ${
+                        allSelected
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : selected.size > 0
+                            ? 'border-primary bg-primary/20'
+                            : 'border-muted-foreground/40'
+                      }`}
                     >
-                      <div
-                        className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors ${
-                          selected.has(project.id)
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-input'
-                        }`}
-                      >
-                        {selected.has(project.id) && (
-                          <svg width="10" height="10" viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M2 5L4 7L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">{project.name || 'Untitled Project'}</p>
-                        <p className="text-xs text-muted-foreground truncate">
-                          {project.customerName && `${project.customerName} · `}
-                          {project.projectNumber && `#${project.projectNumber} · `}
-                          Created {new Date(project.createdAt).toLocaleDateString()}
-                        </p>
-                        <p className="text-[10px] text-muted-foreground/60 font-mono truncate mt-0.5">
-                          {project.id}
-                        </p>
-                      </div>
-                    </label>
-                  ))}
+                      {allSelected && (
+                        <svg width="8" height="8" viewBox="0 0 10 10" fill="none">
+                          <path d="M2 5L4 7L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      )}
+                      {!allSelected && selected.size > 0 && (
+                        <div className="h-1.5 w-1.5 rounded-[1px] bg-primary" />
+                      )}
+                    </div>
+                    {allSelected ? 'Deselect all' : 'Select all'} ({projects.length})
+                  </button>
+
+                  {/* Project list */}
+                  <div className="space-y-2 max-h-72 overflow-y-auto pr-1 -mr-1">
+                    {projects.map((project) => {
+                      const isSelected = selected.has(project.id);
+                      return (
+                        <label
+                          key={project.id}
+                          className={`flex items-start gap-3 rounded-xl border p-3.5 cursor-pointer transition-all ${
+                            isSelected
+                              ? 'border-destructive/40 bg-destructive/5 shadow-sm'
+                              : 'border-border hover:border-muted-foreground/30 hover:bg-muted/40'
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <div
+                            className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded border-[1.5px] transition-all ${
+                              isSelected
+                                ? 'border-destructive bg-destructive text-white scale-110'
+                                : 'border-muted-foreground/40'
+                            }`}
+                          >
+                            {isSelected && (
+                              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                                <path d="M2 5L4 7L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                              </svg>
+                            )}
+                          </div>
+
+                          {/* Project info */}
+                          <div className="min-w-0 flex-1 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <h4 className="text-sm font-semibold truncate">
+                                {project.name || 'Untitled Project'}
+                              </h4>
+                              <ProjectStatusBadge status={project.status} />
+                            </div>
+
+                            {(project.customerName || project.projectNumber) && (
+                              <p className="text-xs text-muted-foreground truncate">
+                                {project.customerName}
+                                {project.customerName && project.projectNumber && ' · '}
+                                {project.projectNumber && (
+                                  <span className="inline-flex items-center gap-0.5">
+                                    <Hash className="inline h-2.5 w-2.5" />{project.projectNumber}
+                                  </span>
+                                )}
+                              </p>
+                            )}
+
+                            <div className="flex items-center gap-3 text-[11px] text-muted-foreground/70">
+                              {project.siteAddress && (
+                                <span className="inline-flex items-center gap-1 truncate">
+                                  <MapPin className="h-2.5 w-2.5 shrink-0" />
+                                  <span className="truncate">{project.siteAddress}</span>
+                                </span>
+                              )}
+                              <span className="inline-flex items-center gap-1 shrink-0">
+                                <Calendar className="h-2.5 w-2.5" />
+                                {new Date(project.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </DialogBody>
@@ -179,10 +253,22 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
               </div>
               <DialogTitle className="text-center">Are you sure?</DialogTitle>
               <DialogDescription className="text-center">
-                This will permanently delete {selected.size} project{selected.size !== 1 ? 's' : ''} and
+                This will permanently delete <strong>{selected.size} project{selected.size !== 1 ? 's' : ''}</strong> and
                 all associated data from this browser. This cannot be undone.
               </DialogDescription>
             </DialogHeader>
+            <DialogBody>
+              <div className="rounded-lg bg-muted/50 p-3 space-y-1 max-h-32 overflow-y-auto">
+                {projects
+                  .filter((p) => selected.has(p.id))
+                  .map((p) => (
+                    <p key={p.id} className="text-xs text-muted-foreground truncate">
+                      <span className="font-medium text-foreground">{p.name}</span>
+                      {p.projectNumber && ` · #${p.projectNumber}`}
+                    </p>
+                  ))}
+              </div>
+            </DialogBody>
             <DialogFooter>
               <Button variant="outline" onClick={() => setPhase('select')}>Go Back</Button>
               <Button variant="destructive" onClick={handleDelete} className="gap-1.5">
@@ -205,7 +291,7 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
-              <div className="flex justify-center py-2">
+              <div className="flex justify-center py-4">
                 <RefreshCw className="h-5 w-5 text-muted-foreground animate-spin" />
               </div>
             </DialogBody>
