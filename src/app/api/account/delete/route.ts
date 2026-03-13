@@ -49,10 +49,10 @@ export async function POST(request: Request) {
 
   // 3. Delete user's cloud data from all synced tables
   const syncedTables = [
-    'projects', 'files', 'notes', 'devices', 'ip_plan',
+    'projects', 'project_files', 'field_notes', 'devices', 'ip_plan',
     'daily_reports', 'activity_log', 'network_diagrams',
-    'command_snippets', 'ping_sessions', 'terminal_logs',
-    'connection_profiles', 'register_calculations',
+    'command_snippets', 'ping_sessions', 'terminal_session_logs',
+    'connection_profiles', 'register_calculations', 'user_settings',
   ];
 
   for (const table of syncedTables) {
