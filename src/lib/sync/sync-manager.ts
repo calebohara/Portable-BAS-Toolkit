@@ -153,7 +153,12 @@ export class SyncManager implements SyncManagerInterface {
       await deleteSyncItem(item.id);
       return true;
     } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : String(err);
+      // Supabase PostgREST errors are plain objects with { message, code, details, hint }
+      const errorMsg = err instanceof Error
+        ? err.message
+        : (err && typeof err === 'object' && 'message' in err)
+          ? String((err as { message: string }).message)
+          : JSON.stringify(err);
       const newRetryCount = item.retriedCount + 1;
 
       console.warn(
