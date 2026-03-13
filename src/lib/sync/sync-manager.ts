@@ -390,8 +390,8 @@ export class SyncManager implements SyncManagerInterface {
         for (const row of allRows) {
           if (!isActivityLog && isDeletedRow(row)) {
             toDeleteIds.push(row.id as string);
-          } else if (REQUIRES_PROJECT_ID.has(entityType) && !row.project_id) {
-            // Orphaned row: requires project_id but has none — skip it (old demo data)
+          } else if (entityType !== 'projects' && entityType !== 'commandSnippets' && !row.project_id) {
+            // Orphaned row: has no project_id — skip it (old demo data / orphaned child)
             orphanCount++;
           } else {
             toUpsert.push(fromSupabaseRow(entityType, row));
@@ -497,6 +497,36 @@ export class SyncManager implements SyncManagerInterface {
       }
     } catch (err) {
       console.warn(`${LOG_PREFIX} Soft-deleted project purge error:`, err);
+    }
+
+    // ── Step 1b: Delete orphaned child rows with NULL project_id (old demo data) ──
+    try {
+      const childTables = SYNC_ORDER.filter((t) => t !== 'projects' && t !== 'commandSnippets' && t !== 'activityLog');
+      for (const entityType of childTables) {
+        try {
+          const table = entityTypeToTable[entityType];
+          const { data, error } = await this.client
+            .from(table)
+            .delete()
+            .eq('user_id', this.userId)
+            .is('project_id', null)
+            .select('id');
+
+          if (error) {
+            console.warn(`${LOG_PREFIX} NULL project_id purge failed for ${entityType}:`, error.message);
+            continue;
+          }
+          const count = data?.length ?? 0;
+          if (count > 0) {
+            totalDeleted += count;
+            console.info(`${LOG_PREFIX} Purged ${count} ${entityType} row(s) with NULL project_id`);
+          }
+        } catch (err2) {
+          console.warn(`${LOG_PREFIX} NULL project_id purge error for ${entityType}:`, err2);
+        }
+      }
+    } catch (err) {
+      console.warn(`${LOG_PREFIX} NULL project_id purge error:`, err);
     }
 
     // ── Step 2: Clean up local IndexedDB orphans ──
