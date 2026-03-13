@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   FolderPlus, Upload, StickyNote, Database, Network, Pin,
-  Clock, Star, ChevronRight, HardDrive, FolderKanban,
+  Clock, Star, ChevronRight, HardDrive, FolderKanban, Monitor, ArrowRight,
 } from 'lucide-react';
 import { useProjects } from '@/hooks/use-projects';
 import { useAppStore } from '@/store/app-store';
@@ -16,6 +16,7 @@ import { formatFileSize } from '@/components/shared/file-icon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { navigateToProject } from '@/lib/routes';
+import { useDeviceClass } from '@/hooks/use-device-class';
 import type { Project } from '@/types';
 
 export default function DashboardPage() {
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   const { projects, loading } = useProjects();
   const recentProjectIds = useAppStore((s) => s.recentProjectIds);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
+  const { isWindowsDesktopWeb } = useDeviceClass();
 
   useEffect(() => {
     getStorageEstimate().then(setStorage).catch(() => {});
@@ -168,6 +170,26 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Desktop App Banner — shown on Windows desktop browsers */}
+        {isWindowsDesktopWeb && (
+          <Card className="border-primary/20 bg-primary/5">
+            <CardContent className="flex items-center justify-between gap-4 p-4">
+              <div className="flex items-center gap-3">
+                <div className="rounded-lg bg-primary/10 p-2.5">
+                  <Monitor className="h-5 w-5 text-primary" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Desktop App Available</p>
+                  <p className="text-xs text-muted-foreground">Native ICMP ping, full network access, and a focused workspace for Windows.</p>
+                </div>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => router.push('/desktop')} className="gap-1.5 shrink-0">
+                Learn More <ArrowRight className="h-3.5 w-3.5" />
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Recent Projects */}
         {recentProjects.length > 0 && (
