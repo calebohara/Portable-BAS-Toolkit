@@ -281,8 +281,6 @@ export function fromSupabaseRow(
 
   for (const [snakeKey, value] of Object.entries(row)) {
     if (SUPABASE_ONLY_FIELDS.has(snakeKey)) continue;
-    // Skip null values for optional FK columns — keep them absent rather than null
-    // (local code often checks `if (entity.fileId)` which treats null as falsy anyway)
     const camelKey = reverseMap[snakeKey] ?? toCamelCase(snakeKey);
     entity[camelKey] = value;
   }

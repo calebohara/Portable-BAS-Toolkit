@@ -95,6 +95,8 @@ export interface DeviceEntry {
   area: string;
   status: 'Online' | 'Offline' | 'Issue' | 'Not Commissioned';
   notes: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface IpPlanEntry {
@@ -109,6 +111,8 @@ export interface IpPlanEntry {
   macAddress?: string;
   notes: string;
   status: 'active' | 'reserved' | 'available' | 'conflict';
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ActivityLogEntry {

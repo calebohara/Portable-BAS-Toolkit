@@ -390,8 +390,8 @@ export class SyncManager implements SyncManagerInterface {
         for (const row of allRows) {
           if (!isActivityLog && isDeletedRow(row)) {
             toDeleteIds.push(row.id as string);
-          } else if (entityType !== 'projects' && entityType !== 'commandSnippets' && !row.project_id) {
-            // Orphaned row: has no project association — skip it (old demo data)
+          } else if (REQUIRES_PROJECT_ID.has(entityType) && !row.project_id) {
+            // Orphaned row: requires project_id but has none — skip it (old demo data)
             orphanCount++;
           } else {
             toUpsert.push(fromSupabaseRow(entityType, row));
@@ -442,39 +442,7 @@ export class SyncManager implements SyncManagerInterface {
   async purgeOrphans(): Promise<number> {
     let totalDeleted = 0;
 
-    // ── Step 1: Delete rows with null project_id (old demo data) ──
-    const nullProjectTables: { entityType: SyncEntityType; table: string }[] = [
-      { entityType: 'files', table: entityTypeToTable.files },
-      { entityType: 'pingSessions', table: entityTypeToTable.pingSessions },
-      { entityType: 'terminalLogs', table: entityTypeToTable.terminalLogs },
-      { entityType: 'connectionProfiles', table: entityTypeToTable.connectionProfiles },
-      { entityType: 'registerCalculations', table: entityTypeToTable.registerCalculations },
-    ];
-
-    for (const { entityType, table } of nullProjectTables) {
-      try {
-        const { data, error } = await this.client
-          .from(table)
-          .delete()
-          .eq('user_id', this.userId)
-          .is('project_id', null)
-          .select('id');
-
-        if (error) {
-          console.warn(`${LOG_PREFIX} Orphan purge failed for ${entityType}:`, error.message);
-          continue;
-        }
-        const count = data?.length ?? 0;
-        if (count > 0) {
-          totalDeleted += count;
-          console.info(`${LOG_PREFIX} Purged ${count} orphaned ${entityType} row(s) (null project_id)`);
-        }
-      } catch (err) {
-        console.warn(`${LOG_PREFIX} Orphan purge error for ${entityType}:`, err);
-      }
-    }
-
-    // ── Step 2: Find soft-deleted projects, delete their children first, then the projects ──
+    // ── Step 1: Find soft-deleted projects, delete their children first, then the projects ──
     try {
       const { data: deadProjects, error: fetchErr } = await this.client
         .from(entityTypeToTable.projects)
@@ -531,7 +499,7 @@ export class SyncManager implements SyncManagerInterface {
       console.warn(`${LOG_PREFIX} Soft-deleted project purge error:`, err);
     }
 
-    // ── Step 3: Clean up local IndexedDB orphans ──
+    // ── Step 2: Clean up local IndexedDB orphans ──
     await this.purgeLocalOrphans();
 
     if (totalDeleted > 0) {
@@ -551,12 +519,10 @@ export class SyncManager implements SyncManagerInterface {
     const projects = await getAllFromStore('projects') as Record<string, unknown>[];
     const validProjectIds = new Set(projects.map((p) => p.id as string));
 
-    // Entity types that should always have a valid projectId locally
-    const storesToClean: SyncEntityType[] = [
-      'files', 'notes', 'devices', 'ipPlan', 'dailyReports',
-      'activityLog', 'networkDiagrams', 'pingSessions',
-      'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    ];
+    // Only clean stores where project_id is required (NOT NULL in Supabase).
+    // Stores with nullable project_id (files, connectionProfiles, pingSessions,
+    // terminalLogs, registerCalculations) can legitimately have no project.
+    const storesToClean: SyncEntityType[] = [...REQUIRES_PROJECT_ID];
 
     let totalRemoved = 0;
     for (const storeName of storesToClean) {
