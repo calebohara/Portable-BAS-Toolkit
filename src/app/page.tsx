@@ -514,19 +514,32 @@ export default function HomePage() {
 
       {/* ── Footer ────────────────────────────────────────────────────── */}
       <footer className="border-t border-border/50 py-8 px-4 sm:px-6">
-        <div className="mx-auto max-w-6xl flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-5 w-5 items-center justify-center rounded overflow-hidden">
-              <img src="/icons/icon-small.svg" alt="" className="h-5 w-5" />
+        <div className="mx-auto max-w-6xl flex flex-col gap-4 text-xs text-muted-foreground">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-5 w-5 items-center justify-center rounded overflow-hidden">
+                <img src="/icons/icon-small.svg" alt="" className="h-5 w-5" />
+              </div>
+              <span>BAU Suite v{APP_VERSION}</span>
             </div>
-            <span>BAU Suite v{APP_VERSION}</span>
-            <span className="text-border">|</span>
-            <span>Portable Project Toolkit</span>
+            <div className="flex items-center gap-5">
+              <button onClick={() => router.push('/help')} className="hover:text-foreground transition-colors">Help</button>
+              <button onClick={() => router.push('/settings')} className="hover:text-foreground transition-colors">Settings</button>
+              <button onClick={() => router.push('/donate')} className="hover:text-foreground transition-colors">Donate</button>
+            </div>
           </div>
-          <div className="flex items-center gap-5">
-            <button onClick={() => router.push('/help')} className="hover:text-foreground transition-colors">Help</button>
-            <button onClick={() => router.push('/settings')} className="hover:text-foreground transition-colors">Settings</button>
-            <span className="text-muted-foreground/40">MIT License</span>
+          <div className="flex justify-center sm:justify-start">
+            <span>
+              Built by{' '}
+              <a
+                href="https://www.calebblaze.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-primary transition-colors"
+              >
+                Caleb O&apos;Hara
+              </a>
+            </span>
           </div>
         </div>
       </footer>
