@@ -2,13 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Palette, HardDrive, Info, Trash2, Download, PlayCircle, HelpCircle, User, LogOut,
+  Palette, HardDrive, Info, Trash2, Download, PlayCircle, User, LogOut,
   Cloud, RefreshCw, AlertTriangle,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { RestoreDialog } from '@/components/settings/restore-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -21,6 +22,14 @@ import { formatFileSize } from '@/components/shared/file-icon';
 import { APP_VERSION } from '@/lib/version';
 import { toast } from 'sonner';
 
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide mb-3">
+      {children}
+    </h2>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const { mode, user, isConfigured, signOut } = useAuth();
@@ -31,8 +40,8 @@ export default function SettingsPage() {
   const lastPulledAt = useAppStore((s) => s.lastPulledAt);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showRestoreDialog, setShowRestoreDialog] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [pulling, setPulling] = useState(false);
   const startTour = useAppStore((s) => s.startTour);
 
   useEffect(() => {
@@ -50,24 +59,26 @@ export default function SettingsPage() {
   return (
     <>
       <TopBar title="Settings" />
-      <div className="p-4 md:p-6 space-y-6 max-w-2xl">
-        {/* Account */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <User className="h-4 w-4" /> Account
-            </CardTitle>
-            <CardDescription>
-              {isConfigured
-                ? mode === 'authenticated'
-                  ? 'You are signed in. Your data is stored locally on this device.'
-                  : 'Sign in to enable cloud features in a future update.'
-                : 'Cloud authentication is not configured. All data is stored locally.'}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {isConfigured && mode === 'authenticated' && user ? (
-              <>
+      <div className="p-4 md:p-6 space-y-8 max-w-3xl">
+
+        {/* ─── Account ─── */}
+        <section>
+          <SectionHeading>Account</SectionHeading>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <User className="h-4 w-4" /> Account
+              </CardTitle>
+              <CardDescription>
+                {isConfigured
+                  ? mode === 'authenticated'
+                    ? 'You are signed in. Your data is stored locally on this device.'
+                    : 'Sign in to enable cloud features in a future update.'
+                  : 'Cloud authentication is not configured. All data is stored locally.'}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {isConfigured && mode === 'authenticated' && user ? (
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium">{user.email}</p>
@@ -82,272 +93,248 @@ export default function SettingsPage() {
                     <LogOut className="h-3.5 w-3.5" /> Sign Out
                   </Button>
                 </div>
-              </>
-            ) : isConfigured ? (
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Local Mode</p>
-                  <p className="text-xs text-muted-foreground">All data stored on this device only.</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => router.push('/login')}>
-                  Sign In
-                </Button>
-              </div>
-            ) : (
-              <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
-                <p>Running in local-only mode. No cloud backend is configured.</p>
-                <p className="text-xs mt-1">All projects, files, and settings are stored in your browser&apos;s IndexedDB.</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Cloud Backup */}
-        {mode === 'authenticated' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Cloud className="h-4 w-4" /> Cloud Backup
-              </CardTitle>
-              <CardDescription>
-                Your data is stored locally. When signed in, changes are backed up to the cloud automatically.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">
-                    {syncStatus === 'idle' && 'Backed up'}
-                    {syncStatus === 'syncing' && 'Syncing...'}
-                    {syncStatus === 'error' && 'Sync errors'}
-                    {syncStatus === 'offline' && 'Offline'}
-                    {syncStatus === 'disabled' && 'Disabled'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {pendingSyncCount > 0
-                      ? `${pendingSyncCount} item(s) pending`
-                      : lastSyncedAt
-                        ? `Last backed up ${new Date(lastSyncedAt).toLocaleString()}`
-                        : 'No backup yet'}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={syncing || syncStatus === 'offline'}
-                  onClick={async () => {
-                    setSyncing(true);
-                    try {
-                      const result = await triggerFullSync();
-                      if (!result) {
-                        toast.error('Sync not available — are you signed in?');
-                      } else if (result.enqueued === 0 && result.errors.length === 0) {
-                        toast.info('Nothing to back up — no user-created data found (demo data is excluded)');
-                      } else if (result.errors.length > 0) {
-                        toast.warning(`Enqueued ${result.enqueued} item(s) with ${result.errors.length} store error(s)`);
-                      } else {
-                        toast.success(`Backing up ${result.enqueued} item(s)…`);
-                      }
-                    } catch (err) {
-                      const msg = err instanceof Error ? err.message : String(err);
-                      toast.error(`Backup failed: ${msg}`);
-                      console.error('[sync] Full backup error:', err);
-                    } finally {
-                      setSyncing(false);
-                    }
-                  }}
-                >
-                  <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} /> Back Up Now
-                </Button>
-              </div>
-              {syncStatus === 'error' && pendingSyncCount > 0 && (
-                <>
-                  <Separator />
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm text-field-warning">
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        <span>{pendingSyncCount} failed item(s)</span>
-                      </div>
-                      <div className="flex gap-1.5">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={async () => {
-                            const err = await getFirstSyncError();
-                            if (err) {
-                              toast.error(err, { duration: 10000 });
-                            } else {
-                              toast.info('No error details available');
-                            }
-                          }}
-                        >
-                          Show Error
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={async () => {
-                            const count = await resetFailedSyncItems();
-                            toast.success(`Reset ${count} failed item(s) for retry`);
-                          }}
-                        >
-                          Retry All
-                        </Button>
-                      </div>
-                    </div>
+              ) : isConfigured ? (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Local Mode</p>
+                    <p className="text-xs text-muted-foreground">All data stored on this device only.</p>
                   </div>
-                </>
+                  <Button variant="outline" size="sm" onClick={() => router.push('/login')}>
+                    Sign In
+                  </Button>
+                </div>
+              ) : (
+                <div className="rounded-lg bg-muted p-3 text-sm text-muted-foreground">
+                  <p>Running in local-only mode. No cloud backend is configured.</p>
+                  <p className="text-xs mt-1">All projects, files, and settings are stored in your browser&apos;s IndexedDB.</p>
+                </div>
               )}
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium">Restore from Cloud</p>
-                  <p className="text-xs text-muted-foreground">
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* ─── Cloud & Sync ─── */}
+        {mode === 'authenticated' && (
+          <section>
+            <SectionHeading>Cloud & Sync</SectionHeading>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Backup card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Cloud className="h-4 w-4" /> Cloud Backup
+                  </CardTitle>
+                  <CardDescription>
+                    Changes are backed up to the cloud automatically.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {syncStatus === 'idle' && 'Backed up'}
+                        {syncStatus === 'syncing' && 'Syncing...'}
+                        {syncStatus === 'error' && 'Sync errors'}
+                        {syncStatus === 'offline' && 'Offline'}
+                        {syncStatus === 'disabled' && 'Disabled'}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {pendingSyncCount > 0
+                          ? `${pendingSyncCount} item(s) pending`
+                          : lastSyncedAt
+                            ? `Last backed up ${new Date(lastSyncedAt).toLocaleString()}`
+                            : 'No backup yet'}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={syncing || syncStatus === 'offline'}
+                      onClick={async () => {
+                        setSyncing(true);
+                        try {
+                          const result = await triggerFullSync();
+                          if (!result) {
+                            toast.error('Sync not available — are you signed in?');
+                          } else if (result.enqueued === 0 && result.errors.length === 0) {
+                            toast.info('Nothing to back up — no user-created data found (demo data is excluded)');
+                          } else if (result.errors.length > 0) {
+                            toast.warning(`Enqueued ${result.enqueued} item(s) with ${result.errors.length} store error(s)`);
+                          } else {
+                            toast.success(`Backing up ${result.enqueued} item(s)…`);
+                          }
+                        } catch (err) {
+                          const msg = err instanceof Error ? err.message : String(err);
+                          toast.error(`Backup failed: ${msg}`);
+                          console.error('[sync] Full backup error:', err);
+                        } finally {
+                          setSyncing(false);
+                        }
+                      }}
+                    >
+                      <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} /> Back Up Now
+                    </Button>
+                  </div>
+                  {syncStatus === 'error' && pendingSyncCount > 0 && (
+                    <>
+                      <Separator />
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm text-field-warning">
+                            <AlertTriangle className="h-3.5 w-3.5" />
+                            <span>{pendingSyncCount} failed item(s)</span>
+                          </div>
+                          <div className="flex gap-1.5">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                const err = await getFirstSyncError();
+                                if (err) {
+                                  toast.error(err, { duration: 10000 });
+                                } else {
+                                  toast.info('No error details available');
+                                }
+                              }}
+                            >
+                              Show Error
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={async () => {
+                                const count = await resetFailedSyncItems();
+                                toast.success(`Reset ${count} failed item(s) for retry`);
+                              }}
+                            >
+                              Retry All
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Restore card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Download className="h-4 w-4" /> Restore from Cloud
+                  </CardTitle>
+                  <CardDescription>
                     {lastPulledAt
                       ? `Last restored ${new Date(lastPulledAt).toLocaleString()}`
-                      : 'Download your data from the cloud to this device'}
-                  </p>
+                      : 'Download your cloud data to this device.'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={syncStatus === 'offline'}
+                    onClick={() => setShowRestoreDialog(true)}
+                  >
+                    <Download className="h-3.5 w-3.5" /> Restore
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </section>
+        )}
+
+        {/* ─── Preferences & Storage ─── */}
+        <section>
+          <SectionHeading>Preferences & Storage</SectionHeading>
+          <Card>
+            <CardContent className="space-y-4 pt-5">
+              {/* Theme */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Palette className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Theme</span>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={pulling || syncStatus === 'offline'}
-                  onClick={async () => {
-                    setPulling(true);
-                    try {
-                      const result = await triggerPullSync();
-                      if (!result) {
-                        toast.error('Restore not available — are you signed in?');
-                      } else if (result.pulled === 0 && result.deleted === 0 && result.errors.length === 0) {
-                        toast.info('Everything is up to date — no new data to restore');
-                      } else if (result.errors.length > 0) {
-                        toast.warning(`Restored ${result.pulled} item(s) with ${result.errors.length} error(s)`);
-                      } else {
-                        toast.success(`Restored ${result.pulled} item(s), removed ${result.deleted} deleted item(s)`);
-                      }
-                    } catch (err) {
-                      const msg = err instanceof Error ? err.message : String(err);
-                      toast.error(`Restore failed: ${msg}`);
-                      console.error('[sync] Pull sync error:', err);
-                    } finally {
-                      setPulling(false);
-                    }
-                  }}
-                >
-                  <Download className={`h-3.5 w-3.5 ${pulling ? 'animate-bounce' : ''}`} /> Restore
-                </Button>
+                <ThemeSwitcher />
+              </div>
+
+              <Separator />
+
+              {/* Storage */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 mb-1">
+                  <HardDrive className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm font-medium">Offline Storage</span>
+                </div>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span>Storage Used</span>
+                    <span className="font-medium">{formatFileSize(storage.used)} / {formatFileSize(storage.quota)}</span>
+                  </div>
+                  <Progress value={storagePercent} className="h-2" />
+                  <p className="text-xs text-muted-foreground">{storagePercent.toFixed(1)}% of available storage used</p>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div>
+                    <p className="text-sm">Clear File Cache</p>
+                    <p className="text-xs text-muted-foreground">Remove cached file previews. Project data is preserved.</p>
+                  </div>
+                  <Button variant="outline" size="sm" onClick={() => setShowClearConfirm(true)} className="gap-1.5">
+                    <Trash2 className="h-3.5 w-3.5" /> Clear
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
-        )}
+        </section>
 
-        {/* Appearance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Palette className="h-4 w-4" /> Appearance
-            </CardTitle>
-            <CardDescription>Choose your preferred theme.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">Theme</span>
-              <ThemeSwitcher />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Storage */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <HardDrive className="h-4 w-4" /> Offline Storage
-            </CardTitle>
-            <CardDescription>Manage locally cached files and project data.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center justify-between text-sm">
-                <span>Storage Used</span>
-                <span className="font-medium">{formatFileSize(storage.used)} / {formatFileSize(storage.quota)}</span>
+        {/* ─── Help & About ─── */}
+        <section>
+          <SectionHeading>Help & About</SectionHeading>
+          <Card>
+            <CardContent className="space-y-4 pt-5">
+              {/* Guided Tour */}
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium">Guided Tour</p>
+                  <p className="text-xs text-muted-foreground">Walk through the key features of BAU Suite.</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={startTour} className="gap-1.5">
+                  <PlayCircle className="h-3.5 w-3.5" /> Replay Tour
+                </Button>
               </div>
-              <Progress value={storagePercent} className="h-2" />
-              <p className="text-xs text-muted-foreground">{storagePercent.toFixed(1)}% of available storage used</p>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Clear File Cache</p>
-                <p className="text-xs text-muted-foreground">Remove cached file previews. Project data is preserved.</p>
+
+              {/* Install as App */}
+              <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground space-y-2">
+                <p className="font-medium text-foreground flex items-center gap-2">
+                  <Download className="h-4 w-4" /> Install as App
+                </p>
+                <ol className="list-decimal list-inside space-y-1 text-xs">
+                  <li>Open this page in Chrome, Edge, or Safari</li>
+                  <li>Look for the install icon in the address bar or browser menu</li>
+                  <li>Click &ldquo;Install&rdquo; or &ldquo;Add to Home Screen&rdquo;</li>
+                </ol>
+                <p className="text-xs">Once installed, the app works offline and opens like a native application.</p>
               </div>
-              <Button variant="outline" size="sm" onClick={() => setShowClearConfirm(true)} className="gap-1.5">
-                <Trash2 className="h-3.5 w-3.5" /> Clear
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* PWA Install */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Download className="h-4 w-4" /> Install as App
-            </CardTitle>
-            <CardDescription>Install BAU Suite for offline access and a native app experience.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground space-y-2">
-              <p>To install this app:</p>
-              <ol className="list-decimal list-inside space-y-1 text-xs">
-                <li>Open this page in Chrome, Edge, or Safari</li>
-                <li>Look for the install icon in the address bar or browser menu</li>
-                <li>Click &ldquo;Install&rdquo; or &ldquo;Add to Home Screen&rdquo;</li>
-              </ol>
-              <p className="text-xs">Once installed, the app works offline and opens like a native application.</p>
-            </div>
-          </CardContent>
-        </Card>
+              <Separator />
 
-        {/* Onboarding */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <HelpCircle className="h-4 w-4" /> Onboarding
-            </CardTitle>
-            <CardDescription>Replay the guided tour or visit the help center.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Guided Tour</p>
-                <p className="text-xs text-muted-foreground">Walk through the key features of BAU Suite.</p>
+              {/* About */}
+              <div className="flex items-center gap-3">
+                <Info className="h-4 w-4 text-muted-foreground shrink-0" />
+                <div className="text-sm text-muted-foreground">
+                  <p><strong className="text-foreground">BAU Suite</strong> — Portable Project Toolkit · v{APP_VERSION}</p>
+                  <p className="text-xs">Offline-first. Fast. Field-ready.</p>
+                </div>
               </div>
-              <Button variant="outline" size="sm" onClick={startTour} className="gap-1.5">
-                <PlayCircle className="h-3.5 w-3.5" /> Replay Tour
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* About */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Info className="h-4 w-4" /> About
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2 text-sm text-muted-foreground">
-            <p><strong className="text-foreground">BAU Suite</strong> — Portable Project Toolkit</p>
-            <p>Version {APP_VERSION}</p>
-            <p>Built for BAS field technicians, commissioning agents, and service engineers.</p>
-            <p>Offline-first. Fast. Field-ready.</p>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </section>
       </div>
 
+      {/* Dialogs */}
       <ConfirmDialog
         open={showClearConfirm}
         onOpenChange={setShowClearConfirm}
@@ -356,6 +343,13 @@ export default function SettingsPage() {
         confirmLabel="Clear Cache"
         variant="destructive"
         onConfirm={handleClearCache}
+      />
+
+      <RestoreDialog
+        open={showRestoreDialog}
+        onOpenChange={setShowRestoreDialog}
+        lastPulledAt={lastPulledAt}
+        triggerPullSync={triggerPullSync}
       />
     </>
   );
