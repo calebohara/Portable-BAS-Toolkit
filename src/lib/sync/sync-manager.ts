@@ -2,18 +2,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { SyncEntityType, SyncQueueItem } from '@/types';
 import {
   addSyncItem, getPendingSyncItems, updateSyncItem, deleteSyncItem,
-  getSyncQueueCount, getAllFromStore,
+  getSyncQueueCount, getAllFromStore, clearSyncQueue,
 } from '@/lib/db';
-import { entityTypeToTable, toSupabaseRow, SYNC_ORDER } from './field-map';
+import { entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER } from './field-map';
 import type { SyncManagerInterface } from './sync-bridge';
 
 const MAX_RETRIES = 5;
 const PROCESS_INTERVAL_MS = 5000;
 const BATCH_SIZE = 20;
 const LOG_PREFIX = '[sync]';
-
-// UUID v4 regex — Supabase uuid columns reject non-UUID strings
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type StatusCallback = (status: 'idle' | 'syncing' | 'error', pendingCount: number) => void;
 
@@ -49,14 +46,29 @@ export class SyncManager implements SyncManagerInterface {
     }
   }
 
+  /**
+   * Enqueue a single entity for sync.
+   * Uses `${entityType}-${entityId}` as the queue key so repeated enqueues
+   * for the same entity just overwrite (dedup) instead of stacking.
+   */
   async enqueue(
     action: 'create' | 'update' | 'delete',
     entityType: SyncEntityType,
     entityId: string,
     payload: unknown,
   ): Promise<void> {
+    // Pre-flight: validate the entity is syncable before wasting a queue slot
+    if (action !== 'delete') {
+      const reason = validateSyncable(entityType, (payload ?? {}) as Record<string, unknown>);
+      if (reason) {
+        // Silently skip unsyncable items (demo data, missing FKs, etc.)
+        return;
+      }
+    }
+
     const item: SyncQueueItem = {
-      id: `${entityType}-${entityId}-${Date.now()}`,
+      // Deterministic ID: same entity always overwrites its previous queue entry
+      id: `${entityType}-${entityId}`,
       action,
       entityType,
       entityId,
@@ -115,6 +127,16 @@ export class SyncManager implements SyncManagerInterface {
   }
 
   private async processItem(item: SyncQueueItem): Promise<boolean> {
+    // Pre-flight validation: catch anything that slipped past enqueue
+    if (item.action !== 'delete') {
+      const reason = validateSyncable(item.entityType, (item.payload ?? {}) as Record<string, unknown>);
+      if (reason) {
+        console.warn(`${LOG_PREFIX} Removing unsyncable item ${item.entityType}/${item.entityId}: ${reason}`);
+        await deleteSyncItem(item.id);
+        return true; // not a failure — just not syncable
+      }
+    }
+
     // Mark as syncing
     await updateSyncItem({ ...item, status: 'syncing' });
 
@@ -191,39 +213,48 @@ export class SyncManager implements SyncManagerInterface {
     }
   }
 
+  /**
+   * Full sync: wipe the queue, re-scan all IndexedDB stores, enqueue everything
+   * that passes validation. Returns the exact count of items that will be synced.
+   */
   async fullSync(): Promise<{ enqueued: number; errors: string[] }> {
-    console.info(`${LOG_PREFIX} Full sync started — reading all stores…`);
+    console.info(`${LOG_PREFIX} Full sync started — clearing queue and reading all stores…`);
+
+    // Step 1: Clear the entire queue to prevent duplicates.
+    // This is safe because fullSync re-enqueues everything that needs syncing.
+    const cleared = await clearSyncQueue();
+    if (cleared > 0) {
+      console.info(`${LOG_PREFIX} Cleared ${cleared} stale queue item(s)`);
+    }
+
     let totalEnqueued = 0;
+    let totalSkipped = 0;
     const errors: string[] = [];
 
     for (const entityType of SYNC_ORDER) {
       try {
-        const prevTotal = totalEnqueued;
         const items = await getAllFromStore(entityType) as Record<string, unknown>[];
+        let storeEnqueued = 0;
+        let storeSkipped = 0;
+
         for (const item of items) {
-          const id = item.id as string | undefined;
-          if (!id) {
-            console.warn(`${LOG_PREFIX} Skipping ${entityType} item with missing id`);
+          // validateSyncable checks ID format, projectId FK, etc.
+          const reason = validateSyncable(entityType, item);
+          if (reason) {
+            storeSkipped++;
             continue;
           }
-          // Skip demo/seed data with non-UUID IDs (Supabase uuid columns reject them)
-          if (!UUID_RE.test(id)) {
-            continue;
-          }
-          // Skip items whose projectId is a non-UUID demo reference
-          // (tables like ip_plan, activity_log have NOT NULL project_id FK)
-          const projectId = item.projectId as string | undefined;
-          if (projectId && !UUID_RE.test(projectId)) {
-            continue;
-          }
-          await this.enqueue('update', entityType, id, item);
-          totalEnqueued++;
+          await this.enqueue('update', entityType, item.id as string, item);
+          storeEnqueued++;
         }
-        const storeEnqueued = totalEnqueued - prevTotal;
+
+        totalEnqueued += storeEnqueued;
+        totalSkipped += storeSkipped;
+
         if (storeEnqueued > 0) {
-          console.info(`${LOG_PREFIX} Enqueued ${storeEnqueued} ${entityType} item(s) (${items.length - storeEnqueued} skipped)`);
+          console.info(`${LOG_PREFIX} ${entityType}: ${storeEnqueued} enqueued, ${storeSkipped} skipped`);
         } else if (items.length > 0) {
-          console.info(`${LOG_PREFIX} Skipped all ${items.length} ${entityType} item(s) (demo data)`);
+          console.info(`${LOG_PREFIX} ${entityType}: all ${items.length} skipped (demo/invalid data)`);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -232,9 +263,15 @@ export class SyncManager implements SyncManagerInterface {
       }
     }
 
-    console.info(`${LOG_PREFIX} Full sync: ${totalEnqueued} total items enqueued`);
+    console.info(`${LOG_PREFIX} Full sync: ${totalEnqueued} enqueued, ${totalSkipped} skipped`);
+
     // Kick off processing immediately (don't await — runs in background)
-    this.processQueue();
+    if (totalEnqueued > 0) {
+      this.processQueue();
+    } else {
+      this.reportStatus();
+    }
+
     return { enqueued: totalEnqueued, errors };
   }
 

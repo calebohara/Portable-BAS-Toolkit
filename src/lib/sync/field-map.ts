@@ -213,6 +213,41 @@ export function toSupabaseRow(
   return row;
 }
 
+// Entity types where project_id is NOT NULL in Supabase.
+// Items without a valid UUID project_id CANNOT be synced to these tables.
+// Derived from supabase/schema.sql — keep in sync with the schema.
+export const REQUIRES_PROJECT_ID: Set<SyncEntityType> = new Set([
+  'notes',         // field_notes.project_id NOT NULL
+  'devices',       // devices.project_id NOT NULL
+  'ipPlan',        // ip_plan.project_id NOT NULL
+  'dailyReports',  // daily_reports.project_id NOT NULL
+  'activityLog',   // activity_log.project_id NOT NULL
+  'networkDiagrams', // network_diagrams.project_id NOT NULL
+]);
+// These tables have project_id nullable: files, commandSnippets,
+// pingSessions, terminalLogs, connectionProfiles, registerCalculations
+
+/**
+ * Pre-flight check: can this local entity be synced to Supabase?
+ * Returns null if syncable, or an error reason string if not.
+ */
+export function validateSyncable(
+  entityType: SyncEntityType,
+  localEntity: Record<string, unknown>,
+): string | null {
+  const id = localEntity.id as string | undefined;
+  if (!id || !UUID_RE.test(id)) {
+    return `invalid id: ${id ?? 'missing'}`;
+  }
+  if (REQUIRES_PROJECT_ID.has(entityType)) {
+    const projectId = localEntity.projectId as string | undefined;
+    if (!projectId || !UUID_RE.test(projectId)) {
+      return `invalid projectId: ${projectId ?? 'missing'} (required for ${entityType})`;
+    }
+  }
+  return null; // syncable
+}
+
 // Dependency order for full sync (projects first due to FK constraints)
 export const SYNC_ORDER: SyncEntityType[] = [
   'projects',

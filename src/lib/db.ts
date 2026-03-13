@@ -813,6 +813,16 @@ export async function resetFailedSyncItems(): Promise<number> {
   return failed.length;
 }
 
+// Clear the entire sync queue (used before fullSync to prevent duplicates)
+export async function clearSyncQueue(): Promise<number> {
+  const db = await getDB();
+  const tx = db.transaction('syncQueue', 'readwrite');
+  const count = await tx.store.count();
+  await tx.store.clear();
+  await tx.done;
+  return count;
+}
+
 // Get the first error message from failed sync items (for diagnostics)
 export async function getFirstSyncError(): Promise<string | null> {
   const db = await getDB();
