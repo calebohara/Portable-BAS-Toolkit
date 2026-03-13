@@ -16,7 +16,7 @@ import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/providers/auth-provider';
 import { useSyncContext } from '@/providers/sync-provider';
-import { getStorageEstimate, clearFileCache, resetFailedSyncItems } from '@/lib/db';
+import { getStorageEstimate, clearFileCache, resetFailedSyncItems, getFirstSyncError } from '@/lib/db';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { APP_VERSION } from '@/lib/version';
 import { toast } from 'sonner';
@@ -162,21 +162,39 @@ export default function SettingsPage() {
               {syncStatus === 'error' && pendingSyncCount > 0 && (
                 <>
                   <Separator />
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-sm text-field-warning">
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      <span>{pendingSyncCount} failed item(s)</span>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-field-warning">
+                        <AlertTriangle className="h-3.5 w-3.5" />
+                        <span>{pendingSyncCount} failed item(s)</span>
+                      </div>
+                      <div className="flex gap-1.5">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            const err = await getFirstSyncError();
+                            if (err) {
+                              toast.error(err, { duration: 10000 });
+                            } else {
+                              toast.info('No error details available');
+                            }
+                          }}
+                        >
+                          Show Error
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={async () => {
+                            const count = await resetFailedSyncItems();
+                            toast.success(`Reset ${count} failed item(s) for retry`);
+                          }}
+                        >
+                          Retry All
+                        </Button>
+                      </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={async () => {
-                        const count = await resetFailedSyncItems();
-                        toast.success(`Reset ${count} failed item(s) for retry`);
-                      }}
-                    >
-                      Retry All
-                    </Button>
                   </div>
                 </>
               )}

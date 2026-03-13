@@ -813,6 +813,18 @@ export async function resetFailedSyncItems(): Promise<number> {
   return failed.length;
 }
 
+// Get the first error message from failed sync items (for diagnostics)
+export async function getFirstSyncError(): Promise<string | null> {
+  const db = await getDB();
+  const failed = await db.getAllFromIndex('syncQueue', 'by-status', 'failed');
+  if (failed.length === 0) return null;
+  // Return the first non-empty lastError
+  for (const item of failed) {
+    if (item.lastError) return `[${item.entityType}/${item.entityId}] ${item.lastError}`;
+  }
+  return `${failed.length} failed item(s) with no error details`;
+}
+
 // Get all items from a store (for full sync)
 export async function getAllFromStore(storeName: string): Promise<unknown[]> {
   const db = await getDB();
