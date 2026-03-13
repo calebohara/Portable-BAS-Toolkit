@@ -876,11 +876,13 @@ function CalculationHistory({ onSaveRequest }: { onSaveRequest: () => void }) {
               </Button>
             </div>
             {calc.notes && <p className="text-xs text-muted-foreground">{calc.notes}</p>}
-            <div className="text-[10px] font-mono text-muted-foreground">
-              {Object.entries(calc.result).slice(0, 4).map(([k, v]) => (
-                <span key={k} className="mr-3">{k}: {String(v)}</span>
-              ))}
-            </div>
+            {Object.keys(calc.result).length > 0 && (
+              <div className="text-[10px] font-mono text-muted-foreground">
+                {Object.entries(calc.result).slice(0, 4).map(([k, v]) => (
+                  <span key={k} className="mr-3">{k}: {String(v)}</span>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>

@@ -866,9 +866,9 @@ export default function TelnetPage() {
   const settings = useTerminalStore(s => s.settings);
 
   // Ensure we always have a valid session (guard against corrupted persisted state)
-  if (sessions.length === 0) {
-    createSession();
-  }
+  useEffect(() => {
+    if (sessions.length === 0) createSession();
+  }, [sessions.length, createSession]);
   const session = sessions.find(s => s.id === activeSessionId) || sessions[0];
   const [showSettings, setShowSettings] = useState(false);
   const [showHistory, setShowHistory] = useState(false);

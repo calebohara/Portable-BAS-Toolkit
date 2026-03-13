@@ -22,12 +22,14 @@ import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry } from '
 
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>;
-  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-  const parts = text.split(regex);
+  const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const splitRegex = new RegExp(`(${escaped})`, 'gi');
+  const testRegex = new RegExp(`^${escaped}$`, 'i');
+  const parts = text.split(splitRegex);
   return (
     <>
       {parts.map((part, i) =>
-        regex.test(part)
+        testRegex.test(part)
           ? <mark key={i} className="bg-primary/20 text-foreground rounded-sm px-0.5">{part}</mark>
           : part
       )}

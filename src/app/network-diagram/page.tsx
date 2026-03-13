@@ -210,6 +210,7 @@ export default function NetworkDiagramPage() {
     }
     const now = new Date().toISOString();
     if (activeDiagramId) {
+      const existing = diagrams.find(d => d.id === activeDiagramId);
       await updateDiagram({
         id: activeDiagramId,
         projectId: selectedProjectId,
@@ -217,7 +218,7 @@ export default function NetworkDiagramPage() {
         description: diagramDesc,
         nodes,
         connections,
-        createdAt: now,
+        createdAt: existing?.createdAt || now,
         updatedAt: now,
       });
       toast.success('Diagram saved');

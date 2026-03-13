@@ -3,6 +3,7 @@
 import { use, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 import {
   ArrowLeft, Edit, Trash2, Share2, CalendarDays, Clock, MapPin,
   CloudSun, Wrench, AlertTriangle, CalendarCheck, Users, Shield,
@@ -77,8 +78,10 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
     setDeleting(true);
     try {
       await removeReport(id);
+      toast.success('Report deleted');
       router.push('/reports');
     } catch {
+      toast.error('Failed to delete report');
       setDeleting(false);
     }
   };
@@ -87,7 +90,7 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
     let url: string | undefined;
     try {
       const blob = await getFileBlob(att.blobKey);
-      if (!blob) return;
+      if (!blob) { toast.error('File not found in local storage'); return; }
       url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -278,6 +281,21 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
       </Dialog>
 
       {/* Export Dialog */}
+      {showExport && report && !project && (
+        <Dialog open={showExport} onOpenChange={setShowExport}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Cannot Export</DialogTitle>
+              <DialogDescription>
+                This report&apos;s project no longer exists. Export requires an associated project.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowExport(false)}>Close</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
       {showExport && report && project && (
         <ReportExportDialog
           report={report}

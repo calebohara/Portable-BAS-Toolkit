@@ -284,11 +284,13 @@ export function useProjectDevices(projectId: string) {
   }, [projectId, refresh]);
 
   const updateDevice = useCallback(async (device: DeviceEntry) => {
+    const now = new Date().toISOString();
+    const updated = { ...device, updatedAt: now };
     try {
-      await db.saveDevice(device);
+      await db.saveDevice(updated);
       await db.addActivity({
         id: uuid(), projectId, action: 'Device updated',
-        details: `Device "${device.deviceName}" updated`, timestamp: new Date().toISOString(), user: 'User',
+        details: `Device "${device.deviceName}" updated`, timestamp: now, user: 'User',
       });
     } catch (e) {
       console.error('Failed to update device:', e);
@@ -356,11 +358,13 @@ export function useProjectIpPlan(projectId: string) {
   }, [projectId, refresh]);
 
   const updateIpEntry = useCallback(async (entry: IpPlanEntry) => {
+    const now = new Date().toISOString();
+    const updated = { ...entry, updatedAt: now };
     try {
-      await db.saveIpEntry(entry);
+      await db.saveIpEntry(updated);
       await db.addActivity({
         id: uuid(), projectId, action: 'IP entry updated',
-        details: `IP ${entry.ipAddress} updated`, timestamp: new Date().toISOString(), user: 'User',
+        details: `IP ${entry.ipAddress} updated`, timestamp: now, user: 'User',
       });
     } catch (e) {
       console.error('Failed to update IP entry:', e);
@@ -522,11 +526,16 @@ export function useNetworkDiagrams(projectId?: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const all = projectId
-      ? await db.getProjectDiagrams(projectId)
-      : await db.getAllDiagrams();
-    setDiagrams(all);
-    setLoading(false);
+    try {
+      const all = projectId
+        ? await db.getProjectDiagrams(projectId)
+        : await db.getAllDiagrams();
+      setDiagrams(all);
+    } catch (e) {
+      console.error('Failed to load diagrams:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -581,9 +590,14 @@ export function useCommandSnippets() {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const all = await db.getAllSnippets();
-    setSnippets(all);
-    setLoading(false);
+    try {
+      const all = await db.getAllSnippets();
+      setSnippets(all);
+    } catch (e) {
+      console.error('Failed to load snippets:', e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -648,11 +662,16 @@ export function usePingSessions(projectId?: string) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const all = projectId
-      ? await db.getProjectPingSessions(projectId)
-      : await db.getAllPingSessions();
-    setSessions(all);
-    setLoading(false);
+    try {
+      const all = projectId
+        ? await db.getProjectPingSessions(projectId)
+        : await db.getAllPingSessions();
+      setSessions(all);
+    } catch (e) {
+      console.error('Failed to load ping sessions:', e);
+    } finally {
+      setLoading(false);
+    }
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -766,19 +785,34 @@ export function useConnectionProfiles(projectId?: string) {
   const addProfile = useCallback(async (data: Omit<ConnectionProfile, 'id' | 'createdAt' | 'updatedAt' | 'lastConnectedAt'>) => {
     const now = new Date().toISOString();
     const profile: ConnectionProfile = { ...data, id: uuid(), lastConnectedAt: '', createdAt: now, updatedAt: now };
-    await db.saveConnectionProfile(profile);
+    try {
+      await db.saveConnectionProfile(profile);
+    } catch (e) {
+      console.error('Failed to add profile:', e);
+      throw e;
+    }
     await refresh();
     return profile;
   }, [refresh]);
 
   const updateProfile = useCallback(async (profile: ConnectionProfile) => {
-    profile.updatedAt = new Date().toISOString();
-    await db.saveConnectionProfile(profile);
+    const updated = { ...profile, updatedAt: new Date().toISOString() };
+    try {
+      await db.saveConnectionProfile(updated);
+    } catch (e) {
+      console.error('Failed to update profile:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 
   const removeProfile = useCallback(async (id: string) => {
-    await db.deleteConnectionProfile(id);
+    try {
+      await db.deleteConnectionProfile(id);
+    } catch (e) {
+      console.error('Failed to delete profile:', e);
+      throw e;
+    }
     await refresh();
   }, [refresh]);
 

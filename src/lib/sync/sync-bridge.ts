@@ -26,7 +26,9 @@ export function notifySync(
 ): void {
   if (!syncManager) return;
   // Fire and forget — never block the caller
-  syncManager.enqueue(action, entityType, entityId, payload).catch(() => {});
+  syncManager.enqueue(action, entityType, entityId, payload).catch((e) => {
+    console.warn('[sync] Failed to enqueue:', entityType, entityId, e);
+  });
 }
 
 // ── Pull sync event ──────────────────────────────────────────────

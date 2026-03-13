@@ -8,7 +8,7 @@ import {
   Paperclip, X, FileText, ArrowLeft, Send, Lock, Loader2,
 } from 'lucide-react';
 import { useProjects } from '@/hooks/use-projects';
-import { saveFileBlob } from '@/lib/db';
+import { saveFileBlob, deleteFileBlob } from '@/lib/db';
 import { TopBar } from '@/components/layout/top-bar';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { v4 as uuid } from 'uuid';
+import { toast } from 'sonner';
 import { navigateToReport } from '@/lib/routes';
 import type { DailyReport, ReportAttachment, ReportStatus } from '@/types';
 
@@ -108,7 +109,10 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
     const maxSize = 100 * 1024 * 1024; // 100MB
     const newAttachments: ReportAttachment[] = [];
     for (const file of Array.from(fileList)) {
-      if (file.size > maxSize) continue;
+      if (file.size > maxSize) {
+        toast.error(`"${file.name}" exceeds 100 MB limit`);
+        continue;
+      }
       const blobKey = uuid();
       await saveFileBlob(blobKey, file);
       newAttachments.push({
@@ -124,6 +128,10 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
   };
 
   const removeAttachment = (id: string) => {
+    const att = attachments.find(a => a.id === id);
+    if (att?.blobKey) {
+      deleteFileBlob(att.blobKey).catch(e => console.warn('Failed to clean up blob:', e));
+    }
     setAttachments(prev => prev.filter(a => a.id !== id));
   };
 
@@ -197,7 +205,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
             </div>
             <div>
               <Label htmlFor="status">Status</Label>
-              <Select value={status} onValueChange={(v) => v && setStatus(v as ReportStatus)}>
+              <Select value={status} onValueChange={(v) => v && setStatus(v as ReportStatus)} disabled={isReadOnly}>
                 <SelectTrigger className="w-full mt-1.5">
                   <SelectValue />
                 </SelectTrigger>

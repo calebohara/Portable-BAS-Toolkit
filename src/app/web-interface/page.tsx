@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { format } from 'date-fns';
 import {
   Globe, ExternalLink, Star, Copy, Check, Trash2, Edit, RefreshCw,
@@ -108,6 +108,11 @@ function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
   const [form, setForm] = useState<WebEndpoint>(
     endpoint || createBlankEndpoint()
   );
+
+  // Re-sync form when endpoint prop changes (different endpoint opened)
+  useEffect(() => {
+    setForm(endpoint || createBlankEndpoint());
+  }, [endpoint]);
 
   const handleSave = () => {
     if (!form.host.trim()) {

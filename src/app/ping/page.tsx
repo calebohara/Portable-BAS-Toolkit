@@ -320,10 +320,11 @@ export default function PingToolPage() {
       if (abortRef.current) break;
 
       const promises = validTargets.map(async (target) => {
+        const resultKey = `${target.host}:${target.port}`;
         // Set pending
         setResults(prev => ({
           ...prev,
-          [target.host]: [...(prev[target.host] || []), {
+          [resultKey]: [...(prev[resultKey] || []), {
             timestamp: new Date().toISOString(),
             status: 'pending' as PingStatus,
           }],
@@ -335,7 +336,7 @@ export default function PingToolPage() {
           : await checkReachability(target.host, target.port, scanPorts);
 
         setResults(prev => {
-          const existing = prev[target.host] || [];
+          const existing = prev[resultKey] || [];
           // Replace the last pending entry
           const updated = [...existing];
           let pendingIdx = -1;
@@ -347,7 +348,7 @@ export default function PingToolPage() {
           } else {
             updated.push(result);
           }
-          return { ...prev, [target.host]: updated };
+          return { ...prev, [resultKey]: updated };
         });
       });
 
@@ -405,7 +406,7 @@ export default function PingToolPage() {
     lines.push('');
 
     for (const target of validTargets) {
-      const hostResults = results[target.host] || [];
+      const hostResults = results[`${target.host}:${target.port}`] || [];
       const reachable = hostResults.filter(r => r.status === 'reachable').length;
       const total = hostResults.length;
       const times = hostResults.filter(r => r.responseTimeMs).map(r => r.responseTimeMs!);
@@ -642,9 +643,9 @@ export default function PingToolPage() {
               <h2 className="text-sm font-semibold">Results</h2>
               {validTargets.map(target => (
                 <ResultRow
-                  key={target.host}
+                  key={`${target.host}:${target.port}`}
                   target={target}
-                  results={results[target.host] || []}
+                  results={results[`${target.host}:${target.port}`] || []}
                 />
               ))}
 

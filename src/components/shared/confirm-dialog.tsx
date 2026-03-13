@@ -14,7 +14,7 @@ interface ConfirmDialogProps {
   confirmLabel?: string;
   cancelLabel?: string;
   variant?: 'destructive' | 'default';
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   loading?: boolean;
 }
 
@@ -36,7 +36,14 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={variant === 'destructive' ? 'destructive' : 'default'}
-            onClick={() => { onConfirm(); onOpenChange(false); }}
+            onClick={() => {
+              const result = onConfirm();
+              if (result && typeof (result as Promise<unknown>).then === 'function') {
+                (result as Promise<unknown>).then(() => onOpenChange(false)).catch(() => {});
+              } else {
+                onOpenChange(false);
+              }
+            }}
             disabled={loading}
           >
             {loading ? 'Processing...' : confirmLabel}

@@ -12,9 +12,19 @@ interface Props {
 
 const actionIcons: Record<string, typeof History> = {
   'File uploaded': Upload,
+  'file_uploaded': Upload,
   'Note added': StickyNote,
+  'note_added': StickyNote,
   'Status changed': Settings,
+  'status_changed': Settings,
   'Project created': FolderPlus,
+  'project_created': FolderPlus,
+  'Device added': Settings,
+  'Device updated': Settings,
+  'IP entry added': Settings,
+  'IP entry updated': Settings,
+  'Diagram created': Settings,
+  'Terminal log attached': Settings,
 };
 
 export function ActivityTimeline({ activity }: Props) {

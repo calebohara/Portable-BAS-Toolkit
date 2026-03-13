@@ -490,12 +490,27 @@ export async function getStorageEstimate(): Promise<{ used: number; quota: numbe
   return { used: 0, quota: 0 };
 }
 
-// Clear all cached file blobs
+// Clear cached file blobs (preserves report attachment blobs)
 export async function clearFileCache(): Promise<number> {
-  const db = await getDB();
-  const tx = db.transaction('fileBlobs', 'readwrite');
-  const count = await tx.store.count();
-  await tx.store.clear();
+  const d = await getDB();
+  // Collect blob keys used by report attachments so we don't delete them
+  const reports = await d.getAll('dailyReports');
+  const attachmentKeys = new Set<string>();
+  for (const r of reports) {
+    for (const att of (r.attachments || [])) {
+      if (att.blobKey) attachmentKeys.add(att.blobKey);
+    }
+  }
+  const tx = d.transaction('fileBlobs', 'readwrite');
+  let cursor = await tx.store.openCursor();
+  let count = 0;
+  while (cursor) {
+    if (!attachmentKeys.has(cursor.key as string)) {
+      await cursor.delete();
+      count++;
+    }
+    cursor = await cursor.continue();
+  }
   await tx.done;
   return count;
 }
@@ -528,23 +543,23 @@ export async function searchProject(projectId: string, query: string): Promise<{
       n.tags.some(t => t.toLowerCase().includes(q))
     ),
     devices: devices.filter(d =>
-      d.deviceName.toLowerCase().includes(q) ||
-      d.description.toLowerCase().includes(q) ||
-      d.panel.toLowerCase().includes(q) ||
-      d.system.toLowerCase().includes(q) ||
+      (d.deviceName || '').toLowerCase().includes(q) ||
+      (d.description || '').toLowerCase().includes(q) ||
+      (d.panel || '').toLowerCase().includes(q) ||
+      (d.system || '').toLowerCase().includes(q) ||
       (d.ipAddress || '').toLowerCase().includes(q) ||
-      d.floor.toLowerCase().includes(q) ||
-      d.area.toLowerCase().includes(q) ||
-      d.notes.toLowerCase().includes(q)
+      (d.floor || '').toLowerCase().includes(q) ||
+      (d.area || '').toLowerCase().includes(q) ||
+      (d.notes || '').toLowerCase().includes(q)
     ),
     ipEntries: ipEntries.filter(e =>
-      e.ipAddress.toLowerCase().includes(q) ||
-      e.hostname.toLowerCase().includes(q) ||
-      e.panel.toLowerCase().includes(q) ||
-      e.vlan.toLowerCase().includes(q) ||
-      e.subnet.toLowerCase().includes(q) ||
-      e.deviceRole.toLowerCase().includes(q) ||
-      e.notes.toLowerCase().includes(q)
+      (e.ipAddress || '').toLowerCase().includes(q) ||
+      (e.hostname || '').toLowerCase().includes(q) ||
+      (e.panel || '').toLowerCase().includes(q) ||
+      (e.vlan || '').toLowerCase().includes(q) ||
+      (e.subnet || '').toLowerCase().includes(q) ||
+      (e.deviceRole || '').toLowerCase().includes(q) ||
+      (e.notes || '').toLowerCase().includes(q)
     ),
   };
 }
@@ -720,44 +735,44 @@ export async function searchGlobal(query: string): Promise<{
 
   return {
     projects: projects.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.customerName.toLowerCase().includes(q) ||
-      p.projectNumber.toLowerCase().includes(q) ||
-      p.siteAddress.toLowerCase().includes(q) ||
-      p.buildingArea.toLowerCase().includes(q) ||
-      p.tags.some(t => t.toLowerCase().includes(q))
+      (p.name || '').toLowerCase().includes(q) ||
+      (p.customerName || '').toLowerCase().includes(q) ||
+      (p.projectNumber || '').toLowerCase().includes(q) ||
+      (p.siteAddress || '').toLowerCase().includes(q) ||
+      (p.buildingArea || '').toLowerCase().includes(q) ||
+      (p.tags || []).some(t => t.toLowerCase().includes(q))
     ),
     files: files.filter(f =>
-      f.title.toLowerCase().includes(q) ||
-      f.fileName.toLowerCase().includes(q) ||
-      f.notes.toLowerCase().includes(q) ||
-      f.tags.some(t => t.toLowerCase().includes(q)) ||
+      (f.title || '').toLowerCase().includes(q) ||
+      (f.fileName || '').toLowerCase().includes(q) ||
+      (f.notes || '').toLowerCase().includes(q) ||
+      (f.tags || []).some(t => t.toLowerCase().includes(q)) ||
       (f.panelSystem || '').toLowerCase().includes(q)
     ),
     notes: notes.filter(n =>
-      n.content.toLowerCase().includes(q) ||
-      n.tags.some(t => t.toLowerCase().includes(q))
+      (n.content || '').toLowerCase().includes(q) ||
+      (n.tags || []).some(t => t.toLowerCase().includes(q))
     ),
     devices: devices.filter(d =>
-      d.deviceName.toLowerCase().includes(q) ||
-      d.description.toLowerCase().includes(q) ||
-      d.panel.toLowerCase().includes(q) ||
+      (d.deviceName || '').toLowerCase().includes(q) ||
+      (d.description || '').toLowerCase().includes(q) ||
+      (d.panel || '').toLowerCase().includes(q) ||
       (d.ipAddress || '').toLowerCase().includes(q)
     ),
     ipEntries: ipEntries.filter(e =>
-      e.ipAddress.toLowerCase().includes(q) ||
-      e.hostname.toLowerCase().includes(q) ||
-      e.panel.toLowerCase().includes(q) ||
-      e.deviceRole.toLowerCase().includes(q)
+      (e.ipAddress || '').toLowerCase().includes(q) ||
+      (e.hostname || '').toLowerCase().includes(q) ||
+      (e.panel || '').toLowerCase().includes(q) ||
+      (e.deviceRole || '').toLowerCase().includes(q)
     ),
     dailyReports: dailyReports.filter(r =>
-      r.technicianName.toLowerCase().includes(q) ||
-      r.workCompleted.toLowerCase().includes(q) ||
-      r.issuesEncountered.toLowerCase().includes(q) ||
-      r.workPlannedNext.toLowerCase().includes(q) ||
-      r.equipmentWorkedOn.toLowerCase().includes(q) ||
-      r.generalNotes.toLowerCase().includes(q) ||
-      r.location.toLowerCase().includes(q) ||
+      (r.technicianName || '').toLowerCase().includes(q) ||
+      (r.workCompleted || '').toLowerCase().includes(q) ||
+      (r.issuesEncountered || '').toLowerCase().includes(q) ||
+      (r.workPlannedNext || '').toLowerCase().includes(q) ||
+      (r.equipmentWorkedOn || '').toLowerCase().includes(q) ||
+      (r.generalNotes || '').toLowerCase().includes(q) ||
+      (r.location || '').toLowerCase().includes(q) ||
       r.date.includes(q)
     ),
   };

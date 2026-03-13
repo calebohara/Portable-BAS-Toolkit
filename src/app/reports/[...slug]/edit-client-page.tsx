@@ -23,8 +23,9 @@ export default function EditReportPage({ params }: { params: Promise<{ id: strin
 
   if (!report) {
     return (
-      <div className="flex items-center justify-center py-24">
+      <div className="flex flex-col items-center justify-center py-24 gap-4">
         <p className="text-muted-foreground">Report not found.</p>
+        <a href="/reports" className="text-sm text-primary hover:underline">&larr; Back to Reports</a>
       </div>
     );
   }
