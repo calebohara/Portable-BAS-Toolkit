@@ -44,7 +44,7 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
     },
   } as const;
 
-  const config = statusConfig[syncStatus === 'disabled' ? 'idle' : syncStatus];
+  const config = statusConfig[syncStatus];
   const Icon = config.icon;
 
   const lastSyncLabel = lastSyncedAt
