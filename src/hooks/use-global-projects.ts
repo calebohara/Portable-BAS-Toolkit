@@ -10,6 +10,7 @@ import type {
   GlobalDailyReport,
   GlobalProjectFile,
   GlobalActivityLogEntry,
+  GlobalMessage,
   CreateGlobalProjectData,
 } from '@/types/global-projects';
 import {
@@ -46,6 +47,11 @@ import {
   deleteGlobalFile,
   fetchGlobalActivity,
   logGlobalActivity,
+  fetchGlobalMessages,
+  addGlobalMessage,
+  deleteGlobalMessage,
+  fetchLastReadAt,
+  markMessagesRead,
 } from '@/lib/global-projects/api';
 
 /** Unwrap an ApiResult — throws on error so hooks can catch in try/catch */
@@ -630,4 +636,113 @@ export function useGlobalProjectsList() {
   }, []);
 
   return { projects, loading };
+}
+
+// ─── useGlobalMessages ────────────────────────────────────────
+
+/** Organize flat messages into threaded structure (single-depth only) */
+function threadMessages(flat: GlobalMessage[]): GlobalMessage[] {
+  const topLevel: GlobalMessage[] = [];
+  const replyMap = new Map<string, GlobalMessage[]>();
+
+  for (const msg of flat) {
+    if (msg.parentId) {
+      const existing = replyMap.get(msg.parentId) || [];
+      existing.push(msg);
+      replyMap.set(msg.parentId, existing);
+    } else {
+      topLevel.push(msg);
+    }
+  }
+
+  // Attach replies to parents
+  for (const msg of topLevel) {
+    const replies = replyMap.get(msg.id) || [];
+    // Sort replies oldest first
+    replies.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    msg.replies = replies;
+    msg.replyCount = replies.length;
+  }
+
+  return topLevel;
+}
+
+export function useGlobalMessages() {
+  const [messages, setMessages] = useState<GlobalMessage[]>([]);
+  const [allFlat, setAllFlat] = useState<GlobalMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [lastReadAt, setLastReadAt] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refresh = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const [messagesResult, readResult] = await Promise.all([
+        fetchGlobalMessages(),
+        fetchLastReadAt(),
+      ]);
+      const data = unwrap(messagesResult);
+      const readAt = unwrap(readResult);
+
+      setAllFlat(data);
+      setMessages(threadMessages(data));
+      setLastReadAt(readAt);
+
+      // Count unread: messages created after last_read_at (or all if never read)
+      if (readAt) {
+        const readTime = new Date(readAt).getTime();
+        setUnreadCount(data.filter((m) => new Date(m.createdAt).getTime() > readTime).length);
+      } else {
+        setUnreadCount(data.length);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch messages');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const postMessage = useCallback(
+    async (subject: string, body: string, globalProjectId?: string | null, parentId?: string | null) => {
+      const message = unwrap(await addGlobalMessage(subject, body, globalProjectId, parentId));
+      // Optimistic update: add to flat list and re-thread
+      setAllFlat((prev) => {
+        const next = [message, ...prev];
+        setMessages(threadMessages(next));
+        return next;
+      });
+      return message;
+    },
+    [],
+  );
+
+  const removeMessage = useCallback(
+    async (messageId: string) => {
+      unwrap(await deleteGlobalMessage(messageId));
+      setAllFlat((prev) => {
+        const next = prev.filter((m) => m.id !== messageId && m.parentId !== messageId);
+        setMessages(threadMessages(next));
+        return next;
+      });
+    },
+    [],
+  );
+
+  const markRead = useCallback(async () => {
+    try {
+      unwrap(await markMessagesRead());
+      setLastReadAt(new Date().toISOString());
+      setUnreadCount(0);
+    } catch {
+      // Non-critical — don't break the UI
+    }
+  }, []);
+
+  return { messages, loading, error, unreadCount, lastReadAt, refresh, postMessage, removeMessage, markRead };
 }

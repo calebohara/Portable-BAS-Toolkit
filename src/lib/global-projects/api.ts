@@ -9,6 +9,7 @@ import type {
   GlobalProjectFile,
   GlobalActivityLogEntry,
   GlobalNetworkDiagram,
+  GlobalMessage,
 } from '@/types/global-projects';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -961,6 +962,174 @@ export async function logGlobalActivity(
 
     if (error) return fail(error.message);
     return ok(camelCaseKeys<GlobalActivityLogEntry>(entry));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+// ─── Messages (Cross-project message board) ──────────────────────────────────
+
+export async function fetchGlobalMessages(): Promise<ApiResult<GlobalMessage[]>> {
+  try {
+    const supabase = getClient();
+
+    const { data: messages, error } = await supabase
+      .from('global_messages')
+      .select('*')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(200);
+
+    if (error) return fail(error.message);
+    if (!messages || messages.length === 0) return ok([]);
+
+    // Gather unique user IDs and project IDs for profile/project lookups
+    const userIds = [...new Set(messages.map((m: Record<string, unknown>) => m.created_by as string))];
+    const projectIds = [...new Set(messages.map((m: Record<string, unknown>) => m.global_project_id as string).filter(Boolean))];
+
+    // Fetch profiles
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, display_name, avatar_url')
+      .in('id', userIds);
+
+    const profileMap = new Map<string, { displayName: string | null; avatarUrl: string | null }>();
+    for (const p of profiles || []) {
+      profileMap.set(p.id, { displayName: p.display_name, avatarUrl: p.avatar_url });
+    }
+
+    // Fetch project names
+    const projectMap = new Map<string, string>();
+    if (projectIds.length > 0) {
+      const { data: projects } = await supabase
+        .from('global_projects')
+        .select('id, name')
+        .in('id', projectIds);
+      for (const p of projects || []) {
+        projectMap.set(p.id, p.name);
+      }
+    }
+
+    // Assemble messages with joined data
+    const assembled: GlobalMessage[] = messages.map((m: Record<string, unknown>) => {
+      const profile = profileMap.get(m.created_by as string);
+      return {
+        ...camelCaseKeys<GlobalMessage>(m),
+        authorName: profile?.displayName ?? null,
+        authorAvatarUrl: profile?.avatarUrl ?? null,
+        projectName: m.global_project_id ? (projectMap.get(m.global_project_id as string) ?? null) : null,
+      };
+    });
+
+    return ok(assembled);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function addGlobalMessage(
+  subject: string,
+  body: string,
+  globalProjectId?: string | null,
+  parentId?: string | null,
+): Promise<ApiResult<GlobalMessage>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+
+    const { data: message, error } = await supabase
+      .from('global_messages')
+      .insert({
+        subject,
+        body,
+        global_project_id: globalProjectId || null,
+        parent_id: parentId || null,
+        created_by: userId,
+      })
+      .select()
+      .single();
+
+    if (error) return fail(error.message);
+
+    // Fetch author profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('display_name, avatar_url')
+      .eq('id', userId)
+      .single();
+
+    // Fetch project name if tagged
+    let projectName: string | null = null;
+    if (globalProjectId) {
+      const { data: project } = await supabase
+        .from('global_projects')
+        .select('name')
+        .eq('id', globalProjectId)
+        .single();
+      projectName = project?.name ?? null;
+    }
+
+    return ok({
+      ...camelCaseKeys<GlobalMessage>(message),
+      authorName: profile?.display_name ?? null,
+      authorAvatarUrl: profile?.avatar_url ?? null,
+      projectName,
+    });
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function deleteGlobalMessage(messageId: string): Promise<ApiResult<null>> {
+  try {
+    const supabase = getClient();
+
+    const { error } = await supabase
+      .from('global_messages')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', messageId);
+
+    if (error) return fail(error.message);
+    return ok(null);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+// ─── Message Read Tracking ──────────────────────────────────────────────────
+
+export async function fetchLastReadAt(): Promise<ApiResult<string | null>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+
+    const { data, error } = await supabase
+      .from('global_message_reads')
+      .select('last_read_at')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (error) return fail(error.message);
+    return ok(data?.last_read_at ?? null);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function markMessagesRead(): Promise<ApiResult<null>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+
+    const { error } = await supabase
+      .from('global_message_reads')
+      .upsert(
+        { user_id: userId, last_read_at: new Date().toISOString() },
+        { onConflict: 'user_id' },
+      );
+
+    if (error) return fail(error.message);
+    return ok(null);
   } catch (err) {
     return fail((err as Error).message);
   }

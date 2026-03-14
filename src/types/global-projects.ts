@@ -186,6 +186,27 @@ export interface GlobalActivityLogEntry {
   timestamp: string;
 }
 
+export interface GlobalMessage {
+  id: string;
+  globalProjectId: string | null;
+  parentId: string | null;
+  subject: string;
+  body: string;
+  createdBy: string;
+  deletedAt: string | null;
+  createdAt: string;
+  /** Joined from profiles table */
+  authorName: string | null;
+  /** Joined from profiles table */
+  authorAvatarUrl: string | null;
+  /** Joined from global_projects table */
+  projectName: string | null;
+  /** Replies nested under this message (populated client-side) */
+  replies?: GlobalMessage[];
+  /** Number of replies (populated client-side) */
+  replyCount?: number;
+}
+
 export interface GlobalNetworkDiagram {
   id: string;
   globalProjectId: string;
