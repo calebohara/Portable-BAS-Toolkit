@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, WifiOff, Menu, RefreshCw, Upload, User, LogOut } from 'lucide-react';
+import { Search, WifiOff, Menu, RefreshCw, Upload } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useAppStore } from '@/store/app-store';
 import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
@@ -13,7 +13,7 @@ import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
 export function TopBar({ title, children }: { title?: string; children?: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { user, signOut } = useAuth();
+  const { user, profile } = useAuth();
   const isOnline = useAppStore((s) => s.isOnline);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const [showUpload, setShowUpload] = useState(false);
@@ -97,18 +97,30 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
 
           <ThemeSwitcher />
 
-          {/* Account / Sign out */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 gap-1.5 text-muted-foreground"
-            onClick={async () => { await signOut(); router.push('/login'); }}
-            aria-label="Sign out"
-          >
-            <User className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline max-w-24 truncate text-xs">{user?.email ?? 'Account'}</span>
-            <LogOut className="h-3 w-3" />
-          </Button>
+          {/* Profile pill — navigates to settings */}
+          {user && (
+            <button
+              type="button"
+              onClick={() => router.push('/settings')}
+              className="flex items-center gap-2 rounded-full border border-border bg-muted/50 pl-1 pr-3 py-1 hover:bg-muted transition-colors cursor-pointer"
+              aria-label="Go to profile"
+            >
+              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden text-[10px] font-semibold text-primary">
+                {profile?.avatarUrl ? (
+                  <img src={profile.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                ) : (
+                  (() => {
+                    const f = profile?.firstName?.[0] ?? '';
+                    const l = profile?.lastName?.[0] ?? '';
+                    return (f + l).toUpperCase() || user.email?.slice(0, 2).toUpperCase() || '??';
+                  })()
+                )}
+              </div>
+              <span className="hidden sm:inline max-w-28 truncate text-xs font-medium text-foreground">
+                {profile?.displayName || user.email || 'Account'}
+              </span>
+            </button>
+          )}
         </div>
       </header>
 
