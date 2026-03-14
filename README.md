@@ -2,16 +2,15 @@
 
 # BAU Suite
 
-### Portable Project Toolkit for Building Automation Systems
+### The Field Platform for Building Automation
 
-*A field-ready project container for BAS engineers and technicians.*
-*Organize panel databases, IP plans, device inventories, wiring diagrams, and field notes — online or offline.*
+*Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-3.2.0-00BCD4?style=flat-square)](#application-versioning)
+[![Version](https://img.shields.io/badge/Version-4.1.0-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](#pwa-capabilities)
+[![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](#pwa)
 [![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?style=flat-square&logo=tauri&logoColor=white)](#desktop-app)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?style=flat-square&logo=vercel)](https://vercel.com)
 
@@ -19,27 +18,18 @@
 
 ---
 
-## Version
+## What's New in v4.1.0
 
-**Current Release: v3.2.0**
-
-This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). The version is synchronized across `package.json`, the application UI (sidebar and Settings page), and this README.
+- **Global Projects** — Multi-user collaborative project management with Supabase. Create shared projects, invite team members via access codes, and work together with full audit trails.
+- **Share Local → Global** — Migrate any local project to a Global Project with one click. Notes, devices, IP entries, and daily reports are transferred automatically.
+- **Daily Report Linking** — Link daily reports from your profile directly to a Global Project via a toggle switch.
+- **Full Global CRUD** — Edit projects (admin), edit/delete reports (creator-only), documents tab, files, notes, devices, and IP entries — all with activity logging and RLS enforcement.
 
 ---
 
 ## Overview
 
-**BAU Suite** is a portable project management toolkit purpose-built for Building Automation System (BAS) technicians, controls engineers, and commissioning specialists.
-
-It centralizes the critical project data that field engineers carry between job sites:
-
-- **Panel databases** — controller inventories and configurations
-- **Wiring diagrams** — versioned electrical documentation
-- **Sequences of operation** — control logic references
-- **IP plans** — network addressing with VLAN/subnet tracking
-- **Device lists** — BACnet controllers, sensors, actuators
-- **Backups** — controller snapshots and configuration archives
-- **Technician notes** — field observations, issues, punch items
+**BAU Suite** is a portable project management toolkit for BAS technicians, controls engineers, and commissioning specialists. It centralizes the project data, diagnostic tools, and documentation workflows that field engineers carry between job sites.
 
 > Think **Git for BAS projects** — version-controlled, searchable, and available offline.
 
@@ -50,862 +40,167 @@ It centralizes the critical project data that field engineers carry between job 
 | **Commissioning Engineer** | Track startup progress, document punch items, manage IP plans |
 | **Service Technician** | Access project history, controller configs, and network maps on-site |
 | **Controls Programmer** | Organize panel databases, sequences, and wiring documentation |
-| **Project Manager** | Monitor project status, review activity logs, manage contacts |
+| **Project Manager** | Monitor project status, coordinate teams via Global Projects |
 | **Network Engineer** | Plan IP addressing, track VLANs, detect duplicate addresses |
 
-### Real-world scenarios
+---
 
-- **AHU commissioning** — document every controller, IP address, and startup note in one place
-- **Troubleshooting** — pull up device lists, network maps, and past field notes instantly
-- **System migrations** — track old vs. new panel databases with version history
-- **Service calls** — access offline project data without needing VPN or site Wi-Fi
-- **Project handoff** — share organized, searchable project containers between engineers
+## Features
+
+### Project Management
+- Create, edit, and delete BAS projects with status, contacts, tags, and cascading cleanup
+- Full CRUD for devices, IP entries, contacts, notes, and project metadata
+- Activity log with automatic audit trail
+- Share/export via Teams, Outlook, PDF, or JSON with audience presets
+
+### Global Projects (NEW)
+- **Multi-user collaboration** — shared projects powered by Supabase with Row Level Security
+- **Access codes** — invite team members with a generated code, no email exchange needed
+- **Full feature parity** — notes, devices, IP plan, daily reports, documents, and files
+- **Share local → global** — migrate an existing local project with all data in one click
+- **Activity tracking** — every change logged with before/after diffs and creator attribution
+- **Role-based access** — admin and member roles with creator-only edit/delete on content
+
+### Daily Reports
+- Structured field reports with work completed, issues, coordination notes, equipment, and attachments
+- Three-stage workflow: Draft → Submitted → Finalized
+- Link reports to Global Projects via toggle switch
+- Export to Teams, Outlook, PDF, or JSON
+
+### Network & Device Tools
+- **IP Plan** — full addressing table with VLAN, subnet, hostname, duplicate detection
+- **Device Inventory** — controllers, sensors, actuators with BACnet instance, IP, MAC, location
+- **Ping Tool** — HTTP and ICMP (desktop) reachability with port scanning
+- **Network Diagram Builder** — drag-and-drop topology mapping with PNG/SVG export
+- **Protocol Converter** — hex/decimal/binary, IEEE 754, byte order, Modbus addressing, bitmask tool
+
+### Access & Diagnostics
+- **Web Interface** — access BAS controller web panels with saved endpoints and security handling
+- **HMI Terminal** — browser-based Telnet terminal with session tabs, logging, and command history
+- **Command Snippets** — reusable commands for BACnet, Modbus, Niagara, Siemens, and more
+
+### Platform
+- **Offline-first** — all data in IndexedDB, works without Wi-Fi
+- **PWA installable** — add to home screen on any device
+- **Desktop app** — native Tauri app with real ICMP ping and full network access
+- **Global search** — search across all projects, files, devices, IP entries, and notes
+- **Sticky notepad** — draggable floating scratchpad with tabbed notes
+- **Guided tour** — interactive onboarding walkthrough
 
 ---
 
-## Key Features
-
-| Feature | Description |
-|---------|-------------|
-| **Project Management** | Create, edit, and delete BAS projects with status, contacts, tags, and cascading cleanup |
-| **Full CRUD** | Add, edit, and delete devices, IP entries, contacts, notes, and project metadata inline |
-| **Quick Upload** | Global upload button in the top bar — upload any document from anywhere in the app, assign to a project or leave in the uploads inbox for later |
-| **File Upload & Versioning** | Drag-and-drop upload with staged progress tracking, file type validation, retry on failure — panel databases (.pcl), wiring diagrams (.pdf), sequences (.txt/.pdf), backups (.pcl) |
-| **Document Preview** | In-app preview for PDFs (iframe), images (PNG/JPG/SVG/WebP/GIF), and text files (TXT/CSV/JSON/XML) with download fallback for unsupported types |
-| **General Documents** | Dedicated category for miscellaneous project files (PDFs, Word docs, Excel, images, ZIPs, proprietary BAS files) that don't fit standard categories |
-| **Uploads Inbox** | Global document inbox for unassigned uploads — preview, download, assign to any project, or organize later |
-| **IP Plan Management** | Full IP addressing table with VLAN, subnet, hostname, device role, and duplicate detection |
-| **Device Inventory** | Track controllers, sensors, and actuators with BACnet instance, IP, MAC, and location |
-| **Technician Notes** | Categorized field notes — issues, fixes, punch items, startup notes, network changes |
-| **Activity Log** | Automatic audit trail of every project modification |
-| **Offline Access** | Pin projects for full offline availability via IndexedDB and Service Worker |
-| **PWA Install** | Install as a native app on any device — desktop, tablet, or phone |
-| **Global Search** | Live search-as-you-type across all projects, files, devices, IP entries, and notes with debounced indexing, quick chips, and highlighted results |
-| **Mobile-Ready** | Responsive design optimized for field use on phones and tablets |
-| **Theme Switching** | System, light, and dark modes for any environment |
-| **Contact Management** | Track site contacts — GC, TAB, mechanical, building engineer |
-| **Daily Reports** | Structured daily field reports tied to projects — work completed, issues, coordination notes, equipment status, attachments, autosave drafts, and three-stage workflow (Draft → Submitted → Finalized) |
-| **Report Export** | Export daily reports via Teams (markdown), Outlook (email with suggested subject), PDF (print-optimized), or JSON share package — reuses the project share infrastructure |
-| **Share / Export** | Selective project sharing — Teams (markdown), Outlook (email), PDF (print), or JSON package with audience presets and sensitive data masking |
-| **Network Diagram Builder** | Visual BAS network topology mapping — drag-and-drop nodes (controllers, routers, switches, servers, sensors, actuators, panels, workstations, gateways), draw connections with labels and styles, property editing panel, pan/zoom canvas, PNG and SVG export, per-project diagram storage |
-| **Telnet HMI Tool** | Browser-based terminal for BAS controller access — WebSocket-to-Telnet proxy support, session logging, .txt export, project attachment, baud rate configuration, multiple session tabs, command history, connection history, and persistent session buffers that survive navigation |
-| **Command Snippet Library** | Save and reuse terminal commands — categorized snippets (BACnet, LonWorks, Modbus, Niagara, Siemens, Johnson, Honeywell), search and filter, one-click insert into terminal, usage tracking, favorites |
-| **Web Interface** | Access BAS controller web panels directly — saved endpoints with favorites, protocol/port/path configuration, embedded iframe workspace with honest browser security handling (X-Frame-Options, CSP, mixed content), new-tab fallback, project association, recent connections, JSON export, and persistent active workspace that survives navigation |
-| **Protocol Converter / Register Tool** | Production-grade field utility for protocol and register work — hex/decimal/binary conversion, signed/unsigned interpretation, 16-bit and 32-bit register decoding, IEEE 754 float breakdown, byte/word order comparison across all 4 standard orderings, interactive bitmask tool with labeled bit grids and mask operations (AND/OR/XOR/NOT/shift), linear scaling calculator with common presets (0-10V, 4-20mA, temperature, pressure), Modbus address resolver (0-based/1-based/Modicon notation with function codes), save calculations to projects, built-in BAS protocol reference |
-| **Ping Tool** | Reachability testing with dual mode — browser mode uses HTTP/HTTPS with optional BAS port scanning (80, 443, 8080, 8443, 47808/BACnet); desktop mode uses real ICMP ping with TTL and native TCP port checking. Single/repeated/multi-target modes, auto-detects desktop vs browser, helpful diagnostics, latency statistics, project association, result saving, and .txt export |
-| **Desktop App** | Native desktop application via Tauri — real ICMP ping, direct TCP port checking, system-level network access over VPN, Tauri-aware SPA navigation with catch-all route fallback, lightweight ~15 MB installer for Windows (.msi), macOS (.dmg), and Linux (.deb/.AppImage), auto-built via GitHub Actions CI, in-app update checker |
-| **Global Sticky Notepad** | Draggable floating scratchpad accessible from any page — drag the launcher icon anywhere on screen with persistent position, edge snapping, tabbed notes with project attachment and tab duplication, minimize/restore, anchored panel positioning relative to launcher, and offline persistence via Zustand |
-| **Guided Tour** | Interactive step-by-step onboarding walkthrough with spotlight overlay — auto-launches on first visit, replayable from Help or Settings, mobile-friendly with clean sidebar state management |
-| **Help Center** | Dedicated help page with getting started guide, feature guides, FAQ, troubleshooting, keyboard shortcuts, and best practices |
-| **Storage Management** | Monitor IndexedDB usage, clear caches, manage offline storage |
-| **Optional Authentication** | Supabase-powered email/password auth — completely optional, app works fully without it. Sign in to prepare for future cloud sync; stay local for offline-only use. Account section in Settings, auth pill in top bar, dedicated login/signup page |
-| **Professional Homepage** | Session-aware landing page with product overview, tool group cards, field workflow explanation, and auth entry points. Adapts CTAs based on sign-in state. Renders without sidebar for a clean first-touch experience |
-
----
-
-## Screenshots
-
-> Add screenshots to `docs/screenshots/` and they will render below.
-
-<details>
-<summary><strong>Dashboard</strong></summary>
-
-![Dashboard](docs/screenshots/dashboard.png)
-*Quick actions, pinned projects, active project cards, and recent activity at a glance.*
-
-</details>
-
-<details>
-<summary><strong>Project Overview</strong></summary>
-
-![Project Overview](docs/screenshots/project-overview.png)
-*Project details, contacts, panel roster, network summary, and technician notes — all editable inline.*
-
-</details>
-
-<details>
-<summary><strong>IP Plan</strong></summary>
-
-![IP Plan](docs/screenshots/ip-plan.png)
-*Full IP addressing table with VLAN, subnet, hostname, device role, status, and duplicate detection.*
-
-</details>
-
-<details>
-<summary><strong>Device List</strong></summary>
-
-![Device List](docs/screenshots/device-list.png)
-*Device inventory with controller type, BACnet instance, IP address, location, and status tracking.*
-
-</details>
-
-<details>
-<summary><strong>Offline Mode</strong></summary>
-
-![Offline Mode](docs/screenshots/offline-mode.png)
-*Pinned projects available offline with storage usage monitoring and cache management.*
-
-</details>
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                      Browser / PWA                       │
-├──────────────┬──────────────┬───────────────────────────┤
-│   Next.js    │   Zustand    │      Service Worker       │
-│  App Router  │    Store     │     (Offline Cache)       │
-├──────────────┴──────────────┴───────────────────────────┤
-│                  React Components                        │
-│  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌───────────┐  │
-│  │ Projects │ │ Devices  │ │ IP Plan  │ │   Notes   │  │
-│  └────┬─────┘ └────┬─────┘ └────┬─────┘ └─────┬─────┘  │
-│       └─────────────┴────────────┴─────────────┘        │
-│                    Custom Hooks                           │
-│              (useProjects, useProject,                    │
-│         useProjectDevices, useProjectIpPlan)              │
-├─────────────────────────────────────────────────────────┤
-│                    IndexedDB (idb)                        │
-│  ┌──────────┐ ┌───────┐ ┌───────┐ ┌────────┐ ┌──────┐  │
-│  │ projects │ │ files │ │ notes │ │devices │ │ipPlan│  │
-│  └──────────┘ └───────┘ └───────┘ └────────┘ └──────┘  │
-│  ┌───────────┐ ┌─────────────┐ ┌──────────────┐            │
-│  │ fileBlobs │ │ activityLog │ │ dailyReports │            │
-│  └───────────┘ └─────────────┘ └──────────────┘            │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Data flow:** UI Components → Custom Hooks → IndexedDB → Browser Storage
-
-**State layers:**
-- **Zustand** — UI preferences (theme, sidebar, recent items, search history, notepad state) persisted to localStorage with async hydration guards
-- **React hooks** — data fetching and mutation via IndexedDB
-- **IndexedDB** — all project data, files, notes, devices, IP plans, and activity logs
-- **Service Worker** — app shell caching for offline availability
-
----
-
-## Technology Stack
-
-| Layer | Technology | Version |
-|-------|-----------|---------|
-| **Framework** | Next.js (App Router) | 16 |
-| **Language** | TypeScript | 5 |
-| **Styling** | Tailwind CSS | 4 |
-| **UI Components** | shadcn/ui + Base UI | — |
-| **State** | Zustand (with persist) | 5 |
-| **Local Storage** | IndexedDB via `idb` | 8 |
-| **Icons** | Lucide React | — |
-| **Dates** | date-fns | 4 |
-| **Toasts** | Sonner | 2 |
-| **Themes** | next-themes | — |
-| **Offline** | Service Worker + IndexedDB | — |
-| **Auth** | Supabase (optional) | 2 |
-| **Desktop** | Tauri (Rust backend) | 2 |
-| **Deployment** | Vercel / GitHub Releases | — |
-
----
-
-## Installation
-
-### Prerequisites
-
-- **Node.js** 18.17 or later
-- **npm** 9+ (or pnpm / yarn)
-
-### Quick Start
+## Quick Start
 
 ```bash
-# Clone the repository
-git clone https://github.com/your-username/Portable-BAS-Toolkit.git
+git clone https://github.com/calebohara/Portable-BAS-Toolkit.git
 cd Portable-BAS-Toolkit
-
-# Install dependencies
 npm install
-
-# Start development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-> On first launch, the app auto-seeds demo project data so you can explore immediately.
-
-### Production Build
-
-```bash
-npm run build
-npm start
-```
-
----
-
-## Development Setup
+Open [http://localhost:3000](http://localhost:3000). The app auto-seeds demo data on first launch.
 
 ### Environment Variables
 
-Create a `.env.local` file in the project root. Copy from `.env.example`:
+Create `.env.local` (optional — app works fully without these):
 
 ```env
-# Base URL for OG image resolution (optional — defaults to localhost in dev)
-NEXT_PUBLIC_URL=https://your-domain.vercel.app
-
-# Supabase (optional — app works fully without these)
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...your-anon-key
 ```
 
-The application is **fully offline-first** — no external API keys or database credentials are required. All data is stored locally in IndexedDB. Supabase authentication is optional and prepares the foundation for future cloud sync.
-
-### Dev Server Configuration
-
-The dev server is configured in `.claude/launch.json`:
-
-```json
-{
-  "version": "0.0.1",
-  "configurations": [
-    {
-      "name": "next-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3000
-    }
-  ]
-}
-```
-
-### Code Quality
-
-```bash
-# Lint the codebase
-npm run lint
-
-# Type check
-npx tsc --noEmit
-
-# Production build (includes type checking)
-npm run build
-```
-
 ---
 
-## Project Structure
+## Tech Stack
 
-```
-src/
-├── app/                          # Next.js App Router pages
-│   ├── layout.tsx                # Root layout — providers, metadata, fonts
-│   ├── page.tsx                  # Homepage — session-aware landing page with product overview
-│   ├── globals.css               # Global styles and Tailwind config
-│   ├── dashboard/
-│   │   └── page.tsx              # App dashboard — quick actions, pinned projects, stats
-│   ├── login/
-│   │   └── page.tsx              # Sign in / sign up with Supabase auth
-│   ├── projects/
-│   │   ├── page.tsx              # Project list — search, filter, create
-│   │   └── [...slug]/
-│   │       └── page.tsx          # Project detail — catch-all for static export compatibility
-│   ├── reports/
-│   │   ├── page.tsx              # Daily reports list — search, filter, status
-│   │   ├── new/
-│   │   │   └── page.tsx          # Create new daily report
-│   │   └── [...slug]/
-│   │       ├── page.tsx          # Report detail — catch-all for static export compatibility
-│   │       └── edit/
-│   │           └── page.tsx      # Edit existing report
-│   ├── terminal/
-│   │   └── page.tsx              # Telnet HMI terminal tool
-│   ├── web-interface/
-│   │   └── page.tsx              # Web Interface panel access tool
-│   ├── search/
-│   │   └── page.tsx              # Global search across all data
-│   ├── settings/
-│   │   └── page.tsx              # Theme, storage, cache management
-│   ├── help/
-│   │   └── page.tsx              # Help center — guides, FAQ, troubleshooting
-│   └── offline/
-│       └── page.tsx              # Offline projects and storage monitor
-│
-├── components/
-│   ├── layout/                   # App shell, sidebar, top bar, update notifier
-│   ├── ui/                       # shadcn/ui component library
-│   ├── projects/                 # Project dialogs and activity timeline
-│   ├── devices/                  # Device list, IP plan, entry dialogs
-│   ├── files/                    # File list, upload dialog, download
-│   ├── notes/                    # Field notes view
-│   ├── reports/                  # Daily report form, export dialog
-│   ├── notepad/                  # Global floating sticky notepad
-│   ├── share/                    # Share/export wizard, formatters, PDF view
-│   ├── onboarding/               # Guided tour overlay and step definitions
-│   ├── shared/                   # Error boundary, empty states, confirm dialog
-│   └── theme/                    # Theme provider and switcher
-│
-├── hooks/
-│   ├── use-projects.ts           # All data hooks — CRUD for every entity
-│   └── use-keyboard-shortcut.ts  # Cmd+K search shortcut
-│
-├── lib/
-│   ├── db.ts                     # IndexedDB schema, queries, and mutations
-│   ├── demo-data.ts              # Auto-seeded sample data for first launch
-│   ├── routes.ts                 # Centralized route constants and Tauri-aware navigation helpers
-│   ├── version.ts                # Version utilities, semver comparison, GitHub release fetching
-│   ├── tauri-bridge.ts           # Tauri runtime detection and native API bridge
-│   └── utils.ts                  # Tailwind class merge utility
-│
-├── store/
-│   ├── app-store.ts              # Zustand store — theme, sidebar, recent items
-│   ├── notepad-store.ts          # Zustand store — sticky notepad tabs, project links, and hydration guard
-│   ├── terminal-store.ts         # Zustand store — terminal sessions and settings
-│   └── web-interface-store.ts    # Zustand store — web endpoints and connections
-│
-└── types/
-    └── index.ts                  # All TypeScript interfaces and enums
-
-public/
-├── manifest.json                 # PWA manifest
-├── sw.js                         # Service worker
-├── favicon.ico                   # Browser favicon
-├── icons/                        # PWA icon set (72–1024px, maskable, monochrome)
-├── favicons/                     # Multi-size favicons (16, 32, 48)
-└── og/                           # Open Graph and social preview images
-
-scripts/
-└── generate-icons.mjs            # Icon asset generation from SVG sources
-```
-
----
-
-## Core Feature Breakdown
-
-### Projects
-
-The central organizing unit. Each project represents a BAS job site or system and contains:
-- Metadata (name, project number, customer, site address, building/area) — all editable after creation
-- Status tracking (active, on-hold, completed, archived)
-- Site contacts with role, company, phone, and email — add, edit, delete inline
-- Tags for categorization and filtering
-- Panel roster summary and network summary — inline editable
-- Technician notes — inline editable
-- Full project deletion with confirmation dialog and cascading cleanup of all related data
-
-### Project Tabs
-
-Each project has a tabbed interface:
-
-| Tab | Purpose |
-|-----|---------|
-| **Overview** | Project details, contacts, panel roster, network summary, tech notes — all inline-editable with quick actions |
-| **Panel DBs** | Uploaded panel database files with version history |
-| **Wiring** | Wiring diagram documents with revision tracking |
-| **Sequences** | Sequence of operation documents |
-| **IP Plan** | Network addressing table — IP, hostname, VLAN, subnet, device role, MAC, status |
-| **Devices** | Device inventory — name, controller type, BACnet instance, IP, floor, area, status |
-| **Backups** | Controller backups and configuration snapshots |
-| **Notes** | Categorized field notes (issues, fixes, punch items, startup notes, network changes) |
-| **Activity** | Chronological audit trail of all project modifications |
-
-### IP Plan
-
-Full IP address management with:
-- IPv4 validation
-- Duplicate IP detection with warnings
-- VLAN and subnet tracking
-- Device role assignment
-- Status tracking (active, reserved, available, conflict)
-- Sortable and searchable table
-
-### Device Inventory
-
-Track every BAS device on the project:
-- Device name and description
-- System assignment (HVAC, lighting, etc.)
-- Panel and controller type (e.g., PXC36.1-E.D)
-- BACnet instance number
-- IP and MAC address
-- Floor and area location
-- Status (Online, Offline, Issue, Not Commissioned)
-
-### Global Search
-
-Full-text search across:
-- Project names, numbers, and metadata
-- File titles and tags
-- Field note content
-- Device names and descriptions
-- IP addresses and hostnames
-
-Results are highlighted and grouped by type.
-
-### Daily Reporting
-
-Structured field reporting for documenting daily progress:
-
-- **Report creation** — project selector, date, technician name, auto-numbered reports
-- **Content sections** — work completed, issues encountered, work planned next, coordination notes, equipment/systems worked on, device/IP changes, safety notes, general notes
-- **Time tracking** — start/end time, hours on site, location, weather
-- **Attachments** — upload images, PDFs, and documents directly to reports
-- **Workflow status** — Draft → Submitted → Finalized with read-only protection for finalized reports
-- **Autosave** — drafts automatically saved every 30 seconds
-- **Export/Share** — Teams markdown, Outlook email, PDF print, or JSON share package
-
-### Exporting Daily Reports
-
-Reports can be exported in four formats, using the same share infrastructure as project exports:
-
-| Format | Output |
-|--------|--------|
-| **Teams** | Markdown message with all report sections, ready to paste |
-| **Outlook** | Subject line (`Daily Report – [Project] – [Date]`) + formatted email body |
-| **PDF** | Print-optimized view with professional formatting |
-| **Share Package** | JSON bundle with report data and project metadata |
-
-### Telnet HMI Tool
-
-A browser-based terminal interface for connecting to BAS controllers and panels:
-
-- **Terminal emulator** — dark-themed, monospace terminal with scrollback buffer, command input, and live output stream
-- **Connection panel** — host/IP, port, baud rate (9600–115200), local echo, and line mode configuration
-- **Session tabs** — open multiple concurrent terminal sessions, each with independent connection, buffer, and log state
-- **Session control** — connect, disconnect, reconnect, clear buffer, pause/resume output
-- **Buffer management** — configurable buffer size (100–10,000 lines) to prevent memory overload
-- **Session logging** — timestamped output capture with toggle control
-- **Export** — download session logs as `.txt` files with full metadata (host, port, baud, timestamps)
-- **Project integration** — attach session logs directly to any project via file blob storage
-- **Command history** — arrow-key recall of previously entered commands (up to 50)
-- **Connection history** — recent connections with quick-reconnect, persisted across sessions
-- **WebSocket proxy architecture** — designed for WebSocket-to-Telnet proxy bridging; falls back to local-mode logging when no proxy is available
-
-### Web Interface
-
-A panel web access console for connecting to BAS controller web interfaces:
-
-- **Launch form** — protocol (HTTP/HTTPS), host/IP, port, path, and open mode (auto, embedded, new tab) with live URL preview
-- **Embedded workspace** — iframe-based web panel viewer with loading indicator, reload, and open-in-new-tab controls
-- **Honest security handling** — detects X-Frame-Options, CSP, and mixed content blocks; shows clear explanations and automatic new-tab fallback instead of broken iframes
-- **Saved endpoints** — save frequently-used controller web panels with friendly names, tags, and notes
-- **Favorites** — star endpoints for quick access; favorites sort to top
-- **Project association** — link endpoints to projects for organized access
-- **Recent connections** — last 20 connections with one-click relaunch
-- **Search & filter** — search saved endpoints by name, host, tags, or notes
-- **Export** — download saved endpoints as JSON for backup or sharing
-- **Security guidance** — collapsible panel explaining browser limitations (same-origin policy, mixed content, HTTPS requirements) with practical workarounds
-
-### Global Sticky Notepad
-
-A persistent floating scratchpad accessible from any page in the application:
-
-- **Draggable launcher** — drag the FAB icon anywhere on screen; position persists across pages, reloads, and browser restarts via localStorage
-- **Click vs drag detection** — movement threshold distinguishes taps/clicks from drags; no accidental opens when repositioning
-- **Edge snapping** — launcher snaps to the nearest left/right edge when dropped nearby for a clean resting position
-- **Viewport safety** — launcher stays within visible bounds; automatically repositions on window resize or orientation change
-- **Anchored panel** — panel opens relative to the launcher position with viewport-aware placement; no more fixed bottom-right behavior
-- **Hydration guard** — launcher waits for persisted state to load before rendering, eliminating the visual jump on page load
-- **Tabbed notes** — create, rename (double-click), reorder, duplicate, and close multiple note tabs
-- **Project attachment** — link any note tab to a project for organized field documentation; project name shown in panel header
-- **Tab duplication** — duplicate a tab with all its content for quick note variations
-- **Plain-text editor** — monospace font optimized for IP addresses, commands, device numbers, and quick documentation
-- **Minimize / restore** — collapse to a small draggable pill without losing state; pill shares the launcher's persisted position
-- **Reset position** — reset button in the panel header returns the launcher to its default bottom-right position
-- **Offline persistence** — all tabs, content, and launcher position persist via Zustand localStorage across page refreshes, route changes, and offline sessions
-- **Delete protection** — confirmation prompt when closing a tab that contains content
-- **Theme-aware** — follows light/dark/system theme automatically
-
----
-
-## PWA Capabilities
-
-BAU Suite is a fully installable Progressive Web App:
-
-- **Installable** — add to home screen on iOS, Android, Windows, macOS, ChromeOS
-- **Offline-capable** — Service Worker caches the app shell for instant loading
-- **App-like experience** — standalone display mode, no browser chrome
-- **Maskable icons** — adaptive icons that look native on any launcher
-- **Theme-aware** — respects system light/dark preference
-
-### How to install
-
-**Desktop (Chrome/Edge):** Click the install icon in the address bar, or use the browser menu.
-
-**iOS Safari:** Tap Share → Add to Home Screen.
-
-**Android Chrome:** Tap the install banner or use the browser menu → Install App.
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | Next.js 16 (App Router) |
+| **Language** | TypeScript 5 |
+| **Styling** | Tailwind CSS 4 |
+| **UI** | shadcn/ui + Base UI |
+| **State** | Zustand 5 (persisted) |
+| **Local Storage** | IndexedDB via `idb` |
+| **Auth & Cloud** | Supabase (optional) |
+| **Desktop** | Tauri 2 (Rust) |
+| **Deployment** | Vercel / GitHub Releases |
 
 ---
 
 ## Desktop App
 
-BAU Suite is also available as a native desktop application built with [Tauri](https://v2.tauri.app/), providing capabilities that browsers cannot offer:
+Native desktop app via [Tauri](https://v2.tauri.app/) with capabilities browsers can't provide:
 
-### What you get
-
-| Feature | Browser (PWA) | Desktop (Tauri) |
+| Feature | Browser | Desktop |
 |---------|:---:|:---:|
-| All BAU Suite tools | Yes | Yes |
-| Offline data (IndexedDB) | Yes | Yes |
-| Real ICMP ping | No | Yes |
-| Direct TCP port checking | No | Yes |
-| VPN network access | Via HTTP only | Full system-level |
-| Install size | ~0 MB (browser) | ~15 MB |
+| All BAU Suite tools | ✓ | ✓ |
+| Real ICMP ping | — | ✓ |
+| Direct TCP port checking | — | ✓ |
+| VPN network access | HTTP only | Full |
+| Install size | ~0 MB | ~15 MB |
 
-### How to install
-
-Download the latest installer from [GitHub Releases](https://github.com/calebohara/Portable-BAS-Toolkit/releases):
-
-- **Windows:** `.msi` installer
-- **macOS (Apple Silicon):** `.dmg` (M1/M2/M3/M4)
-- **macOS (Intel):** `.dmg` (x86_64)
-- **Linux:** `.deb` package or `.AppImage`
-
-### Desktop Navigation
-
-The desktop app uses Next.js static export mode with catch-all route fallback pages. Dynamic routes (e.g., `/projects/{uuid}`) are resolved through a Tauri-aware navigation layer (`src/lib/routes.ts`) that redirects to pre-rendered catch-all pages with query parameters. This ensures reliable navigation in the static export context where Next.js client-side routing cannot resolve dynamic paths.
-
-### How to build locally
+Download from [GitHub Releases](https://github.com/calebohara/Portable-BAS-Toolkit/releases) — Windows (.msi), macOS (.dmg), Linux (.deb/.AppImage).
 
 ```bash
-npm run tauri:dev      # Development mode with hot reload
-npm run tauri:build    # Production build (.app/.dmg on macOS, .msi on Windows, .deb/.AppImage on Linux)
+npm run tauri:dev      # Dev mode
+npm run tauri:build    # Production build
 ```
-
-Requires [Rust](https://rustup.rs/) and platform build tools (Xcode CLI on macOS, Visual Studio Build Tools on Windows).
-
-### CI/CD
-
-Desktop builds are automated via GitHub Actions. Push a version tag to trigger a release:
-
-```bash
-git tag v2.x.x
-git push origin v2.x.x
-```
-
-This builds all platform targets in parallel and creates a draft GitHub Release with installers attached.
 
 ---
 
-## Offline-First Design
+## Authentication & Cloud
 
-Every piece of data in BAU Suite is stored locally in the browser via **IndexedDB**. This is critical for field engineers who frequently work in:
-
-- Mechanical rooms with no Wi-Fi
-- Construction sites with unreliable connectivity
-- Secure facilities that restrict internet access
-- Remote locations without cellular service
-
-### How it works
-
-1. **IndexedDB** stores all projects, files, notes, devices, IP plans, and activity logs locally
-2. **Service Worker** caches the application shell (HTML, CSS, JS) for instant offline loading
-3. **File blobs** can be cached locally for offline document access
-4. **Zustand persist** keeps UI preferences in localStorage
-
-### Offline management
-
-The `/offline` page provides:
-- List of projects marked for offline availability
-- Storage usage monitoring (quota and usage)
-- Cache clearing controls
-- Per-project offline toggle
-
----
-
-## Authentication & Cloud Setup (Optional)
-
-BAU Suite supports optional Supabase authentication. When configured, users can create accounts and sign in. All project data remains stored locally in IndexedDB — cloud sync is a planned future milestone. Auth establishes user identity for when sync becomes available.
-
-### Quick Setup
-
-1. **Create a Supabase project** at [supabase.com](https://supabase.com)
-2. **Copy your project URL and anon key** from Settings → API
-3. **Configure authentication** in the Supabase Dashboard:
-   - Authentication → Providers → Enable Email
-   - Authentication → URL Configuration → Set Site URL to your app URL (e.g., `https://bau-suite.vercel.app` or `http://localhost:3000`)
-   - Authentication → URL Configuration → Add Redirect URLs: `http://localhost:3000/reset-password`, `https://your-domain.vercel.app/reset-password`
-4. **Run the SQL schema** — open SQL Editor in the Supabase Dashboard and paste the contents of `supabase/schema.sql`
-5. **Set environment variables** in `.env.local`:
-   ```env
-   NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...your-anon-key
-   ```
-6. **Start the app** — `npm run dev`
-7. **Test sign-up** — create an account, confirm your email, sign in
-
-### What's Active Now
+Supabase-powered authentication is **optional**. Without it, the app runs fully local.
 
 | Feature | Status |
 |---------|--------|
-| Email/password sign-up | Active |
-| Email/password sign-in | Active |
-| Sign out | Active |
-| Password reset (email link) | Active |
-| Email confirmation | Active |
-| User profiles table | Active (auto-created on sign-up) |
-| RLS policies (per-user data isolation) | Active |
-| Project data cloud sync | **Not yet** — data remains in IndexedDB |
-| File storage in Supabase Storage | **Not yet** — files remain in IndexedDB |
-| Multi-device sync | **Not yet** — planned future milestone |
+| Email/password auth | ✓ Active |
+| Password reset | ✓ Active |
+| User profiles | ✓ Active |
+| Global Projects (multi-user) | ✓ Active |
+| Row Level Security | ✓ Active |
+| Local project data sync | Planned |
 
-### Without Supabase
+### Security
 
-If you don't set the environment variables, the app runs in **local-only mode**:
-- No sign-in UI appears
-- All features work as normal
-- Data is stored entirely in browser IndexedDB
-- No external connections except GitHub update checks
-
-### Security Model
-
-- Every Supabase table has Row Level Security (RLS) enabled
-- Users can only read, create, update, and delete their own records
-- The anon key is safe for client-side use (RLS enforces access control)
-- Session tokens are stored in localStorage (standard Supabase pattern)
-- Passwords are never stored client-side — handled entirely by Supabase Auth
+- All tables have Row Level Security enabled
+- Browser security headers (CSP, HSTS, X-Frame-Options) configured
+- Input escaping, URL validation, file sanitization, window isolation
+- See [SECURITY.md](SECURITY.md) for full details
 
 ---
 
-## Usage Guide
+## PWA
 
-### Quick workflow
+Installable Progressive Web App:
 
-1. **Create a project** — name, project number (44OP-XXXXXX), customer, site address
-2. **Add contacts** — GC, TAB contractor, mechanical, building engineer
-3. **Upload files** — panel databases, wiring diagrams, sequences, backups
-4. **Build the IP plan** — add every controller with IP, hostname, VLAN, subnet
-5. **Track devices** — log each BAS controller with type, instance, location
-6. **Record field notes** — document issues, fixes, punch items, startup observations
-7. **Pin for offline** — mark the project for offline availability before heading to site
-
-### Keyboard shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Cmd+K` / `Ctrl+K` | Open global search |
+- **Desktop:** Click install icon in Chrome/Edge address bar
+- **iOS:** Share → Add to Home Screen
+- **Android:** Install banner or menu → Install App
 
 ---
 
-## BAS Workflow Example
+## Versioning
 
-**Scenario: Commissioning an AHU Controls Upgrade**
+**Current: v4.1.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
-```
-1. Create Project
-   → "AHU-1/2 Controls Upgrade"
-   → Project # 44OP-001234
-   → Customer: Memorial Regional Hospital
-   → Site: 3501 Johnson St, Hollywood, FL
-
-2. Add Contacts
-   → John Smith — GC, ABC Construction, 555-0101
-   → Maria Garcia — TAB, Air Balance Inc, 555-0202
-
-3. Upload Panel Databases
-   → PXC36-AHU1 controller backup (Rev 1)
-   → PXC36-AHU2 controller backup (Rev 1)
-
-4. Build IP Plan
-   → 10.40.1.10 — PXC36-AHU1 — VLAN 100 — Active
-   → 10.40.1.11 — PXC36-AHU2 — VLAN 100 — Active
-   → 10.40.1.1  — Gateway    — VLAN 100 — Active
-
-5. Add Devices
-   → AHU-1-MAT — Mixed Air Temp — PXC36.1-E.D — Instance 300001
-   → AHU-1-DAT — Discharge Temp — PXC36.1-E.D — Instance 300002
-
-6. Record Field Notes
-   → [startup-note] Phase 1 startup complete, AHU-1 running in auto
-   → [issue] AHU-2 mixed air damper actuator binding at 60%
-   → [fix] Replaced actuator linkage, damper now full stroke
-
-7. Write Daily Report
-   → Work Completed: AHU-1 startup, all points verified
-   → Issues: AHU-2 damper actuator binding at 60%
-   → Work Planned: Replace actuator linkage tomorrow
-   → Export to Teams for PM status update
-
-8. Access Offline at Site
-   → Pin project → drive to job site → open app → full data available
-```
-
----
-
-## Configuration
-
-### Theme
-
-Three modes available via Settings or the top bar toggle:
-- **System** — follows OS preference
-- **Light** — optimized for bright environments
-- **Dark** — optimized for mechanical rooms and low-light field work
-
-### Storage
-
-The Settings page provides:
-- **Storage usage** — current IndexedDB size vs. browser quota
-- **Clear file cache** — remove cached file blobs to free space
-- **Clear all data** — full reset (requires confirmation)
-
-### Project Number Format
-
-Projects use the **44OP-XXXXXX** format by default. The input provides soft validation — non-matching formats show a warning but are not blocked.
-
----
-
-## Deployment
-
-### Vercel (Recommended)
-
-```bash
-# Install Vercel CLI
-npm i -g vercel
-
-# Deploy
-vercel
-```
-
-Or connect the GitHub repository directly in the [Vercel Dashboard](https://vercel.com/new) for automatic deployments on push.
-
-### Environment Variables (Vercel)
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `NEXT_PUBLIC_URL` | No | Base URL for OG image resolution. Defaults to the Vercel deployment URL. |
-| `NEXT_PUBLIC_SUPABASE_URL` | No | Supabase project URL. Omit to run in local-only mode. |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | No | Supabase anon key (safe for client-side, RLS enforced). |
-
-### Build Output
-
-```bash
-npm run build
-```
-
-Produces an optimized production build with:
-- Static pages pre-rendered
-- Dynamic routes server-rendered on demand
-- Service Worker for offline caching
-- All icon and OG assets in `/public`
-
----
-
-## Roadmap
-
-Future enhancements under consideration:
-
-| Feature | Description |
-|---------|-------------|
-| **BACnet Network Scanner** | Discover devices on the local BACnet/IP network |
-| **Panel Configuration Library** | Reusable controller templates and standard configurations |
-| **Drive Configuration Tools** | VFD parameter sheets and commissioning checklists |
-| **Loop Tuning Utilities** | PID tuning calculators and trend logging |
-| **PDF Annotation** | Mark up wiring diagrams and sequences directly in-browser |
-| **Project Export Bundles** | Export complete project as a shareable archive (.zip) — *partial: JSON share packages and endpoint export available in v2.2.0* |
-| **Cloud Sync** | Optional Supabase backend for cross-device synchronization |
-| **Role-Based Access** | Multi-user support with permission levels |
-| **BACnet Object Browser** | Read/write BACnet object properties from the field |
-| **Sequence Diagram Viewer** | Visual rendering of control sequences |
+Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 
 ---
 
 ## Contributing
 
-Contributions are welcome. To contribute:
-
 ```bash
-# 1. Fork the repository
-
-# 2. Create a feature branch
-git checkout -b feature/your-feature-name
-
-# 3. Make your changes with clear, focused commits
-git commit -m "Add BACnet scanner utility"
-
-# 4. Push to your fork
-git push origin feature/your-feature-name
-
-# 5. Open a Pull Request
+git checkout -b feature/your-feature
+# Make changes
+git push origin feature/your-feature
+# Open a Pull Request
 ```
 
-### Guidelines
-
-- Write TypeScript with strict types — no `any` unless absolutely necessary
-- Follow existing component patterns and file structure
-- Test on mobile viewport — field engineers use phones and tablets
-- Ensure offline compatibility — do not introduce external API dependencies without fallback
-- Keep commits focused and descriptive
-
----
-
-## Typography
-
-The application uses **Inter** as its primary typeface — a clean, geometric sans-serif designed for technical interfaces with excellent readability at all sizes. Inter provides metrics closely matching Siemens Sans while being freely available via Google Fonts.
-
-| Context | Font | Weight |
-|---------|------|--------|
-| **UI Text** | Inter | 400 (Regular) |
-| **Labels & Nav** | Inter | 500 (Medium) |
-| **Headings** | Inter | 600–700 (Semibold–Bold) |
-| **Code / Technical** | JetBrains Mono | 400 |
-
-Fonts are loaded via `next/font/google` with `display: swap` for zero layout shift.
-
----
-
-## Application Versioning
-
-The version is tracked in three synchronized locations:
-
-| Location | Format | Source |
-|----------|--------|--------|
-| `package.json` | `"version": "2.4.6"` | Source of truth |
-| `tauri.conf.json` | `"version": "2.4.6"` | Synced manually for desktop builds |
-| Sidebar footer | `v2.4.6` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
-| Settings → About | `Version 2.4.6` | Read from `NEXT_PUBLIC_APP_VERSION` at build time |
-
-The version follows [Semantic Versioning](https://semver.org/):
-- **MAJOR** — breaking changes or major redesigns
-- **MINOR** — new features, backward-compatible
-- **PATCH** — bug fixes and minor improvements
-
-`next.config.ts` injects the version from `package.json` as an environment variable at build time, ensuring the UI always matches the repository version.
-
----
-
-## Security
-
-BAU Suite is an **offline-first** application. All project data lives exclusively in the user's browser via IndexedDB and localStorage. Optional Supabase authentication is available but does not sync data — it establishes user identity for future cloud sync capabilities. When Supabase is not configured, the app runs in fully local mode with no external connections (except GitHub update checks).
-
-### Browser Security Headers
-
-All responses include Content-Security-Policy, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, Permissions-Policy, Cross-Origin-Opener-Policy, and Strict-Transport-Security headers configured in `next.config.ts`.
-
-### Hardening Measures
-
-- **Input escaping** — all user input rendered via React JSX auto-escaping; print/export titles explicitly HTML-escaped
-- **URL validation** — Web Interface tool only allows `http://` and `https://` protocols; blocks `javascript:`, `data:`, and other dangerous schemes
-- **File safety** — filenames sanitized against path traversal; PDF previews use sandboxed iframes; SVGs rendered as images only
-- **Window isolation** — all external window.open calls use `noopener,noreferrer`; iframes include `referrerpolicy="no-referrer"`
-- **Service worker** — only caches same-origin GET requests; never caches opaque/error responses; size-limited dynamic cache
-
-### Usage Guidelines
-
-- **Do not store sensitive credentials** (passwords, API keys) in project notes or sticky notepad
-- **Sanitize controller backups** before sharing — remove passwords and credentials
-- **Review exported files** before publishing or emailing
-- **Browser storage is not encrypted at rest** — use device-level encryption for sensitive environments
-- **Clear data** via Settings before transferring a device to another user
-
-For full details, see [SECURITY.md](SECURITY.md).
-
----
-
-## Acknowledgements
-
-Built for the building automation community:
-
-- **BAS field engineers** who carry project data between job sites every day
-- **Siemens controls technicians** and the broader BAS community
-- **Open source ecosystem** — Next.js, Tailwind CSS, shadcn/ui, Zustand, and the teams behind them
+- TypeScript with strict types
+- Follow existing component patterns
+- Test on mobile viewport
+- Ensure offline compatibility
 
 ---
 
@@ -913,6 +208,6 @@ Built for the building automation community:
 
 **BAU Suite** — *Keep your projects portable.*
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https://github.com/your-username/Portable-BAS-Toolkit)
+Built by [Caleb O'Hara](https://www.calebblaze.com)
 
 </div>

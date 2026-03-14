@@ -28,6 +28,17 @@ const toolGroups = [
     ],
   },
   {
+    title: 'Collaboration',
+    description: 'Share projects and work together in real time with your team.',
+    gradient: 'from-emerald-500/10 to-emerald-500/5',
+    items: [
+      { icon: Globe, name: 'Global Projects', desc: 'Multi-user shared projects with access codes and role-based permissions' },
+      { icon: Share2, name: 'Share to Global', desc: 'Migrate local projects to Global with all data in one click' },
+      { icon: ClipboardList, name: 'Linked Reports', desc: 'Attach daily reports to Global Projects from your profile' },
+      { icon: Activity, name: 'Activity Tracking', desc: 'Every change logged with before/after diffs and creator attribution' },
+    ],
+  },
+  {
     title: 'Network & Device Tools',
     description: 'IP planning, device tracking, diagnostics, and protocol work.',
     gradient: 'from-siemens-petrol/10 to-siemens-petrol/5',
@@ -88,9 +99,14 @@ const platformPillars = [
     desc: 'Use in the browser as a PWA, or install the native desktop app via Tauri for ICMP ping and full network access.',
   },
   {
+    icon: Globe,
+    title: 'Team collaboration',
+    desc: 'Global Projects with access codes, role-based permissions, activity tracking, and shared documentation across teams.',
+  },
+  {
     icon: Shield,
     title: 'Secure by design',
-    desc: 'Supabase-backed authentication with user profiles, password reset, Row Level Security, and cloud sync.',
+    desc: 'Supabase-backed authentication with user profiles, password reset, and Row Level Security on every table.',
   },
 ];
 
@@ -109,7 +125,7 @@ const heroCards = [
   { icon: Activity, label: 'Ping Tool', x: 2, y: 0, delay: '1.6s' },
   { icon: TerminalSquare, label: 'Terminal', x: 0, y: 1, delay: '0.4s' },
   { icon: ClipboardList, label: 'Reports', x: 1, y: 1, delay: '1.2s' },
-  { icon: Calculator, label: 'Register', x: 2, y: 1, delay: '2s' },
+  { icon: Globe, label: 'Global', x: 2, y: 1, delay: '2s' },
 ];
 
 // ─── Page Component ──────────────────────────────────────────────────────────
@@ -239,6 +255,7 @@ export default function HomePage() {
                 {[
                   { value: '14+', label: 'Tools' },
                   { value: '100%', label: 'Offline' },
+                  { value: 'NEW', label: 'Global Projects' },
                 ].map(({ value, label }) => (
                   <div key={label}>
                     <p className="text-2xl font-bold tracking-tight">{value}</p>
