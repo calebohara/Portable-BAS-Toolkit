@@ -37,7 +37,7 @@ values (
   'avatars',
   'avatars',
   true,
-  2097152, -- 2MB
+  5242880, -- 5MB
   array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 )
 on conflict (id) do nothing;
