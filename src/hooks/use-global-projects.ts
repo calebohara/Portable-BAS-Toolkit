@@ -679,12 +679,17 @@ export function useGlobalMessages() {
     try {
       setLoading(true);
       setError(null);
-      const [messagesResult, readResult] = await Promise.all([
-        fetchGlobalMessages(),
-        fetchLastReadAt(),
-      ]);
+      const messagesResult = await fetchGlobalMessages();
       const data = unwrap(messagesResult);
-      const readAt = unwrap(readResult);
+
+      // Read tracking is non-critical — don't let it break message loading
+      let readAt: string | null = null;
+      try {
+        const readResult = await fetchLastReadAt();
+        readAt = unwrap(readResult);
+      } catch {
+        // global_message_reads table may not exist yet — gracefully degrade
+      }
 
       setAllFlat(data);
       setMessages(threadMessages(data));

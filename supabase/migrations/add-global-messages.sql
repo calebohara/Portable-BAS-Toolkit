@@ -32,7 +32,6 @@ do $$ begin
         auth.uid() in (
           select user_id from global_project_members
         )
-        and deleted_at is null
       );
   end if;
 end $$;
