@@ -290,7 +290,7 @@ function MessageCard({ message: msg, userId, projects, onDelete, onReply, isRepl
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 max-sm:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                 onClick={() => onDelete(msg.id)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -361,7 +361,7 @@ function MessageCard({ message: msg, userId, projects, onDelete, onReply, isRepl
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="h-6 w-6 p-0 opacity-0 group-hover/reply:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                      className="h-6 w-6 p-0 opacity-0 group-hover/reply:opacity-100 max-sm:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                       onClick={() => onDelete(reply.id)}
                     >
                       <Trash2 className="h-3 w-3" />
