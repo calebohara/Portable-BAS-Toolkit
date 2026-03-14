@@ -31,25 +31,48 @@ do $$ begin
 end $$;
 
 -- ─── Supabase Storage: Avatars bucket ───────────────────────────────────────
--- Create the avatars bucket via Supabase Dashboard → Storage → New Bucket:
---   Name: avatars
---   Public: Yes (so avatar URLs work without auth headers)
---   File size limit: 2MB
---   Allowed MIME types: image/jpeg, image/png, image/webp, image/gif
---
--- Then add these storage policies in the SQL Editor:
---
--- Allow authenticated users to upload their own avatar:
--- create policy "Users can upload their own avatar"
---   on storage.objects for insert
---   with check (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
---
--- Allow authenticated users to update their own avatar:
--- create policy "Users can update their own avatar"
---   on storage.objects for update
---   using (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
---
--- Allow public read access to all avatars:
--- create policy "Anyone can view avatars"
---   on storage.objects for select
---   using (bucket_id = 'avatars');
+-- Create the public avatars bucket (idempotent — skips if already exists)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'avatars',
+  'avatars',
+  true,
+  2097152, -- 2MB
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+)
+on conflict (id) do nothing;
+
+-- Storage policies (idempotent via DO blocks)
+
+-- Allow authenticated users to upload their own avatar
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where policyname = 'Users can upload their own avatar' and tablename = 'objects'
+  ) then
+    create policy "Users can upload their own avatar"
+      on storage.objects for insert
+      with check (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
+  end if;
+end $$;
+
+-- Allow authenticated users to update/overwrite their own avatar
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where policyname = 'Users can update their own avatar' and tablename = 'objects'
+  ) then
+    create policy "Users can update their own avatar"
+      on storage.objects for update
+      using (bucket_id = 'avatars' and auth.uid()::text = (storage.foldername(name))[1]);
+  end if;
+end $$;
+
+-- Allow public read access to all avatars
+do $$ begin
+  if not exists (
+    select 1 from pg_policies where policyname = 'Anyone can view avatars' and tablename = 'objects'
+  ) then
+    create policy "Anyone can view avatars"
+      on storage.objects for select
+      using (bucket_id = 'avatars');
+  end if;
+end $$;
