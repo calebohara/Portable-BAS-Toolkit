@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
-  Wrench, Shield, WifiOff, ArrowRight, UserPlus,
+  Wrench, Shield, WifiOff, ArrowRight, UserPlus, MessageSquare,
   Zap, Layers, Monitor, ChevronRight, Wifi, Clock, Heart, Code,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
@@ -33,6 +33,7 @@ const toolGroups = [
     gradient: 'from-emerald-500/10 to-emerald-500/5',
     items: [
       { icon: Globe, name: 'Global Projects', desc: 'Multi-user shared projects with access codes and role-based permissions' },
+      { icon: MessageSquare, name: 'Message Board', desc: 'Cross-project message board with threaded replies and unread tracking' },
       { icon: Share2, name: 'Share to Global', desc: 'Migrate local projects to Global with all data in one click' },
       { icon: ClipboardList, name: 'Linked Reports', desc: 'Attach daily reports to Global Projects from your profile' },
       { icon: Activity, name: 'Activity Tracking', desc: 'Every change logged with before/after diffs and creator attribution' },

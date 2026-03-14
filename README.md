@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.1.0-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.2.0-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -18,12 +18,20 @@
 
 ---
 
-## What's New in v4.1.0
+## What's New in v4.2.0
+
+- **Message Board** — Cross-project message board with threaded replies, unread tracking, and read receipts for team-wide communication.
+- **Security Hardening** — Tightened CSP headers (frame-src, connect-src, form-action), cryptographic access code generation, input validation on all user-submitted content, ownership guards on delete operations, and comprehensive account deletion cleanup.
+- **RLS Policy Tightening** — Soft-deleted records excluded from SELECT policies, column-level write restrictions via database triggers on messages.
+
+<details>
+<summary>v4.1.0</summary>
 
 - **Global Projects** — Multi-user collaborative project management with Supabase. Create shared projects, invite team members via access codes, and work together with full audit trails.
 - **Share Local → Global** — Migrate any local project to a Global Project with one click. Notes, devices, IP entries, and daily reports are transferred automatically.
 - **Daily Report Linking** — Link daily reports from your profile directly to a Global Project via a toggle switch.
 - **Full Global CRUD** — Edit projects (admin), edit/delete reports (creator-only), documents tab, files, notes, devices, and IP entries — all with activity logging and RLS enforcement.
+</details>
 
 ---
 
@@ -60,6 +68,7 @@
 - **Share local → global** — migrate an existing local project with all data in one click
 - **Activity tracking** — every change logged with before/after diffs and creator attribution
 - **Role-based access** — admin and member roles with creator-only edit/delete on content
+- **Message board** — threaded discussions with replies, unread tracking, and read receipts
 
 ### Daily Reports
 - Structured field reports with work completed, issues, coordination notes, equipment, and attachments
@@ -182,7 +191,7 @@ Installable Progressive Web App:
 
 ## Versioning
 
-**Current: v4.1.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.2.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 

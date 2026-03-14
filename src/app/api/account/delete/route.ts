@@ -55,8 +55,27 @@ export async function POST(request: Request) {
     'connection_profiles', 'register_calculations', 'user_settings',
   ];
 
+  // Global project tables (user_id or created_by columns)
+  const globalTables = [
+    { table: 'global_message_reads', column: 'user_id' },
+    { table: 'global_messages', column: 'created_by' },
+    { table: 'global_project_members', column: 'user_id' },
+    { table: 'global_field_notes', column: 'created_by' },
+    { table: 'global_devices', column: 'created_by' },
+    { table: 'global_ip_plan', column: 'created_by' },
+    { table: 'global_daily_reports', column: 'created_by' },
+    { table: 'global_project_files', column: 'created_by' },
+    { table: 'global_activity_log', column: 'user_id' },
+  ];
+
   for (const table of syncedTables) {
     const { error } = await admin.from(table).delete().eq('user_id', userId);
+    if (error) errors.push(`${table}: ${error.message}`);
+  }
+
+  // 3b. Delete user's global project data
+  for (const { table, column } of globalTables) {
+    const { error } = await admin.from(table).delete().eq(column, userId);
     if (error) errors.push(`${table}: ${error.message}`);
   }
 

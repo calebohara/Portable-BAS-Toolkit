@@ -154,10 +154,12 @@ export async function fetchGlobalProject(id: string): Promise<ApiResult<GlobalPr
 /** Generate access code client-side: XXX-XXXX with no ambiguous chars */
 function generateAccessCode(): string {
   const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(7);
+  crypto.getRandomValues(bytes);
   let code = '';
-  for (let i = 0; i < 3; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 0; i < 3; i++) code += chars[bytes[i] % chars.length];
   code += '-';
-  for (let i = 0; i < 4; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  for (let i = 3; i < 7; i++) code += chars[bytes[i] % chars.length];
   return code;
 }
 
@@ -165,6 +167,11 @@ export async function createGlobalProject(
   data: Pick<GlobalProject, 'name' | 'jobSiteName'> & Partial<Pick<GlobalProject, 'siteAddress' | 'buildingArea' | 'projectNumber' | 'description' | 'tags'>>
 ): Promise<ApiResult<GlobalProject>> {
   try {
+    // Input validation
+    if (!data.name || data.name.trim().length === 0) return fail('Project name is required');
+    if (data.name.length > 200) return fail('Project name must be 200 characters or fewer');
+    if (data.description && data.description.length > 2000) return fail('Description must be 2,000 characters or fewer');
+
     const supabase = getClient();
     const userId = await getCurrentUserId();
 
@@ -235,11 +242,13 @@ export async function updateGlobalProject(
 export async function deleteGlobalProject(id: string): Promise<ApiResult<void>> {
   try {
     const supabase = getClient();
+    const userId = await getCurrentUserId();
 
     const { error } = await supabase
       .from('global_projects')
       .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
+      .eq('id', id)
+      .eq('created_by', userId);
 
     if (error) return fail(error.message);
     return ok(undefined);
@@ -1034,6 +1043,11 @@ export async function addGlobalMessage(
   parentId?: string | null,
 ): Promise<ApiResult<GlobalMessage>> {
   try {
+    // Input validation
+    if (!subject || subject.trim().length === 0) return fail('Subject is required');
+    if (subject.length > 200) return fail('Subject must be 200 characters or fewer');
+    if (body.length > 5000) return fail('Message body must be 5,000 characters or fewer');
+
     const supabase = getClient();
     const userId = await getCurrentUserId();
 
@@ -1082,12 +1096,17 @@ export async function addGlobalMessage(
 
 export async function deleteGlobalMessage(messageId: string): Promise<ApiResult<null>> {
   try {
-    const supabase = getClient();
+    if (!messageId) return fail('Message ID is required');
 
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+
+    // Only soft-delete own messages — verify ownership client-side too (RLS enforces server-side)
     const { error } = await supabase
       .from('global_messages')
       .update({ deleted_at: new Date().toISOString() })
-      .eq('id', messageId);
+      .eq('id', messageId)
+      .eq('created_by', userId);
 
     if (error) return fail(error.message);
     return ok(null);
