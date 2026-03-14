@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
   ChevronLeft, ChevronRight, X, FolderOpen, HelpCircle, ClipboardList, TerminalSquare, Globe,
-  Network, Activity, Calculator,
+  Network, Activity, Calculator, Users2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
@@ -21,6 +21,12 @@ const navGroups = [
       { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', tourId: 'nav-dashboard' },
       { href: '/projects', icon: FolderKanban, label: 'Projects', tourId: 'nav-projects' },
       { href: '/reports', icon: ClipboardList, label: 'Daily Reports', tourId: 'nav-reports' },
+    ],
+  },
+  {
+    label: 'Shared',
+    items: [
+      { href: '/global-projects', icon: Users2, label: 'Global Projects', tourId: 'nav-global-projects' },
     ],
   },
   {

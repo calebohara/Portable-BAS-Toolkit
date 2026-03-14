@@ -32,6 +32,7 @@ export const ROUTES = {
   OFFLINE: '/offline',
   HELP: '/help',
   SETTINGS: '/settings',
+  GLOBAL_PROJECTS: '/global-projects',
 } as const;
 
 // ─── Dynamic route helpers ──────────────────────────────────
@@ -89,6 +90,25 @@ export function navigateToReport(router: RouterLike, id: string): void {
 
 export function navigateToReportEdit(router: RouterLike, id: string): void {
   const href = reportEditHref(id);
+  if (isTauri()) {
+    window.location.href = href;
+  } else {
+    router.push(href);
+  }
+}
+
+// ─── Global Project route helpers ──────────────────────────
+export function globalProjectDetailHref(id: string, tab?: string): string {
+  if (isTauri()) {
+    const params = new URLSearchParams({ _id: id });
+    if (tab) params.set('tab', tab);
+    return `/global-projects/_/?${params.toString()}`;
+  }
+  return tab ? `/global-projects/${id}?tab=${tab}` : `/global-projects/${id}`;
+}
+
+export function navigateToGlobalProject(router: RouterLike, id: string, tab?: string): void {
+  const href = globalProjectDetailHref(id, tab);
   if (isTauri()) {
     window.location.href = href;
   } else {
