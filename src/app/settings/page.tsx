@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Palette, HardDrive, Info, Trash2, Download, PlayCircle, User, LogOut,
   Cloud, Upload, AlertTriangle, Monitor, KeyRound, Mail, Database,
@@ -16,6 +16,7 @@ import { DataCleanupDialog } from '@/components/settings/data-cleanup-dialog';
 import { ChangePasswordDialog } from '@/components/settings/change-password-dialog';
 import { ChangeEmailDialog } from '@/components/settings/change-email-dialog';
 import { DeleteAccountDialog } from '@/components/settings/delete-account-dialog';
+import { AvatarCropDialog } from '@/components/settings/avatar-crop-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -104,8 +105,7 @@ export default function SettingsPage() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [showAvatarDialog, setShowAvatarDialog] = useState(false);
 
   // Initialize name fields from profile
   useEffect(() => {
@@ -138,61 +138,31 @@ export default function SettingsPage() {
     setSavingProfile(false);
   };
 
-  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
+  const handleAvatarUpload = async (croppedBlob: Blob) => {
+    if (!user) throw new Error('Not authenticated');
 
-    // Validate file
-    if (!file.type.startsWith('image/')) {
-      toast.error('Please select an image file');
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error('Image must be under 5MB');
-      return;
-    }
+    const { getSupabaseClient } = await import('@/lib/supabase/client');
+    const client = getSupabaseClient();
+    if (!client) throw new Error('Supabase is not configured');
 
-    setUploadingAvatar(true);
-    try {
-      const { getSupabaseClient } = await import('@/lib/supabase/client');
-      const client = getSupabaseClient();
-      if (!client) {
-        toast.error('Supabase is not configured');
-        return;
-      }
-      const ext = file.name.split('.').pop() || 'jpg';
-      const path = `${user.id}/avatar.${ext}`;
+    const path = `${user.id}/avatar.png`;
 
-      // Upload to Supabase Storage
-      const { error: uploadError } = await client.storage
-        .from('avatars')
-        .upload(path, file, { upsert: true });
+    // Upload to Supabase Storage
+    const { error: uploadError } = await client.storage
+      .from('avatars')
+      .upload(path, croppedBlob, { upsert: true, contentType: 'image/png' });
 
-      if (uploadError) {
-        toast.error('Upload failed: ' + uploadError.message);
-        return;
-      }
+    if (uploadError) throw new Error(uploadError.message);
 
-      // Get public URL
-      const { data: { publicUrl } } = client.storage
-        .from('avatars')
-        .getPublicUrl(path);
+    // Get public URL
+    const { data: { publicUrl } } = client.storage
+      .from('avatars')
+      .getPublicUrl(path);
 
-      // Add cache-buster to force refresh
-      const avatarUrl = `${publicUrl}?t=${Date.now()}`;
-      const { error: profileError } = await updateProfile({ avatarUrl });
-      if (profileError) {
-        toast.error('Failed to update profile: ' + profileError);
-      } else {
-        toast.success('Profile picture updated');
-      }
-    } catch (err) {
-      toast.error('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
-    } finally {
-      setUploadingAvatar(false);
-      // Reset input so same file can be re-selected
-      if (avatarInputRef.current) avatarInputRef.current.value = '';
-    }
+    // Add cache-buster to force refresh
+    const avatarUrl = `${publicUrl}?t=${Date.now()}`;
+    const { error: profileError } = await updateProfile({ avatarUrl });
+    if (profileError) throw new Error(profileError);
   };
 
   const profileInitials = (() => {
@@ -230,7 +200,7 @@ export default function SettingsPage() {
                 <CardContent className="p-5 space-y-5">
                   {/* Header row: avatar + email + sign out */}
                   <div className="flex items-center gap-4">
-                    {/* Avatar with upload */}
+                    {/* Avatar with crop dialog */}
                     <div className="relative group">
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden">
                         {profile?.avatarUrl ? (
@@ -245,23 +215,11 @@ export default function SettingsPage() {
                       </div>
                       <button
                         type="button"
-                        onClick={() => avatarInputRef.current?.click()}
-                        disabled={uploadingAvatar}
+                        onClick={() => setShowAvatarDialog(true)}
                         className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                       >
-                        {uploadingAvatar ? (
-                          <Loader2 className="h-5 w-5 text-white animate-spin" />
-                        ) : (
-                          <Camera className="h-5 w-5 text-white" />
-                        )}
+                        <Camera className="h-5 w-5 text-white" />
                       </button>
-                      <input
-                        ref={avatarInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleAvatarUpload}
-                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate">
@@ -699,6 +657,14 @@ export default function SettingsPage() {
         userEmail={user?.email ?? ''}
         accessToken={session?.access_token}
         onDeleted={signOut}
+      />
+
+      <AvatarCropDialog
+        open={showAvatarDialog}
+        onOpenChange={setShowAvatarDialog}
+        onUpload={handleAvatarUpload}
+        currentAvatarUrl={profile?.avatarUrl}
+        initials={profileInitials}
       />
     </>
   );
