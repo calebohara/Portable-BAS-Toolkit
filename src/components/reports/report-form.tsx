@@ -5,9 +5,11 @@ import { useRouter } from 'next/navigation';
 import {
   Save, Clock, MapPin, CloudSun, Wrench,
   AlertTriangle, CalendarCheck, Users, Shield, StickyNote,
-  Paperclip, X, FileText, ArrowLeft, Send, Lock, Loader2,
+  Paperclip, X, FileText, ArrowLeft, Send, Lock, Loader2, Globe,
 } from 'lucide-react';
 import { useProjects } from '@/hooks/use-projects';
+import { useGlobalProjectsList } from '@/hooks/use-global-projects';
+import { addGlobalReport } from '@/lib/global-projects/api';
 import { saveFileBlob, deleteFileBlob } from '@/lib/db';
 import { TopBar } from '@/components/layout/top-bar';
 import { Input } from '@/components/ui/input';
@@ -15,6 +17,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { v4 as uuid } from 'uuid';
@@ -40,6 +43,7 @@ function nowTime() {
 export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps) {
   const router = useRouter();
   const { projects } = useProjects();
+  const { projects: globalProjects, loading: globalProjectsLoading } = useGlobalProjectsList();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [saving, setSaving] = useState(false);
@@ -66,6 +70,10 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
   const [generalNotes, setGeneralNotes] = useState(initial?.generalNotes || '');
 
   const [attachments, setAttachments] = useState<ReportAttachment[]>(initial?.attachments || []);
+
+  // Global project linking
+  const [linkToGlobal, setLinkToGlobal] = useState(false);
+  const [selectedGlobalProjectId, setSelectedGlobalProjectId] = useState('');
 
   const isReadOnly = initial?.status === 'finalized' && mode === 'edit';
 
@@ -135,6 +143,41 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
     setAttachments(prev => prev.filter(a => a.id !== id));
   };
 
+  /** Attempt to push the report data to the selected global project (best-effort). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const maybeLinkToGlobalProject = async (data: any) => {
+    if (!linkToGlobal || !selectedGlobalProjectId) return;
+    try {
+      const globalReportData = {
+        date: data.date,
+        technicianName: data.technicianName,
+        status: data.status as 'draft' | 'submitted' | 'finalized',
+        startTime: data.startTime,
+        endTime: data.endTime,
+        hoursOnSite: data.hoursOnSite,
+        location: data.location,
+        weather: data.weather,
+        workCompleted: data.workCompleted,
+        issuesEncountered: data.issuesEncountered,
+        workPlannedNext: data.workPlannedNext,
+        coordinationNotes: data.coordinationNotes,
+        equipmentWorkedOn: data.equipmentWorkedOn,
+        deviceIpChanges: data.deviceIpChanges,
+        safetyNotes: data.safetyNotes,
+        generalNotes: data.generalNotes,
+        attachments: [],
+      };
+      const result = await addGlobalReport(selectedGlobalProjectId, globalReportData);
+      if (result.error) {
+        toast.warning('Report saved locally but failed to link to global project');
+      } else {
+        toast.success('Report also linked to global project');
+      }
+    } catch {
+      toast.warning('Report saved locally but failed to link to global project');
+    }
+  };
+
   const handleSubmit = async (submitStatus?: ReportStatus) => {
     if (!projectId) return;
     setSaving(true);
@@ -150,9 +193,11 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
 
       if (mode === 'create') {
         const report = await onSave(data as Omit<DailyReport, 'id' | 'createdAt' | 'updatedAt' | 'reportNumber'>);
+        await maybeLinkToGlobalProject(data);
         navigateToReport(router, report.id);
       } else if (initial && onUpdate) {
         await onUpdate({ ...initial, ...data, updatedAt: new Date().toISOString() });
+        await maybeLinkToGlobalProject(data);
         navigateToReport(router, initial.id);
       }
     } finally {
@@ -195,6 +240,33 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
                 </SelectContent>
               </Select>
             </div>
+            {globalProjects.length > 0 && (
+              <div className="sm:col-span-2 space-y-2">
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={linkToGlobal}
+                    onCheckedChange={(checked) => setLinkToGlobal(!!checked)}
+                    disabled={isReadOnly}
+                    size="sm"
+                  />
+                  <Label htmlFor="link-global" className="flex items-center gap-1.5 cursor-pointer" onClick={() => !isReadOnly && setLinkToGlobal(!linkToGlobal)}>
+                    <Globe className="h-3.5 w-3.5 text-primary" /> Link To Global Project
+                  </Label>
+                </div>
+                {linkToGlobal && (
+                  <Select value={selectedGlobalProjectId} onValueChange={(v) => v && setSelectedGlobalProjectId(v)} disabled={isReadOnly}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select a global project..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {globalProjects.map(gp => (
+                        <SelectItem key={gp.id} value={gp.id}>{gp.name}{gp.projectNumber ? ` (${gp.projectNumber})` : ''}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
             <div>
               <Label htmlFor="date">Date</Label>
               <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isReadOnly} className="mt-1.5" />

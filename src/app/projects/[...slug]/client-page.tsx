@@ -7,12 +7,12 @@ import {
   ArrowLeft, Database, FileText, Network, Server, HardDrive,
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
-  ChevronRight, Share2, FolderOpen, Terminal, Download,
+  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
   useProjectDevices, useProjectIpPlan, useProjectActivity,
-  useTerminalLogs,
+  useTerminalLogs, useDailyReports,
 } from '@/hooks/use-projects';
 import { TopBar } from '@/components/layout/top-bar';
 import { ProjectStatusBadge, FileStatusBadge } from '@/components/shared/status-badge';
@@ -32,6 +32,7 @@ import { FieldNotesView } from '@/components/notes/field-notes-view';
 import { FileListView } from '@/components/files/file-list-view';
 import { ActivityTimeline } from '@/components/projects/activity-timeline';
 import { ShareDialog } from '@/components/share/share-dialog';
+import { ShareToGlobalDialog } from '@/components/global-projects/share-to-global-dialog';
 import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry, type TerminalSessionLog } from '@/types';
 import { cn } from '@/lib/utils';
 import { deleteProject } from '@/lib/db';
@@ -66,6 +67,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { entries: ipEntries, addIpEntry, updateIpEntry, removeIpEntry } = useProjectIpPlan(id);
   const { activity } = useProjectActivity(id);
   const { logs: terminalLogs, removeLog: removeTerminalLog } = useTerminalLogs(id);
+  const { reports } = useDailyReports(id);
   const getInitialTab = () => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
@@ -103,6 +105,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [showShare, setShowShare] = useState(false);
+  const [showShareToGlobal, setShowShareToGlobal] = useState(false);
 
   // Auto-refresh files when a global upload targets this project
   useEffect(() => {
@@ -239,6 +242,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onNavigate={setActiveTab}
               onUpdateProject={handleUpdateProject}
               onShare={() => setShowShare(true)}
+              onShareToGlobal={() => setShowShareToGlobal(true)}
               onDelete={() => setShowDeleteConfirm(true)}
             />
           )}
@@ -312,6 +316,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         ipEntries={ipEntries}
         activity={activity}
       />
+
+      <ShareToGlobalDialog
+        open={showShareToGlobal}
+        onOpenChange={setShowShareToGlobal}
+        project={project}
+        notes={notes}
+        devices={devices}
+        ipEntries={ipEntries}
+        reports={reports}
+      />
     </>
   );
 }
@@ -319,7 +333,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 // ─── Overview Section ───────────────────────────────────────────────────────
 
 function OverviewSection({
-  project, files, notes, devices, ipEntries, onNavigate, onUpdateProject, onShare, onDelete,
+  project, files, notes, devices, ipEntries, onNavigate, onUpdateProject, onShare, onShareToGlobal, onDelete,
 }: {
   project: Project;
   files: ProjectFile[];
@@ -329,6 +343,7 @@ function OverviewSection({
   onNavigate: (tab: string) => void;
   onUpdateProject: (data: Partial<Project>) => Promise<void>;
   onShare: () => void;
+  onShareToGlobal: () => void;
   onDelete: () => void;
 }) {
   const [editOpen, setEditOpen] = useState(false);
@@ -399,6 +414,9 @@ function OverviewSection({
         </Button>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={onShare}>
           <Share2 className="h-3.5 w-3.5" /> Share
+        </Button>
+        <Button variant="outline" size="sm" className="gap-1.5 border-primary/30 text-primary hover:bg-primary/5" onClick={onShareToGlobal}>
+          <Globe className="h-3.5 w-3.5" /> Share to Global
         </Button>
         <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={onDelete}>
           <Trash2 className="h-3.5 w-3.5" /> Delete

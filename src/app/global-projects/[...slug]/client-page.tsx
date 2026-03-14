@@ -4,9 +4,9 @@ import { useState, useMemo, use, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
-  ArrowLeft, LayoutGrid, StickyNote, Server, Network, FileText,
+  ArrowLeft, LayoutGrid, StickyNote, Server, Network, FileText, FolderOpen,
   History, Users, Plus, Trash2, Edit2, MapPin, Hash, Building2,
-  Copy, Check, Clock, User, ClipboardList,
+  Copy, Check, Clock, User, ClipboardList, ChevronDown, ChevronUp, Pencil,
 } from 'lucide-react';
 import {
   useGlobalProject,
@@ -14,6 +14,7 @@ import {
   useGlobalProjectNotes,
   useGlobalProjectDevices,
   useGlobalProjectIpPlan,
+  useGlobalProjectFiles,
   useGlobalProjectReports,
   useGlobalProjectActivity,
 } from '@/hooks/use-global-projects';
@@ -36,10 +37,13 @@ import {
 import { cn, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import type {
+  GlobalProject,
+  GlobalProjectStatus,
   GlobalFieldNote,
   GlobalDevice,
   GlobalDeviceStatus,
   GlobalIpPlanEntry,
+  GlobalProjectFile,
   GlobalDailyReport,
   GlobalActivityLogEntry,
   GlobalProjectMember,
@@ -50,6 +54,7 @@ const tabs = [
   { id: 'notes', label: 'Notes', icon: StickyNote },
   { id: 'devices', label: 'Devices', icon: Server },
   { id: 'ip-plan', label: 'IP Plan', icon: Network },
+  { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'activity', label: 'Activity', icon: History },
   { id: 'members', label: 'Members', icon: Users },
@@ -69,7 +74,8 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
   const { notes, addNote, updateNote, removeNote } = useGlobalProjectNotes(id);
   const { devices, addDevice, updateDevice, removeDevice } = useGlobalProjectDevices(id);
   const { entries: ipEntries, addEntry: addIpEntry, updateEntry: updateIpEntry, removeEntry: removeIpEntry } = useGlobalProjectIpPlan(id);
-  const { reports } = useGlobalProjectReports(id);
+  const { files, addFile, updateFile, removeFile } = useGlobalProjectFiles(id);
+  const { reports, updateReport, removeReport } = useGlobalProjectReports(id);
   const { activity } = useGlobalProjectActivity(id);
 
   const getInitialTab = () => {
@@ -83,6 +89,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
   const [activeTab, setActiveTabState] = useState(getInitialTab);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [editingProject, setEditingProject] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -206,6 +213,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
               const count = tabId === 'notes' ? notes.length
                 : tabId === 'devices' ? devices.length
                 : tabId === 'ip-plan' ? ipEntries.length
+                : tabId === 'documents' ? files.length
                 : tabId === 'reports' ? reports.length
                 : tabId === 'members' ? members.length
                 : tabId === 'activity' ? activity.length
@@ -248,6 +256,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
               isAdmin={isAdmin}
               onNavigate={setActiveTab}
               onDelete={() => setShowDeleteConfirm(true)}
+              onEditProject={() => setEditingProject(true)}
               getMemberName={getMemberName}
             />
           )}
@@ -282,8 +291,26 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
             />
           )}
 
+          {activeTab === 'documents' && (
+            <DocumentsTab
+              files={files}
+              getMemberName={getMemberName}
+              currentUserId={currentUserId}
+              isAdmin={isAdmin}
+              onAdd={addFile}
+              onUpdate={updateFile}
+              onRemove={removeFile}
+            />
+          )}
+
           {activeTab === 'reports' && (
-            <ReportsTab reports={reports} getMemberName={getMemberName} />
+            <ReportsTab
+              reports={reports}
+              getMemberName={getMemberName}
+              currentUserId={currentUserId}
+              onUpdate={updateReport}
+              onRemove={removeReport}
+            />
           )}
 
           {activeTab === 'activity' && (
@@ -317,6 +344,16 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
         variant="destructive"
         onConfirm={handleDelete}
       />
+
+      <EditProjectDialog
+        project={editingProject ? project : null}
+        onOpenChange={(open) => { if (!open) setEditingProject(false); }}
+        onSubmit={async (data) => {
+          await updateProject(data);
+          toast.success('Project updated');
+          setEditingProject(false);
+        }}
+      />
     </>
   );
 }
@@ -325,7 +362,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
 
 function OverviewTab({
   project, memberCount, noteCount, deviceCount, ipEntryCount, reportCount,
-  isAdmin, onNavigate, onDelete, getMemberName,
+  isAdmin, onNavigate, onDelete, onEditProject, getMemberName,
 }: {
   project: NonNullable<ReturnType<typeof useGlobalProject>['project']>;
   memberCount: number;
@@ -336,6 +373,7 @@ function OverviewTab({
   isAdmin: boolean;
   onNavigate: (tab: string) => void;
   onDelete: () => void;
+  onEditProject: () => void;
   getMemberName: (id: string) => string;
 }) {
   const [codeCopied, setCodeCopied] = useState(false);
@@ -367,6 +405,11 @@ function OverviewTab({
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onNavigate('members')}>
           <Users className="h-3.5 w-3.5" /> Members
         </Button>
+        {isAdmin && (
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={onEditProject}>
+            <Pencil className="h-3.5 w-3.5" /> Edit Project
+          </Button>
+        )}
         {isAdmin && (
           <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={onDelete}>
             <Trash2 className="h-3.5 w-3.5" /> Delete
@@ -451,6 +494,124 @@ function OverviewTab({
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Edit Project Dialog ─────────────────────────────────────────────────────
+
+function EditProjectDialog({ project, onOpenChange, onSubmit }: {
+  project: GlobalProject | null;
+  onOpenChange: (v: boolean) => void;
+  onSubmit: (data: Partial<GlobalProject>) => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    name: '', jobSiteName: '', siteAddress: '', buildingArea: '',
+    projectNumber: '', description: '', status: 'active' as string, tags: '',
+  });
+
+  useEffect(() => {
+    if (project) {
+      setForm({
+        name: project.name || '',
+        jobSiteName: project.jobSiteName || '',
+        siteAddress: project.siteAddress || '',
+        buildingArea: project.buildingArea || '',
+        projectNumber: project.projectNumber || '',
+        description: project.description || '',
+        status: project.status || 'active',
+        tags: (project.tags ?? []).join(', '),
+      });
+    }
+  }, [project]);
+
+  const updateField = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name.trim()) return;
+    setSaving(true);
+    try {
+      await onSubmit({
+        name: form.name.trim(),
+        jobSiteName: form.jobSiteName.trim(),
+        siteAddress: form.siteAddress.trim(),
+        buildingArea: form.buildingArea.trim(),
+        projectNumber: form.projectNumber.trim(),
+        description: form.description.trim(),
+        status: form.status as GlobalProjectStatus,
+        tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
+      });
+    } catch {
+      toast.error('Failed to update project');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={project !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit Project</DialogTitle>
+          <DialogDescription>Update project details and metadata.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
+          <DialogBody className="px-5 py-4 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="edit-proj-name">Project Name *</Label>
+                <Input id="edit-proj-name" value={form.name} onChange={(e) => updateField('name', e.target.value)} required autoFocus />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-proj-site">Job Site Name</Label>
+                <Input id="edit-proj-site" value={form.jobSiteName} onChange={(e) => updateField('jobSiteName', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-proj-address">Site Address</Label>
+                <Input id="edit-proj-address" value={form.siteAddress} onChange={(e) => updateField('siteAddress', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-proj-area">Building / Area</Label>
+                <Input id="edit-proj-area" value={form.buildingArea} onChange={(e) => updateField('buildingArea', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-proj-number">Project Number</Label>
+                <Input id="edit-proj-number" value={form.projectNumber} onChange={(e) => updateField('projectNumber', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-proj-status">Status</Label>
+                <select
+                  id="edit-proj-status"
+                  value={form.status}
+                  onChange={(e) => updateField('status', e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="active">Active</option>
+                  <option value="on-hold">On Hold</option>
+                  <option value="completed">Completed</option>
+                  <option value="archived">Archived</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-proj-tags">Tags (comma-separated)</Label>
+                <Input id="edit-proj-tags" value={form.tags} onChange={(e) => updateField('tags', e.target.value)} placeholder="hvac, phase-1, priority" />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="edit-proj-desc">Description</Label>
+                <Textarea id="edit-proj-desc" value={form.description} onChange={(e) => updateField('description', e.target.value)} rows={3} />
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter className="px-5 py-4">
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving || !form.name.trim()}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1395,16 +1556,482 @@ function EditIpEntryDialog({ entry, onOpenChange, onSubmit }: {
   );
 }
 
+// ─── Documents Tab ──────────────────────────────────────────────────────────
+
+const DOCUMENT_CATEGORIES = [
+  { value: 'all', label: 'All Categories' },
+  { value: 'panel-databases', label: 'Panel Databases' },
+  { value: 'wiring-diagrams', label: 'Wiring Diagrams' },
+  { value: 'sequences', label: 'Sequences' },
+  { value: 'backups', label: 'Backups' },
+  { value: 'general-documents', label: 'General Documents' },
+] as const;
+
+const DOCUMENT_STATUSES = [
+  { value: 'current', label: 'Current' },
+  { value: 'superseded', label: 'Superseded' },
+  { value: 'archived', label: 'Archived' },
+] as const;
+
+function DocumentsTab({
+  files, getMemberName, currentUserId, isAdmin, onAdd, onUpdate, onRemove,
+}: {
+  files: GlobalProjectFile[];
+  getMemberName: (id: string) => string;
+  currentUserId: string;
+  isAdmin: boolean;
+  onAdd: (data: Omit<GlobalProjectFile, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => Promise<unknown>;
+  onUpdate: (id: string, data: Partial<GlobalProjectFile>) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
+}) {
+  const [showAdd, setShowAdd] = useState(false);
+  const [editTarget, setEditTarget] = useState<GlobalProjectFile | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GlobalProjectFile | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState('all');
+
+  const filteredFiles = useMemo(() => {
+    if (categoryFilter === 'all') return files;
+    return files.filter((f) => f.category === categoryFilter);
+  }, [files, categoryFilter]);
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await onRemove(deleteTarget.id);
+      setDeleteTarget(null);
+      toast.success('Document deleted');
+    } catch {
+      toast.error('Failed to delete document');
+    }
+  };
+
+  const statusColors: Record<string, string> = {
+    current: 'bg-field-success/10 text-field-success',
+    superseded: 'bg-field-warning/10 text-field-warning',
+    archived: 'bg-muted text-muted-foreground',
+  };
+
+  const canEdit = (file: GlobalProjectFile) => isAdmin || file.createdBy === currentUserId;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <FolderOpen className="h-5 w-5" /> Documents
+        </h2>
+        <Button size="sm" className="gap-1.5" onClick={() => setShowAdd(true)}>
+          <Plus className="h-4 w-4" /> Add Document
+        </Button>
+      </div>
+
+      {/* Category filter */}
+      <div className="flex items-center gap-2">
+        <Label htmlFor="doc-category-filter" className="text-xs text-muted-foreground whitespace-nowrap">Filter:</Label>
+        <select
+          id="doc-category-filter"
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value)}
+          className="flex h-8 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          {DOCUMENT_CATEGORIES.map((cat) => (
+            <option key={cat.value} value={cat.value}>{cat.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {filteredFiles.length === 0 ? (
+        <EmptyState
+          icon={FolderOpen}
+          title="No Documents Yet"
+          description={categoryFilter !== 'all' ? 'No documents match the selected category.' : 'Add project documents like panel databases, wiring diagrams, and sequences.'}
+          action={
+            categoryFilter === 'all' ? (
+              <Button size="sm" className="gap-1.5" onClick={() => setShowAdd(true)}>
+                <Plus className="h-4 w-4" /> Add Document
+              </Button>
+            ) : undefined
+          }
+        />
+      ) : (
+        <div className="space-y-2">
+          {filteredFiles.map((file) => (
+            <Card key={file.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className="text-sm font-semibold truncate">{file.title}</h3>
+                      <Badge variant="secondary" className="text-[10px]">{file.category}</Badge>
+                      <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium', statusColors[file.status] || 'bg-muted text-muted-foreground')}>
+                        {file.status}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {file.fileName && <span>File: {file.fileName}</span>}
+                      {file.panelSystem && <span>Panel/System: {file.panelSystem}</span>}
+                      {file.revisionNumber && <span>Rev: {file.revisionNumber}</span>}
+                      {file.revisionDate && <span>Rev Date: {file.revisionDate}</span>}
+                    </div>
+                    {file.notes && (
+                      <p className="mt-1 text-xs text-muted-foreground">{file.notes}</p>
+                    )}
+                  </div>
+                  {canEdit(file) && (
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <button
+                        onClick={() => setEditTarget(file)}
+                        className="rounded p-1.5 hover:bg-muted"
+                        title="Edit"
+                      >
+                        <Edit2 className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(file)}
+                        className="rounded p-1.5 hover:bg-muted"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-3 w-3 text-destructive" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Uploaded by {getMemberName(file.createdBy)} &middot; {format(new Date(file.createdAt), 'MMM d, yyyy')}
+                  {file.updatedBy && file.updatedAt !== file.createdAt && (
+                    <span className="text-primary/70"> &middot; Edited by {getMemberName(file.updatedBy)} {format(new Date(file.updatedAt), 'MMM d h:mm a')}</span>
+                  )}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      <AddDocumentDialog open={showAdd} onOpenChange={setShowAdd} onSubmit={onAdd} />
+
+      <EditDocumentDialog
+        file={editTarget}
+        onOpenChange={(open) => { if (!open) setEditTarget(null); }}
+        onSubmit={async (data) => {
+          if (!editTarget) return;
+          await onUpdate(editTarget.id, data);
+          setEditTarget(null);
+          toast.success('Document updated');
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete Document"
+        description={deleteTarget ? `Delete "${deleteTarget.title}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
+    </div>
+  );
+}
+
+function AddDocumentDialog({ open, onOpenChange, onSubmit }: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  onSubmit: (data: Omit<GlobalProjectFile, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => Promise<unknown>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    title: '', fileName: '', fileType: '', mimeType: '',
+    category: 'general-documents', panelSystem: '',
+    revisionNumber: '', revisionDate: '', notes: '', status: 'current',
+  });
+
+  const updateField = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    setSaving(true);
+    try {
+      await onSubmit({
+        title: form.title.trim(),
+        fileName: form.fileName.trim(),
+        fileType: form.fileType.trim(),
+        mimeType: form.mimeType.trim(),
+        category: form.category,
+        panelSystem: form.panelSystem.trim() || null,
+        revisionNumber: form.revisionNumber.trim(),
+        revisionDate: form.revisionDate.trim(),
+        notes: form.notes.trim(),
+        status: form.status,
+        tags: [],
+        isPinned: false,
+        size: 0,
+        storagePath: null,
+        versions: [],
+        updatedBy: null,
+        deletedAt: null,
+      });
+      setForm({ title: '', fileName: '', fileType: '', mimeType: '', category: 'general-documents', panelSystem: '', revisionNumber: '', revisionDate: '', notes: '', status: 'current' });
+      onOpenChange(false);
+      toast.success('Document added');
+    } catch {
+      toast.error('Failed to add document');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Add Document</DialogTitle>
+          <DialogDescription>Add a project document record. File upload coming soon.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
+          <DialogBody className="px-5 py-4 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="doc-title">Title *</Label>
+                <Input id="doc-title" placeholder="e.g. AHU-1 Sequence of Operations" value={form.title} onChange={(e) => updateField('title', e.target.value)} required autoFocus />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-filename">File Name</Label>
+                <Input id="doc-filename" placeholder="e.g. AHU1_SOO_v2.pdf" value={form.fileName} onChange={(e) => updateField('fileName', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-filetype">File Type</Label>
+                <Input id="doc-filetype" placeholder="e.g. pdf, dwg, csv" value={form.fileType} onChange={(e) => updateField('fileType', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-mimetype">MIME Type</Label>
+                <Input id="doc-mimetype" placeholder="e.g. application/pdf" value={form.mimeType} onChange={(e) => updateField('mimeType', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-category">Category</Label>
+                <select
+                  id="doc-category"
+                  value={form.category}
+                  onChange={(e) => updateField('category', e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {DOCUMENT_CATEGORIES.filter((c) => c.value !== 'all').map((cat) => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-panel">Panel / System</Label>
+                <Input id="doc-panel" placeholder="e.g. MEC-1" value={form.panelSystem} onChange={(e) => updateField('panelSystem', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-revnum">Revision Number</Label>
+                <Input id="doc-revnum" placeholder="e.g. Rev 2" value={form.revisionNumber} onChange={(e) => updateField('revisionNumber', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-revdate">Revision Date</Label>
+                <Input id="doc-revdate" type="date" value={form.revisionDate} onChange={(e) => updateField('revisionDate', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="doc-status">Status</Label>
+                <select
+                  id="doc-status"
+                  value={form.status}
+                  onChange={(e) => updateField('status', e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {DOCUMENT_STATUSES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="doc-notes">Notes</Label>
+                <Textarea id="doc-notes" placeholder="Any notes about this document..." value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={2} />
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving || !form.title.trim()}>
+              {saving ? 'Adding...' : 'Add Document'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditDocumentDialog({ file, onOpenChange, onSubmit }: {
+  file: GlobalProjectFile | null;
+  onOpenChange: (v: boolean) => void;
+  onSubmit: (data: Partial<GlobalProjectFile>) => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    title: '', category: 'general-documents', panelSystem: '',
+    revisionNumber: '', revisionDate: '', notes: '', status: 'current',
+  });
+
+  useEffect(() => {
+    if (file) {
+      setForm({
+        title: file.title || '',
+        category: file.category || 'general-documents',
+        panelSystem: file.panelSystem || '',
+        revisionNumber: file.revisionNumber || '',
+        revisionDate: file.revisionDate || '',
+        notes: file.notes || '',
+        status: file.status || 'current',
+      });
+    }
+  }, [file]);
+
+  const updateField = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.title.trim()) return;
+    setSaving(true);
+    try {
+      await onSubmit({
+        title: form.title.trim(),
+        category: form.category,
+        panelSystem: form.panelSystem.trim() || null,
+        revisionNumber: form.revisionNumber.trim(),
+        revisionDate: form.revisionDate.trim(),
+        notes: form.notes.trim(),
+        status: form.status,
+      });
+    } catch {
+      toast.error('Failed to update document');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={file !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Edit Document</DialogTitle>
+          <DialogDescription>Update document details.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
+          <DialogBody className="px-5 py-4 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="edit-doc-title">Title *</Label>
+                <Input id="edit-doc-title" value={form.title} onChange={(e) => updateField('title', e.target.value)} required autoFocus />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-doc-category">Category</Label>
+                <select
+                  id="edit-doc-category"
+                  value={form.category}
+                  onChange={(e) => updateField('category', e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {DOCUMENT_CATEGORIES.filter((c) => c.value !== 'all').map((cat) => (
+                    <option key={cat.value} value={cat.value}>{cat.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-doc-panel">Panel / System</Label>
+                <Input id="edit-doc-panel" value={form.panelSystem} onChange={(e) => updateField('panelSystem', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-doc-revnum">Revision Number</Label>
+                <Input id="edit-doc-revnum" value={form.revisionNumber} onChange={(e) => updateField('revisionNumber', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-doc-revdate">Revision Date</Label>
+                <Input id="edit-doc-revdate" type="date" value={form.revisionDate} onChange={(e) => updateField('revisionDate', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-doc-status">Status</Label>
+                <select
+                  id="edit-doc-status"
+                  value={form.status}
+                  onChange={(e) => updateField('status', e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {DOCUMENT_STATUSES.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="edit-doc-notes">Notes</Label>
+                <Textarea id="edit-doc-notes" value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={2} />
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving || !form.title.trim()}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Reports Tab ─────────────────────────────────────────────────────────────
 
-function ReportsTab({ reports, getMemberName }: {
+function ReportsTab({ reports, getMemberName, currentUserId, onUpdate, onRemove }: {
   reports: GlobalDailyReport[];
   getMemberName: (id: string) => string;
+  currentUserId: string;
+  onUpdate: (id: string, data: Partial<GlobalDailyReport>) => Promise<void>;
+  onRemove: (id: string) => Promise<void>;
 }) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [editTarget, setEditTarget] = useState<GlobalDailyReport | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GlobalDailyReport | null>(null);
+
   const statusColors: Record<string, string> = {
     draft: 'bg-muted text-muted-foreground',
     submitted: 'bg-field-info/10 text-field-info',
     finalized: 'bg-field-success/10 text-field-success',
+  };
+
+  const sorted = useMemo(
+    () => [...reports].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [reports],
+  );
+
+  const toggle = (id: string) =>
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const handleEditSubmit = async (id: string, data: Partial<GlobalDailyReport>) => {
+    try {
+      await onUpdate(id, data);
+      setEditTarget(null);
+      toast.success('Report updated');
+    } catch {
+      toast.error('Failed to update report');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await onRemove(deleteTarget.id);
+      setDeleteTarget(null);
+      toast.success('Report deleted');
+    } catch {
+      toast.error('Failed to delete report');
+    }
   };
 
   return (
@@ -1413,52 +2040,358 @@ function ReportsTab({ reports, getMemberName }: {
         <FileText className="h-5 w-5" /> Daily Reports
       </h2>
 
-      {reports.length === 0 ? (
+      {sorted.length === 0 ? (
         <EmptyState
           icon={FileText}
           title="No Reports Yet"
-          description="Daily reports will appear here as team members submit them."
+          description="No daily reports have been linked to this project yet."
         />
       ) : (
         <div className="space-y-2">
-          {reports.map((report) => (
-            <Card key={report.id}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="text-sm font-semibold">
-                        Report #{report.reportNumber} &mdash; {format(new Date(report.date), 'MMM d, yyyy')}
-                      </h3>
-                      <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium', statusColors[report.status] || 'bg-muted text-muted-foreground')}>
-                        {report.status}
-                      </span>
+          {sorted.map((report) => {
+            const isExpanded = expandedIds.has(report.id);
+            const isOwner = report.createdBy === currentUserId;
+            const hasDetails =
+              report.workCompleted || report.issuesEncountered || report.workPlannedNext ||
+              report.coordinationNotes || report.equipmentWorkedOn || report.safetyNotes ||
+              report.generalNotes || report.deviceIpChanges;
+
+            return (
+              <Card key={report.id}>
+                <CardContent className="p-4">
+                  {/* Header row */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="text-sm font-semibold">
+                          Report #{report.reportNumber} &mdash; {format(new Date(report.date), 'MMM d, yyyy')}
+                        </h3>
+                        <span
+                          className={cn(
+                            'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium capitalize',
+                            statusColors[report.status] || 'bg-muted text-muted-foreground',
+                          )}
+                        >
+                          {report.status}
+                        </span>
+                      </div>
+
+                      {/* Meta grid */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1">
+                          <User className="h-3 w-3 shrink-0" /> {report.technicianName}
+                        </span>
+                        {report.location && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 shrink-0" /> {report.location}
+                          </span>
+                        )}
+                        {report.hoursOnSite && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 shrink-0" /> {report.hoursOnSite} hrs on site
+                          </span>
+                        )}
+                        {(report.startTime || report.endTime) && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 shrink-0" /> {report.startTime} &ndash; {report.endTime}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span>Technician: {report.technicianName}</span>
-                      {report.hoursOnSite && <span>Hours: {report.hoursOnSite}</span>}
-                      {report.location && <span>Location: {report.location}</span>}
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isOwner && (
+                        <>
+                          <button
+                            onClick={() => setEditTarget(report)}
+                            className="p-1 rounded-md hover:bg-muted transition-colors"
+                            aria-label="Edit report"
+                          >
+                            <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(report)}
+                            className="p-1 rounded-md hover:bg-destructive/10 transition-colors"
+                            aria-label="Delete report"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          </button>
+                        </>
+                      )}
+                      {hasDetails && (
+                        <button
+                          onClick={() => toggle(report.id)}
+                          className="p-1 rounded-md hover:bg-muted transition-colors"
+                          aria-label={isExpanded ? 'Collapse details' : 'Expand details'}
+                        >
+                          {isExpanded
+                            ? <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                            : <ChevronDown className="h-4 w-4 text-muted-foreground" />}
+                        </button>
+                      )}
                     </div>
-                    {report.workCompleted && (
-                      <p className="mt-2 text-xs text-muted-foreground">
-                        <strong>Work Completed:</strong> {report.workCompleted}
-                      </p>
-                    )}
-                    {report.issuesEncountered && (
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        <strong>Issues:</strong> {report.issuesEncountered}
-                      </p>
-                    )}
                   </div>
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Added by {getMemberName(report.createdBy)} &middot; {format(new Date(report.createdAt), 'MMM d, yyyy h:mm a')}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+
+                  {/* Expandable detail section */}
+                  {isExpanded && hasDetails && (
+                    <div className="mt-3 pt-3 border-t space-y-2">
+                      <ReportDetailRow label="Work Completed" value={report.workCompleted} />
+                      <ReportDetailRow label="Issues Encountered" value={report.issuesEncountered} />
+                      <ReportDetailRow label="Work Planned Next" value={report.workPlannedNext} />
+                      <ReportDetailRow label="Coordination Notes" value={report.coordinationNotes} />
+                      <ReportDetailRow label="Equipment Worked On" value={report.equipmentWorkedOn} />
+                      <ReportDetailRow label="Device / IP Changes" value={report.deviceIpChanges} />
+                      <ReportDetailRow label="Safety Notes" value={report.safetyNotes} />
+                      <ReportDetailRow label="General Notes" value={report.generalNotes} />
+                      {report.weather && (
+                        <p className="text-xs text-muted-foreground">
+                          <strong className="text-foreground">Weather:</strong> {report.weather}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Footer */}
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Posted by {getMemberName(report.createdBy)} &middot; {format(new Date(report.createdAt), 'MMM d, yyyy h:mm a')}
+                    {report.updatedBy && report.updatedAt !== report.createdAt && (
+                      <> &middot; Edited by {getMemberName(report.updatedBy)} {format(new Date(report.updatedAt), 'MMM d h:mm a')}</>
+                    )}
+                  </p>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
+
+      <EditReportDialog
+        report={editTarget}
+        onOpenChange={(v) => { if (!v) setEditTarget(null); }}
+        onSubmit={handleEditSubmit}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
+        title="Delete Report"
+        description={deleteTarget ? `Delete Report #${deleteTarget.reportNumber} from ${format(new Date(deleteTarget.date), 'MMM d, yyyy')}? This cannot be undone.` : ''}
+        confirmLabel="Delete Report"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
+    </div>
+  );
+}
+
+// ─── Edit Report Dialog ──────────────────────────────────────────────────────
+
+function EditReportDialog({ report, onOpenChange, onSubmit }: {
+  report: GlobalDailyReport | null;
+  onOpenChange: (v: boolean) => void;
+  onSubmit: (id: string, data: Partial<GlobalDailyReport>) => Promise<void>;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    date: '', technicianName: '', status: 'draft',
+    startTime: '', endTime: '', hoursOnSite: '', location: '', weather: '',
+    workCompleted: '', issuesEncountered: '', workPlannedNext: '',
+    equipmentWorkedOn: '', deviceIpChanges: '',
+    coordinationNotes: '', safetyNotes: '', generalNotes: '',
+  });
+
+  useEffect(() => {
+    if (report) {
+      setForm({
+        date: report.date || '',
+        technicianName: report.technicianName || '',
+        status: report.status || 'draft',
+        startTime: report.startTime || '',
+        endTime: report.endTime || '',
+        hoursOnSite: report.hoursOnSite || '',
+        location: report.location || '',
+        weather: report.weather || '',
+        workCompleted: report.workCompleted || '',
+        issuesEncountered: report.issuesEncountered || '',
+        workPlannedNext: report.workPlannedNext || '',
+        equipmentWorkedOn: report.equipmentWorkedOn || '',
+        deviceIpChanges: report.deviceIpChanges || '',
+        coordinationNotes: report.coordinationNotes || '',
+        safetyNotes: report.safetyNotes || '',
+        generalNotes: report.generalNotes || '',
+      });
+    }
+  }, [report]);
+
+  const updateField = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!report || !form.technicianName.trim()) return;
+    setSaving(true);
+    try {
+      await onSubmit(report.id, {
+        date: form.date,
+        technicianName: form.technicianName.trim(),
+        status: form.status as GlobalDailyReport['status'],
+        startTime: form.startTime.trim(),
+        endTime: form.endTime.trim(),
+        hoursOnSite: form.hoursOnSite.trim(),
+        location: form.location.trim(),
+        weather: form.weather.trim(),
+        workCompleted: form.workCompleted.trim(),
+        issuesEncountered: form.issuesEncountered.trim(),
+        workPlannedNext: form.workPlannedNext.trim(),
+        equipmentWorkedOn: form.equipmentWorkedOn.trim(),
+        deviceIpChanges: form.deviceIpChanges.trim(),
+        coordinationNotes: form.coordinationNotes.trim(),
+        safetyNotes: form.safetyNotes.trim(),
+        generalNotes: form.generalNotes.trim(),
+      });
+    } catch {
+      toast.error('Failed to update report');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={report !== null} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit Report</DialogTitle>
+          <DialogDescription>Update daily report details.</DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
+          <DialogBody className="px-5 py-4 space-y-5">
+            {/* Header Section */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Header</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-tech">Technician Name *</Label>
+                  <Input id="edit-rpt-tech" value={form.technicianName} onChange={(e) => updateField('technicianName', e.target.value)} required autoFocus />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-date">Date</Label>
+                  <Input id="edit-rpt-date" type="date" value={form.date} onChange={(e) => updateField('date', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-status">Status</Label>
+                  <select
+                    id="edit-rpt-status"
+                    value={form.status}
+                    onChange={(e) => updateField('status', e.target.value)}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <option value="draft">Draft</option>
+                    <option value="submitted">Submitted</option>
+                    <option value="finalized">Finalized</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Time / Location Section */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Time &amp; Location</p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-start">Start Time</Label>
+                  <Input id="edit-rpt-start" value={form.startTime} onChange={(e) => updateField('startTime', e.target.value)} placeholder="e.g. 07:00" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-end">End Time</Label>
+                  <Input id="edit-rpt-end" value={form.endTime} onChange={(e) => updateField('endTime', e.target.value)} placeholder="e.g. 16:00" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-hours">Hours on Site</Label>
+                  <Input id="edit-rpt-hours" value={form.hoursOnSite} onChange={(e) => updateField('hoursOnSite', e.target.value)} placeholder="e.g. 8" />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-loc">Location</Label>
+                  <Input id="edit-rpt-loc" value={form.location} onChange={(e) => updateField('location', e.target.value)} />
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="edit-rpt-weather">Weather</Label>
+                  <Input id="edit-rpt-weather" value={form.weather} onChange={(e) => updateField('weather', e.target.value)} />
+                </div>
+              </div>
+            </div>
+
+            {/* Work Summary Section */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Work Summary</p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-work">Work Completed</Label>
+                  <Textarea id="edit-rpt-work" value={form.workCompleted} onChange={(e) => updateField('workCompleted', e.target.value)} rows={3} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-issues">Issues Encountered</Label>
+                  <Textarea id="edit-rpt-issues" value={form.issuesEncountered} onChange={(e) => updateField('issuesEncountered', e.target.value)} rows={2} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-next">Work Planned Next</Label>
+                  <Textarea id="edit-rpt-next" value={form.workPlannedNext} onChange={(e) => updateField('workPlannedNext', e.target.value)} rows={2} />
+                </div>
+              </div>
+            </div>
+
+            {/* Systems Section */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Systems</p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-equip">Equipment Worked On</Label>
+                  <Textarea id="edit-rpt-equip" value={form.equipmentWorkedOn} onChange={(e) => updateField('equipmentWorkedOn', e.target.value)} rows={2} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-ipchanges">Device / IP Changes</Label>
+                  <Textarea id="edit-rpt-ipchanges" value={form.deviceIpChanges} onChange={(e) => updateField('deviceIpChanges', e.target.value)} rows={2} />
+                </div>
+              </div>
+            </div>
+
+            {/* Coordination & Additional Section */}
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Coordination &amp; Additional</p>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-coord">Coordination Notes</Label>
+                  <Textarea id="edit-rpt-coord" value={form.coordinationNotes} onChange={(e) => updateField('coordinationNotes', e.target.value)} rows={2} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-safety">Safety Notes</Label>
+                  <Textarea id="edit-rpt-safety" value={form.safetyNotes} onChange={(e) => updateField('safetyNotes', e.target.value)} rows={2} />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="edit-rpt-general">General Notes</Label>
+                  <Textarea id="edit-rpt-general" value={form.generalNotes} onChange={(e) => updateField('generalNotes', e.target.value)} rows={2} />
+                </div>
+              </div>
+            </div>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving || !form.technicianName.trim()}>
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+/** Small helper to render a labelled detail row only when a value exists. */
+function ReportDetailRow({ label, value }: { label: string; value: string | null | undefined }) {
+  if (!value) return null;
+  return (
+    <div className="text-xs text-muted-foreground">
+      <strong className="text-foreground">{label}:</strong>{' '}
+      <span className="whitespace-pre-line">{value}</span>
     </div>
   );
 }

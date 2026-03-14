@@ -808,6 +808,113 @@ export async function deleteGlobalReport(id: string): Promise<ApiResult<void>> {
   }
 }
 
+// ─── Project Files ───────────────────────────────────────────────────────────
+
+export async function fetchGlobalFiles(projectId: string): Promise<ApiResult<GlobalProjectFile[]>> {
+  try {
+    const supabase = getClient();
+
+    const { data, error } = await supabase
+      .from('global_project_files')
+      .select('*')
+      .eq('global_project_id', projectId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalProjectFile[]>(data || []));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function addGlobalFile(
+  projectId: string,
+  data: Partial<Omit<GlobalProjectFile, 'id' | 'globalProjectId' | 'createdBy' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'versions'>>
+): Promise<ApiResult<GlobalProjectFile>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+
+    const { data: file, error } = await supabase
+      .from('global_project_files')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        title: data.title ?? '',
+        file_name: data.fileName ?? '',
+        file_type: data.fileType ?? '',
+        mime_type: data.mimeType ?? '',
+        category: data.category ?? 'general',
+        panel_system: data.panelSystem ?? null,
+        revision_number: data.revisionNumber ?? '',
+        revision_date: data.revisionDate ?? '',
+        notes: data.notes ?? '',
+        tags: data.tags ?? [],
+        status: data.status ?? 'active',
+        is_pinned: data.isPinned ?? false,
+        size: data.size ?? 0,
+        storage_path: data.storagePath ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalProjectFile>(file));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function updateGlobalFile(
+  id: string,
+  data: Partial<Pick<GlobalProjectFile, 'title' | 'category' | 'panelSystem' | 'revisionNumber' | 'revisionDate' | 'notes' | 'tags' | 'status' | 'isPinned'>>
+): Promise<ApiResult<GlobalProjectFile>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+
+    const update: Record<string, unknown> = { updated_by: userId };
+    if (data.title !== undefined) update.title = data.title;
+    if (data.category !== undefined) update.category = data.category;
+    if (data.panelSystem !== undefined) update.panel_system = data.panelSystem;
+    if (data.revisionNumber !== undefined) update.revision_number = data.revisionNumber;
+    if (data.revisionDate !== undefined) update.revision_date = data.revisionDate;
+    if (data.notes !== undefined) update.notes = data.notes;
+    if (data.tags !== undefined) update.tags = data.tags;
+    if (data.status !== undefined) update.status = data.status;
+    if (data.isPinned !== undefined) update.is_pinned = data.isPinned;
+
+    const { data: file, error } = await supabase
+      .from('global_project_files')
+      .update(update)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalProjectFile>(file));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function deleteGlobalFile(id: string): Promise<ApiResult<void>> {
+  try {
+    const supabase = getClient();
+
+    const { error } = await supabase
+      .from('global_project_files')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) return fail(error.message);
+    return ok(undefined);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
 // ─── Activity Log ───────────────────────────────────────────────────────────
 
 export async function fetchGlobalActivity(projectId: string): Promise<ApiResult<GlobalActivityLogEntry[]>> {

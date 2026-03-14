@@ -8,6 +8,7 @@ import type {
   GlobalDevice,
   GlobalIpPlanEntry,
   GlobalDailyReport,
+  GlobalProjectFile,
   GlobalActivityLogEntry,
   CreateGlobalProjectData,
 } from '@/types/global-projects';
@@ -36,6 +37,13 @@ import {
   updateGlobalIpEntry,
   deleteGlobalIpEntry,
   fetchGlobalReports,
+  addGlobalReport,
+  updateGlobalReport,
+  deleteGlobalReport,
+  fetchGlobalFiles,
+  addGlobalFile,
+  updateGlobalFile,
+  deleteGlobalFile,
   fetchGlobalActivity,
   logGlobalActivity,
 } from '@/lib/global-projects/api';
@@ -451,7 +459,112 @@ export function useGlobalProjectReports(projectId: string | undefined) {
     refresh();
   }, [refresh]);
 
-  return { reports, loading };
+  const addReportFn = useCallback(
+    async (data: Omit<GlobalDailyReport, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => {
+      if (!projectId) return;
+      const report = unwrap(await addGlobalReport(projectId, data));
+      try { await logGlobalActivity(projectId, 'added a daily report', `Date: ${data.date || ''}\nTechnician: "${(data.technicianName || '').slice(0, 100)}"`); } catch {}
+      await refresh();
+      return report;
+    },
+    [projectId, refresh],
+  );
+
+  const updateReportFn = useCallback(
+    async (id: string, data: Partial<GlobalDailyReport>) => {
+      if (!projectId) return;
+      const oldReport = reports.find((r) => r.id === id);
+      unwrap(await updateGlobalReport(id, data));
+      if (oldReport) {
+        const diff = buildChangeSummary(oldReport as unknown as Record<string, unknown>, data as Record<string, unknown>);
+        if (diff) {
+          try { await logGlobalActivity(projectId, 'edited a daily report', diff); } catch {}
+        }
+      }
+      await refresh();
+    },
+    [projectId, reports, refresh],
+  );
+
+  const removeReport = useCallback(
+    async (id: string) => {
+      if (!projectId) return;
+      const oldReport = reports.find((r) => r.id === id);
+      unwrap(await deleteGlobalReport(id));
+      try { await logGlobalActivity(projectId, 'removed a daily report', oldReport ? `Date: ${oldReport.date}` : ''); } catch {}
+      await refresh();
+    },
+    [projectId, reports, refresh],
+  );
+
+  return { reports, loading, addReport: addReportFn, updateReport: updateReportFn, removeReport };
+}
+
+// ─── useGlobalProjectFiles ─────────────────────────────────
+export function useGlobalProjectFiles(projectId: string | undefined) {
+  const [files, setFiles] = useState<GlobalProjectFile[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!projectId) {
+      setFiles([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      const data = unwrap(await fetchGlobalFiles(projectId));
+      setFiles(data);
+    } catch {
+      setFiles([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const addFileFn = useCallback(
+    async (data: Omit<GlobalProjectFile, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId' | 'versions'>) => {
+      if (!projectId) return;
+      const file = unwrap(await addGlobalFile(projectId, data));
+      try { await logGlobalActivity(projectId, 'uploaded a file', `File: "${data.title || data.fileName || ''}"`); } catch {}
+      await refresh();
+      return file;
+    },
+    [projectId, refresh],
+  );
+
+  const updateFileFn = useCallback(
+    async (id: string, data: Partial<GlobalProjectFile>) => {
+      if (!projectId) return;
+      const oldFile = files.find((f) => f.id === id);
+      unwrap(await updateGlobalFile(id, data));
+      if (oldFile) {
+        const diff = buildChangeSummary(oldFile as unknown as Record<string, unknown>, data as Record<string, unknown>);
+        if (diff) {
+          try { await logGlobalActivity(projectId, 'edited a file', diff); } catch {}
+        }
+      }
+      await refresh();
+    },
+    [projectId, files, refresh],
+  );
+
+  const removeFileFn = useCallback(
+    async (id: string) => {
+      if (!projectId) return;
+      const oldFile = files.find((f) => f.id === id);
+      unwrap(await deleteGlobalFile(id));
+      try { await logGlobalActivity(projectId, 'removed a file', oldFile ? `File: "${oldFile.title || oldFile.fileName}"` : ''); } catch {}
+      await refresh();
+    },
+    [projectId, files, refresh],
+  );
+
+  return { files, loading, addFile: addFileFn, updateFile: updateFileFn, removeFile: removeFileFn };
 }
 
 // ─── useGlobalProjectActivity ──────────────────────────────
@@ -494,4 +607,27 @@ export function useGlobalProjectActivity(projectId: string | undefined) {
   );
 
   return { activity, loading, logActivity: logActivityFn };
+}
+
+// ─── useGlobalProjectsList ─────────────────────────────────
+export function useGlobalProjectsList() {
+  const [projects, setProjects] = useState<GlobalProject[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = unwrap(await fetchGlobalProjects());
+        if (!cancelled) setProjects(data);
+      } catch {
+        if (!cancelled) setProjects([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { projects, loading };
 }
