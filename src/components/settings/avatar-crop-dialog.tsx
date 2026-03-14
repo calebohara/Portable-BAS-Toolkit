@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Camera, ZoomIn, ZoomOut, Upload, Check, ImagePlus } from 'lucide-react';
+import { Camera, ZoomIn, ZoomOut, Upload, Check, ImagePlus, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import {
@@ -40,6 +40,7 @@ export function AvatarCropDialog({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadDone, setUploadDone] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [imageSize, setImageSize] = useState({ w: 0, h: 0 });
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -61,6 +62,7 @@ export function AvatarCropDialog({
         setUploading(false);
         setUploadProgress(0);
         setUploadDone(false);
+        setUploadError(null);
       }, 200);
       return () => clearTimeout(t);
     }
@@ -188,6 +190,7 @@ export function AvatarCropDialog({
   const handleUpload = async () => {
     setUploading(true);
     setUploadProgress(0);
+    setUploadError(null);
 
     try {
       const blob = await cropImage();
@@ -213,9 +216,10 @@ export function AvatarCropDialog({
       setTimeout(() => {
         onOpenChange(false);
       }, 1200);
-    } catch {
+    } catch (err) {
       setUploading(false);
       setUploadProgress(0);
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
     }
   };
 
@@ -330,6 +334,14 @@ export function AvatarCropDialog({
               <div className="w-full space-y-2">
                 <Progress value={uploadProgress} />
                 <p className="text-xs text-center text-muted-foreground">Uploading... {uploadProgress}%</p>
+              </div>
+            )}
+
+            {/* Upload error */}
+            {uploadError && (
+              <div className="w-full flex items-center gap-2 rounded-lg bg-destructive/10 p-3 text-destructive">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <p className="text-xs">{uploadError}</p>
               </div>
             )}
           </div>

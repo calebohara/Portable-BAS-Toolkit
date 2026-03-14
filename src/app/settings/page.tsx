@@ -106,12 +106,14 @@ export default function SettingsPage() {
   const [lastName, setLastName] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
   const [showAvatarDialog, setShowAvatarDialog] = useState(false);
+  const [avatarLoadFailed, setAvatarLoadFailed] = useState(false);
 
   // Initialize name fields from profile
   useEffect(() => {
     if (profile) {
       setFirstName(profile.firstName);
       setLastName(profile.lastName);
+      setAvatarLoadFailed(false); // Reset on profile change (e.g. after upload)
     }
   }, [profile]);
 
@@ -203,15 +205,17 @@ export default function SettingsPage() {
                     {/* Avatar with crop dialog */}
                     <div className="relative group">
                       <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden">
-                        {profile?.avatarUrl ? (
+                        {profile?.avatarUrl && !avatarLoadFailed ? (
                           <img
                             src={profile.avatarUrl}
                             alt=""
                             className="h-14 w-14 rounded-full object-cover"
-                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            onError={() => setAvatarLoadFailed(true)}
+                            onLoad={() => setAvatarLoadFailed(false)}
                           />
-                        ) : null}
-                        <span className={`text-lg font-semibold text-primary ${profile?.avatarUrl ? 'hidden' : ''}`}>{profileInitials}</span>
+                        ) : (
+                          <span className="text-lg font-semibold text-primary">{profileInitials}</span>
+                        )}
                       </div>
                       <button
                         type="button"
