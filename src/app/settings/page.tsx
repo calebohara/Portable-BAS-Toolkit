@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Palette, HardDrive, Info, Trash2, Download, PlayCircle, User, LogOut,
   Cloud, Upload, AlertTriangle, Monitor, KeyRound, Mail, Database,
-  RefreshCw, ChevronRight,
+  RefreshCw, ChevronRight, Camera, Loader2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
@@ -18,6 +18,8 @@ import { ChangeEmailDialog } from '@/components/settings/change-email-dialog';
 import { DeleteAccountDialog } from '@/components/settings/delete-account-dialog';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
 import { useAppStore } from '@/store/app-store';
@@ -81,7 +83,7 @@ function ActionCard({
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { mode, user, session, signOut, updatePassword, updateEmail } = useAuth();
+  const { mode, user, session, profile, signOut, updatePassword, updateEmail, updateProfile } = useAuth();
   const { triggerFullSync, triggerPullSync } = useSyncContext();
   const syncStatus = useAppStore((s) => s.syncStatus);
   const pendingSyncCount = useAppStore((s) => s.pendingSyncCount);
@@ -98,6 +100,21 @@ export default function SettingsPage() {
   const startTour = useAppStore((s) => s.startTour);
   const { isWindowsDesktopWeb, isTauriRuntime } = useDeviceClass();
 
+  // Profile editing state
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  // Initialize name fields from profile
+  useEffect(() => {
+    if (profile) {
+      setFirstName(profile.firstName);
+      setLastName(profile.lastName);
+    }
+  }, [profile]);
+
   useEffect(() => {
     getStorageEstimate().then(setStorage).catch(() => {});
   }, []);
@@ -109,6 +126,81 @@ export default function SettingsPage() {
     toast.success(`Cleared ${count} cached file(s)`);
     getStorageEstimate().then(setStorage).catch(() => {});
   };
+
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    const { error } = await updateProfile({ firstName, lastName });
+    if (error) {
+      toast.error('Failed to save profile: ' + error);
+    } else {
+      toast.success('Profile updated');
+    }
+    setSavingProfile(false);
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file
+    if (!file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Image must be under 2MB');
+      return;
+    }
+
+    setUploadingAvatar(true);
+    try {
+      const { getSupabaseClient } = await import('@/lib/supabase/client');
+      const client = getSupabaseClient();
+      if (!client) {
+        toast.error('Supabase is not configured');
+        return;
+      }
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `${user.id}/avatar.${ext}`;
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await client.storage
+        .from('avatars')
+        .upload(path, file, { upsert: true });
+
+      if (uploadError) {
+        toast.error('Upload failed: ' + uploadError.message);
+        return;
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = client.storage
+        .from('avatars')
+        .getPublicUrl(path);
+
+      // Add cache-buster to force refresh
+      const avatarUrl = `${publicUrl}?t=${Date.now()}`;
+      const { error: profileError } = await updateProfile({ avatarUrl });
+      if (profileError) {
+        toast.error('Failed to update profile: ' + profileError);
+      } else {
+        toast.success('Profile picture updated');
+      }
+    } catch (err) {
+      toast.error('Upload failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setUploadingAvatar(false);
+      // Reset input so same file can be re-selected
+      if (avatarInputRef.current) avatarInputRef.current.value = '';
+    }
+  };
+
+  const profileInitials = (() => {
+    if (firstName || lastName) {
+      return [firstName?.[0], lastName?.[0]].filter(Boolean).join('').toUpperCase();
+    }
+    return user?.email?.slice(0, 2).toUpperCase() ?? '??';
+  })();
 
   const syncStatusLabel = (() => {
     switch (syncStatus) {
@@ -135,14 +227,48 @@ export default function SettingsPage() {
             <div className="space-y-3">
               {/* Profile card */}
               <Card>
-                <CardContent className="p-5">
+                <CardContent className="p-5 space-y-5">
+                  {/* Header row: avatar + email + sign out */}
                   <div className="flex items-center gap-4">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary/10">
-                      <User className="h-5 w-5 text-primary" />
+                    {/* Avatar with upload */}
+                    <div className="relative group">
+                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden">
+                        {profile?.avatarUrl ? (
+                          <img
+                            src={profile.avatarUrl}
+                            alt="Profile"
+                            className="h-14 w-14 rounded-full object-cover"
+                          />
+                        ) : (
+                          <span className="text-lg font-semibold text-primary">{profileInitials}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => avatarInputRef.current?.click()}
+                        disabled={uploadingAvatar}
+                        className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                      >
+                        {uploadingAvatar ? (
+                          <Loader2 className="h-5 w-5 text-white animate-spin" />
+                        ) : (
+                          <Camera className="h-5 w-5 text-white" />
+                        )}
+                      </button>
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleAvatarUpload}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold truncate">{user?.email}</p>
-                      <p className="text-xs text-muted-foreground">Signed in · Data stored locally & synced to cloud</p>
+                      <p className="text-sm font-semibold truncate">
+                        {profile?.displayName || user?.email}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
+                      <p className="text-[10px] text-muted-foreground/60">Signed in · Synced to cloud</p>
                     </div>
                     <Button
                       variant="outline"
@@ -152,6 +278,47 @@ export default function SettingsPage() {
                     >
                       <LogOut className="h-3.5 w-3.5" /> Sign Out
                     </Button>
+                  </div>
+
+                  <Separator />
+
+                  {/* Name fields */}
+                  <div className="space-y-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Profile</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="firstName" className="text-xs">First Name</Label>
+                        <Input
+                          id="firstName"
+                          placeholder="First name"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="lastName" className="text-xs">Last Name</Label>
+                        <Input
+                          id="lastName"
+                          placeholder="Last name"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] text-muted-foreground">
+                        Your name is visible to other members in Global Projects.
+                      </p>
+                      <Button
+                        size="sm"
+                        className="gap-1.5"
+                        disabled={savingProfile || (firstName === (profile?.firstName ?? '') && lastName === (profile?.lastName ?? ''))}
+                        onClick={handleSaveProfile}
+                      >
+                        {savingProfile && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                        Save
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

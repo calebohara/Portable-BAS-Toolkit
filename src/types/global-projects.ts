@@ -52,6 +52,8 @@ export interface GlobalProjectMember {
   displayName: string | null;
   /** Joined from profiles table */
   email: string;
+  /** Joined from profiles table */
+  avatarUrl: string | null;
 }
 
 // ─── Child Entities ─────────────────────────────────────────────────────────

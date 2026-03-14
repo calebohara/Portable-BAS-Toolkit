@@ -122,14 +122,14 @@ export async function fetchGlobalProject(id: string): Promise<ApiResult<GlobalPr
 
     // Fetch profiles separately (no direct FK from members.user_id → profiles.id)
     const userIds = (members || []).map((m) => m.user_id);
-    const profileMap: Record<string, { display_name: string | null; email: string }> = {};
+    const profileMap: Record<string, { display_name: string | null; email: string; avatar_url: string | null }> = {};
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, display_name, email')
+        .select('id, display_name, email, avatar_url')
         .in('id', userIds);
       for (const p of profiles || []) {
-        profileMap[p.id] = { display_name: p.display_name, email: p.email };
+        profileMap[p.id] = { display_name: p.display_name, email: p.email, avatar_url: p.avatar_url ?? null };
       }
     }
 
@@ -138,6 +138,7 @@ export async function fetchGlobalProject(id: string): Promise<ApiResult<GlobalPr
       const profile = profileMap[m.user_id];
       member.displayName = profile?.display_name ?? null;
       member.email = profile?.email ?? '';
+      member.avatarUrl = profile?.avatar_url ?? null;
       return member;
     });
 
@@ -300,14 +301,14 @@ export async function fetchMembers(projectId: string): Promise<ApiResult<GlobalP
 
     // Fetch profiles separately (no direct FK from members.user_id → profiles.id)
     const userIds = (members || []).map((m) => m.user_id);
-    const profileMap: Record<string, { display_name: string | null; email: string }> = {};
+    const profileMap: Record<string, { display_name: string | null; email: string; avatar_url: string | null }> = {};
     if (userIds.length > 0) {
       const { data: profiles } = await supabase
         .from('profiles')
-        .select('id, display_name, email')
+        .select('id, display_name, email, avatar_url')
         .in('id', userIds);
       for (const p of profiles || []) {
-        profileMap[p.id] = { display_name: p.display_name, email: p.email };
+        profileMap[p.id] = { display_name: p.display_name, email: p.email, avatar_url: p.avatar_url ?? null };
       }
     }
 
@@ -316,6 +317,7 @@ export async function fetchMembers(projectId: string): Promise<ApiResult<GlobalP
       const profile = profileMap[m.user_id];
       member.displayName = profile?.display_name ?? null;
       member.email = profile?.email ?? '';
+      member.avatarUrl = profile?.avatar_url ?? null;
       return member;
     });
 

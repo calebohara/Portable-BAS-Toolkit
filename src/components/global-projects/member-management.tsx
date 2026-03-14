@@ -161,8 +161,12 @@ export function MemberManagement({
                   className="flex items-center gap-3 rounded-lg border border-border p-3"
                 >
                   {/* Avatar */}
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
-                    {getInitials(member)}
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold overflow-hidden">
+                    {member.avatarUrl ? (
+                      <img src={member.avatarUrl} alt="" className="h-9 w-9 rounded-full object-cover" />
+                    ) : (
+                      getInitials(member)
+                    )}
                   </div>
 
                   {/* Info */}

@@ -27,7 +27,10 @@ $$ language plpgsql;
 create table if not exists profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text not null default '',
+  first_name text not null default '',
+  last_name text not null default '',
   display_name text,
+  avatar_url text,
   role text not null default 'user' check (role in ('user', 'admin')),
   onboarding_complete boolean not null default false,
   created_at timestamptz not null default now(),
