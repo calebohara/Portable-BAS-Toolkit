@@ -264,19 +264,8 @@ export function AvatarCropDialog({
                 className="flex flex-col items-center justify-center gap-3 rounded-full border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 transition-colors cursor-pointer"
                 style={{ width: CROP_SIZE, height: CROP_SIZE }}
               >
-                {currentAvatarUrl ? (
-                  <img
-                    src={currentAvatarUrl}
-                    alt="Current avatar"
-                    className="rounded-full object-cover"
-                    style={{ width: CROP_SIZE - 8, height: CROP_SIZE - 8 }}
-                  />
-                ) : (
-                  <>
-                    <ImagePlus className="h-10 w-10 text-muted-foreground/50" />
-                    <span className="text-sm text-muted-foreground">Click to choose photo</span>
-                  </>
-                )}
+                <ImagePlus className="h-10 w-10 text-muted-foreground/50" />
+                <span className="text-sm text-muted-foreground">Click to choose photo</span>
               </button>
             ) : uploadDone ? (
               /* Upload complete */

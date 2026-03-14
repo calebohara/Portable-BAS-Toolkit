@@ -206,12 +206,12 @@ export default function SettingsPage() {
                         {profile?.avatarUrl ? (
                           <img
                             src={profile.avatarUrl}
-                            alt="Profile"
+                            alt=""
                             className="h-14 w-14 rounded-full object-cover"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                           />
-                        ) : (
-                          <span className="text-lg font-semibold text-primary">{profileInitials}</span>
-                        )}
+                        ) : null}
+                        <span className={`text-lg font-semibold text-primary ${profile?.avatarUrl ? 'hidden' : ''}`}>{profileInitials}</span>
                       </div>
                       <button
                         type="button"
