@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import {
   ArrowLeft, LayoutGrid, StickyNote, Server, Network, FileText, FolderOpen,
   History, Users, Plus, Trash2, Edit2, MapPin, Hash, Building2,
-  Copy, Check, Clock, User, ClipboardList, ChevronDown, ChevronUp, Pencil,
+  Copy, Check, Clock, User, ClipboardList, ChevronDown, ChevronUp, Pencil, FolderKanban,
 } from 'lucide-react';
 import {
   useGlobalProject,
@@ -34,6 +34,8 @@ import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
+import { SaveToLocalDialog } from '@/components/global-projects/save-to-local-dialog';
+import { navigateToProject } from '@/lib/routes';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import type {
@@ -90,6 +92,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [editingProject, setEditingProject] = useState(false);
+  const [showSaveToLocal, setShowSaveToLocal] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -257,6 +260,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
               onNavigate={setActiveTab}
               onDelete={() => setShowDeleteConfirm(true)}
               onEditProject={() => setEditingProject(true)}
+              onSaveToLocal={() => setShowSaveToLocal(true)}
               getMemberName={getMemberName}
             />
           )}
@@ -354,6 +358,20 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
           setEditingProject(false);
         }}
       />
+
+      <SaveToLocalDialog
+        open={showSaveToLocal}
+        onOpenChange={setShowSaveToLocal}
+        project={project}
+        notes={notes}
+        devices={devices}
+        ipEntries={ipEntries}
+        reports={reports}
+        onSaved={(localProjectId) => {
+          setShowSaveToLocal(false);
+          navigateToProject(router, localProjectId);
+        }}
+      />
     </>
   );
 }
@@ -362,7 +380,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
 
 function OverviewTab({
   project, memberCount, noteCount, deviceCount, ipEntryCount, reportCount,
-  isAdmin, onNavigate, onDelete, onEditProject, getMemberName,
+  isAdmin, onNavigate, onDelete, onEditProject, onSaveToLocal, getMemberName,
 }: {
   project: NonNullable<ReturnType<typeof useGlobalProject>['project']>;
   memberCount: number;
@@ -374,6 +392,7 @@ function OverviewTab({
   onNavigate: (tab: string) => void;
   onDelete: () => void;
   onEditProject: () => void;
+  onSaveToLocal: () => void;
   getMemberName: (id: string) => string;
 }) {
   const [codeCopied, setCodeCopied] = useState(false);
@@ -404,6 +423,9 @@ function OverviewTab({
         </Button>
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => onNavigate('members')}>
           <Users className="h-3.5 w-3.5" /> Members
+        </Button>
+        <Button variant="outline" size="sm" className="gap-1.5 border-primary/30 text-primary hover:bg-primary/5" onClick={onSaveToLocal}>
+          <FolderKanban className="h-3.5 w-3.5" /> Save to My Projects
         </Button>
         {isAdmin && (
           <Button variant="outline" size="sm" className="gap-1.5" onClick={onEditProject}>
