@@ -65,17 +65,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = useCallback(async (userId: string) => {
     if (!client) return;
     try {
-      const { data, error } = await client
+      // Try fetching with new columns first, fall back to display_name only
+      let { data, error } = await client
         .from('profiles')
         .select('first_name, last_name, display_name, avatar_url')
         .eq('id', userId)
         .single();
+
+      if (error?.message?.includes('schema cache')) {
+        // New columns not migrated yet — fetch only existing columns
+        const fallback = await client
+          .from('profiles')
+          .select('display_name')
+          .eq('id', userId)
+          .single();
+        data = fallback.data as typeof data;
+        error = fallback.error;
+      }
+
       if (!error && data) {
         setProfile({
-          firstName: data.first_name ?? '',
-          lastName: data.last_name ?? '',
+          firstName: (data as Record<string, unknown>).first_name as string ?? '',
+          lastName: (data as Record<string, unknown>).last_name as string ?? '',
           displayName: data.display_name ?? null,
-          avatarUrl: data.avatar_url ?? null,
+          avatarUrl: (data as Record<string, unknown>).avatar_url as string ?? null,
         });
       }
     } catch {
@@ -197,10 +210,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const displayName = [firstName, lastName].filter(Boolean).join(' ') || null;
       updates.display_name = displayName;
 
-      const { error } = await client
+      let { error } = await client
         .from('profiles')
         .update(updates)
         .eq('id', user.id);
+
+      // Fallback: if new columns don't exist yet, try updating only display_name
+      if (error?.message?.includes('schema cache')) {
+        const fallback = await client
+          .from('profiles')
+          .update({ display_name: displayName, updated_at: new Date().toISOString() })
+          .eq('id', user.id);
+        error = fallback.error;
+        if (error) return { error: 'Profile columns not yet migrated. Run the SQL migration in supabase/migrations/add-profile-name-avatar.sql' };
+      }
 
       if (error) return { error: error.message };
 
