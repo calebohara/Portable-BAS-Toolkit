@@ -36,8 +36,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [authLoading, mode, isPublic, router]);
 
   // Approval gate: redirect unapproved users to /pending-approval
-  // Only enforced when profile has been fetched and approved is explicitly false
-  // (if column doesn't exist yet, approved will be undefined — skip the gate)
+  // Waits for profile to be fetched before allowing access
   useEffect(() => {
     if (!authLoading && mode === 'authenticated' && profile && profile.approved === false && pathname !== '/pending-approval') {
       router.replace('/pending-approval');
@@ -106,8 +105,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // While auth is loading or user is not authenticated, show spinner (redirect will fire)
-  if (authLoading || mode !== 'authenticated') {
+  // While auth is loading, user is not authenticated, or profile hasn't loaded yet, show spinner
+  // Profile must be loaded before rendering so the approval gate can fire
+  if (authLoading || mode !== 'authenticated' || (mode === 'authenticated' && !profile)) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
