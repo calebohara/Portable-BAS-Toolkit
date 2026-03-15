@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog, ConnectionProfile } from '@/types';
 import * as db from '@/lib/db';
+import { getAllRecentActivity, getAllProjectEntityCounts, getRecentNotes } from '@/lib/db';
 import { onPullComplete } from '@/lib/sync/sync-bridge';
 import { v4 as uuid } from 'uuid';
 
@@ -828,4 +829,71 @@ export function useConnectionProfiles(projectId?: string) {
   }, [refresh]);
 
   return { profiles, loading, refresh, addProfile, updateProfile, removeProfile, touchProfile };
+}
+
+// ─── Dashboard Aggregate Hooks ──────────────────────────────
+export function useRecentActivity(limit = 15) {
+  const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await getAllRecentActivity(limit);
+      setActivity(data);
+    } catch {
+      // non-fatal
+    } finally {
+      setLoading(false);
+    }
+  }, [limit]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
+
+  return { activity, loading, refresh };
+}
+
+export function useProjectCounts(projectIds: string[]) {
+  const [counts, setCounts] = useState<Map<string, { files: number; notes: number; devices: number }>>(new Map());
+  const [loading, setLoading] = useState(true);
+
+  const key = projectIds.join(',');
+  const refresh = useCallback(async () => {
+    if (projectIds.length === 0) { setLoading(false); return; }
+    try {
+      const data = await getAllProjectEntityCounts(projectIds);
+      setCounts(data);
+    } catch {
+      // non-fatal
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
+
+  return { counts, loading, refresh };
+}
+
+export function useRecentNotes(limit = 5) {
+  const [notes, setNotes] = useState<FieldNote[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await getRecentNotes(limit);
+      setNotes(data);
+    } catch {
+      // non-fatal
+    } finally {
+      setLoading(false);
+    }
+  }, [limit]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
+
+  return { notes, loading, refresh };
 }

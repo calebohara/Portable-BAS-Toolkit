@@ -890,6 +890,45 @@ export async function getFirstSyncError(): Promise<string | null> {
   return `${failed.length} failed item(s) with no error details`;
 }
 
+/** Get recent activity across ALL projects, ordered by timestamp descending. */
+export async function getAllRecentActivity(limit = 15): Promise<ActivityLogEntry[]> {
+  const db = await getDB();
+  const entries: ActivityLogEntry[] = [];
+  let cursor = await db.transaction('activityLog').store.index('by-timestamp').openCursor(null, 'prev');
+  while (cursor && entries.length < limit) {
+    entries.push(cursor.value);
+    cursor = await cursor.continue();
+  }
+  return entries;
+}
+
+/** Get file/note/device counts for multiple projects in a single transaction. */
+export async function getAllProjectEntityCounts(
+  projectIds: string[]
+): Promise<Map<string, { files: number; notes: number; devices: number }>> {
+  const db = await getDB();
+  const tx = db.transaction(['files', 'notes', 'devices'], 'readonly');
+  const result = new Map<string, { files: number; notes: number; devices: number }>();
+  for (const id of projectIds) {
+    const [files, notes, devices] = await Promise.all([
+      tx.objectStore('files').index('by-project').count(id),
+      tx.objectStore('notes').index('by-project').count(id),
+      tx.objectStore('devices').index('by-project').count(id),
+    ]);
+    result.set(id, { files, notes, devices });
+  }
+  return result;
+}
+
+/** Get most recent field notes across all projects. */
+export async function getRecentNotes(limit = 5): Promise<FieldNote[]> {
+  const db = await getDB();
+  const allNotes = await db.getAll('notes');
+  return allNotes
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+}
+
 /**
  * Delete orphaned child records from IndexedDB — records whose projectId
  * doesn't match any existing project. Returns count of deleted records.

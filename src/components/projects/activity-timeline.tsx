@@ -10,7 +10,7 @@ interface Props {
   activity: ActivityLogEntry[];
 }
 
-const actionIcons: Record<string, typeof History> = {
+export const actionIcons: Record<string, typeof History> = {
   'File uploaded': Upload,
   'file_uploaded': Upload,
   'Note added': StickyNote,
