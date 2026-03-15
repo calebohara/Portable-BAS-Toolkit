@@ -7,7 +7,7 @@ import {
   Download, Plus, X, Settings2, History, FileText, ChevronDown, ChevronUp,
   AlertCircle, CheckCircle2, Loader2, Circle, BookOpen, Paperclip,
   BookmarkPlus, Star, Tag, Search, Copy, PlayCircle, Clock, StickyNote,
-  Wifi, WifiOff, Save, Edit2,
+  Wifi, WifiOff, Save, Edit2, CircleHelp,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -876,6 +876,7 @@ export default function TelnetPage() {
   const [showNotes, setShowNotes] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
   const [showProfiles, setShowProfiles] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [connPanelOpen, setConnPanelOpen] = useState(true);
   const [insertedCmd, setInsertedCmd] = useState('');
 
@@ -1691,6 +1692,15 @@ export default function TelnetPage() {
                   >
                     <Settings2 className="h-3.5 w-3.5" />
                   </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setShowHelp(true)}
+                    className="h-7 w-7 p-0"
+                    title="Help"
+                  >
+                    <CircleHelp className="h-3.5 w-3.5" />
+                  </Button>
                 </div>
               </div>
 
@@ -1758,6 +1768,99 @@ export default function TelnetPage() {
           session={session}
         />
       )}
+
+      {/* Help Dialog */}
+      <Dialog open={showHelp} onOpenChange={setShowHelp}>
+        <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CircleHelp className="h-4 w-4" /> HMI Terminal Help
+            </DialogTitle>
+            <DialogDescription>Button reference and feature guide for the Telnet HMI tool.</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-6 text-sm py-4 px-6">
+            {/* Connection Settings */}
+            <div>
+              <h4 className="font-semibold text-xs uppercase text-muted-foreground mb-2.5">Connection Settings</h4>
+              <dl className="space-y-2.5 text-xs">
+                <div><dt className="font-medium inline">Mode</dt> — <dd className="inline text-muted-foreground">Switch between Serial (RS-232/USB) and Telnet (TCP/IP) connections.</dd></div>
+                <div><dt className="font-medium inline">Session Label</dt> — <dd className="inline text-muted-foreground">Name your session for easy identification in tabs and history.</dd></div>
+                <div><dt className="font-medium inline">Host / Serial Port</dt> — <dd className="inline text-muted-foreground">Enter the IP address or hostname for Telnet, or select a COM port for Serial.</dd></div>
+                <div><dt className="font-medium inline">Baud Rate</dt> — <dd className="inline text-muted-foreground">Serial communication speed (e.g., 9600, 115200). Common BAS default is 9600.</dd></div>
+                <div><dt className="font-medium inline">Data Bits / Parity / Stop Bits / Flow Ctrl</dt> — <dd className="inline text-muted-foreground">Serial port framing parameters. Typical BAS setting is 8N1 (8 data, No parity, 1 stop).</dd></div>
+                <div><dt className="font-medium inline">Line End</dt> — <dd className="inline text-muted-foreground">Line ending format sent with each command: CR+LF, CR, LF, or None.</dd></div>
+              </dl>
+            </div>
+
+            {/* Toggles */}
+            <div>
+              <h4 className="font-semibold text-xs uppercase text-muted-foreground mb-2.5">Toggles</h4>
+              <dl className="space-y-2.5 text-xs">
+                <div><dt className="font-medium inline">Echo</dt> — <dd className="inline text-muted-foreground">Show your typed commands in the terminal output (local echo).</dd></div>
+                <div><dt className="font-medium inline">Line</dt> — <dd className="inline text-muted-foreground">Line mode buffers input until Enter. When off, each keystroke is sent immediately.</dd></div>
+                <div><dt className="font-medium inline">Log</dt> — <dd className="inline text-muted-foreground">Enable session logging. Logged sessions can be exported or attached to a project.</dd></div>
+              </dl>
+            </div>
+
+            {/* Action Buttons */}
+            <div>
+              <h4 className="font-semibold text-xs uppercase text-muted-foreground mb-2.5">Action Buttons</h4>
+              <dl className="space-y-2.5 text-xs">
+                <div><dt className="font-medium inline"><Plug className="h-3 w-3 inline mr-0.5" />Connect</dt> — <dd className="inline text-muted-foreground">Open a connection using the configured settings. Requires the desktop app for live connections.</dd></div>
+                <div><dt className="font-medium inline"><Unplug className="h-3 w-3 inline mr-0.5" />Disconnect</dt> — <dd className="inline text-muted-foreground">Close the active connection gracefully.</dd></div>
+                <div><dt className="font-medium inline"><RotateCcw className="h-3 w-3 inline mr-0.5" />Reconnect</dt> — <dd className="inline text-muted-foreground">Disconnect and immediately reconnect with the same settings.</dd></div>
+                <div><dt className="font-medium inline"><Search className="h-3 w-3 inline mr-0.5" />Test Port</dt> — <dd className="inline text-muted-foreground">Check if the target host and port are reachable before connecting (Telnet mode only).</dd></div>
+                <div><dt className="font-medium inline"><Trash2 className="h-3 w-3 inline mr-0.5" />Clear</dt> — <dd className="inline text-muted-foreground">Clear the terminal output buffer. Does not disconnect.</dd></div>
+                <div><dt className="font-medium inline"><Pause className="h-3 w-3 inline mr-0.5" />Pause / Resume</dt> — <dd className="inline text-muted-foreground">Freeze the terminal display. Data continues to buffer in the background.</dd></div>
+                <div><dt className="font-medium inline"><Download className="h-3 w-3 inline mr-0.5" />Export</dt> — <dd className="inline text-muted-foreground">Download the session log as a .txt file with timestamps and connection details.</dd></div>
+                <div><dt className="font-medium inline"><Paperclip className="h-3 w-3 inline mr-0.5" />Attach</dt> — <dd className="inline text-muted-foreground">Save the session log to a project as a document for future reference.</dd></div>
+              </dl>
+            </div>
+
+            {/* Icon Buttons */}
+            <div>
+              <h4 className="font-semibold text-xs uppercase text-muted-foreground mb-2.5">Toolbar Icons (Right Side)</h4>
+              <dl className="space-y-2.5 text-xs">
+                <div><dt className="font-medium inline"><Wifi className="h-3 w-3 inline mr-0.5" />Profiles</dt> — <dd className="inline text-muted-foreground">Save and load connection profiles (host, port, serial settings). Quickly switch between devices.</dd></div>
+                <div><dt className="font-medium inline"><BookmarkPlus className="h-3 w-3 inline mr-0.5" />Snippets</dt> — <dd className="inline text-muted-foreground">Open the command snippet library. Save, search, and insert frequently used commands.</dd></div>
+                <div><dt className="font-medium inline"><StickyNote className="h-3 w-3 inline mr-0.5" />Notes</dt> — <dd className="inline text-muted-foreground">Open session notes. Record observations, panel info, or issues during the session.</dd></div>
+                <div><dt className="font-medium inline"><History className="h-3 w-3 inline mr-0.5" />History</dt> — <dd className="inline text-muted-foreground">View saved session history with timestamps, connection details, and line counts.</dd></div>
+                <div><dt className="font-medium inline"><Settings2 className="h-3 w-3 inline mr-0.5" />Settings</dt> — <dd className="inline text-muted-foreground">Terminal display settings: font size, buffer size, scrollback behavior, and ANSI color support.</dd></div>
+              </dl>
+            </div>
+
+            {/* Sessions */}
+            <div>
+              <h4 className="font-semibold text-xs uppercase text-muted-foreground mb-2.5">Sessions</h4>
+              <dl className="space-y-2.5 text-xs">
+                <div><dt className="font-medium inline"><Plus className="h-3 w-3 inline mr-0.5" />New Session</dt> — <dd className="inline text-muted-foreground">Open a new terminal tab. Each session has its own connection and buffer.</dd></div>
+                <div><dt className="font-medium inline"><X className="h-3 w-3 inline mr-0.5" />Close Tab</dt> — <dd className="inline text-muted-foreground">Close a session tab. Disconnects if active. At least one session always remains.</dd></div>
+              </dl>
+            </div>
+
+            {/* Status Bar */}
+            <div>
+              <h4 className="font-semibold text-xs uppercase text-muted-foreground mb-2.5">Status Bar</h4>
+              <p className="text-xs text-muted-foreground">
+                The bottom bar shows connection state, host/port or serial settings, baud rate, line ending, connection duration, buffer line count, and active indicators for LOG, PAUSED, and NOTES.
+              </p>
+            </div>
+
+            {/* Tips */}
+            <div>
+              <h4 className="font-semibold text-xs uppercase text-muted-foreground mb-2.5">Tips</h4>
+              <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-4">
+                <li>Use <kbd className="px-1 py-0.5 rounded border bg-muted font-mono text-[10px]">↑</kbd> / <kbd className="px-1 py-0.5 rounded border bg-muted font-mono text-[10px]">↓</kbd> arrow keys to recall previous commands.</li>
+                <li>Save connection profiles to quickly switch between BAS controllers.</li>
+                <li>Enable logging before connecting to capture the full session.</li>
+                <li>Use snippets to store and reuse common BACnet, Modbus, or Niagara commands.</li>
+                <li>Attach session logs to projects for documentation and commissioning records.</li>
+                <li>Live connections require the BAU Suite desktop app. Browser mode supports local logging only.</li>
+              </ul>
+            </div>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
