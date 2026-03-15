@@ -15,7 +15,8 @@ import {
   addGlobalReport,
   logGlobalActivity,
 } from './api';
-import { saveProject, saveNote, saveDevice, saveIpEntry, saveDailyReport, addActivity } from '@/lib/db';
+import { saveProject, saveNote, saveDevice, saveIpEntry, saveDailyReport, addActivity, getFileBlob, saveFileBlob } from '@/lib/db';
+import { buildStoragePath, uploadBlobToStorage, downloadFromStorage } from '@/lib/storage';
 import { v4 as uuid } from 'uuid';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -79,6 +80,65 @@ function unwrap<T>(result: { data: T; error: null } | { data: null; error: strin
     throw new Error(result.error);
   }
   return result.data;
+}
+
+// ─── Attachment Migration Helpers ─────────────────────────────────────────────
+
+/**
+ * Upload local report attachments (IndexedDB blobs) to Supabase Storage.
+ * Returns GlobalReportAttachment[] with storagePath set.
+ * Best-effort — skips attachments that fail to upload.
+ */
+async function migrateAttachmentsToStorage(
+  globalProjectId: string,
+  report: DailyReport,
+): Promise<Array<{ id: string; fileName: string; fileType: string; mimeType: string; size: number; storagePath: string | null }>> {
+  const migrated: Array<{ id: string; fileName: string; fileType: string; mimeType: string; size: number; storagePath: string | null }> = [];
+
+  for (const att of report.attachments) {
+    try {
+      const blob = await getFileBlob(att.blobKey);
+      if (!blob) {
+        // No blob available — still include metadata
+        migrated.push({ id: uuid(), fileName: att.fileName, fileType: att.fileType, mimeType: att.mimeType, size: att.size, storagePath: null });
+        continue;
+      }
+      const storagePath = buildStoragePath(globalProjectId, att.fileName, 'reports');
+      await uploadBlobToStorage(blob, storagePath, att.mimeType);
+      migrated.push({ id: uuid(), fileName: att.fileName, fileType: att.fileType, mimeType: att.mimeType, size: att.size, storagePath });
+    } catch {
+      // Best-effort — include metadata without storage path
+      migrated.push({ id: uuid(), fileName: att.fileName, fileType: att.fileType, mimeType: att.mimeType, size: att.size, storagePath: null });
+    }
+  }
+
+  return migrated;
+}
+
+/**
+ * Download global report attachments from Supabase Storage to IndexedDB.
+ * Returns local ReportAttachment[] with blobKey set.
+ * Best-effort — skips attachments that fail to download.
+ */
+async function migrateAttachmentsFromStorage(
+  report: GlobalDailyReport,
+): Promise<Array<{ id: string; fileName: string; fileType: string; mimeType: string; size: number; blobKey: string }>> {
+  const migrated: Array<{ id: string; fileName: string; fileType: string; mimeType: string; size: number; blobKey: string }> = [];
+
+  for (const att of report.attachments) {
+    try {
+      if (!att.storagePath) continue; // No file in storage — skip
+
+      const blob = await downloadFromStorage(att.storagePath);
+      const blobKey = uuid();
+      await saveFileBlob(blobKey, blob);
+      migrated.push({ id: uuid(), fileName: att.fileName, fileType: att.fileType, mimeType: att.mimeType, size: att.size, blobKey });
+    } catch {
+      // Best-effort — skip failed downloads
+    }
+  }
+
+  return migrated;
 }
 
 // ─── Migration ───────────────────────────────────────────────────────────────
@@ -221,7 +281,7 @@ export async function migrateLocalToGlobal(
         deviceIpChanges: report.deviceIpChanges,
         safetyNotes: report.safetyNotes,
         generalNotes: report.generalNotes,
-        attachments: [], // Blob refs cannot migrate
+        attachments: await migrateAttachmentsToStorage(globalProjectId, report),
       });
       if (result.error) throw new Error(result.error);
       migrated.reports++;
@@ -387,6 +447,7 @@ export async function migrateGlobalToLocal(
   for (const report of reports) {
     progress(`Importing report ${migrated.reports + failed.reports + 1}/${reports.length}`);
     try {
+      const localAttachments = await migrateAttachmentsFromStorage(report);
       const localReport: DailyReport = {
         id: uuid(),
         projectId: localProjectId,
@@ -407,7 +468,7 @@ export async function migrateGlobalToLocal(
         deviceIpChanges: report.deviceIpChanges || '',
         safetyNotes: report.safetyNotes || '',
         generalNotes: report.generalNotes || '',
-        attachments: [],
+        attachments: localAttachments,
         createdAt: report.createdAt || now,
         updatedAt: report.updatedAt || now,
       };

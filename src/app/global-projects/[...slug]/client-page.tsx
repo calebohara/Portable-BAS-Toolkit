@@ -1,13 +1,18 @@
 'use client';
 
-import { useState, useMemo, use, useEffect, useCallback } from 'react';
+import { useState, useMemo, use, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   ArrowLeft, LayoutGrid, StickyNote, Server, Network, FileText, FolderOpen,
   History, Users, Plus, Trash2, Edit2, MapPin, Hash, Building2,
   Copy, Check, Clock, User, ClipboardList, ChevronDown, ChevronUp, Pencil, FolderKanban,
+  Upload, X, Download, Image as ImageIcon, ExternalLink,
 } from 'lucide-react';
+import {
+  validateFileSize, isImageFile, buildStoragePath, uploadProjectFile,
+  getPublicUrl, formatBytes,
+} from '@/lib/storage';
 import {
   useGlobalProject,
   useGlobalProjectMembers,
@@ -304,6 +309,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
               onAdd={addFile}
               onUpdate={updateFile}
               onRemove={removeFile}
+              projectId={id}
             />
           )}
 
@@ -1587,6 +1593,8 @@ const DOCUMENT_CATEGORIES = [
   { value: 'sequences', label: 'Sequences' },
   { value: 'backups', label: 'Backups' },
   { value: 'general-documents', label: 'General Documents' },
+  { value: 'photos', label: 'Photos' },
+  { value: 'other', label: 'Other' },
 ] as const;
 
 const DOCUMENT_STATUSES = [
@@ -1596,7 +1604,7 @@ const DOCUMENT_STATUSES = [
 ] as const;
 
 function DocumentsTab({
-  files, getMemberName, currentUserId, isAdmin, onAdd, onUpdate, onRemove,
+  files, getMemberName, currentUserId, isAdmin, onAdd, onUpdate, onRemove, projectId,
 }: {
   files: GlobalProjectFile[];
   getMemberName: (id: string) => string;
@@ -1605,6 +1613,7 @@ function DocumentsTab({
   onAdd: (data: Omit<GlobalProjectFile, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => Promise<unknown>;
   onUpdate: (id: string, data: Partial<GlobalProjectFile>) => Promise<void>;
   onRemove: (id: string) => Promise<void>;
+  projectId: string;
 }) {
   const [showAdd, setShowAdd] = useState(false);
   const [editTarget, setEditTarget] = useState<GlobalProjectFile | null>(null);
@@ -1676,60 +1685,95 @@ function DocumentsTab({
         />
       ) : (
         <div className="space-y-2">
-          {filteredFiles.map((file) => (
-            <Card key={file.id}>
-              <CardContent className="p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <h3 className="text-sm font-semibold truncate">{file.title}</h3>
-                      <Badge variant="secondary" className="text-[10px]">{file.category}</Badge>
-                      <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium', statusColors[file.status] || 'bg-muted text-muted-foreground')}>
-                        {file.status}
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      {file.fileName && <span>File: {file.fileName}</span>}
-                      {file.panelSystem && <span>Panel/System: {file.panelSystem}</span>}
-                      {file.revisionNumber && <span>Rev: {file.revisionNumber}</span>}
-                      {file.revisionDate && <span>Rev Date: {file.revisionDate}</span>}
-                    </div>
-                    {file.notes && (
-                      <p className="mt-1 text-xs text-muted-foreground">{file.notes}</p>
+          {filteredFiles.map((file) => {
+            const fileUrl = file.storagePath ? getPublicUrl(file.storagePath) : null;
+            const isImg = isImageFile(file.mimeType);
+            return (
+              <Card key={file.id}>
+                <CardContent className="p-4">
+                  <div className="flex items-start gap-3">
+                    {/* Thumbnail for images */}
+                    {isImg && fileUrl && (
+                      <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                        <img
+                          src={fileUrl}
+                          alt={file.title}
+                          className="h-16 w-16 rounded-md object-cover border border-border hover:ring-2 hover:ring-primary/40 transition-all"
+                        />
+                      </a>
                     )}
-                  </div>
-                  {canEdit(file) && (
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <button
-                        onClick={() => setEditTarget(file)}
-                        className="rounded p-1.5 hover:bg-muted"
-                        title="Edit"
-                      >
-                        <Edit2 className="h-3 w-3 text-muted-foreground" />
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(file)}
-                        className="rounded p-1.5 hover:bg-muted"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-3 w-3 text-destructive" />
-                      </button>
+                    {!isImg && fileUrl && (
+                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-muted border border-border">
+                        <FileText className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                    )}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="text-sm font-semibold truncate">{file.title}</h3>
+                        <Badge variant="secondary" className="text-[10px]">{file.category}</Badge>
+                        {file.size > 0 && (
+                          <span className="text-[10px] text-muted-foreground">{formatBytes(file.size)}</span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {file.fileName && <span className="truncate">File: {file.fileName}</span>}
+                        {file.panelSystem && <span>Panel/System: {file.panelSystem}</span>}
+                        {file.revisionNumber && <span>Rev: {file.revisionNumber}</span>}
+                        {file.revisionDate && <span>Rev Date: {file.revisionDate}</span>}
+                      </div>
+                      {file.notes && (
+                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{file.notes}</p>
+                      )}
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        Uploaded by {getMemberName(file.createdBy)} &middot; {format(new Date(file.createdAt), 'MMM d, yyyy')}
+                        {file.updatedBy && file.updatedAt !== file.createdAt && (
+                          <span className="text-primary/70"> &middot; Edited {format(new Date(file.updatedAt), 'MMM d h:mm a')}</span>
+                        )}
+                      </p>
                     </div>
-                  )}
-                </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Uploaded by {getMemberName(file.createdBy)} &middot; {format(new Date(file.createdAt), 'MMM d, yyyy')}
-                  {file.updatedBy && file.updatedAt !== file.createdAt && (
-                    <span className="text-primary/70"> &middot; Edited by {getMemberName(file.updatedBy)} {format(new Date(file.updatedAt), 'MMM d h:mm a')}</span>
-                  )}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      {fileUrl && (
+                        <a
+                          href={fileUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded p-1.5 hover:bg-muted"
+                          title="Open / Download"
+                        >
+                          <ExternalLink className="h-3 w-3 text-muted-foreground" />
+                        </a>
+                      )}
+                      {canEdit(file) && (
+                        <>
+                          <button
+                            onClick={() => setEditTarget(file)}
+                            className="rounded p-1.5 hover:bg-muted"
+                            title="Edit"
+                          >
+                            <Edit2 className="h-3 w-3 text-muted-foreground" />
+                          </button>
+                          <button
+                            onClick={() => setDeleteTarget(file)}
+                            className="rounded p-1.5 hover:bg-muted"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3 w-3 text-destructive" />
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
 
-      <AddDocumentDialog open={showAdd} onOpenChange={setShowAdd} onSubmit={onAdd} />
+      <AddDocumentDialog open={showAdd} onOpenChange={setShowAdd} onSubmit={onAdd} projectId={projectId} />
 
       <EditDocumentDialog
         file={editTarget}
@@ -1755,79 +1799,165 @@ function DocumentsTab({
   );
 }
 
-function AddDocumentDialog({ open, onOpenChange, onSubmit }: {
+function AddDocumentDialog({ open, onOpenChange, onSubmit, projectId }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   onSubmit: (data: Omit<GlobalProjectFile, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => Promise<unknown>;
+  projectId: string;
 }) {
   const [saving, setSaving] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({
-    title: '', fileName: '', fileType: '', mimeType: '',
-    category: 'general-documents', panelSystem: '',
-    revisionNumber: '', revisionDate: '', notes: '', status: 'current',
+    title: '',
+    category: 'general-documents',
+    panelSystem: '',
+    notes: '',
   });
 
   const updateField = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
+
+  const handleFileSelect = (selected: File | null) => {
+    if (!selected) return;
+    const sizeError = validateFileSize(selected);
+    if (sizeError) { toast.error(sizeError); return; }
+    setFile(selected);
+    if (!form.title) {
+      setForm(f => ({ ...f, title: selected.name.replace(/\.[^.]+$/, '') }));
+    }
+    // Auto-detect category for images
+    if (isImageFile(selected.type)) {
+      setForm(f => ({ ...f, category: 'photos' }));
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOver(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) handleFileSelect(dropped);
+  };
+
+  const resetForm = () => {
+    setFile(null);
+    setForm({ title: '', category: 'general-documents', panelSystem: '', notes: '' });
+    setDragOver(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim()) return;
     setSaving(true);
     try {
+      let storagePath: string | null = null;
+      let fileName = '';
+      let fileType = '';
+      let mimeType = '';
+      let size = 0;
+
+      if (file) {
+        fileName = file.name;
+        fileType = file.name.split('.').pop() || '';
+        mimeType = file.type || 'application/octet-stream';
+        size = file.size;
+        storagePath = buildStoragePath(projectId, file.name);
+        await uploadProjectFile(file, storagePath);
+      }
+
       await onSubmit({
         title: form.title.trim(),
-        fileName: form.fileName.trim(),
-        fileType: form.fileType.trim(),
-        mimeType: form.mimeType.trim(),
+        fileName,
+        fileType,
+        mimeType,
         category: form.category,
         panelSystem: form.panelSystem.trim() || null,
-        revisionNumber: form.revisionNumber.trim(),
-        revisionDate: form.revisionDate.trim(),
+        revisionNumber: '',
+        revisionDate: '',
         notes: form.notes.trim(),
-        status: form.status,
+        status: 'current',
         tags: [],
         isPinned: false,
-        size: 0,
-        storagePath: null,
+        size,
+        storagePath,
         versions: [],
         updatedBy: null,
         deletedAt: null,
       });
-      setForm({ title: '', fileName: '', fileType: '', mimeType: '', category: 'general-documents', panelSystem: '', revisionNumber: '', revisionDate: '', notes: '', status: 'current' });
+      resetForm();
       onOpenChange(false);
-      toast.success('Document added');
-    } catch {
-      toast.error('Failed to add document');
+      toast.success(file ? 'File uploaded' : 'Document added');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add document');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add Document</DialogTitle>
-          <DialogDescription>Add a project document record. File upload coming soon.</DialogDescription>
+          <DialogTitle>Upload Document / Photo</DialogTitle>
+          <DialogDescription>
+            Upload a file to this project. Photos: 5MB max. Documents: 50MB max.
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
           <DialogBody className="px-5 py-4 space-y-4">
+            {/* Drop zone */}
+            <div
+              className={cn(
+                'relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors cursor-pointer',
+                dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40',
+                file && 'border-field-success/50 bg-field-success/5'
+              )}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+              onDragLeave={() => setDragOver(false)}
+              onDrop={handleDrop}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="*"
+                className="hidden"
+                onChange={(e) => { handleFileSelect(e.target.files?.[0] || null); if (e.target) e.target.value = ''; }}
+              />
+              {file ? (
+                <div className="text-center">
+                  {isImageFile(file.type) && (
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt="Preview"
+                      className="mx-auto mb-2 max-h-24 rounded-md object-contain"
+                    />
+                  )}
+                  <p className="text-sm font-medium truncate max-w-[280px]">{file.name}</p>
+                  <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
+                  <button
+                    type="button"
+                    className="absolute top-2 right-2 rounded p-1 hover:bg-muted"
+                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <Upload className="h-8 w-8 text-muted-foreground" />
+                  <div className="text-center">
+                    <p className="text-sm font-medium">Drop file here or click to browse</p>
+                    <p className="text-xs text-muted-foreground">Photos, PDFs, drawings, or any document</p>
+                  </div>
+                </>
+              )}
+            </div>
+
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="doc-title">Title *</Label>
-                <Input id="doc-title" placeholder="e.g. AHU-1 Sequence of Operations" value={form.title} onChange={(e) => updateField('title', e.target.value)} required autoFocus />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="doc-filename">File Name</Label>
-                <Input id="doc-filename" placeholder="e.g. AHU1_SOO_v2.pdf" value={form.fileName} onChange={(e) => updateField('fileName', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="doc-filetype">File Type</Label>
-                <Input id="doc-filetype" placeholder="e.g. pdf, dwg, csv" value={form.fileType} onChange={(e) => updateField('fileType', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="doc-mimetype">MIME Type</Label>
-                <Input id="doc-mimetype" placeholder="e.g. application/pdf" value={form.mimeType} onChange={(e) => updateField('mimeType', e.target.value)} />
+                <Input id="doc-title" placeholder="e.g. AHU-1 Panel Photo" value={form.title} onChange={(e) => updateField('title', e.target.value)} required />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="doc-category">Category</Label>
@@ -1846,27 +1976,6 @@ function AddDocumentDialog({ open, onOpenChange, onSubmit }: {
                 <Label htmlFor="doc-panel">Panel / System</Label>
                 <Input id="doc-panel" placeholder="e.g. MEC-1" value={form.panelSystem} onChange={(e) => updateField('panelSystem', e.target.value)} />
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="doc-revnum">Revision Number</Label>
-                <Input id="doc-revnum" placeholder="e.g. Rev 2" value={form.revisionNumber} onChange={(e) => updateField('revisionNumber', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="doc-revdate">Revision Date</Label>
-                <Input id="doc-revdate" type="date" value={form.revisionDate} onChange={(e) => updateField('revisionDate', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="doc-status">Status</Label>
-                <select
-                  id="doc-status"
-                  value={form.status}
-                  onChange={(e) => updateField('status', e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {DOCUMENT_STATUSES.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="doc-notes">Notes</Label>
                 <Textarea id="doc-notes" placeholder="Any notes about this document..." value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={2} />
@@ -1874,9 +1983,9 @@ function AddDocumentDialog({ open, onOpenChange, onSubmit }: {
             </div>
           </DialogBody>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => { resetForm(); onOpenChange(false); }}>Cancel</Button>
             <Button type="submit" disabled={saving || !form.title.trim()}>
-              {saving ? 'Adding...' : 'Add Document'}
+              {saving ? 'Uploading...' : file ? 'Upload' : 'Add Record'}
             </Button>
           </DialogFooter>
         </form>

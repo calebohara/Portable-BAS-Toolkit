@@ -120,7 +120,8 @@ export interface GlobalReportAttachment {
   fileType: string;
   mimeType: string;
   size: number;
-  storagePath?: string;
+  /** Path in Supabase Storage (project-files bucket). Null for legacy metadata-only entries. */
+  storagePath: string | null;
 }
 
 export interface GlobalDailyReport {
