@@ -1372,43 +1372,41 @@ export default function TelnetPage() {
           </button>
 
           {connPanelOpen && (
-            <div className="px-4 pb-3 space-y-3">
-              {/* Connection mode + label row */}
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1.5">
-                  <Label className="text-xs">Mode</Label>
+            <div className="px-4 pb-2.5 space-y-2">
+              {/* Row 1: Mode, Label, Port/Host fields — all inline */}
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="w-[100px]">
+                  <Label className="text-[10px] text-muted-foreground mb-0.5 block">Mode</Label>
                   <Select
                     value={session.connectionMode ?? 'serial'}
                     onValueChange={v => v && updateSession(session.id, { connectionMode: v as ConnectionMode })}
                   >
-                    <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {CONNECTION_MODES.map(m => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="term-label" className="text-xs">Session Label</Label>
+                <div className="min-w-[140px] flex-1 max-w-[220px]">
+                  <Label className="text-[10px] text-muted-foreground mb-0.5 block">Session Label</Label>
                   <Input
-                    id="term-label"
                     value={session.label}
                     onChange={e => updateSession(session.id, { label: e.target.value })}
                     placeholder="Panel A"
-                    className="h-8 text-xs"
+                    className="h-7 text-xs"
                   />
                 </div>
 
                 {session.connectionMode === 'serial' ? (
                   <>
-                    {/* Serial: Port selector + Refresh */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Serial Port</Label>
+                    <div className="min-w-[180px] flex-1 max-w-[280px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Serial Port</Label>
                       <div className="flex gap-1">
                         <Select
                           value={session.serialPort}
                           onValueChange={v => v && updateSession(session.id, { serialPort: v })}
                         >
-                          <SelectTrigger className="h-8 text-xs flex-1"><SelectValue placeholder="Select port..." /></SelectTrigger>
+                          <SelectTrigger className="h-7 text-xs flex-1"><SelectValue placeholder="Select port..." /></SelectTrigger>
                           <SelectContent>
                             {availablePorts.map(p => (
                               <SelectItem key={p.name} value={p.name}>{p.name} — {p.description}</SelectItem>
@@ -1418,18 +1416,18 @@ export default function TelnetPage() {
                             )}
                           </SelectContent>
                         </Select>
-                        <Button size="sm" variant="outline" className="h-8 px-2" onClick={refreshPorts} title="Refresh ports">
+                        <Button size="sm" variant="outline" className="h-7 w-7 p-0" onClick={refreshPorts} title="Refresh ports">
                           <RotateCcw className="h-3 w-3" />
                         </Button>
                       </div>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs">Baud Rate</Label>
+                    <div className="w-[110px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Baud Rate</Label>
                       <Select
                         value={String(session.baudRate)}
                         onValueChange={v => v && updateSession(session.id, { baudRate: Number(v) as BaudRate })}
                       >
-                        <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {BAUD_RATES.map(br => <SelectItem key={br} value={String(br)}>{br.toLocaleString()}</SelectItem>)}
                         </SelectContent>
@@ -1438,227 +1436,221 @@ export default function TelnetPage() {
                   </>
                 ) : (
                   <>
-                    {/* TCP: Host + Port */}
-                    <div className="space-y-1.5">
-                      <Label htmlFor="term-host" className="text-xs">Host / IP Address</Label>
+                    <div className="min-w-[140px] flex-1 max-w-[200px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Host / IP</Label>
                       <Input
-                        id="term-host"
                         value={session.host}
                         onChange={e => updateSession(session.id, { host: e.target.value })}
                         placeholder="10.40.1.10"
-                        className="h-8 text-xs font-mono"
+                        className="h-7 text-xs font-mono"
                       />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="term-port" className="text-xs">Port</Label>
+                    <div className="w-[70px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Port</Label>
                       <Input
-                        id="term-port"
                         type="number"
                         value={session.port}
                         onChange={e => updateSession(session.id, { port: parseInt(e.target.value) || 23 })}
-                        className="h-8 text-xs font-mono"
+                        className="h-7 text-xs font-mono"
                       />
                     </div>
                   </>
                 )}
               </div>
 
-              {/* Serial-specific: Data Bits, Parity, Stop Bits, Flow Control, Line Ending */}
-              {session.connectionMode === 'serial' && (
-                <div className="grid gap-3 grid-cols-2 sm:grid-cols-5">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Data Bits</Label>
-                    <Select
-                      value={String(session.dataBits ?? 8)}
-                      onValueChange={v => v && updateSession(session.id, { dataBits: Number(v) as DataBits })}
-                    >
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {DATA_BITS_OPTIONS.map(d => <SelectItem key={d} value={String(d)}>{d}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Parity</Label>
-                    <Select
-                      value={session.parity ?? 'none'}
-                      onValueChange={v => v && updateSession(session.id, { parity: v as Parity })}
-                    >
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {PARITY_OPTIONS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Stop Bits</Label>
-                    <Select
-                      value={session.stopBits ?? '1'}
-                      onValueChange={v => v && updateSession(session.id, { stopBits: v as StopBits })}
-                    >
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {STOP_BITS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Flow Control</Label>
-                    <Select
-                      value={session.flowControl ?? 'none'}
-                      onValueChange={v => v && updateSession(session.id, { flowControl: v as FlowControl })}
-                    >
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {FLOW_CONTROL_OPTIONS.map(fc => <SelectItem key={fc.value} value={fc.value}>{fc.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Line Ending</Label>
-                    <Select
-                      value={session.lineEnding}
-                      onValueChange={v => v && updateSession(session.id, { lineEnding: v as LineEnding })}
-                    >
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {LINE_ENDINGS.map(le => <SelectItem key={le.value} value={le.value}>{le.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
+              {/* Row 2: Secondary settings + toggles — all in one compact row */}
+              <div className="flex flex-wrap items-end gap-2">
+                {session.connectionMode === 'serial' ? (
+                  <>
+                    <div className="w-[72px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Data Bits</Label>
+                      <Select
+                        value={String(session.dataBits ?? 8)}
+                        onValueChange={v => v && updateSession(session.id, { dataBits: Number(v) as DataBits })}
+                      >
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {DATA_BITS_OPTIONS.map(d => <SelectItem key={d} value={String(d)}>{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-[80px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Parity</Label>
+                      <Select
+                        value={session.parity ?? 'none'}
+                        onValueChange={v => v && updateSession(session.id, { parity: v as Parity })}
+                      >
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {PARITY_OPTIONS.map(p => <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-[72px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Stop Bits</Label>
+                      <Select
+                        value={session.stopBits ?? '1'}
+                        onValueChange={v => v && updateSession(session.id, { stopBits: v as StopBits })}
+                      >
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {STOP_BITS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-[90px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Flow Ctrl</Label>
+                      <Select
+                        value={session.flowControl ?? 'none'}
+                        onValueChange={v => v && updateSession(session.id, { flowControl: v as FlowControl })}
+                      >
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {FLOW_CONTROL_OPTIONS.map(fc => <SelectItem key={fc.value} value={fc.value}>{fc.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-[80px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Line End</Label>
+                      <Select
+                        value={session.lineEnding}
+                        onValueChange={v => v && updateSession(session.id, { lineEnding: v as LineEnding })}
+                      >
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {LINE_ENDINGS.map(le => <SelectItem key={le.value} value={le.value}>{le.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-[110px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Baud Rate</Label>
+                      <Select
+                        value={String(session.baudRate)}
+                        onValueChange={v => v && updateSession(session.id, { baudRate: Number(v) as BaudRate })}
+                      >
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {BAUD_RATES.map(br => <SelectItem key={br} value={String(br)}>{br.toLocaleString()}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="w-[80px]">
+                      <Label className="text-[10px] text-muted-foreground mb-0.5 block">Line End</Label>
+                      <Select
+                        value={session.lineEnding}
+                        onValueChange={v => v && updateSession(session.id, { lineEnding: v as LineEnding })}
+                      >
+                        <SelectTrigger className="h-7 text-xs"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          {LINE_ENDINGS.map(le => <SelectItem key={le.value} value={le.value}>{le.label}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
 
-              {/* TCP-specific: Baud Rate + Line Ending */}
-              {session.connectionMode !== 'serial' && (
-                <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Baud Rate</Label>
-                    <Select
-                      value={String(session.baudRate)}
-                      onValueChange={v => v && updateSession(session.id, { baudRate: Number(v) as BaudRate })}
-                    >
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {BAUD_RATES.map(br => <SelectItem key={br} value={String(br)}>{br.toLocaleString()}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Line Ending</Label>
-                    <Select
-                      value={session.lineEnding}
-                      onValueChange={v => v && updateSession(session.id, { lineEnding: v as LineEnding })}
-                    >
-                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        {LINE_ENDINGS.map(le => <SelectItem key={le.value} value={le.value}>{le.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              )}
+                {/* Divider */}
+                <div className="border-l border-border h-7 mx-0.5" />
 
-              {/* Toggles row */}
-              <div className="flex flex-wrap items-center gap-4">
-                <label className="flex items-center gap-2 text-xs">
+                {/* Toggles inline */}
+                <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer h-7">
                   <Switch
                     checked={session.localEcho}
                     onCheckedChange={c => updateSession(session.id, { localEcho: !!c })}
                     size="sm"
                   />
-                  Local Echo
+                  Echo
                 </label>
-                <label className="flex items-center gap-2 text-xs">
+                <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer h-7">
                   <Switch
                     checked={session.lineMode}
                     onCheckedChange={c => updateSession(session.id, { lineMode: !!c })}
                     size="sm"
                   />
-                  Line Mode
+                  Line
                 </label>
-                <label className="flex items-center gap-2 text-xs">
+                <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer h-7">
                   <Switch
                     checked={session.logging}
                     onCheckedChange={() => toggleLogging(session.id)}
                     size="sm"
                   />
-                  Logging
+                  Log
                 </label>
               </div>
 
-              {/* Connection buttons */}
-              <div className="flex flex-wrap gap-2">
+              {/* Row 3: Action buttons — compact single row */}
+              <div className="flex flex-wrap items-center gap-1.5">
                 {session.connectionState === 'disconnected' || session.connectionState === 'error' ? (
                   <>
-                    <Button size="sm" onClick={handleConnect} className="gap-1.5 h-8">
-                      <Plug className="h-3.5 w-3.5" /> Connect
+                    <Button size="sm" onClick={handleConnect} className="gap-1 h-7 text-xs px-2.5">
+                      <Plug className="h-3 w-3" /> Connect
                     </Button>
                     {session.connectionMode !== 'serial' && (
-                      <Button size="sm" variant="outline" onClick={handleTestPort} className="gap-1.5 h-8">
-                        <Search className="h-3.5 w-3.5" /> Test Port
+                      <Button size="sm" variant="outline" onClick={handleTestPort} className="gap-1 h-7 text-xs px-2.5">
+                        <Search className="h-3 w-3" /> Test Port
                       </Button>
                     )}
                   </>
                 ) : session.connectionState === 'connected' ? (
                   <>
-                    <Button size="sm" variant="destructive" onClick={() => handleDisconnect()} className="gap-1.5 h-8">
-                      <Unplug className="h-3.5 w-3.5" /> Disconnect
+                    <Button size="sm" variant="destructive" onClick={() => handleDisconnect()} className="gap-1 h-7 text-xs px-2.5">
+                      <Unplug className="h-3 w-3" /> Disconnect
                     </Button>
-                    <Button size="sm" variant="outline" onClick={handleReconnect} className="gap-1.5 h-8">
-                      <RotateCcw className="h-3.5 w-3.5" /> Reconnect
+                    <Button size="sm" variant="outline" onClick={handleReconnect} className="gap-1 h-7 text-xs px-2.5">
+                      <RotateCcw className="h-3 w-3" /> Reconnect
                     </Button>
                   </>
                 ) : (
-                  <Button size="sm" variant="outline" disabled className="gap-1.5 h-8">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Connecting...
+                  <Button size="sm" variant="outline" disabled className="gap-1 h-7 text-xs px-2.5">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Connecting...
                   </Button>
                 )}
 
-                <div className="border-l border-border" />
+                <div className="border-l border-border h-5" />
 
-                <Button size="sm" variant="outline" onClick={() => clearBuffer(session.id)} className="gap-1.5 h-8">
-                  <Trash2 className="h-3.5 w-3.5" /> Clear
+                <Button size="sm" variant="ghost" onClick={() => clearBuffer(session.id)} className="gap-1 h-7 text-xs px-2">
+                  <Trash2 className="h-3 w-3" /> Clear
                 </Button>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => togglePause(session.id)}
-                  className="gap-1.5 h-8"
+                  className="gap-1 h-7 text-xs px-2"
                 >
                   {session.paused
-                    ? <><Play className="h-3.5 w-3.5" /> Resume</>
-                    : <><Pause className="h-3.5 w-3.5" /> Pause</>
+                    ? <><Play className="h-3 w-3" /> Resume</>
+                    : <><Pause className="h-3 w-3" /> Pause</>
                   }
                 </Button>
-
-                <div className="border-l border-border" />
-
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="ghost"
                   onClick={handleExport}
                   disabled={session.buffer.length === 0}
-                  className="gap-1.5 h-8"
+                  className="gap-1 h-7 text-xs px-2"
                 >
-                  <Download className="h-3.5 w-3.5" /> Export .txt
+                  <Download className="h-3 w-3" /> Export
                 </Button>
                 <Button
                   size="sm"
-                  variant="outline"
+                  variant="ghost"
                   onClick={() => setShowAttach(true)}
                   disabled={session.buffer.length === 0}
-                  className="gap-1.5 h-8"
+                  className="gap-1 h-7 text-xs px-2"
                 >
-                  <Paperclip className="h-3.5 w-3.5" /> Attach to Project
+                  <Paperclip className="h-3 w-3" /> Attach
                 </Button>
 
-                <div className="ml-auto flex gap-1">
+                <div className="ml-auto flex gap-0.5">
                   <Button
                     size="sm"
                     variant={showProfiles ? 'secondary' : 'ghost'}
                     onClick={() => setShowProfiles(!showProfiles)}
-                    className="h-8 w-8 p-0"
+                    className="h-7 w-7 p-0"
                     title="Connection profiles"
                   >
                     <Wifi className="h-3.5 w-3.5" />
@@ -1667,7 +1659,7 @@ export default function TelnetPage() {
                     size="sm"
                     variant={showSnippets ? 'secondary' : 'ghost'}
                     onClick={() => { setShowSnippets(!showSnippets); setShowHistory(false); setShowSettings(false); setShowNotes(false); }}
-                    className="h-8 w-8 p-0"
+                    className="h-7 w-7 p-0"
                     title="Command snippets"
                   >
                     <BookmarkPlus className="h-3.5 w-3.5" />
@@ -1676,7 +1668,7 @@ export default function TelnetPage() {
                     size="sm"
                     variant={showNotes ? 'secondary' : 'ghost'}
                     onClick={() => { setShowNotes(!showNotes); setShowHistory(false); setShowSettings(false); setShowSnippets(false); }}
-                    className="h-8 w-8 p-0"
+                    className="h-7 w-7 p-0"
                     title="Session notes"
                   >
                     <StickyNote className="h-3.5 w-3.5" />
@@ -1685,7 +1677,7 @@ export default function TelnetPage() {
                     size="sm"
                     variant={showHistory ? 'secondary' : 'ghost'}
                     onClick={() => { setShowHistory(!showHistory); setShowSettings(false); setShowSnippets(false); setShowNotes(false); }}
-                    className="h-8 w-8 p-0"
+                    className="h-7 w-7 p-0"
                     title="Session history"
                   >
                     <History className="h-3.5 w-3.5" />
@@ -1694,7 +1686,7 @@ export default function TelnetPage() {
                     size="sm"
                     variant={showSettings ? 'secondary' : 'ghost'}
                     onClick={() => { setShowSettings(!showSettings); setShowHistory(false); setShowSnippets(false); setShowNotes(false); }}
-                    className="h-8 w-8 p-0"
+                    className="h-7 w-7 p-0"
                     title="Terminal settings"
                   >
                     <Settings2 className="h-3.5 w-3.5" />

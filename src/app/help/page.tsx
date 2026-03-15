@@ -6,6 +6,7 @@ import {
   Database, Network, StickyNote, FileText, Download, Settings,
   ChevronDown, ChevronRight, Wifi, WifiOff, Palette, Share2,
   Monitor, Smartphone, Shield, Activity, TerminalSquare, BookmarkPlus,
+  Users2, BookOpen, Cloud, MessageSquare, Calculator, RefreshCw,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -156,6 +157,62 @@ const featureGuides = [
       'Export results as .txt file with full statistics',
     ],
   },
+  {
+    icon: Calculator,
+    title: 'Register Tool',
+    items: [
+      'Calculate BACnet, Modbus, and LonWorks register values',
+      'Convert between decimal, hex, binary, and register formats',
+      'Useful for commissioning and troubleshooting field devices',
+    ],
+  },
+  {
+    icon: Users2,
+    title: 'Global Projects (Shared)',
+    items: [
+      'Cloud-hosted projects shared across your team in real time',
+      'Direct messaging between team members within each project',
+      'Real-time presence indicators show who is currently online',
+      'All team members see the same project data with live updates',
+      'Requires Supabase authentication and an approved account',
+    ],
+  },
+  {
+    icon: BookOpen,
+    title: 'Knowledge Base',
+    items: [
+      'Shared article library for technical documentation and guides',
+      'Create articles with rich text, categories, and file attachments',
+      'Search and filter articles by category or keyword',
+      'Reply to articles with threaded comments and discussions',
+      'Upload attachments stored in Supabase cloud storage',
+      'Full-text search powered by PostgreSQL',
+    ],
+  },
+  {
+    icon: Cloud,
+    title: 'Cloud Sync & Offline',
+    items: [
+      'Automatic two-way sync between local IndexedDB and Supabase cloud',
+      'Offline-first — all data works without internet, syncs when reconnected',
+      'Conflict resolution UI when local and cloud data diverge',
+      'Sync status indicator shows pending changes, errors, and conflicts',
+      'File uploads stored in Supabase Storage with project organization',
+      'Realtime subscriptions push live updates to all connected clients',
+    ],
+  },
+  {
+    icon: Shield,
+    title: 'Authentication & Account Management',
+    items: [
+      'Optional Supabase-based sign-in for cloud features',
+      'Account approval gate — new accounts require admin approval before access',
+      'User inbox for system notifications and account status updates',
+      'Online presence tracking shows active users in the sidebar',
+      'Account deletion with full data cleanup',
+      'Works fully offline without an account — cloud features are opt-in',
+    ],
+  },
 ];
 
 // ─── FAQ ────────────────────────────────────────────────────────────────────────
@@ -163,7 +220,7 @@ const featureGuides = [
 const faqItems = [
   {
     q: 'Where is my data stored?',
-    a: 'All data is stored locally in your browser using IndexedDB. Nothing is sent to a server. Your data stays on your device.',
+    a: 'All data is stored locally in your browser using IndexedDB. If you sign in and enable cloud sync, data is also synced to Supabase. Local data always works offline — cloud sync is optional.',
   },
   {
     q: 'Will I lose my data if I clear my browser?',
@@ -187,19 +244,23 @@ const faqItems = [
   },
   {
     q: 'How does offline mode work?',
-    a: 'All your data is already stored locally. Pin projects from the Offline / Pinned page to mark them for offline priority. The Service Worker caches the app shell so it loads instantly without internet.',
+    a: 'All your data is stored locally in IndexedDB and works without internet. Pin projects from the Offline / Pinned page for priority access. When you reconnect, pending changes sync automatically to the cloud if you\'re signed in.',
   },
   {
     q: 'Can I share data between devices?',
-    a: 'Currently, use the Share/Export feature to export project data as JSON, then import on another device. Cloud sync is planned for a future release.',
+    a: 'Yes — sign in with your account and enable cloud sync. Your projects, devices, IP plans, and notes sync automatically across all your devices. You can also export project data as JSON from the Share menu.',
   },
   {
     q: 'Do I need to sign in?',
-    a: 'No — signing in is completely optional. The app works fully without an account. Authentication prepares the foundation for future cloud sync. If Supabase is not configured, the sign-in option won\'t appear at all.',
+    a: 'No — signing in is completely optional. The app works fully without an account. Sign in to unlock cloud sync, global projects, knowledge base, and team messaging. If Supabase is not configured, the sign-in option won\'t appear at all.',
   },
   {
     q: 'What happens to my data when I sign in?',
-    a: 'Nothing changes. All data remains stored locally in IndexedDB on your device. Signing in currently only establishes your identity — no data is synced to the cloud yet. Cloud sync is a future milestone.',
+    a: 'Your local data stays in IndexedDB. When cloud sync is enabled, data syncs bidirectionally with Supabase. If there are conflicts (e.g., same record edited on two devices), the sync conflict resolver lets you choose which version to keep.',
+  },
+  {
+    q: 'What is the account approval process?',
+    a: 'After signing up, your account must be approved by an administrator before you can access cloud features like global projects, knowledge base, and team messaging. You\'ll receive a notification in your inbox when approved.',
   },
 ];
 
@@ -402,6 +463,14 @@ export default function HelpPage() {
               <li className="flex gap-2">
                 <WifiOff className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
                 <span><strong className="text-foreground">No internet needed.</strong> All data stays local. The app works fully offline after first load.</span>
+              </li>
+              <li className="flex gap-2">
+                <Cloud className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
+                <span><strong className="text-foreground">Enable cloud sync.</strong> Sign in to sync your data across devices and collaborate with your team.</span>
+              </li>
+              <li className="flex gap-2">
+                <RefreshCw className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
+                <span><strong className="text-foreground">Check sync status.</strong> The sync indicator in the sidebar shows pending changes, errors, and conflicts.</span>
               </li>
             </ul>
           </CardContent>
