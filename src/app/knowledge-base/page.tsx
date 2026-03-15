@@ -197,68 +197,77 @@ export default function KnowledgeBasePage() {
               <DialogHeader>
                 <DialogTitle>New Knowledge Base Article</DialogTitle>
               </DialogHeader>
-              <div className="space-y-3 pt-2">
+              <div className="space-y-4 px-5 py-5">
                 {/* Subject */}
-                <Input
-                  placeholder="Subject *"
-                  value={newSubject}
-                  onChange={(e) => setNewSubject(e.target.value)}
-                />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Subject <span className="text-destructive">*</span></label>
+                  <Input
+                    placeholder="Enter article subject..."
+                    value={newSubject}
+                    onChange={(e) => setNewSubject(e.target.value)}
+                  />
+                </div>
 
                 {/* Category */}
-                {!showNewCategory ? (
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={newCategoryId}
-                      onChange={(e) => setNewCategoryId(e.target.value)}
-                      className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
-                    >
-                      <option value="">Select category *</option>
-                      {categories.map((c) => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="shrink-0 gap-1 text-xs"
-                      onClick={() => setShowNewCategory(true)}
-                    >
-                      <Plus className="h-3 w-3" />
-                      New
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <Input
-                      placeholder="New category name *"
-                      value={newCategoryName}
-                      onChange={(e) => setNewCategoryName(e.target.value)}
-                      className="flex-1"
-                      autoFocus
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-xs"
-                      onClick={() => { setShowNewCategory(false); setNewCategoryName(''); }}
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                )}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Category <span className="text-destructive">*</span></label>
+                  {!showNewCategory ? (
+                    <div className="flex items-center gap-2">
+                      <select
+                        value={newCategoryId}
+                        onChange={(e) => setNewCategoryId(e.target.value)}
+                        className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+                      >
+                        <option value="">Select category...</option>
+                        {categories.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="shrink-0 gap-1 text-xs"
+                        onClick={() => setShowNewCategory(true)}
+                      >
+                        <Plus className="h-3 w-3" />
+                        New
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        placeholder="New category name..."
+                        value={newCategoryName}
+                        onChange={(e) => setNewCategoryName(e.target.value)}
+                        className="flex-1"
+                        autoFocus
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-xs"
+                        onClick={() => { setShowNewCategory(false); setNewCategoryName(''); }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+                </div>
 
                 {/* Body */}
-                <textarea
-                  placeholder="Write your article content..."
-                  value={newBody}
-                  onChange={(e) => setNewBody(e.target.value)}
-                  rows={6}
-                  className="flex w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
-                />
+                <div className="space-y-1.5">
+                  <label className="text-xs font-medium text-muted-foreground">Content</label>
+                  <textarea
+                    placeholder="Write your article content..."
+                    value={newBody}
+                    onChange={(e) => setNewBody(e.target.value)}
+                    rows={6}
+                    className="flex w-full rounded-md border border-input bg-background px-3 py-2.5 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                  />
+                </div>
 
                 {/* File Attachments */}
-                <div>
+                <div className="space-y-2">
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -277,11 +286,11 @@ export default function KnowledgeBasePage() {
                     <span className="text-muted-foreground">(max 25MB)</span>
                   </Button>
                   {pendingFiles.length > 0 && (
-                    <div className="mt-2 space-y-1">
+                    <div className="space-y-1.5">
                       {pendingFiles.map((f, i) => (
                         <div
                           key={`${f.name}-${i}`}
-                          className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-2.5 py-1.5 text-xs"
+                          className="flex items-center gap-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs"
                         >
                           <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                           <span className="truncate flex-1">{f.name}</span>
@@ -299,7 +308,7 @@ export default function KnowledgeBasePage() {
                 </div>
 
                 {/* Submit */}
-                <div className="flex justify-end pt-1">
+                <div className="flex justify-end pt-2 border-t border-border">
                   <Button
                     onClick={handlePost}
                     disabled={!newSubject.trim() || posting || (!newCategoryId && !newCategoryName.trim())}
