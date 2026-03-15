@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { getSupabaseClient } from '@/lib/supabase/client';
 import type {
   GlobalProject,
   GlobalProjectMember,
@@ -78,6 +79,37 @@ function buildChangeSummary(
     }
   }
   return changes.join('\n');
+}
+
+/**
+ * Subscribe to realtime changes on a Supabase table.
+ * Returns a cleanup function for useEffect.
+ */
+function useRealtimeRefresh(
+  table: string,
+  refresh: () => void,
+  filter?: string,
+) {
+  useEffect(() => {
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const channelName = filter ? `rt-${table}-${filter}` : `rt-${table}`;
+    const subConfig: {
+      event: '*';
+      schema: 'public';
+      table: string;
+      filter?: string;
+    } = { event: '*', schema: 'public', table };
+    if (filter) subConfig.filter = filter;
+
+    const channel = client
+      .channel(channelName)
+      .on('postgres_changes', subConfig, () => { refresh(); })
+      .subscribe();
+
+    return () => { client.removeChannel(channel); };
+  }, [table, refresh, filter]);
 }
 
 // ─── useGlobalProjects ─────────────────────────────────────
@@ -202,6 +234,9 @@ export function useGlobalProjectMembers(projectId: string | undefined) {
     refresh();
   }, [refresh]);
 
+  // Realtime: refresh when members change for this project
+  useRealtimeRefresh('global_project_members', refresh, projectId ? `global_project_id=eq.${projectId}` : undefined);
+
   const removeMemberFn = useCallback(
     async (userId: string) => {
       if (!projectId) return;
@@ -260,6 +295,9 @@ export function useGlobalProjectNotes(projectId: string | undefined) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Realtime: refresh when notes change for this project
+  useRealtimeRefresh('global_field_notes', refresh, projectId ? `global_project_id=eq.${projectId}` : undefined);
 
   const addNoteFn = useCallback(
     async (data: Omit<GlobalFieldNote, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => {
@@ -331,6 +369,9 @@ export function useGlobalProjectDevices(projectId: string | undefined) {
     refresh();
   }, [refresh]);
 
+  // Realtime: refresh when devices change for this project
+  useRealtimeRefresh('global_devices', refresh, projectId ? `global_project_id=eq.${projectId}` : undefined);
+
   const addDeviceFn = useCallback(
     async (data: Omit<GlobalDevice, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => {
       if (!projectId) return;
@@ -397,6 +438,9 @@ export function useGlobalProjectIpPlan(projectId: string | undefined) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Realtime: refresh when IP plan entries change for this project
+  useRealtimeRefresh('global_ip_plan', refresh, projectId ? `global_project_id=eq.${projectId}` : undefined);
 
   const addEntryFn = useCallback(
     async (data: Omit<GlobalIpPlanEntry, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => {
@@ -465,6 +509,9 @@ export function useGlobalProjectReports(projectId: string | undefined) {
     refresh();
   }, [refresh]);
 
+  // Realtime: refresh when reports change for this project
+  useRealtimeRefresh('global_daily_reports', refresh, projectId ? `global_project_id=eq.${projectId}` : undefined);
+
   const addReportFn = useCallback(
     async (data: Omit<GlobalDailyReport, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => {
       if (!projectId) return;
@@ -532,6 +579,9 @@ export function useGlobalProjectFiles(projectId: string | undefined) {
     refresh();
   }, [refresh]);
 
+  // Realtime: refresh when files change for this project
+  useRealtimeRefresh('global_project_files', refresh, projectId ? `global_project_id=eq.${projectId}` : undefined);
+
   const addFileFn = useCallback(
     async (data: Omit<GlobalProjectFile, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId' | 'versions'>) => {
       if (!projectId) return;
@@ -598,6 +648,9 @@ export function useGlobalProjectActivity(projectId: string | undefined) {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Realtime: refresh when activity log changes for this project
+  useRealtimeRefresh('global_activity_log', refresh, projectId ? `global_project_id=eq.${projectId}` : undefined);
 
   const logActivityFn = useCallback(
     async (action: string, details: string) => {
@@ -712,6 +765,9 @@ export function useGlobalMessages() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  // Realtime: refresh when any global message is inserted, updated, or deleted
+  useRealtimeRefresh('global_messages', refresh);
 
   const postMessage = useCallback(
     async (subject: string, body: string, globalProjectId?: string | null, parentId?: string | null) => {
