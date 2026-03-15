@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { SyncEntityType, SyncQueueItem } from '@/types';
+import type { SyncEntityType, SyncQueueItem, SyncConflict } from '@/types';
 import {
   addSyncItem, getPendingSyncItems, updateSyncItem, deleteSyncItem,
   getSyncQueueCount, getAllFromStore, clearSyncQueue,
   bulkPutSilent, bulkDeleteSilent,
+  addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
 } from '@/lib/db';
 import { entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER, fromSupabaseRow, isDeletedRow, REQUIRES_PROJECT_ID } from './field-map';
 import type { SyncManagerInterface } from './sync-bridge';
@@ -14,6 +15,7 @@ const BATCH_SIZE = 20;
 const LOG_PREFIX = '[sync]';
 
 type StatusCallback = (status: 'idle' | 'syncing' | 'error', pendingCount: number) => void;
+type ConflictCallback = (count: number) => void;
 
 export class SyncManager implements SyncManagerInterface {
   private client: SupabaseClient;
@@ -21,6 +23,7 @@ export class SyncManager implements SyncManagerInterface {
   private intervalId: ReturnType<typeof setInterval> | null = null;
   private processing = false;
   private onStatusChange: StatusCallback | null = null;
+  private onConflictCountChange: ConflictCallback | null = null;
 
   constructor(client: SupabaseClient, userId: string) {
     this.client = client;
@@ -29,6 +32,19 @@ export class SyncManager implements SyncManagerInterface {
 
   setStatusCallback(cb: StatusCallback): void {
     this.onStatusChange = cb;
+  }
+
+  setConflictCallback(cb: ConflictCallback): void {
+    this.onConflictCountChange = cb;
+  }
+
+  private async reportConflictCount(): Promise<void> {
+    try {
+      const count = await getSyncConflictCount();
+      this.onConflictCountChange?.(count);
+    } catch {
+      // Ignore
+    }
   }
 
   start(): void {
@@ -166,12 +182,54 @@ export class SyncManager implements SyncManagerInterface {
           if (error) throw error;
         }
       } else {
-        // create or update → upsert
+        // create or update → upsert with conflict detection
         const row = toSupabaseRow(
           item.entityType,
           item.payload as Record<string, unknown>,
           this.userId,
         );
+
+        // Conflict detection: for updates, check if remote is newer
+        if (item.action === 'update') {
+          const localPayload = item.payload as Record<string, unknown>;
+          const localUpdatedAt = localPayload.updatedAt as string | undefined;
+
+          if (localUpdatedAt) {
+            // Fetch remote row's updated_at
+            const { data: remoteRow, error: fetchError } = await this.client
+              .from(table)
+              .select('*')
+              .eq('id', item.entityId)
+              .maybeSingle();
+
+            if (!fetchError && remoteRow) {
+              const remoteUpdatedAt = remoteRow.updated_at as string | undefined;
+              if (remoteUpdatedAt && new Date(remoteUpdatedAt) > new Date(localUpdatedAt)) {
+                // Conflict: remote is newer — store conflict, remove from queue
+                console.warn(
+                  `${LOG_PREFIX} Conflict detected for ${item.entityType}/${item.entityId}: ` +
+                  `local=${localUpdatedAt}, remote=${remoteUpdatedAt}`,
+                );
+                const conflict: SyncConflict = {
+                  id: `${item.entityType}-${item.entityId}`,
+                  entityType: item.entityType,
+                  entityId: item.entityId,
+                  localData: localPayload,
+                  remoteData: fromSupabaseRow(item.entityType, remoteRow),
+                  localUpdatedAt,
+                  remoteUpdatedAt,
+                  detectedAt: new Date().toISOString(),
+                };
+                await addSyncConflict(conflict);
+                await deleteSyncItem(item.id);
+                await this.reportConflictCount();
+                return true; // Not a failure — conflict stored for resolution
+              }
+            }
+            // If remote doesn't exist or no updated_at, proceed with upsert (no conflict)
+          }
+        }
+
         const { error } = await this.client
           .from(table)
           .upsert(row, { onConflict: 'id' });
@@ -580,6 +638,54 @@ export class SyncManager implements SyncManagerInterface {
     if (totalRemoved > 0) {
       console.info(`${LOG_PREFIX} Local orphan cleanup: removed ${totalRemoved} total record(s)`);
     }
+  }
+
+  // ─── Conflict Resolution ──────────────────────────────────────────────────
+
+  async getConflicts(): Promise<SyncConflict[]> {
+    return getAllSyncConflicts();
+  }
+
+  async getConflictCount(): Promise<number> {
+    return getSyncConflictCount();
+  }
+
+  /**
+   * Resolve a conflict by keeping the local version — force-push to cloud.
+   */
+  async resolveKeepLocal(conflictId: string): Promise<void> {
+    const conflicts = await getAllSyncConflicts();
+    const conflict = conflicts.find((c) => c.id === conflictId);
+    if (!conflict) return;
+
+    const table = entityTypeToTable[conflict.entityType];
+    const row = toSupabaseRow(conflict.entityType, conflict.localData, this.userId);
+
+    const { error } = await this.client.from(table).upsert(row, { onConflict: 'id' });
+    if (error) {
+      console.error(`${LOG_PREFIX} Failed to force-push local for ${conflictId}:`, error.message);
+      throw error;
+    }
+
+    await deleteSyncConflict(conflictId);
+    await this.reportConflictCount();
+    console.info(`${LOG_PREFIX} Conflict resolved (keep local): ${conflictId}`);
+  }
+
+  /**
+   * Resolve a conflict by keeping the remote version — overwrite local IndexedDB.
+   */
+  async resolveKeepRemote(conflictId: string): Promise<void> {
+    const conflicts = await getAllSyncConflicts();
+    const conflict = conflicts.find((c) => c.id === conflictId);
+    if (!conflict) return;
+
+    // Write remote data to local IndexedDB silently (no re-push)
+    await bulkPutSilent(conflict.entityType, [conflict.remoteData]);
+
+    await deleteSyncConflict(conflictId);
+    await this.reportConflictCount();
+    console.info(`${LOG_PREFIX} Conflict resolved (keep remote): ${conflictId}`);
   }
 
   private async reportStatus(): Promise<void> {

@@ -7,6 +7,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { useSyncContext } from '@/providers/sync-provider';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
+import { SyncConflictsDialog } from '@/components/settings/sync-conflicts-dialog';
 
 const STALE_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
 
@@ -29,7 +30,10 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
   const syncStatus = useAppStore((s) => s.syncStatus);
   const pendingCount = useAppStore((s) => s.pendingSyncCount);
   const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
+  const conflictCount = useAppStore((s) => s.syncConflictCount);
   const { triggerFullSync } = useSyncContext();
+
+  const [conflictsOpen, setConflictsOpen] = useState(false);
 
   // Re-render every 30s to keep relative time fresh
   const [, setTick] = useState(0);
@@ -54,7 +58,13 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
   let bgClass = 'hover:bg-emerald-500/10';
   let animate = false;
 
-  if (syncStatus === 'offline') {
+  if (conflictCount > 0) {
+    icon = AlertTriangle;
+    label = `${conflictCount} conflict${conflictCount === 1 ? '' : 's'}`;
+    sublabel = 'Tap to resolve';
+    colorClass = 'text-amber-500';
+    bgClass = 'hover:bg-amber-500/10';
+  } else if (syncStatus === 'offline') {
     icon = CloudOff;
     label = 'Offline';
     sublabel = relativeTime ? `Last backup ${relativeTime}` : '';
@@ -91,49 +101,63 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
 
   const Icon = icon;
 
+  const handleClick = () => {
+    if (conflictCount > 0) {
+      setConflictsOpen(true);
+    } else {
+      triggerFullSync();
+    }
+  };
+
   // Collapsed mode: icon-only with tooltip
   if (collapsed) {
     return (
-      <Tooltip>
-        <TooltipTrigger render={<span className="block w-full" />}>
-          <button
-            onClick={() => triggerFullSync()}
-            className={cn(
-              'flex w-full items-center justify-center rounded-lg p-2 transition-colors',
-              bgClass,
-              colorClass,
-            )}
-            aria-label={label}
-          >
-            <Icon className={cn('h-4.5 w-4.5', animate && 'animate-spin')} />
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={8}>
-          <p className="font-medium">{label}</p>
-          {sublabel && <p className="text-[10px] text-muted-foreground">{sublabel}</p>}
-          <p className="text-[10px] text-muted-foreground">Click to back up now</p>
-        </TooltipContent>
-      </Tooltip>
+      <div>
+        <Tooltip>
+          <TooltipTrigger render={<span className="block w-full" />}>
+            <button
+              onClick={handleClick}
+              className={cn(
+                'flex w-full items-center justify-center rounded-lg p-2 transition-colors',
+                bgClass,
+                colorClass,
+              )}
+              aria-label={label}
+            >
+              <Icon className={cn('h-4.5 w-4.5', animate && 'animate-spin')} />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={8}>
+            <p className="font-medium">{label}</p>
+            {sublabel && <p className="text-[10px] text-muted-foreground">{sublabel}</p>}
+            <p className="text-[10px] text-muted-foreground">Click to back up now</p>
+          </TooltipContent>
+        </Tooltip>
+        <SyncConflictsDialog open={conflictsOpen} onOpenChange={setConflictsOpen} />
+      </div>
     );
   }
 
   // Expanded mode: full-width button with label + sublabel
   return (
-    <button
-      onClick={() => triggerFullSync()}
-      className={cn(
-        'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors',
-        bgClass,
-        colorClass,
-      )}
-    >
-      <Icon className={cn('h-4.5 w-4.5 shrink-0', animate && 'animate-spin')} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-xs font-medium">{label}</p>
-        {sublabel && (
-          <p className="truncate text-[10px] text-muted-foreground">{sublabel}</p>
+    <div>
+      <button
+        onClick={handleClick}
+        className={cn(
+          'flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left transition-colors',
+          bgClass,
+          colorClass,
         )}
-      </div>
-    </button>
+      >
+        <Icon className={cn('h-4.5 w-4.5 shrink-0', animate && 'animate-spin')} />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-medium">{label}</p>
+          {sublabel && (
+            <p className="truncate text-[10px] text-muted-foreground">{sublabel}</p>
+          )}
+        </div>
+      </button>
+      <SyncConflictsDialog open={conflictsOpen} onOpenChange={setConflictsOpen} />
+    </div>
   );
 }

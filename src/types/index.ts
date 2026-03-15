@@ -198,6 +198,17 @@ export interface SyncQueueItem {
   lastError?: string;
 }
 
+export interface SyncConflict {
+  id: string; // `${entityType}-${entityId}`
+  entityType: SyncEntityType;
+  entityId: string;
+  localData: Record<string, unknown>;
+  remoteData: Record<string, unknown>;
+  localUpdatedAt: string;
+  remoteUpdatedAt: string;
+  detectedAt: string;
+}
+
 export const FILE_CATEGORY_LABELS: Record<FileCategory, string> = {
   'panel-databases': 'Panel Databases',
   'wiring-diagrams': 'Wiring Diagrams',

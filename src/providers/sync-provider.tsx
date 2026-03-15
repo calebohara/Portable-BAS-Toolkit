@@ -10,11 +10,15 @@ import { registerSyncManager, unregisterSyncManager, emitPullComplete } from '@/
 interface SyncContextValue {
   triggerFullSync: () => Promise<{ enqueued: number; errors: string[] } | null>;
   triggerPullSync: () => Promise<{ pulled: number; deleted: number; errors: string[] } | null>;
+  getConflicts: () => Promise<import('@/types').SyncConflict[]>;
+  resolveConflict: (id: string, resolution: 'local' | 'remote') => Promise<void>;
 }
 
 const SyncContext = createContext<SyncContextValue>({
   triggerFullSync: async () => null,
   triggerPullSync: async () => null,
+  getConflicts: async () => [],
+  resolveConflict: async () => {},
 });
 
 export function useSyncContext() {
@@ -29,6 +33,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const setPendingSyncCount = useAppStore((s) => s.setPendingSyncCount);
   const setLastSyncedAt = useAppStore((s) => s.setLastSyncedAt);
   const setLastPulledAt = useAppStore((s) => s.setLastPulledAt);
+  const setSyncConflictCount = useAppStore((s) => s.setSyncConflictCount);
 
   // Stabilise identity: only re-run when the user ID actually changes
   const userId = user?.id ?? null;
@@ -67,13 +72,35 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setPendingSyncCount(pendingCount);
     });
 
+    manager.setConflictCallback((count) => setSyncConflictCount(count));
+
     managerRef.current = manager;
     registerSyncManager(manager);
     manager.start();
     setSyncStatus('idle');
 
-    // Flush queue on reconnect
-    const handleOnline = () => manager.processQueue();
+    // Report initial conflict count
+    manager.getConflictCount().then((count) => setSyncConflictCount(count));
+
+    // On reconnect: pull remote changes first, then flush push queue
+    const handleOnline = () => {
+      const storedPulledAt = useAppStore.getState().lastPulledAt;
+      if (storedPulledAt) {
+        console.info('[sync] Back online — pulling remote changes then flushing queue…');
+        manager.pullSync(storedPulledAt).then((result) => {
+          if (result.errors.length === 0) {
+            useAppStore.getState().setLastPulledAt(result.newPulledAt);
+          }
+          emitPullComplete();
+          manager.processQueue();
+        }).catch(() => {
+          // Pull failed — still try to process queue
+          manager.processQueue();
+        });
+      } else {
+        manager.processQueue();
+      }
+    };
     window.addEventListener('online', handleOnline);
 
     // Auto-pull on first login (new device scenario) — only once per session
@@ -98,7 +125,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       unregisterSyncManager();
       managerRef.current = null;
     };
-  }, [mode, userId, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt]);
+  }, [mode, userId, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt, setSyncConflictCount]);
 
   const triggerFullSync = useCallback(async () => {
     if (managerRef.current) {
@@ -119,8 +146,22 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return result;
   }, []);
 
+  const getConflicts = useCallback(async () => {
+    if (!managerRef.current) return [];
+    return managerRef.current.getConflicts();
+  }, []);
+
+  const resolveConflict = useCallback(async (id: string, resolution: 'local' | 'remote') => {
+    if (!managerRef.current) return;
+    if (resolution === 'local') {
+      await managerRef.current.resolveKeepLocal(id);
+    } else {
+      await managerRef.current.resolveKeepRemote(id);
+    }
+  }, []);
+
   return (
-    <SyncContext.Provider value={{ triggerFullSync, triggerPullSync }}>
+    <SyncContext.Provider value={{ triggerFullSync, triggerPullSync, getConflicts, resolveConflict }}>
       {children}
     </SyncContext.Provider>
   );

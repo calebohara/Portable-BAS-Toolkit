@@ -30,6 +30,9 @@ interface AppState {
   setLastSyncedAt: (ts: string | null) => void;
   lastPulledAt: string | null;
   setLastPulledAt: (ts: string | null) => void;
+  // Conflicts
+  syncConflictCount: number;
+  setSyncConflictCount: (count: number) => void;
   // Onboarding
   hasCompletedTour: boolean;
   tourActive: boolean;
@@ -76,6 +79,9 @@ export const useAppStore = create<AppState>()(
       setLastSyncedAt: (ts) => set({ lastSyncedAt: ts }),
       lastPulledAt: null,
       setLastPulledAt: (ts) => set({ lastPulledAt: ts }),
+      // Conflicts
+      syncConflictCount: 0,
+      setSyncConflictCount: (count) => set({ syncConflictCount: count }),
       // Onboarding
       hasCompletedTour: false,
       tourActive: false,

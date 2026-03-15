@@ -3,7 +3,7 @@ import type {
   Project, ProjectFile, FileVersion, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
-  ConnectionProfile, SavedCalculation, SyncQueueItem,
+  ConnectionProfile, SavedCalculation, SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
 
@@ -99,13 +99,18 @@ interface BasToolkitDB extends DBSchema {
     value: SyncQueueItem;
     indexes: { 'by-status': string; 'by-created': string };
   };
+  syncConflicts: {
+    key: string;
+    value: SyncConflict;
+    indexes: { 'by-entity-type': string; 'by-detected': string };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 7, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 8, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           // Projects
@@ -188,6 +193,13 @@ function getDB() {
           const syncStore = db.createObjectStore('syncQueue', { keyPath: 'id' });
           syncStore.createIndex('by-status', 'status');
           syncStore.createIndex('by-created', 'createdAt');
+        }
+
+        if (oldVersion < 8) {
+          // Sync Conflicts for offline/online conflict resolution
+          const conflictStore = db.createObjectStore('syncConflicts', { keyPath: 'id' });
+          conflictStore.createIndex('by-entity-type', 'entityType');
+          conflictStore.createIndex('by-detected', 'detectedAt');
         }
       },
     }).catch((err) => {
@@ -836,6 +848,34 @@ export async function clearSyncQueue(): Promise<number> {
   await tx.store.clear();
   await tx.done;
   return count;
+}
+
+// ─── Sync Conflicts ─────────────────────────────────────────
+export async function addSyncConflict(conflict: SyncConflict): Promise<void> {
+  const db = await getDB();
+  await db.put('syncConflicts', conflict);
+}
+
+export async function getAllSyncConflicts(): Promise<SyncConflict[]> {
+  const db = await getDB();
+  return db.getAllFromIndex('syncConflicts', 'by-detected');
+}
+
+export async function getSyncConflictCount(): Promise<number> {
+  const db = await getDB();
+  return db.count('syncConflicts');
+}
+
+export async function deleteSyncConflict(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('syncConflicts', id);
+}
+
+export async function clearAllSyncConflicts(): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('syncConflicts', 'readwrite');
+  await tx.store.clear();
+  await tx.done;
 }
 
 // Get the first error message from failed sync items (for diagnostics)
