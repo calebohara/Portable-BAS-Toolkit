@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.2.0-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.3.0-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -18,11 +18,25 @@
 
 ---
 
-## What's New in v4.2.0
+## What's New in v4.3.0
+
+- **Knowledge Base** — Forum-style knowledge base with full-page article composer, markdown formatting toolbar (bold, italic, headings, code, quotes, lists, links), categories, file attachments, threaded replies, and full-text search.
+- **Supabase Cloud Sync** — Automatic background sync of local IndexedDB data to Supabase with push queue, incremental pull, and real-time status indicator in the sidebar.
+- **Sync Conflict Resolution** — Detects when local and remote edits diverge during offline periods. Conflicts are stored with metadata and surfaced in a resolution dialog to keep local or cloud version per entity.
+- **User Inbox** — Direct messaging between users with notification badge, sent/received tabs, and read tracking.
+- **Online Presence** — Real-time online users indicator in the sidebar showing who's active.
+- **Account Approval Gate** — Admin panel for approving new user registrations with deny/permanently-delete capability.
+- **File Uploads & Storage** — Supabase storage integration with versioned file uploads and Postgres full-text search across all content.
+- **Confirmation Dialogs** — Destructive actions (delete articles, messages, replies) now require confirmation before executing.
+- **Realtime Subscriptions** — All global project data hooks subscribe to Supabase realtime channels for live updates.
+
+<details>
+<summary>v4.2.0</summary>
 
 - **Message Board** — Cross-project message board with threaded replies, unread tracking, and read receipts for team-wide communication.
 - **Security Hardening** — Tightened CSP headers (frame-src, connect-src, form-action), cryptographic access code generation, input validation on all user-submitted content, ownership guards on delete operations, and comprehensive account deletion cleanup.
 - **RLS Policy Tightening** — Soft-deleted records excluded from SELECT policies, column-level write restrictions via database triggers on messages.
+</details>
 
 <details>
 <summary>v4.1.0</summary>
@@ -69,6 +83,13 @@
 - **Activity tracking** — every change logged with before/after diffs and creator attribution
 - **Role-based access** — admin and member roles with creator-only edit/delete on content
 - **Message board** — threaded discussions with replies, unread tracking, and read receipts
+- **Direct messaging** — user inbox with sent/received tabs, notification badges, and read tracking
+
+### Knowledge Base
+- Forum-style article posting with full-page markdown editor and formatting toolbar
+- Categories, file attachments (25MB limit), threaded replies
+- Full-text search across all articles and replies
+- Confirmation dialogs on destructive actions
 
 ### Daily Reports
 - Structured field reports with work completed, issues, coordination notes, equipment, and attachments
@@ -88,8 +109,14 @@
 - **HMI Terminal** — browser-based Telnet terminal with session tabs, logging, and command history
 - **Command Snippets** — reusable commands for BACnet, Modbus, Niagara, Siemens, and more
 
-### Platform
+### Cloud Sync & Offline
 - **Offline-first** — all data in IndexedDB, works without Wi-Fi
+- **Background cloud sync** — automatic push/pull to Supabase with real-time status indicator
+- **Conflict resolution** — detects local/remote edit divergence with UI to choose which version to keep
+- **Online presence** — real-time indicator of active users in the sidebar
+- **Account approval** — admin gate for new user registrations
+
+### Platform
 - **PWA installable** — add to home screen on any device
 - **Desktop app** — native Tauri app with real ICMP ping and full network access
 - **Global search** — search across all projects, files, devices, IP entries, and notes
@@ -168,7 +195,9 @@ Supabase-powered authentication is **optional**. Without it, the app runs fully 
 | User profiles | ✓ Active |
 | Global Projects (multi-user) | ✓ Active |
 | Row Level Security | ✓ Active |
-| Local project data sync | Planned |
+| Cloud sync with conflict resolution | ✓ Active |
+| Online presence | ✓ Active |
+| Account approval gate | ✓ Active |
 
 ### Security
 
@@ -191,7 +220,7 @@ Installable Progressive Web App:
 
 ## Versioning
 
-**Current: v4.2.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.3.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 
