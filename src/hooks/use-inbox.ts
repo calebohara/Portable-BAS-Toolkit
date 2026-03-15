@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/auth-provider';
 
@@ -23,6 +23,9 @@ export interface InboxContact {
   avatarUrl: string | null;
 }
 
+// Profile cache to resolve user IDs to names without FK joins
+type ProfileMap = Map<string, { displayName: string; avatarUrl: string | null }>;
+
 /**
  * Hook for managing user inbox — direct messages with real-time updates.
  */
@@ -33,20 +36,43 @@ export function useInbox() {
   const [contacts, setContacts] = useState<InboxContact[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const profileCache = useRef<ProfileMap>(new Map());
 
-  // Fetch inbox messages
+  // Fetch and cache all profiles (lightweight — id, display_name, avatar_url only)
+  const ensureProfiles = useCallback(async () => {
+    if (profileCache.current.size > 0) return;
+    const client = getSupabaseClient();
+    if (!client) return;
+
+    const { data } = await client
+      .from('profiles')
+      .select('id, display_name, avatar_url, email');
+
+    if (data) {
+      for (const p of data) {
+        profileCache.current.set(p.id, {
+          displayName: p.display_name || p.email || 'User',
+          avatarUrl: p.avatar_url || null,
+        });
+      }
+    }
+  }, []);
+
+  const resolveProfile = (userId: string) => {
+    return profileCache.current.get(userId) || { displayName: 'Unknown User', avatarUrl: null };
+  };
+
+  // Fetch inbox messages (no FK join — resolve names from cache)
   const fetchInbox = useCallback(async () => {
     const client = getSupabaseClient();
     if (!client || !user) return;
 
     try {
-      // Use column-based FK resolution (safer than constraint name)
+      await ensureProfiles();
+
       const { data, error } = await client
         .from('direct_messages')
-        .select(`
-          id, sender_id, recipient_id, subject, body, read_at, created_at,
-          sender:profiles!sender_id(display_name, avatar_url)
-        `)
+        .select('id, sender_id, recipient_id, subject, body, read_at, created_at')
         .eq('recipient_id', user.id)
         .eq('deleted_by_recipient', false)
         .order('created_at', { ascending: false })
@@ -58,18 +84,18 @@ export function useInbox() {
       }
 
       if (data) {
-        const mapped: DirectMessage[] = data.map((m: Record<string, unknown>) => {
-          const sender = m.sender as Record<string, unknown> | null;
+        const mapped: DirectMessage[] = data.map((m) => {
+          const profile = resolveProfile(m.sender_id);
           return {
-            id: m.id as string,
-            senderId: m.sender_id as string,
-            recipientId: m.recipient_id as string,
-            senderName: (sender?.display_name as string) || 'Unknown User',
-            senderAvatar: (sender?.avatar_url as string) || null,
-            subject: m.subject as string,
-            body: m.body as string,
-            readAt: m.read_at as string | null,
-            createdAt: m.created_at as string,
+            id: m.id,
+            senderId: m.sender_id,
+            recipientId: m.recipient_id,
+            senderName: profile.displayName,
+            senderAvatar: profile.avatarUrl,
+            subject: m.subject,
+            body: m.body,
+            readAt: m.read_at,
+            createdAt: m.created_at,
           };
         });
         setMessages(mapped);
@@ -80,20 +106,19 @@ export function useInbox() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user, ensureProfiles]);
 
-  // Fetch sent messages
+  // Fetch sent messages (no FK join — resolve names from cache)
   const fetchSent = useCallback(async () => {
     const client = getSupabaseClient();
     if (!client || !user) return;
 
     try {
+      await ensureProfiles();
+
       const { data, error } = await client
         .from('direct_messages')
-        .select(`
-          id, sender_id, recipient_id, subject, body, read_at, created_at,
-          recipient:profiles!recipient_id(display_name, avatar_url)
-        `)
+        .select('id, sender_id, recipient_id, subject, body, read_at, created_at')
         .eq('sender_id', user.id)
         .eq('deleted_by_sender', false)
         .order('created_at', { ascending: false })
@@ -105,18 +130,18 @@ export function useInbox() {
       }
 
       if (data) {
-        const mapped: DirectMessage[] = data.map((m: Record<string, unknown>) => {
-          const recipient = m.recipient as Record<string, unknown> | null;
+        const mapped: DirectMessage[] = data.map((m) => {
+          const profile = resolveProfile(m.recipient_id);
           return {
-            id: m.id as string,
-            senderId: m.sender_id as string,
-            recipientId: m.recipient_id as string,
-            senderName: (recipient?.display_name as string) || 'Unknown User',
-            senderAvatar: (recipient?.avatar_url as string) || null,
-            subject: m.subject as string,
-            body: m.body as string,
-            readAt: m.read_at as string | null,
-            createdAt: m.created_at as string,
+            id: m.id,
+            senderId: m.sender_id,
+            recipientId: m.recipient_id,
+            senderName: profile.displayName,
+            senderAvatar: profile.avatarUrl,
+            subject: m.subject,
+            body: m.body,
+            readAt: m.read_at,
+            createdAt: m.created_at,
           };
         });
         setSentMessages(mapped);
@@ -124,7 +149,7 @@ export function useInbox() {
     } catch {
       // Non-fatal
     }
-  }, [user]);
+  }, [user, ensureProfiles]);
 
   // Fetch all users for compose (contacts)
   const fetchContacts = useCallback(async () => {
