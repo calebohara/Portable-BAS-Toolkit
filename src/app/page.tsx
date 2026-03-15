@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
@@ -133,13 +134,24 @@ const heroCards = [
 
 export default function HomePage() {
   const router = useRouter();
-  const { mode, user } = useAuth();
+  const { mode, user, loading: authLoading } = useAuth();
   const isAuthed = mode === 'authenticated';
   const scrollRef = useScrollReveal();
 
+  // In Tauri desktop app, skip the marketing home page and go straight to /login
+  // Uses hard navigation (window.location) to avoid static-export client-side routing issues
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+  useEffect(() => {
+    if (isTauri && !authLoading && !isAuthed) {
+      window.location.replace('/login');
+    }
+  }, [isTauri, authLoading, isAuthed]);
+
   const goApp = () => router.push('/dashboard');
-  const goSignup = () => router.push('/login?tab=signup');
-  const goLogin = () => router.push('/login');
+  // Use hard navigation in Tauri to bypass static-export Suspense/hydration issues
+  const goSignup = () => isTauri ? window.location.assign('/login?tab=signup') : router.push('/login?tab=signup');
+  const goLogin = () => isTauri ? window.location.assign('/login') : router.push('/login');
 
   return (
     <div ref={scrollRef} className="min-h-screen bg-background">
