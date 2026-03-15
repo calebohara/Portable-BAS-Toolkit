@@ -12,6 +12,14 @@ const path = require('path');
 
 const API_DIR = path.join(__dirname, '..', 'src', 'app', 'api');
 const TEMP_DIR = path.join(__dirname, '..', 'src', 'app', '_api_excluded');
+const NEXT_DIR = path.join(__dirname, '..', '.next');
+
+// Clear cached .next build artifacts so stale type validators
+// referencing API routes don't cause TypeScript errors.
+if (fs.existsSync(NEXT_DIR)) {
+  fs.rmSync(NEXT_DIR, { recursive: true, force: true });
+  console.log('[build:static] Cleared .next cache');
+}
 
 // Move API routes out
 if (fs.existsSync(API_DIR)) {

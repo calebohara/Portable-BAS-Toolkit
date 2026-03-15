@@ -30,6 +30,7 @@ import { getStorageEstimate, clearFileCache, resetFailedSyncItems, getFirstSyncE
 import { formatFileSize } from '@/components/shared/file-icon';
 import { APP_VERSION } from '@/lib/version';
 import { useDeviceClass } from '@/hooks/use-device-class';
+import { isTauri } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 
 /* ─── Helpers ─────────────────────────────────────────────── */
@@ -98,17 +99,31 @@ function AdminApprovalPanel({ session }: { session: { access_token: string } | n
   const [users, setUsers] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const isDesktop = isTauri();
 
   const fetchUsers = async () => {
     if (!session) return;
     setLoading(true);
     try {
-      const res = await fetch('/api/admin/users', {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setUsers(data.users ?? []);
+      if (isDesktop) {
+        // Desktop (Tauri): use direct Supabase client queries
+        const { getSupabaseClient } = await import('@/lib/supabase/client');
+        const client = getSupabaseClient();
+        if (!client) return;
+        const { data, error } = await client
+          .from('profiles')
+          .select('id, email, first_name, last_name, display_name, avatar_url, role, approved, created_at')
+          .order('created_at', { ascending: false });
+        if (!error && data) setUsers(data as PendingUser[]);
+      } else {
+        // Web: use API route (server-side service role key)
+        const res = await fetch('/api/admin/users', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setUsers(data.users ?? []);
+        }
       }
     } catch {
       // silent
@@ -123,20 +138,38 @@ function AdminApprovalPanel({ session }: { session: { access_token: string } | n
     if (!session) return;
     setUpdating(userId);
     try {
-      const res = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ userId, approved }),
-      });
-      if (res.ok) {
-        toast.success(approved ? 'User approved' : 'User approval revoked');
-        await fetchUsers();
+      if (isDesktop) {
+        // Desktop (Tauri): update profile directly via Supabase client
+        const { getSupabaseClient } = await import('@/lib/supabase/client');
+        const client = getSupabaseClient();
+        if (!client) { toast.error('Supabase not configured'); return; }
+        const { error } = await client
+          .from('profiles')
+          .update({ approved })
+          .eq('id', userId);
+        if (error) {
+          toast.error(error.message);
+        } else {
+          toast.success(approved ? 'User approved' : 'User approval revoked');
+          await fetchUsers();
+        }
       } else {
-        const data = await res.json();
-        toast.error(data.error || 'Failed to update user');
+        // Web: use API route
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ userId, approved }),
+        });
+        if (res.ok) {
+          toast.success(approved ? 'User approved' : 'User approval revoked');
+          await fetchUsers();
+        } else {
+          const data = await res.json();
+          toast.error(data.error || 'Failed to update user');
+        }
       }
     } catch {
       toast.error('Failed to update user');
@@ -147,6 +180,10 @@ function AdminApprovalPanel({ session }: { session: { access_token: string } | n
 
   const handleDeny = async (userId: string, email: string) => {
     if (!session) return;
+    if (isDesktop) {
+      toast.error('Deny & delete requires the web app (needs server-side admin privileges).');
+      return;
+    }
     if (!confirm(`Permanently deny and delete ${email}? This cannot be undone.`)) return;
     setUpdating(userId);
     try {
