@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
   ChevronLeft, ChevronRight, X, FolderOpen, HelpCircle, ClipboardList, TerminalSquare, Globe,
-  Network, Activity, Calculator, Users2,
+  Network, Activity, Calculator, Users2, BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
@@ -28,6 +28,7 @@ const navGroups = [
     label: 'Shared',
     items: [
       { href: '/global-projects', icon: Users2, label: 'Global Projects', tourId: 'nav-global-projects' },
+      { href: '/knowledge-base', icon: BookOpen, label: 'Knowledge Base', tourId: 'nav-knowledge-base' },
     ],
   },
   {
