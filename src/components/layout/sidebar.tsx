@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { UpdateNotifier } from './update-notifier';
 import { SyncStatusIndicator } from './sync-status';
+import { OnlineUsers } from './online-users';
 import { APP_VERSION } from '@/lib/version';
 
 const navGroups = [
@@ -163,6 +164,9 @@ export function Sidebar() {
 
       {/* Footer: sync status, offline warning, version & collapse */}
       <div className="border-t border-sidebar-border px-2 py-2 space-y-1.5">
+        {/* Online users — presence indicator */}
+        <OnlineUsers collapsed={!sidebarOpen} />
+
         {/* Sync indicator — always visible, full-width tap target */}
         <SyncStatusIndicator collapsed={!sidebarOpen} />
 
