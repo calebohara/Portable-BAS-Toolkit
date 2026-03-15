@@ -12,15 +12,15 @@ import { WebUpdateBanner } from './web-update-banner';
 import { cn } from '@/lib/utils';
 
 // Routes that render their own full-page layout (no sidebar)
-const FULL_PAGE_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/donate', '/desktop'];
+const FULL_PAGE_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/donate', '/desktop', '/pending-approval'];
 
 // Routes that don't require authentication
-const PUBLIC_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/offline', '/donate', '/desktop'];
+const PUBLIC_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/offline', '/donate', '/desktop', '/pending-approval'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { mode, loading: authLoading } = useAuth();
+  const { mode, profile, loading: authLoading } = useAuth();
 
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
@@ -34,6 +34,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       router.replace('/login');
     }
   }, [authLoading, mode, isPublic, router]);
+
+  // Approval gate: redirect unapproved users to /pending-approval
+  // Only enforced when profile has been fetched and approved is explicitly false
+  // (if column doesn't exist yet, approved will be undefined — skip the gate)
+  useEffect(() => {
+    if (!authLoading && mode === 'authenticated' && profile && profile.approved === false && pathname !== '/pending-approval') {
+      router.replace('/pending-approval');
+    }
+  }, [authLoading, mode, profile, pathname, router]);
 
   useEffect(() => {
     const handleOnline = () => setOnline(true);

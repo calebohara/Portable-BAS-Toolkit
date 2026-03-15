@@ -12,6 +12,8 @@ export interface UserProfile {
   lastName: string;
   displayName: string | null;
   avatarUrl: string | null;
+  approved: boolean;
+  role: 'user' | 'admin';
 }
 
 export interface AuthState {
@@ -68,12 +70,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Try fetching with new columns first, fall back to display_name only
       let { data, error } = await client
         .from('profiles')
-        .select('first_name, last_name, display_name, avatar_url')
+        .select('first_name, last_name, display_name, avatar_url, approved, role')
         .eq('id', userId)
         .single();
 
+      let schemaFallback = false;
       if (error?.message?.includes('schema cache')) {
         // New columns not migrated yet — fetch only existing columns
+        schemaFallback = true;
         const fallback = await client
           .from('profiles')
           .select('display_name')
@@ -84,11 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if (!error && data) {
+        const d = data as Record<string, unknown>;
         setProfile({
-          firstName: (data as Record<string, unknown>).first_name as string ?? '',
-          lastName: (data as Record<string, unknown>).last_name as string ?? '',
+          firstName: d.first_name as string ?? '',
+          lastName: d.last_name as string ?? '',
           displayName: data.display_name ?? null,
-          avatarUrl: (data as Record<string, unknown>).avatar_url as string ?? null,
+          avatarUrl: d.avatar_url as string ?? null,
+          // Default to approved=true when column doesn't exist (pre-migration)
+          approved: schemaFallback ? true : ((d.approved as boolean) ?? true),
+          role: (d.role as 'user' | 'admin') ?? 'user',
         });
       }
     } catch {
@@ -233,6 +241,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         lastName: data.lastName ?? prev?.lastName ?? '',
         displayName,
         avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : (prev?.avatarUrl ?? null),
+        approved: prev?.approved ?? true,
+        role: prev?.role ?? 'user',
       }));
 
       return { error: null };
