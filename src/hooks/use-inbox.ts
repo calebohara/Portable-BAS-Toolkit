@@ -40,18 +40,24 @@ export function useInbox() {
     if (!client || !user) return;
 
     try {
+      // Use column-based FK resolution (safer than constraint name)
       const { data, error } = await client
         .from('direct_messages')
         .select(`
           id, sender_id, recipient_id, subject, body, read_at, created_at,
-          sender:profiles!direct_messages_sender_id_fkey(display_name, avatar_url)
+          sender:profiles!sender_id(display_name, avatar_url)
         `)
         .eq('recipient_id', user.id)
         .eq('deleted_by_recipient', false)
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (!error && data) {
+      if (error) {
+        console.warn('[inbox] Fetch inbox error:', error.message);
+        return;
+      }
+
+      if (data) {
         const mapped: DirectMessage[] = data.map((m: Record<string, unknown>) => {
           const sender = m.sender as Record<string, unknown> | null;
           return {
@@ -86,14 +92,19 @@ export function useInbox() {
         .from('direct_messages')
         .select(`
           id, sender_id, recipient_id, subject, body, read_at, created_at,
-          recipient:profiles!direct_messages_recipient_id_fkey(display_name, avatar_url)
+          recipient:profiles!recipient_id(display_name, avatar_url)
         `)
         .eq('sender_id', user.id)
         .eq('deleted_by_sender', false)
         .order('created_at', { ascending: false })
         .limit(50);
 
-      if (!error && data) {
+      if (error) {
+        console.warn('[inbox] Fetch sent error:', error.message);
+        return;
+      }
+
+      if (data) {
         const mapped: DirectMessage[] = data.map((m: Record<string, unknown>) => {
           const recipient = m.recipient as Record<string, unknown> | null;
           return {
@@ -160,18 +171,17 @@ export function useInbox() {
     setUnreadCount((prev) => Math.max(0, prev - 1));
   }, []);
 
-  // Delete a message (soft delete)
-  const deleteMessage = useCallback(async (messageId: string, type: 'inbox' | 'sent') => {
+  // Delete a single message (hard delete)
+  const deleteMessage = useCallback(async (messageId: string, _type: 'inbox' | 'sent') => {
     const client = getSupabaseClient();
     if (!client) return;
 
-    const field = type === 'inbox' ? 'deleted_by_recipient' : 'deleted_by_sender';
     await client
       .from('direct_messages')
-      .update({ [field]: true })
+      .delete()
       .eq('id', messageId);
 
-    if (type === 'inbox') {
+    if (_type === 'inbox') {
       setMessages((prev) => {
         const removed = prev.find((m) => m.id === messageId);
         if (removed && !removed.readAt) {
@@ -183,6 +193,33 @@ export function useInbox() {
       setSentMessages((prev) => prev.filter((m) => m.id !== messageId));
     }
   }, []);
+
+  // Purge all inbox messages (hard delete)
+  const purgeInbox = useCallback(async () => {
+    const client = getSupabaseClient();
+    if (!client || !user) return;
+
+    await client
+      .from('direct_messages')
+      .delete()
+      .eq('recipient_id', user.id);
+
+    setMessages([]);
+    setUnreadCount(0);
+  }, [user]);
+
+  // Purge all sent messages (hard delete)
+  const purgeSent = useCallback(async () => {
+    const client = getSupabaseClient();
+    if (!client || !user) return;
+
+    await client
+      .from('direct_messages')
+      .delete()
+      .eq('sender_id', user.id);
+
+    setSentMessages([]);
+  }, [user]);
 
   // Send a message
   const sendMessage = useCallback(async (recipientId: string, subject: string, body: string) => {
@@ -200,8 +237,8 @@ export function useInbox() {
 
     if (error) return { error: error.message };
 
-    // Refresh sent
-    fetchSent();
+    // Await refresh so sent tab shows the new message
+    await fetchSent();
     return { error: null };
   }, [user, fetchSent]);
 
@@ -232,7 +269,6 @@ export function useInbox() {
           filter: `recipient_id=eq.${user.id}`,
         },
         () => {
-          // Refetch on new message
           fetchInbox();
         },
       )
@@ -252,6 +288,8 @@ export function useInbox() {
     markAsRead,
     deleteMessage,
     sendMessage,
+    purgeInbox,
+    purgeSent,
     refresh: () => { fetchInbox(); fetchSent(); },
   };
 }

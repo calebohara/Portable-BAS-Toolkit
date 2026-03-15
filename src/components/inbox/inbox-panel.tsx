@@ -8,8 +8,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import {
-  Inbox, Send, PenSquare, ArrowLeft, Trash2, Mail, MailOpen,
-  Clock, ChevronRight,
+  Inbox, Send, PenSquare, ArrowLeft, Trash2, Mail,
+  Clock, Eraser,
 } from 'lucide-react';
 
 // ─── Helper: relative time ──────────────────────────────────────────────────
@@ -280,7 +280,7 @@ function EmptyState({ type }: { type: 'inbox' | 'sent' }) {
 export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const {
     messages, sentMessages, contacts, unreadCount,
-    markAsRead, deleteMessage, sendMessage, loading,
+    markAsRead, deleteMessage, sendMessage, purgeInbox, purgeSent, loading,
   } = useInbox();
 
   const [tab, setTab] = useState<'inbox' | 'sent'>('inbox');
@@ -288,6 +288,7 @@ export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange
   const [selectedType, setSelectedType] = useState<'inbox' | 'sent'>('inbox');
   const [composing, setComposing] = useState(false);
   const [replyTo, setReplyTo] = useState<{ recipientId: string; subject: string } | null>(null);
+  const [confirmPurge, setConfirmPurge] = useState(false);
 
   const handleSelect = async (msg: DirectMessage, type: 'inbox' | 'sent') => {
     setSelectedMessage(msg);
@@ -372,6 +373,30 @@ export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange
                 )}
               </div>
               <div className="flex items-center gap-1">
+                {currentMessages.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={cn('h-8 p-0 text-muted-foreground', confirmPurge ? 'w-auto px-2 text-destructive hover:text-destructive hover:bg-destructive/10' : 'w-8')}
+                    onClick={() => {
+                      if (confirmPurge) {
+                        if (tab === 'inbox') purgeInbox();
+                        else purgeSent();
+                        setConfirmPurge(false);
+                      } else {
+                        setConfirmPurge(true);
+                        setTimeout(() => setConfirmPurge(false), 3000);
+                      }
+                    }}
+                    aria-label={confirmPurge ? 'Confirm purge' : 'Purge all'}
+                  >
+                    {confirmPurge ? (
+                      <span className="text-[11px] font-medium">Clear all?</span>
+                    ) : (
+                      <Eraser className="h-4 w-4" />
+                    )}
+                  </Button>
+                )}
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleCompose} aria-label="Compose">
                   <PenSquare className="h-4 w-4" />
                 </Button>
