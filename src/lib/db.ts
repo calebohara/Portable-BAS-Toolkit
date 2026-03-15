@@ -3,7 +3,7 @@ import type {
   Project, ProjectFile, FileVersion, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
-  ConnectionProfile, SavedCalculation, SyncQueueItem, SyncConflict,
+  ConnectionProfile, SavedCalculation, PidTuningSession, SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
 
@@ -94,6 +94,11 @@ interface BasToolkitDB extends DBSchema {
     value: SavedCalculation;
     indexes: { 'by-project': string; 'by-module': string };
   };
+  pidTuningSessions: {
+    key: string;
+    value: PidTuningSession;
+    indexes: { 'by-project': string };
+  };
   syncQueue: {
     key: string;
     value: SyncQueueItem;
@@ -110,7 +115,7 @@ let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 8, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 9, {
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           // Projects
@@ -201,6 +206,12 @@ function getDB() {
           conflictStore.createIndex('by-entity-type', 'entityType');
           conflictStore.createIndex('by-detected', 'detectedAt');
         }
+
+        if (oldVersion < 9) {
+          // PID Tuning Sessions
+          const pidStore = db.createObjectStore('pidTuningSessions', { keyPath: 'id' });
+          pidStore.createIndex('by-project', 'projectId');
+        }
       },
     }).catch((err) => {
       // Reset so next call retries instead of returning cached failure
@@ -231,7 +242,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions'], 'readwrite');
 
   try {
     // Delete associated data
@@ -279,6 +290,9 @@ export async function deleteProject(id: string): Promise<void> {
 
     const regCalcs = await tx.objectStore('registerCalculations').index('by-project').getAll(id);
     for (const rc of regCalcs) await tx.objectStore('registerCalculations').delete(rc.id);
+
+    const pidSessions = await tx.objectStore('pidTuningSessions').index('by-project').getAll(id);
+    for (const ps of pidSessions) await tx.objectStore('pidTuningSessions').delete(ps.id);
 
     await tx.objectStore('projects').delete(id);
     await tx.done;
@@ -724,6 +738,36 @@ export async function deleteRegisterCalculation(id: string): Promise<void> {
   notifySync('delete', 'registerCalculations', id, null);
 }
 
+// ─── PID Tuning Sessions ─────────────────────────────────────
+export async function getAllPidTuningSessions(): Promise<PidTuningSession[]> {
+  const db = await getDB();
+  const sessions = await db.getAll('pidTuningSessions');
+  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getProjectPidTuningSessions(projectId: string): Promise<PidTuningSession[]> {
+  const db = await getDB();
+  const sessions = await db.getAllFromIndex('pidTuningSessions', 'by-project', projectId);
+  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getPidTuningSession(id: string): Promise<PidTuningSession | undefined> {
+  const db = await getDB();
+  return db.get('pidTuningSessions', id);
+}
+
+export async function savePidTuningSession(session: PidTuningSession): Promise<void> {
+  const db = await getDB();
+  await db.put('pidTuningSessions', session);
+  notifySync('update', 'pidTuningSessions', session.id, session);
+}
+
+export async function deletePidTuningSession(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('pidTuningSessions', id);
+  notifySync('delete', 'pidTuningSessions', id, null);
+}
+
 // Global search across all projects
 export async function searchGlobal(query: string): Promise<{
   projects: Project[];
@@ -942,7 +986,7 @@ export async function purgeOrphanedRecords(): Promise<number> {
   const childStores = [
     'files', 'notes', 'devices', 'ipPlan', 'activityLog',
     'dailyReports', 'networkDiagrams', 'pingSessions',
-    'terminalLogs', 'connectionProfiles', 'registerCalculations',
+    'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions',
   ] as const;
 
   let totalDeleted = 0;
@@ -1023,7 +1067,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'syncQueue',
+    'pidTuningSessions', 'syncQueue',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');

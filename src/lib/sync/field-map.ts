@@ -18,6 +18,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   terminalLogs: 'terminal_session_logs',
   connectionProfiles: 'connection_profiles',
   registerCalculations: 'register_calculations',
+  pidTuningSessions: 'pid_tuning_sessions',
 };
 
 // Fields to strip from local entities before pushing to Supabase.
@@ -177,6 +178,21 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  pidTuningSessions: {
+    projectId: 'project_id',
+    loopName: 'loop_name',
+    loopType: 'loop_type',
+    controlledVariable: 'controlled_variable',
+    outputType: 'output_type',
+    actuatorStrokeTime: 'actuator_stroke_time',
+    controlMode: 'control_mode',
+    currentValues: 'current_values',
+    recommendedValues: 'recommended_values',
+    responseData: 'response_data',
+    fieldNotes: 'field_notes',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
 };
 
 /**
@@ -316,4 +332,5 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'terminalLogs',
   'connectionProfiles',
   'registerCalculations',
+  'pidTuningSessions',
 ];

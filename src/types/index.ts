@@ -181,7 +181,7 @@ export type SyncEntityType =
   | 'projects' | 'files' | 'notes' | 'devices' | 'ipPlan'
   | 'dailyReports' | 'activityLog' | 'networkDiagrams'
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
-  | 'connectionProfiles' | 'registerCalculations';
+  | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 
@@ -421,6 +421,89 @@ export interface SavedCalculation {
   result: Record<string, unknown>;
   notes: string;
   tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── PID Tuning Tool ────────────────────────────────────────
+export type PidLoopType =
+  | 'sat' | 'dat' | 'static-pressure' | 'room-temp'
+  | 'hot-water' | 'chilled-water' | 'humidity' | 'room-pressure'
+  | 'vfd-speed' | 'heat-exchanger' | 'generic';
+
+export type PidOutputType = 'valve' | 'damper' | 'vfd' | 'staged' | 'other';
+export type PidControlMode = 'p' | 'pi' | 'pid';
+export type PidAction = 'direct' | 'reverse';
+export type PidGainMode = 'gain' | 'proportional-band';
+
+export const PID_LOOP_TYPE_LABELS: Record<PidLoopType, string> = {
+  'sat': 'Supply Air Temp (SAT)',
+  'dat': 'Discharge Air Temp (DAT)',
+  'static-pressure': 'Static Pressure',
+  'room-temp': 'Room Temperature',
+  'hot-water': 'Hot Water Valve',
+  'chilled-water': 'Chilled Water Valve',
+  'humidity': 'Humidity',
+  'room-pressure': 'Room Pressure',
+  'vfd-speed': 'VFD / Fan Speed',
+  'heat-exchanger': 'Heat Exchanger',
+  'generic': 'Generic Analog Loop',
+};
+
+export const PID_OUTPUT_TYPE_LABELS: Record<PidOutputType, string> = {
+  valve: 'Valve',
+  damper: 'Damper',
+  vfd: 'VFD',
+  staged: 'Staged Analog',
+  other: 'Other',
+};
+
+export const PID_CONTROL_MODE_LABELS: Record<PidControlMode, string> = {
+  p: 'P (Proportional Only)',
+  pi: 'PI (Proportional + Integral)',
+  pid: 'PID (Full PID)',
+};
+
+export interface PidTuningValues {
+  gainMode: PidGainMode;
+  gain: number | null;
+  proportionalBand: number | null;
+  integralTime: number | null;
+  derivativeTime: number | null;
+  sampleInterval: number | null;
+  outputMin: number | null;
+  outputMax: number | null;
+  deadband: number | null;
+}
+
+export interface PidResponseData {
+  setpoint: number | null;
+  startingPv: number | null;
+  finalPv: number | null;
+  overshootPercent: number | null;
+  responseTimeSeconds: number | null;
+  settleTimeSeconds: number | null;
+  oscillationCount: number | null;
+  saturated: boolean;
+  deadTimeSeconds: number | null;
+}
+
+export interface PidTuningSession {
+  id: string;
+  projectId: string;
+  loopName: string;
+  equipment: string;
+  loopType: PidLoopType;
+  controlledVariable: string;
+  outputType: PidOutputType;
+  actuatorStrokeTime: number | null;
+  action: PidAction;
+  controlMode: PidControlMode;
+  currentValues: PidTuningValues;
+  recommendedValues: PidTuningValues;
+  symptoms: string[];
+  responseData: PidResponseData;
+  fieldNotes: string;
   createdAt: string;
   updatedAt: string;
 }
