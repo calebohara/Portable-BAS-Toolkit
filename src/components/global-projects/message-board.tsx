@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/empty-state';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { toast } from 'sonner';
 import type { GlobalProject, GlobalMessage } from '@/types/global-projects';
 
@@ -201,6 +202,8 @@ function MessageCard({ message: msg, userId, projects, onDelete, onReply, isRepl
   const [replyBody, setReplyBody] = useState('');
   const [replying, setReplying] = useState(false);
   const [showReplies, setShowReplies] = useState(true);
+  const [confirmDeleteMsg, setConfirmDeleteMsg] = useState(false);
+  const [confirmDeleteReplyId, setConfirmDeleteReplyId] = useState<string | null>(null);
 
   const handleReply = async () => {
     if (!replyBody.trim()) return;
@@ -291,11 +294,21 @@ function MessageCard({ message: msg, userId, projects, onDelete, onReply, isRepl
                 variant="ghost"
                 size="sm"
                 className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 max-sm:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                onClick={() => onDelete(msg.id)}
+                onClick={() => setConfirmDeleteMsg(true)}
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>
             )}
+
+            <ConfirmDialog
+              open={confirmDeleteMsg}
+              onOpenChange={setConfirmDeleteMsg}
+              title="Delete Message"
+              description={`Are you sure you want to delete "${msg.subject}"? This action cannot be undone.`}
+              confirmLabel="Delete"
+              variant="destructive"
+              onConfirm={() => onDelete(msg.id)}
+            />
           </div>
 
           {/* Inline Reply Form */}
@@ -362,11 +375,20 @@ function MessageCard({ message: msg, userId, projects, onDelete, onReply, isRepl
                       variant="ghost"
                       size="sm"
                       className="h-6 w-6 p-0 opacity-0 group-hover/reply:opacity-100 max-sm:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                      onClick={() => onDelete(reply.id)}
+                      onClick={() => setConfirmDeleteReplyId(reply.id)}
                     >
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   )}
+                  <ConfirmDialog
+                    open={confirmDeleteReplyId === reply.id}
+                    onOpenChange={(open) => { if (!open) setConfirmDeleteReplyId(null); }}
+                    title="Delete Reply"
+                    description="Are you sure you want to delete this reply? This action cannot be undone."
+                    confirmLabel="Delete"
+                    variant="destructive"
+                    onConfirm={() => onDelete(reply.id)}
+                  />
                 </div>
               ))}
             </div>

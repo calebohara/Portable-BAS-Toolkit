@@ -7,6 +7,7 @@ import {
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import {
   Inbox, Send, PenSquare, ArrowLeft, Trash2, Mail,
   Clock, Eraser,
@@ -289,6 +290,7 @@ export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange
   const [composing, setComposing] = useState(false);
   const [replyTo, setReplyTo] = useState<{ recipientId: string; subject: string } | null>(null);
   const [confirmPurge, setConfirmPurge] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; type: 'inbox' | 'sent'; subject: string } | null>(null);
 
   const handleSelect = async (msg: DirectMessage, type: 'inbox' | 'sent') => {
     setSelectedMessage(msg);
@@ -341,8 +343,7 @@ export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange
             onBack={handleBack}
             onReply={handleReply}
             onDelete={() => {
-              deleteMessage(selectedMessage.id, selectedType);
-              setSelectedMessage(null);
+              setPendingDelete({ id: selectedMessage.id, type: selectedType, subject: selectedMessage.subject || '(No subject)' });
             }}
           />
         )}
@@ -454,7 +455,7 @@ export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange
                     message={msg}
                     type={tab}
                     onSelect={() => handleSelect(msg, tab)}
-                    onDelete={() => deleteMessage(msg.id, tab)}
+                    onDelete={() => setPendingDelete({ id: msg.id, type: tab, subject: msg.subject || '(No subject)' })}
                   />
                 ))
               )}
@@ -462,6 +463,21 @@ export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange
           </>
         )}
       </SheetContent>
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        onOpenChange={(open) => { if (!open) setPendingDelete(null); }}
+        title="Delete Message"
+        description={`Are you sure you want to delete "${pendingDelete?.subject}"? This action cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => {
+          if (pendingDelete) {
+            deleteMessage(pendingDelete.id, pendingDelete.type);
+            if (selectedMessage?.id === pendingDelete.id) setSelectedMessage(null);
+          }
+        }}
+      />
     </Sheet>
   );
 }

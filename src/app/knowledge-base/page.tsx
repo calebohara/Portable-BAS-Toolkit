@@ -11,6 +11,7 @@ import { useKbCategories, useKbArticles } from '@/hooks/use-knowledge-base';
 import { useAuth } from '@/providers/auth-provider';
 import { TopBar } from '@/components/layout/top-bar';
 import { EmptyState } from '@/components/shared/empty-state';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -235,6 +236,8 @@ function ArticleCard({ article, userId, onDeleteArticle, onReply, onDeleteReply 
   const [replyBody, setReplyBody] = useState('');
   const [replying, setReplying] = useState(false);
   const [showReplies, setShowReplies] = useState(true);
+  const [confirmDeleteArticle, setConfirmDeleteArticle] = useState(false);
+  const [confirmDeleteReplyId, setConfirmDeleteReplyId] = useState<string | null>(null);
 
   const handleReply = async () => {
     if (!replyBody.trim()) return;
@@ -292,13 +295,23 @@ function ArticleCard({ article, userId, onDeleteArticle, onReply, onDeleteReply 
                 variant="ghost"
                 size="sm"
                 className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 max-sm:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-                onClick={() => onDeleteArticle(article.id)}
+                onClick={() => setConfirmDeleteArticle(true)}
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
             )}
           </div>
         </div>
+
+        <ConfirmDialog
+          open={confirmDeleteArticle}
+          onOpenChange={setConfirmDeleteArticle}
+          title="Delete Article"
+          description={`Are you sure you want to delete "${article.subject}"? This action cannot be undone.`}
+          confirmLabel="Delete"
+          variant="destructive"
+          onConfirm={() => onDeleteArticle(article.id)}
+        />
 
         {/* Body */}
         {article.body && (
@@ -430,6 +443,8 @@ interface ReplyItemProps {
 }
 
 function ReplyItem({ reply, userId, onDelete, isLast }: ReplyItemProps) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   return (
     <div className={`flex items-start gap-3 px-5 py-4 group/reply bg-muted/5 ${!isLast ? 'border-b border-border/30' : ''}`}>
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden text-[11px] font-semibold text-primary">
@@ -453,11 +468,20 @@ function ReplyItem({ reply, userId, onDelete, isLast }: ReplyItemProps) {
           variant="ghost"
           size="sm"
           className="h-7 w-7 p-0 opacity-0 group-hover/reply:opacity-100 max-sm:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
-          onClick={() => onDelete(reply.id)}
+          onClick={() => setConfirmDelete(true)}
         >
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       )}
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Delete Reply"
+        description="Are you sure you want to delete this reply? This action cannot be undone."
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={() => onDelete(reply.id)}
+      />
     </div>
   );
 }
