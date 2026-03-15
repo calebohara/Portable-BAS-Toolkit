@@ -2,13 +2,15 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, WifiOff, Menu, RefreshCw, Upload } from 'lucide-react';
+import { Search, WifiOff, Menu, RefreshCw, Upload, Mail } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useAppStore } from '@/store/app-store';
 import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
+import { useInbox } from '@/hooks/use-inbox';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { Button } from '@/components/ui/button';
 import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
+import { InboxPanel } from '@/components/inbox/inbox-panel';
 
 export function TopBar({ title, children }: { title?: string; children?: React.ReactNode }) {
   const router = useRouter();
@@ -17,6 +19,8 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
   const isOnline = useAppStore((s) => s.isOnline);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const [showUpload, setShowUpload] = useState(false);
+  const [showInbox, setShowInbox] = useState(false);
+  const { unreadCount } = useInbox();
 
   const goToSearch = useCallback(() => router.push('/search'), [router]);
 
@@ -97,6 +101,23 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
 
           <ThemeSwitcher />
 
+          {/* Inbox button with notification badge */}
+          {user && (
+            <button
+              type="button"
+              onClick={() => setShowInbox(true)}
+              className="relative flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              aria-label="Open inbox"
+            >
+              <Mail className="h-4 w-4" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground ring-2 ring-background">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </button>
+          )}
+
           {/* Profile pill — navigates to settings */}
           {user && (
             <button
@@ -127,6 +148,11 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
       <GlobalUploadDialog
         open={showUpload}
         onOpenChange={setShowUpload}
+      />
+
+      <InboxPanel
+        open={showInbox}
+        onOpenChange={setShowInbox}
       />
     </>
   );
