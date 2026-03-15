@@ -145,6 +145,29 @@ function AdminApprovalPanel({ session }: { session: { access_token: string } | n
     }
   };
 
+  const handleDeny = async (userId: string, email: string) => {
+    if (!session) return;
+    if (!confirm(`Permanently deny and delete ${email}? This cannot be undone.`)) return;
+    setUpdating(userId);
+    try {
+      const res = await fetch(`/api/admin/users?userId=${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      if (res.ok) {
+        toast.success('User denied and removed');
+        await fetchUsers();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to deny user');
+      }
+    } catch {
+      toast.error('Failed to deny user');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
   const pendingUsers = users.filter((u) => !u.approved);
   const approvedUsers = users.filter((u) => u.approved);
 
@@ -199,15 +222,27 @@ function AdminApprovalPanel({ session }: { session: { access_token: string } | n
                           {u.email} · Signed up {new Date(u.created_at).toLocaleDateString()}
                         </p>
                       </div>
-                      <Button
-                        size="sm"
-                        className="gap-1.5 shrink-0"
-                        disabled={updating === u.id}
-                        onClick={() => handleApproval(u.id, true)}
-                      >
-                        {updating === u.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
-                        Approve
-                      </Button>
+                      <div className="flex gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          className="gap-1.5"
+                          disabled={updating === u.id}
+                          onClick={() => handleApproval(u.id, true)}
+                        >
+                          {updating === u.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <UserCheck className="h-3.5 w-3.5" />}
+                          Approve
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-muted-foreground hover:text-destructive"
+                          disabled={updating === u.id}
+                          onClick={() => handleDeny(u.id, u.email)}
+                        >
+                          <UserX className="h-3.5 w-3.5" />
+                          Deny
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>

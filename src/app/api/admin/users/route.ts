@@ -84,3 +84,31 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ success: true });
 }
+
+export async function DELETE(request: Request) {
+  const auth = await verifyAdmin(request);
+  if (!auth) {
+    return NextResponse.json({ error: 'Unauthorized — admin access required' }, { status: 403 });
+  }
+
+  const { searchParams } = new URL(request.url);
+  const userId = searchParams.get('userId');
+
+  if (!userId) {
+    return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+  }
+
+  // Prevent admin from deleting themselves
+  if (userId === auth.user.id) {
+    return NextResponse.json({ error: 'Cannot delete your own account' }, { status: 400 });
+  }
+
+  // Delete from auth.users (cascades to profiles via FK)
+  const { error } = await auth.admin.auth.admin.deleteUser(userId);
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ success: true });
+}
