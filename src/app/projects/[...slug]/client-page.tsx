@@ -765,6 +765,8 @@ function NotepadView({ projectId, projectName }: { projectId: string; projectNam
   const { entries, addEntry, updateContent, removeEntry, syncFromTab } = useProjectNotepad(projectId);
 
   const floatingTabs = useNotepadStore(s => s.tabs);
+  const setTabProject = useNotepadStore(s => s.setTabProject);
+  const removeFloatingTab = useNotepadStore(s => s.removeTab);
   const linkedFloatingTabs = useMemo(() => floatingTabs.filter(t => t.projectId === projectId), [floatingTabs, projectId]);
 
   const handleNewNote = async () => {
@@ -808,19 +810,44 @@ function NotepadView({ projectId, projectName }: { projectId: string; projectNam
               {linkedFloatingTabs.map(tab => {
                 const alreadyImported = entries.some(e => e.linkedTabId === tab.id);
                 return (
-                  <Button
-                    key={tab.id}
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5 text-xs"
-                    onClick={() => handleImportFromNotepad(tab)}
-                    disabled={alreadyImported}
-                    title={alreadyImported ? 'Already imported — use Sync to update' : `Import "${tab.name}"`}
-                  >
-                    <NotebookPen className="h-3 w-3" />
-                    {tab.name}
-                    {alreadyImported && <span className="text-muted-foreground">(imported)</span>}
-                  </Button>
+                  <div key={tab.id} className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      onClick={() => handleImportFromNotepad(tab)}
+                      disabled={alreadyImported}
+                      title={alreadyImported ? 'Already imported — use Sync to update' : `Import "${tab.name}"`}
+                    >
+                      <NotebookPen className="h-3 w-3" />
+                      {tab.name}
+                      {alreadyImported && <span className="text-muted-foreground">(imported)</span>}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        setTabProject(tab.id, undefined, undefined);
+                        toast.success(`Unlinked "${tab.name}" from project`);
+                      }}
+                      title="Unlink from project"
+                    >
+                      <Link2 className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        removeFloatingTab(tab.id);
+                        toast.success(`Deleted "${tab.name}" from notepad`);
+                      }}
+                      title="Delete from floating notepad"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
                 );
               })}
             </div>
