@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, use, useEffect, useCallback } from 'react';
+import { useState, useMemo, use, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
@@ -71,7 +71,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { activity } = useProjectActivity(id);
   const { logs: terminalLogs, removeLog: removeTerminalLog } = useTerminalLogs(id);
   const { reports } = useDailyReports(id);
-  const notepadTabs = useNotepadStore(s => s.tabs.filter(t => t.projectId === id));
+  const allNotepadTabs = useNotepadStore(s => s.tabs);
+  const notepadTabs = useMemo(() => allNotepadTabs.filter(t => t.projectId === id), [allNotepadTabs, id]);
   const getInitialTab = () => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
@@ -761,12 +762,12 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Hash; label: strin
 
 // ─── Notepad View (linked notepad tabs for this project) ─────
 function NotepadView({ projectId, projectName }: { projectId: string; projectName: string }) {
-  const tabs = useNotepadStore(s => s.tabs);
+  const allTabs = useNotepadStore(s => s.tabs);
   const updateTabContent = useNotepadStore(s => s.updateTabContent);
   const setTabProject = useNotepadStore(s => s.setTabProject);
   const addTab = useNotepadStore(s => s.addTab);
 
-  const linkedTabs = tabs.filter(t => t.projectId === projectId);
+  const linkedTabs = useMemo(() => allTabs.filter(t => t.projectId === projectId), [allTabs, projectId]);
 
   const handleNewLinkedNote = () => {
     addTab();
