@@ -101,7 +101,7 @@ export default function DashboardPage() {
   return (
     <>
       <TopBar title="Dashboard" />
-      <div className="p-4 md:p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6 overflow-x-hidden">
         {/* Desktop App Banner — shown on Windows desktop browsers */}
         {isWindowsDesktopWeb && (
           <div
@@ -295,9 +295,9 @@ export default function DashboardPage() {
         {/* ═══ Activity Feed + Recent Notes (side by side on desktop) ═══ */}
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Activity Feed */}
-          <section>
+          <section className="min-w-0">
             <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Recent Activity</h2>
-            <Card>
+            <Card className="overflow-hidden">
               <CardContent className="p-0">
                 {activity.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 text-center">
@@ -340,9 +340,9 @@ export default function DashboardPage() {
           </section>
 
           {/* Recent Field Notes */}
-          <section>
+          <section className="min-w-0">
             <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Recent Field Notes</h2>
-            <Card>
+            <Card className="overflow-hidden">
               <CardContent className="p-0">
                 {recentNotes.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-10 text-center">
