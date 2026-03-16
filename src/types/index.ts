@@ -80,6 +80,16 @@ export interface FieldNote {
   tags: string[];
 }
 
+export interface ProjectNotepadEntry {
+  id: string;
+  projectId: string;
+  name: string;
+  content: string;
+  linkedTabId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DeviceEntry {
   id: string;
   projectId: string;
@@ -181,7 +191,8 @@ export type SyncEntityType =
   | 'projects' | 'files' | 'notes' | 'devices' | 'ipPlan'
   | 'dailyReports' | 'activityLog' | 'networkDiagrams'
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
-  | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions';
+  | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
+  | 'projectNotepadEntries';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 

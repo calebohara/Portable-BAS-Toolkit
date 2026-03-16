@@ -19,6 +19,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   connectionProfiles: 'connection_profiles',
   registerCalculations: 'register_calculations',
   pidTuningSessions: 'pid_tuning_sessions',
+  projectNotepadEntries: 'project_notepad_entries',
 };
 
 // Fields to strip from local entities before pushing to Supabase.
@@ -193,6 +194,12 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  projectNotepadEntries: {
+    projectId: 'project_id',
+    linkedTabId: 'linked_tab_id',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
 };
 
 /**
@@ -245,6 +252,7 @@ export const REQUIRES_PROJECT_ID: Set<SyncEntityType> = new Set([
   'activityLog',   // activity_log.project_id NOT NULL
   'networkDiagrams', // network_diagrams.project_id NOT NULL
   'pidTuningSessions', // pid_tuning_sessions.project_id NOT NULL
+  'projectNotepadEntries', // project_notepad_entries.project_id NOT NULL
 ]);
 // These tables have project_id nullable: files, commandSnippets,
 // pingSessions, terminalLogs, connectionProfiles, registerCalculations
@@ -333,4 +341,5 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'connectionProfiles',
   'registerCalculations',
   'pidTuningSessions',
+  'projectNotepadEntries',
 ];

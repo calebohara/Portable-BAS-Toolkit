@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, use, useEffect, useCallback } from 'react';
+import { useState, useMemo, use, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
@@ -8,7 +8,7 @@ import {
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
   ChevronRight, Share2, FolderOpen, Terminal, Download, Globe,
-  NotebookPen, Link2, Unlink, RefreshCw,
+  NotebookPen, Link2, RefreshCw,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
@@ -39,7 +39,7 @@ import { cn, sanitizeFilename } from '@/lib/utils';
 import { deleteProject } from '@/lib/db';
 import { useAppStore } from '@/store/app-store';
 import { useNotepadStore } from '@/store/notepad-store';
-import { useProjectNotepadStore } from '@/store/project-notepad-store';
+import { useProjectNotepad } from '@/hooks/use-project-notepad';
 import { toast } from 'sonner';
 
 const sections = [
@@ -72,8 +72,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { activity } = useProjectActivity(id);
   const { logs: terminalLogs, removeLog: removeTerminalLog } = useTerminalLogs(id);
   const { reports } = useDailyReports(id);
-  const projectNotepadEntries = useProjectNotepadStore(s => s.entries);
-  const notepadCount = useMemo(() => projectNotepadEntries.filter(e => e.projectId === id).length, [projectNotepadEntries, id]);
+  const { entries: notepadEntries } = useProjectNotepad(id);
   const getInitialTab = () => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
@@ -209,7 +208,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               const count = sectionId === 'device-list' ? devices.length
                 : sectionId === 'ip-plan' ? ipEntries.length
                 : sectionId === 'notes' ? notes.length
-                : sectionId === 'notepad' ? notepadCount
+                : sectionId === 'notepad' ? notepadEntries.length
                 : sectionId !== 'overview' && sectionId !== 'history' ? fileCounts[sectionId] || 0
                 : 0;
               return (
@@ -763,33 +762,25 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Hash; label: strin
 
 // ─── Notepad View (project-specific notepad with sync from floating notepad) ─────
 function NotepadView({ projectId, projectName }: { projectId: string; projectName: string }) {
-  const allEntries = useProjectNotepadStore(s => s.entries);
-  const addEntry = useProjectNotepadStore(s => s.addEntry);
-  const updateContent = useProjectNotepadStore(s => s.updateContent);
-  const removeEntry = useProjectNotepadStore(s => s.removeEntry);
-  const syncFromTab = useProjectNotepadStore(s => s.syncFromTab);
+  const { entries, addEntry, updateContent, removeEntry, syncFromTab } = useProjectNotepad(projectId);
 
   const floatingTabs = useNotepadStore(s => s.tabs);
-
-  const entries = useMemo(() => allEntries.filter(e => e.projectId === projectId), [allEntries, projectId]);
-
-  // Floating notepad tabs linked to this project (for sync)
   const linkedFloatingTabs = useMemo(() => floatingTabs.filter(t => t.projectId === projectId), [floatingTabs, projectId]);
 
-  const handleNewNote = () => {
-    addEntry(projectId, `Note ${entries.length + 1}`, '');
+  const handleNewNote = async () => {
+    await addEntry(`Note ${entries.length + 1}`, '');
   };
 
-  const handleSyncFromNotepad = (entryId: string, linkedTabId: string) => {
+  const handleSyncFromNotepad = async (entryId: string, linkedTabId: string) => {
     const tab = floatingTabs.find(t => t.id === linkedTabId);
     if (tab) {
-      syncFromTab(entryId, tab.content);
+      await syncFromTab(entryId, tab.content);
       toast.success('Synced from notepad');
     }
   };
 
-  const handleImportFromNotepad = (tab: { id: string; name: string; content: string }) => {
-    addEntry(projectId, tab.name, tab.content, tab.id);
+  const handleImportFromNotepad = async (tab: { id: string; name: string; content: string }) => {
+    await addEntry(tab.name, tab.content, tab.id);
     toast.success(`Imported "${tab.name}" to project notepad`);
   };
 
@@ -886,22 +877,54 @@ function NotepadView({ projectId, projectName }: { projectId: string; projectNam
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <Textarea
-                  value={entry.content}
-                  onChange={e => updateContent(entry.id, e.target.value)}
-                  placeholder="Type your notes here..."
-                  className="min-h-32 font-mono text-sm resize-y"
-                  rows={6}
+                <DebouncedNotepadTextarea
+                  entryId={entry.id}
+                  initialContent={entry.content}
+                  onSave={updateContent}
                 />
-                <p className="text-[10px] text-muted-foreground mt-1.5">
-                  {entry.content.length.toLocaleString()} chars
-                </p>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+/** Textarea with local state + debounced save to IndexedDB */
+function DebouncedNotepadTextarea({ entryId, initialContent, onSave }: {
+  entryId: string;
+  initialContent: string;
+  onSave: (id: string, content: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState(initialContent);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Sync from external updates (e.g. pull sync)
+  useEffect(() => { setValue(initialContent); }, [initialContent]);
+
+  const handleChange = (content: string) => {
+    setValue(content);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => { onSave(entryId, content); }, 500);
+  };
+
+  // Flush on unmount
+  useEffect(() => () => { clearTimeout(timerRef.current); }, []);
+
+  return (
+    <>
+      <Textarea
+        value={value}
+        onChange={e => handleChange(e.target.value)}
+        placeholder="Type your notes here..."
+        className="min-h-32 font-mono text-sm resize-y"
+        rows={6}
+      />
+      <p className="text-[10px] text-muted-foreground mt-1.5">
+        {value.length.toLocaleString()} chars
+      </p>
+    </>
   );
 }
 
