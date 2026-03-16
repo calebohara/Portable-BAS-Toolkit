@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.3.0-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.5.0-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -18,17 +18,24 @@
 
 ---
 
-## What's New in v4.3.0
+## What's New in v4.5.0
 
-- **Knowledge Base** — Forum-style knowledge base with full-page article composer, markdown formatting toolbar (bold, italic, headings, code, quotes, lists, links), categories, file attachments, threaded replies, and full-text search.
+- **PID Tuning Tool** — Interactive PID loop tuning calculator with support for multiple loop types, output types, control modes, and session save/load.
+- **Dashboard Enhancements** — Activity feed, project health cards, and stats widgets for at-a-glance project status.
+- **Offline / Pinned Content** — Pin projects and content for guaranteed offline access with dedicated management view.
+
+<details>
+<summary>v4.3.0</summary>
+
+- **Knowledge Base** — Forum-style knowledge base with full-page article composer, markdown formatting toolbar, categories, file attachments, threaded replies, and full-text search.
 - **Supabase Cloud Sync** — Automatic background sync of local IndexedDB data to Supabase with push queue, incremental pull, and real-time status indicator in the sidebar.
-- **Sync Conflict Resolution** — Detects when local and remote edits diverge during offline periods. Conflicts are stored with metadata and surfaced in a resolution dialog to keep local or cloud version per entity.
+- **Sync Conflict Resolution** — Detects when local and remote edits diverge during offline periods. Conflicts are stored with metadata and surfaced in a resolution dialog.
 - **User Inbox** — Direct messaging between users with notification badge, sent/received tabs, and read tracking.
 - **Online Presence** — Real-time online users indicator in the sidebar showing who's active.
 - **Account Approval Gate** — Admin panel for approving new user registrations with deny/permanently-delete capability.
 - **File Uploads & Storage** — Supabase storage integration with versioned file uploads and Postgres full-text search across all content.
-- **Confirmation Dialogs** — Destructive actions (delete articles, messages, replies) now require confirmation before executing.
 - **Realtime Subscriptions** — All global project data hooks subscribe to Supabase realtime channels for live updates.
+</details>
 
 <details>
 <summary>v4.2.0</summary>
@@ -102,7 +109,8 @@
 - **Device Inventory** — controllers, sensors, actuators with BACnet instance, IP, MAC, location
 - **Ping Tool** — HTTP and ICMP (desktop) reachability with port scanning
 - **Network Diagram Builder** — drag-and-drop topology mapping with PNG/SVG export
-- **Protocol Converter** — hex/decimal/binary, IEEE 754, byte order, Modbus addressing, bitmask tool
+- **Register Tool** — hex/decimal/binary, IEEE 754, byte order, Modbus addressing, bitmask tool
+- **PID Tuning** — interactive PID loop tuning calculator with multiple loop types and session management
 
 ### Access & Diagnostics
 - **Web Interface** — access BAS controller web panels with saved endpoints and security handling
@@ -120,6 +128,8 @@
 - **PWA installable** — add to home screen on any device
 - **Desktop app** — native Tauri app with real ICMP ping and full network access
 - **Global search** — search across all projects, files, devices, IP entries, and notes
+- **Offline / Pinned** — pin content for guaranteed offline access with a dedicated management view
+- **Uploads Inbox** — central file upload area for organizing project documents
 - **Sticky notepad** — draggable floating scratchpad with tabbed notes
 - **Guided tour** — interactive onboarding walkthrough
 
@@ -220,7 +230,7 @@ Installable Progressive Web App:
 
 ## Versioning
 
-**Current: v4.3.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.5.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 
@@ -239,6 +249,13 @@ git push origin feature/your-feature
 - Follow existing component patterns
 - Test on mobile viewport
 - Ensure offline compatibility
+- See [CLAUDE.md](CLAUDE.md) for detailed architecture, build system, and common pitfalls
+
+---
+
+## License
+
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 

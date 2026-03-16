@@ -639,17 +639,16 @@ export function useCommandSnippets() {
   }, [refresh]);
 
   const recordUsage = useCallback(async (id: string) => {
-    const all = await db.getAllSnippets();
-    const snippet = all.find(s => s.id === id);
-    if (snippet) {
-      const updated = { ...snippet, usageCount: snippet.usageCount + 1, lastUsedAt: new Date().toISOString() };
-      try {
+    try {
+      const all = await db.getAllSnippets();
+      const snippet = all.find(s => s.id === id);
+      if (snippet) {
+        const updated = { ...snippet, usageCount: snippet.usageCount + 1, lastUsedAt: new Date().toISOString() };
         await db.saveSnippet(updated);
-      } catch (e) {
-        console.error('Failed to record snippet usage:', e);
-        throw e;
+        await refresh();
       }
-      await refresh();
+    } catch (e) {
+      console.error('Failed to record snippet usage:', e);
     }
   }, [refresh]);
 
@@ -817,13 +816,17 @@ export function useConnectionProfiles(projectId?: string) {
   }, [refresh]);
 
   const touchProfile = useCallback(async (id: string) => {
-    const all = await db.getAllConnectionProfiles();
-    const p = all.find(x => x.id === id);
-    if (p) {
-      const now = new Date().toISOString();
-      const updated = { ...p, lastConnectedAt: now, updatedAt: now };
-      await db.saveConnectionProfile(updated);
-      await refresh();
+    try {
+      const all = await db.getAllConnectionProfiles();
+      const p = all.find(x => x.id === id);
+      if (p) {
+        const now = new Date().toISOString();
+        const updated = { ...p, lastConnectedAt: now, updatedAt: now };
+        await db.saveConnectionProfile(updated);
+        await refresh();
+      }
+    } catch (e) {
+      console.error('Failed to touch profile:', e);
     }
   }, [refresh]);
 

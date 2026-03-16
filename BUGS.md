@@ -39,10 +39,11 @@ RULES:
 -->
 
 **Version**: 4.5.0
-**Last updated**: 2026-03-16 00:50
+**Last updated**: 2026-03-16 01:20
 **Sweep 1**: 47 issues | 44 fixed | 3 skipped
 **Sweep 2**: 47 issues | 32 fixed | 15 skipped
 **Sweep 3**: 18 issues | 15 fixed | 3 skipped
+**Sweep 4**: 15 issues | 13 fixed | 2 skipped
 
 ---
 
@@ -255,3 +256,61 @@ RULES:
 | L2 | `supabase/` (live DB) | **Missing trigger** — `ping_sessions` table has `updated_at` column but no `set_updated_at()` trigger in live DB. S3-5 fix added it to schema.sql but same deployment gap. Incremental pull sync misses updates to ping sessions. | 2026-03-16 00:50 | FIXED 2026-03-16 00:50 — included in same migration file with idempotent guard |
 
 **Action required**: Run `supabase/migrations/add-pid-tuning-and-ping-trigger.sql` in Supabase Dashboard → SQL Editor
+
+---
+
+# Sweep 4 — 9-Agent QA Sweep
+
+**Date**: 2026-03-16 01:15
+**Version**: 4.5.0
+**Total Issues**: 15 | **Fixed**: 13 | **Skipped**: 2
+**Agents**: 9 (UI, Data, Sync, Build, A11y/Security, Supabase, Mobile, Landing Page, README)
+
+**Regressions**: 0
+**Build gate**: tsc --noEmit PASS | npm run build PASS (post-fix)
+
+---
+
+## HIGH (3 issues)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S4-1 | `src/app/page.tsx:607-672` | Landing page desktop section says "Coming Soon" and "Windows" only — desktop app is released on Windows & macOS | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — updated to "Available Now", "Windows & macOS", link to GitHub Releases |
+| S4-2 | `src/app/page.tsx:18-66` | PID Tuning missing from landing page `toolGroups` — sidebar has it but marketing page doesn't list it | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — added to "Network & Device Tools" group |
+| S4-3 | `src/app/page.tsx:18-66` | Knowledge Base missing from landing page `toolGroups` — sidebar has it but marketing page doesn't list it | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — added to "Collaboration" group |
+
+## MEDIUM (5 issues)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S4-4 | `src/app/page.tsx:269,355` | Stats row "14+ tools" is stale — actual tool count is 21+ | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — updated to "21+" |
+| S4-6 | `supabase/schema.sql:262-274` | `activity_log` missing `deleted_at`, `sync_version`, `updated_at` columns and `set_updated_at` trigger | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — updated schema.sql + migration |
+| S4-7 | `supabase/schema.sql:412-429` | `terminal_session_logs` missing `updated_at` column and `set_updated_at` trigger | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — updated schema.sql + migration |
+| S4-12 | `src/app/knowledge-base/new/page.tsx:251` | Native `<select>` instead of design system `Select` component — inconsistent dark mode styling (upgrades S3-17) | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — replaced with shadcn Select |
+| S4-13 | `src/app/network-diagram/page.tsx:555` | Desktop project Select value mismatch — "No project" not highlighted when selected | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — use `value={selectedProjectId \|\| '_none'}` |
+
+## LOW (7 issues)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S4-8 | `src/app/projects/[...slug]/client-page.tsx:766` | `revokeObjectURL` called immediately after `a.click()` — download may fail (regression of #27 pattern) | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — wrapped in setTimeout 5000 |
+| S4-9 | `src/app/ping/page.tsx:446` | `revokeObjectURL` called immediately — same pattern as S4-8 | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — wrapped in setTimeout 5000 |
+| S4-10 | `src/hooks/use-projects.ts:819-828` | `touchProfile` missing try/catch — unhandled IndexedDB error | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — added try/catch |
+| S4-11 | `src/hooks/use-projects.ts:641-654` | `recordUsage` has `getAllSnippets` outside try/catch | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — moved inside try block |
+| S4-14 | `src/app/network-diagram/page.tsx:913` | Mobile project selector missing "No project" deselect option | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — added `_none` option |
+| S4-16 | `src/app/knowledge-base/new/page.tsx:232-294` | Raw `<label>` elements instead of `Label` component (upgrades S3-18) | 2026-03-16 01:00 | FIXED 2026-03-16 01:15 — replaced with Label component |
+| S4-18 | `src/app/dashboard/page.tsx` | No empty state for new users with zero projects | 2026-03-16 01:00 | SKIPPED — needs design decision on onboarding flow |
+
+## INFO (not counted)
+
+| # | Note |
+|---|------|
+| I-1 | 25 lint errors (all `set-state-in-effect` — React 19 pattern, carried from S2-8/S2-9) + 105 warnings (unused vars/imports) |
+| I-2 | Version sync: all 3 files at `4.5.0` — consistent |
+| I-3 | Sync & field mapping: all 14 entity types fully wired — no gaps |
+| I-4 | README.md: up to date, version matches, features match sidebar |
+| I-5 | Mobile responsive: no structural issues found in Tailwind responsive classes |
+
+**Migration required**: Run `supabase/migrations/add-sync-columns-activity-terminal.sql` in Supabase Dashboard → SQL Editor
+
+**Build gate (post-fix)**: tsc --noEmit PASS | npm run build PASS (2026-03-16 01:20)

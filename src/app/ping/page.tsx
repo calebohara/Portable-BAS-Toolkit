@@ -443,7 +443,7 @@ export default function PingToolPage() {
     a.href = url;
     a.download = sanitizeFilename(`ping_results_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.txt`);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Results exported');
   }, [targets, results, mode]);
 

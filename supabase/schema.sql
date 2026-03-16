@@ -266,12 +266,19 @@ create table if not exists activity_log (
   action text not null,
   details text not null default '',
   file_id uuid,
-  timestamp timestamptz not null default now()
+  timestamp timestamptz not null default now(),
+  deleted_at timestamptz,
+  sync_version int not null default 1,
+  updated_at timestamptz not null default now()
 );
 
 alter table activity_log enable row level security;
 create policy "Users can manage their own activity"
   on activity_log for all using (auth.uid() = user_id);
+
+create trigger activity_log_updated_at
+  before update on activity_log
+  for each row execute function set_updated_at();
 
 -- ─── Network Diagrams ───────────────────────────────────────────────────────
 create table if not exists network_diagrams (
@@ -425,12 +432,17 @@ create table if not exists terminal_session_logs (
   ended_at timestamptz,
   deleted_at timestamptz,
   sync_version int not null default 1,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 alter table terminal_session_logs enable row level security;
 create policy "Users can manage their own terminal logs"
   on terminal_session_logs for all using (auth.uid() = user_id);
+
+create trigger terminal_session_logs_updated_at
+  before update on terminal_session_logs
+  for each row execute function set_updated_at();
 
 -- ─── PID Tuning Sessions ──────────────────────────────────────────────────
 create table if not exists pid_tuning_sessions (

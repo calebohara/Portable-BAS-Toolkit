@@ -552,7 +552,7 @@ export default function NetworkDiagramPage() {
           {/* Project selector */}
           <div className="p-3 border-b border-border space-y-2">
             <Label className="text-xs">Project</Label>
-            <Select value={selectedProjectId} onValueChange={v => setSelectedProjectId(v === '_none' ? '' : (v ?? ''))}>
+            <Select value={selectedProjectId || '_none'} onValueChange={v => setSelectedProjectId(v === '_none' ? '' : (v ?? ''))}>
               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select project..." /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="_none">No project</SelectItem>
@@ -910,9 +910,10 @@ export default function NetworkDiagramPage() {
                   <h3 className="text-sm font-semibold">Project & Diagrams</h3>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Project</Label>
-                    <Select value={selectedProjectId} onValueChange={v => { if (v) setSelectedProjectId(v); }}>
+                    <Select value={selectedProjectId || '_none'} onValueChange={v => setSelectedProjectId(v === '_none' ? '' : (v ?? ''))}>
                       <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select project..." /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="_none">No project</SelectItem>
                         {projects.map(p => (
                           <SelectItem key={p.id} value={p.id}>{p.projectNumber} — {p.name}</SelectItem>
                         ))}

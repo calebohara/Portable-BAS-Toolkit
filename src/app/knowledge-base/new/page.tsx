@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { buildStoragePath, uploadProjectFile } from '@/lib/storage';
 import { createKbArticle, createKbCategory } from '@/lib/knowledge-base/api';
@@ -229,9 +231,9 @@ export default function NewArticlePage() {
         <div className="flex-1 max-w-4xl mx-auto w-full px-4 md:px-6 py-6 md:py-8 space-y-6">
           {/* Subject */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
+            <Label>
               Subject <span className="text-destructive">*</span>
-            </label>
+            </Label>
             <Input
               placeholder="Enter a descriptive title for your article..."
               value={subject}
@@ -242,21 +244,21 @@ export default function NewArticlePage() {
 
           {/* Category */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
+            <Label>
               Category <span className="text-destructive">*</span>
-            </label>
+            </Label>
             {!showNewCategory ? (
               <div className="flex items-center gap-3">
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                >
-                  <option value="">Select a category...</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
+                <Select value={categoryId} onValueChange={v => setCategoryId(v ?? '')}>
+                  <SelectTrigger className="flex-1 h-10">
+                    <SelectValue placeholder="Select a category..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {categories.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <Button
                   variant="outline"
                   size="default"
@@ -288,9 +290,7 @@ export default function NewArticlePage() {
 
           {/* Content Editor */}
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">
-              Content
-            </label>
+            <Label>Content</Label>
             <Card className="overflow-hidden">
               {/* Formatting Toolbar */}
               <div className="flex items-center gap-0.5 px-3 py-2 border-b border-border bg-muted/30 flex-wrap">

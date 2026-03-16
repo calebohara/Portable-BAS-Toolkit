@@ -763,7 +763,7 @@ function TerminalLogsView({ logs, onDelete }: { logs: TerminalSessionLog[]; onDe
     const mode = log.connectionMode === 'serial' ? 'serial' : 'telnet';
     a.download = `${log.sessionLabel.replace(/\s+/g, '_')}_${mode}_${format(new Date(log.createdAt), 'yyyy-MM-dd_HH-mm')}.txt`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   const handleDelete = async (id: string) => {

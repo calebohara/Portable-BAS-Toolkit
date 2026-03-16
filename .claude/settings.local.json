@@ -18,7 +18,10 @@
       "Bash(git commit:*)",
       "Bash(git push:*)",
       "Bash(npx tsc:*)",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "Bash(ls -laS C:UsersCalebAppDataLocalTempclaudeD--Github-Repositories-Portable-BAS-Toolkit1fbe8ea8-7eb9-48a3-832d-0ac3ae2c5aa8tasks/*.output)",
+      "Bash(find C:/Users/Caleb/AppData/Local/Temp/claude/D--Github-Repositories-Portable-BAS-Toolkit/1fbe8ea8-7eb9-48a3-832d-0ac3ae2c5aa8/tasks/ -name *.output -size +0c -newer C:/Users/Caleb/AppData/Local/Temp/claude/D--Github-Repositories-Portable-BAS-Toolkit/1fbe8ea8-7eb9-48a3-832d-0ac3ae2c5aa8/tasks/a22792f22c0b55788.output)",
+      "Bash(ls -lat \"C:/Users/Caleb/AppData/Local/Temp/claude/D--Github-Repositories-Portable-BAS-Toolkit/1fbe8ea8-7eb9-48a3-832d-0ac3ae2c5aa8/tasks/\"b*.output)"
     ]
   }
 }
