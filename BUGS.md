@@ -32,10 +32,14 @@ RULES:
 11. REPLY LOG: Every user reply during a BUGS.md or QC session must be logged verbatim
     in `REPLY.md` with a timestamp (YYYY-MM-DD HH:MM). This preserves user intent,
     decisions, and feedback as an audit trail.
+12. FIX VERIFICATION: After marking any issue FIXED, verify the fix compiles AND doesn't
+    regress adjacent behavior. "FIXED" means verified-working, not just "code changed."
+    If the same pattern exists in other files (e.g., keyboard a11y, notifySync), check
+    ALL files — a fix that patches one file when five have the same bug is incomplete.
 -->
 
 **Version**: 4.5.0
-**Last updated**: 2026-03-16 00:15
+**Last updated**: 2026-03-16 00:50
 **Sweep 1**: 47 issues | 44 fixed | 3 skipped
 **Sweep 2**: 47 issues | 32 fixed | 15 skipped
 **Sweep 3**: 18 issues | 15 fixed | 3 skipped
@@ -210,7 +214,7 @@ RULES:
 | # | File | Issue | Found | Status |
 |---|------|-------|-------|--------|
 | S3-2 | `src/lib/sync/sync-manager.ts:448` | Pull sync orphan filter drops legitimate null-project_id rows — only exempts `projects` and `commandSnippets`, misses `files`, `pingSessions`, `terminalLogs`, `connectionProfiles`, `registerCalculations` | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — filter uses `REQUIRES_PROJECT_ID` set |
-| S3-3 | `supabase/schema.sql` + `src/lib/sync/field-map.ts:21` | `pidTuningSessions` mapped to `pid_tuning_sessions` table in sync but no `CREATE TABLE` exists in schema — push sync fails with "relation does not exist" | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — added table, RLS, trigger, index |
+| S3-3 | `supabase/schema.sql` + `src/lib/sync/field-map.ts:21` | `pidTuningSessions` mapped to `pid_tuning_sessions` table in sync but no `CREATE TABLE` exists in schema — push sync fails with "relation does not exist" | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — added table, RLS, trigger, index to schema.sql. **Note**: schema.sql is not auto-deployed — see L1 for live DB migration |
 | S3-4 | `src/lib/db.ts:300-311` | `deleteProject` calls `notifySync` for 11 child types but skips `activityLog` — activity log entries for deleted projects remain as orphans in Supabase | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — added notifySync for activityLog |
 
 ## MEDIUM (6 issues)
@@ -238,3 +242,16 @@ RULES:
 | S3-18 | `src/app/knowledge-base/new/page.tsx` | Form labels lack `htmlFor`/`id` association — screen readers can't associate labels with inputs | 2026-03-15 23:30 | SKIPPED — lower priority a11y |
 
 **Build gate (post-fix)**: tsc --noEmit PASS | npm run build PASS (2026-03-16 00:15)
+
+---
+
+# Live Bug — User-Reported (2026-03-16 00:50)
+
+## HIGH (2 issues)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| L1 | `supabase/` (live DB) | **Sync failure** — `pid_tuning_sessions` table exists in `schema.sql` but was never deployed to live Supabase DB. Push sync fails with PostgREST error: "Could not find the table 'public.pid_tuning_sessions' in the schema cache." Root cause: S3-3 fix added the CREATE TABLE to schema.sql but schema.sql is documentation, not auto-deployed. | 2026-03-16 00:50 | FIXED 2026-03-16 00:50 — created migration `supabase/migrations/add-pid-tuning-and-ping-trigger.sql`. Must be run manually in Supabase SQL Editor |
+| L2 | `supabase/` (live DB) | **Missing trigger** — `ping_sessions` table has `updated_at` column but no `set_updated_at()` trigger in live DB. S3-5 fix added it to schema.sql but same deployment gap. Incremental pull sync misses updates to ping sessions. | 2026-03-16 00:50 | FIXED 2026-03-16 00:50 — included in same migration file with idempotent guard |
+
+**Action required**: Run `supabase/migrations/add-pid-tuning-and-ping-trigger.sql` in Supabase Dashboard → SQL Editor

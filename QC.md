@@ -43,7 +43,7 @@ Before launching any agents, **every sweep must**:
 
 ### Instructions
 
-Run **5 parallel test agents**, each covering a distinct area. Do NOT commit or push — report findings only.
+Run **9 parallel test agents**, each covering a distinct area. Do NOT commit or push — report findings only.
 
 ---
 
@@ -83,6 +83,19 @@ Test every interactive page for rendering, state, and user interaction bugs.
 - [ ] Dark mode rendering issues (invisible text, missing borders, wrong backgrounds)
 - [ ] Responsive breakpoints — content overflow or misalignment at mobile/tablet/desktop
 - [ ] `data-tour` attributes present on all sidebar nav items and key UI elements
+
+**Dialog & Popup Quality**:
+
+- [ ] Dialogs/modals are scrollable when content overflows viewport height — no clipped fields
+- [ ] Dialog content has consistent padding and spacing between form fields (no cramped or uneven gaps)
+- [ ] Popover/dropdown menus position correctly — don't clip off-screen or hide behind other elements
+- [ ] Dialogs with many fields (e.g., project create, report edit) remain usable at small viewport heights
+- [ ] Confirmation dialogs show meaningful context (e.g., "Delete project X?" not just "Are you sure?")
+- [ ] Nested dialogs (dialog-in-dialog) stack z-index correctly and backdrop doesn't block parent
+- [ ] Dialog open/close transitions are smooth — no layout shift or flash of unstyled content
+- [ ] Long select/dropdown lists are scrollable with visible scrollbar or max-height constraint
+- [ ] Form fields inside dialogs have proper label alignment, consistent widths, and readable spacing
+- [ ] Clicking outside a dialog or pressing Escape closes it (unless it has unsaved changes)
 
 ---
 
@@ -219,6 +232,165 @@ Test for a11y compliance, security issues, and edge-case handling.
 
 ---
 
+### Agent 6: Supabase & Live Database Audit
+
+Verify that every Supabase reference in the codebase has a corresponding live database object, and generate a migration file for anything missing.
+
+**Key files**:
+
+- `supabase/schema.sql` — canonical schema definition (reference, NOT auto-deployed)
+- `supabase/migrations/` — one-time SQL scripts run manually in Supabase SQL Editor
+- `src/lib/sync/field-map.ts` — `entityTypeToTable`, field overrides, `SYNC_ORDER`
+- `src/lib/db.ts` — IndexedDB stores, CRUD functions
+- `src/types/index.ts` — `SyncEntityType` union
+
+**Check for**:
+
+- [ ] Every table name in `entityTypeToTable` has a matching `CREATE TABLE` in `schema.sql`
+- [ ] Every `CREATE TABLE` in `schema.sql` has a corresponding migration file in `supabase/migrations/` that has been (or can be) run on the live database
+- [ ] Every table has: RLS enabled + user policy, `set_updated_at()` trigger, appropriate indexes
+- [ ] Every table referenced by sync has the required columns: `id`, `user_id`, `deleted_at`, `sync_version`, `created_at`, `updated_at`
+- [ ] No new entity types were added to `SyncEntityType` without a corresponding migration file
+- [ ] No orphaned migration files (referencing tables that no longer exist in code)
+- [ ] `REQUIRES_PROJECT_ID` set matches tables where `project_id` is `NOT NULL` in schema.sql
+- [ ] JSON/array columns in schema.sql match the TypeScript types (e.g., `jsonb` for objects, `text[]` for string arrays)
+
+**Cross-reference with BUGS.md**:
+
+- [ ] Review all previous sweep issues tagged with `supabase/`, `schema.sql`, `field-map`, or `sync` — verify fixes were actually deployed (not just committed to schema.sql)
+- [ ] Check for any "schema.sql is not auto-deployed" notes — ensure migration files exist for those changes
+- [ ] Review the Live Bug section for any recurring deployment gaps
+
+**Output**:
+
+If any tables, triggers, indexes, RLS policies, or columns are missing from the live database:
+
+1. **Generate a migration SQL file** at `supabase/migrations/{descriptive-name}.sql` with all missing objects
+2. Use `CREATE ... IF NOT EXISTS` and idempotent guards (`DO $$ ... $$`) so the migration is safe to re-run
+3. Include `NOTIFY pgrst, 'reload schema';` at the end
+4. Report the file path and instruct the user: **"Run this file in Supabase Dashboard → SQL Editor"**
+
+If everything is in sync, report: **"All Supabase schema objects are deployed — no migration needed."**
+
+---
+
+### Agent 7: Mobile & Responsive Design Testing
+
+Test that all pages and components render correctly on mobile and tablet viewports **without breaking the desktop layout**.
+
+**Viewports to test**:
+
+| Device | Width | Breakpoint |
+|--------|-------|------------|
+| Mobile (small) | 375px | `sm` |
+| Mobile (large) | 428px | `sm` |
+| Tablet (portrait) | 768px | `md` |
+| Tablet (landscape) | 1024px | `lg` |
+
+**Pages to test** (all routes from Agent 1's table)
+
+**Check for**:
+
+- [ ] Sidebar collapses or converts to hamburger menu on mobile — no horizontal overflow
+- [ ] Top bar actions (search, upload, theme toggle) remain accessible on mobile
+- [ ] Cards and grid layouts reflow to single column on mobile — no horizontal scrolling
+- [ ] Tables convert to stacked/card layout or have horizontal scroll wrapper on mobile
+- [ ] Form fields stack vertically on mobile with full-width inputs
+- [ ] Dialogs/modals are full-screen or near-full-screen on mobile — no tiny centered popup
+- [ ] Touch targets are at least 44x44px (WCAG 2.5.5) — buttons, links, checkboxes, toggles
+- [ ] Text remains readable without zooming — no text smaller than 14px on mobile
+- [ ] Long text (project names, file names, notes) truncates with ellipsis, doesn't overflow container
+- [ ] Tab bars (e.g., PID tuning, settings) scroll horizontally or wrap — tabs don't shrink to unreadable
+- [ ] Export/share dialogs work on mobile — clipboard, print, download all functional
+- [ ] Network diagram canvas is touch-scrollable and pinch-zoomable on mobile
+- [ ] No fixed-position elements overlapping content or blocking scroll on mobile
+- [ ] Bottom of page content is not hidden behind any fixed footer or navigation bar
+
+**Critical rule**: Fixes for mobile must **not break desktop layout**. Every mobile fix must be verified at 1280px+ to confirm no regression. Use Tailwind responsive prefixes (`sm:`, `md:`, `lg:`) — never unconditional style overrides.
+
+---
+
+### Agent 8: Landing Page & Marketing Completeness
+
+Verify that the website landing page (`/` — `src/app/page.tsx`) accurately reflects **all current features** of the product. This is the public-facing marketing page visitors see before signing in.
+
+**Key file**: `src/app/page.tsx`
+
+**Data arrays to audit** (defined at top of file):
+
+| Array | Purpose | What to check |
+|-------|---------|---------------|
+| `toolGroups` | "Core Tools" section — lists every tool by category | Every sidebar tool must appear here |
+| `platformPillars` | "Platform" section — 7 value-prop cards | Claims must match actual capabilities |
+| `fieldBenefits` | "Built for the Field" section — 4 benefit cards | Descriptions must be accurate |
+| `heroCards` | Floating cards in hero — 6 tool highlights | Should reflect most important tools |
+| `workflowSteps` | "How it Works" — 6-step flow | Steps must match actual UX flow |
+
+**Check for**:
+
+- [ ] **`toolGroups` completeness** — cross-reference with `src/components/layout/sidebar.tsx`:
+  - Every tool in the sidebar must appear in at least one `toolGroups` category
+  - No tools listed in `toolGroups` that have been removed from the app
+  - Descriptions (`desc`) accurately reflect what the tool does
+  - Tool names match the sidebar labels
+- [ ] **`heroCards`** — the 6 featured tools should be the most important/used tools
+- [ ] **`platformPillars`** — claims like "14+ field tools" must match actual tool count in sidebar
+- [ ] **Stats row** in hero (e.g., `'14+'` Tools) must match the real count of tools
+- [ ] **"Coming Soon" section** — if a feature is no longer "coming soon" (e.g., desktop app is released), update the section or remove it
+- [ ] **Footer links** — all footer navigation links point to valid routes
+- [ ] **Version badge** — `APP_VERSION` displays correctly (sourced from `package.json`)
+- [ ] **No broken images** — `/icons/icon-small.svg` and any other image refs exist in `public/`
+- [ ] **CTA buttons** — "Get Started", "Sign In", "Go to Dashboard" all navigate correctly
+- [ ] **Donate/Support section** — link to `/donate` works, copy is accurate
+
+**When a feature is added or removed**:
+
+If this sweep detects a mismatch between the sidebar tools and the landing page:
+1. Report missing/stale items as **Medium** severity
+2. Provide the exact code change to add a new tool to the correct `toolGroups` category or remove a stale one
+3. Update `heroCards` if a major new tool should replace a less important one
+4. Update stats like `'14+'` if the tool count has changed
+5. Update `platformPillars` and `fieldBenefits` descriptions if capabilities have changed
+
+---
+
+### Agent 9: README & GitHub Documentation
+
+Verify that `README.md` in the project root accurately describes the current state of the project for GitHub visitors.
+
+**Key files**:
+
+- `README.md` (project root) — create if missing
+- `CLAUDE.md` — source of truth for tech stack, commands, architecture
+- `package.json` — version, dependencies, scripts
+- `src/components/layout/sidebar.tsx` — current feature list (sidebar items = product features)
+
+**Check for**:
+
+- [ ] README exists at project root — if missing, generate one
+- [ ] **Project title and description** match the current product identity (BAU Suite / Portable BAS Toolkit)
+- [ ] **Feature list** matches all sidebar items — every tool in the sidebar should be listed as a feature
+- [ ] No features listed that have been removed from the codebase
+- [ ] **Tech stack** section matches `CLAUDE.md` (Next.js version, React version, Tailwind, Tauri, etc.)
+- [ ] **Installation / getting started** instructions are accurate:
+  - `npm install`, `npm run dev` for web
+  - `npm run tauri:dev` for desktop
+  - Required env vars listed (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+- [ ] **Build commands** section matches `package.json` scripts
+- [ ] **Version** in README matches `package.json` version
+- [ ] **Screenshots or badges** are not broken (no 404 image links)
+- [ ] **License** section exists if a LICENSE file is present
+- [ ] No references to deprecated features, old tool names, or removed pages
+
+**Output**:
+
+If README is missing or out of date:
+1. Generate or update `README.md` with current information sourced from `CLAUDE.md`, `package.json`, and the sidebar
+2. Use clean GitHub-flavored markdown with sections: Overview, Features, Tech Stack, Getting Started, Build Commands, Project Structure (brief), Contributing, License
+3. Keep it concise — link to `CLAUDE.md` for detailed architecture docs rather than duplicating content
+
+---
+
 ### Reporting Format
 
 Each agent must return findings in this format:
@@ -302,7 +474,7 @@ These rules govern sweep quality and must be followed by all agents:
 - Create `REPLY.md` if it doesn't exist; append to it if it does
 - Never edit or remove previous entries — append only
 
-#### 9. Pattern-Based Scanning
+#### 8. Pattern-Based Scanning
 After reviewing BUGS.md history, scan for **recurring bug classes** across new/changed code:
 - Missing `notifySync` calls after IndexedDB writes
 - Missing `try/catch` on clipboard, localStorage, or IndexedDB operations
@@ -312,10 +484,24 @@ After reviewing BUGS.md history, scan for **recurring bug classes** across new/c
 - Division by zero in percentage/average calculations
 - Blob URL leaks (missing `URL.revokeObjectURL`)
 
-#### 10. Incremental Value
+#### 9. Incremental Value
 - Each sweep should find **fewer** issues than the last — if issue counts aren't trending down, review fix quality
 - Prioritize issues that affect real user workflows over theoretical edge cases
 - A sweep that finds 5 real bugs is more valuable than one that finds 50 style nits
+
+#### 10. Cross-File Consistency
+- When a fix applies a pattern (e.g., keyboard a11y, `notifySync`, `sanitizeFilename`, `revokeObjectURL`), agents must scan **all files** for the same pattern gap — not just the file where it was first discovered
+- Use Grep to find all instances of the anti-pattern before declaring the fix complete
+- A fix that only patches one file when five files have the same bug is incomplete
+
+#### 11. Schema Parity Gate
+- Every entity type in `SyncEntityType` must have all five of:
+  1. `CREATE TABLE` in `supabase/schema.sql` with RLS policy + `set_updated_at` trigger
+  2. Entry in `entityTypeToTable` (`src/lib/sync/field-map.ts`)
+  3. Field overrides for camelCase → snake_case conversion
+  4. Entry in `SYNC_ORDER`
+  5. CRUD functions in `src/lib/db.ts`
+- If any are missing, it's **HIGH** severity — half-wired sync causes silent failures on push/pull
 
 ---
 
