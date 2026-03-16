@@ -8,6 +8,7 @@ import {
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
   ChevronRight, Share2, FolderOpen, Terminal, Download, Globe,
+  NotebookPen, Link2, Unlink,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
@@ -37,6 +38,7 @@ import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project
 import { cn, sanitizeFilename } from '@/lib/utils';
 import { deleteProject } from '@/lib/db';
 import { useAppStore } from '@/store/app-store';
+import { useNotepadStore } from '@/store/notepad-store';
 import { toast } from 'sonner';
 
 const sections = [
@@ -49,6 +51,7 @@ const sections = [
   { id: 'backups', label: 'Backups', icon: HardDrive },
   { id: 'general-documents', label: 'General Docs', icon: FolderOpen },
   { id: 'notes', label: 'Notes', icon: StickyNote },
+  { id: 'notepad', label: 'Notepad', icon: NotebookPen },
   { id: 'terminal-logs', label: 'Terminal Logs', icon: Terminal },
   { id: 'history', label: 'History', icon: History },
 ] as const;
@@ -68,6 +71,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { activity } = useProjectActivity(id);
   const { logs: terminalLogs, removeLog: removeTerminalLog } = useTerminalLogs(id);
   const { reports } = useDailyReports(id);
+  const notepadTabs = useNotepadStore(s => s.tabs.filter(t => t.projectId === id));
   const getInitialTab = () => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
@@ -203,6 +207,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               const count = sectionId === 'device-list' ? devices.length
                 : sectionId === 'ip-plan' ? ipEntries.length
                 : sectionId === 'notes' ? notes.length
+                : sectionId === 'notepad' ? notepadTabs.length
                 : sectionId !== 'overview' && sectionId !== 'history' ? fileCounts[sectionId] || 0
                 : 0;
               return (
@@ -284,6 +289,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onUpdateNote={updateNote}
               onDeleteNote={removeNote}
             />
+          )}
+
+          {activeTab === 'notepad' && (
+            <NotepadView projectId={id} projectName={project.name} />
           )}
 
           {activeTab === 'terminal-logs' && (
@@ -745,6 +754,94 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Hash; label: strin
       <div>
         <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</p>
         <p className="text-sm">{value}</p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Notepad View (linked notepad tabs for this project) ─────
+function NotepadView({ projectId, projectName }: { projectId: string; projectName: string }) {
+  const tabs = useNotepadStore(s => s.tabs);
+  const updateTabContent = useNotepadStore(s => s.updateTabContent);
+  const setTabProject = useNotepadStore(s => s.setTabProject);
+  const addTab = useNotepadStore(s => s.addTab);
+
+  const linkedTabs = tabs.filter(t => t.projectId === projectId);
+
+  const handleNewLinkedNote = () => {
+    addTab();
+    const allTabs = useNotepadStore.getState().tabs;
+    const newTab = allTabs[allTabs.length - 1];
+    setTabProject(newTab.id, projectId, projectName);
+  };
+
+  if (linkedTabs.length === 0) {
+    return (
+      <EmptyState
+        icon={NotebookPen}
+        title="No Notepad Notes Linked"
+        description="Link a notepad note to this project from the floating notepad, or create one here."
+        action={
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewLinkedNote}>
+            <Plus className="h-3.5 w-3.5" /> New Linked Note
+          </Button>
+        }
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <NotebookPen className="h-5 w-5" /> Notepad
+        </h2>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewLinkedNote}>
+          <Plus className="h-3.5 w-3.5" /> New Note
+        </Button>
+      </div>
+
+      <div className="space-y-3">
+        {linkedTabs.map(tab => (
+          <Card key={tab.id}>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium flex items-center gap-2">
+                  <Link2 className="h-3.5 w-3.5 text-primary" />
+                  {tab.name}
+                </CardTitle>
+                <div className="flex items-center gap-1">
+                  {tab.updatedAt && (
+                    <span className="text-[10px] text-muted-foreground mr-2">
+                      {format(new Date(tab.updatedAt), 'MMM d, h:mm a')}
+                    </span>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => setTabProject(tab.id, undefined, undefined)}
+                    title="Unlink from project"
+                  >
+                    <Unlink className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <Textarea
+                value={tab.content}
+                onChange={e => updateTabContent(tab.id, e.target.value)}
+                placeholder="Type your notes here..."
+                className="min-h-32 font-mono text-sm resize-y"
+                rows={6}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                {tab.content.length.toLocaleString()} chars
+              </p>
+            </CardContent>
+          </Card>
+        ))}
       </div>
     </div>
   );
