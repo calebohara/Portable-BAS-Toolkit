@@ -55,7 +55,7 @@ function renderMarkdown(text: string): string {
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>')
     // Links
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match: string, text: string, url: string) => {
-      const safeUrl = /^(https?:\/\/|\/|mailto:)/i.test(url) ? url : '#';
+      const safeUrl = /^(https?:\/\/|\/|mailto:)/i.test(url) ? url.replace(/"/g, '&quot;') : '#';
       return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">${text}</a>`;
     })
     // Line breaks

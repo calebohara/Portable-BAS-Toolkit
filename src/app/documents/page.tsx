@@ -156,7 +156,10 @@ export default function DocumentsPage() {
                     'cursor-pointer transition-all hover:shadow-sm',
                     selectedFileId === file.id && 'ring-2 ring-primary border-primary/20'
                   )}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedFileId(file.id === selectedFileId ? null : file.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedFileId(file.id === selectedFileId ? null : file.id); } }}
                   onDoubleClick={() => setPreviewFile(file)}
                 >
                   <CardContent className="p-3">

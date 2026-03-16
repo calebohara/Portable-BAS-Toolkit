@@ -1,6 +1,7 @@
 'use client';
 
 import { use } from 'react';
+import Link from 'next/link';
 import { useDailyReport, useDailyReports } from '@/hooks/use-projects';
 
 import { ReportForm } from '@/components/reports/report-form';
@@ -25,7 +26,7 @@ export default function EditReportPage({ params }: { params: Promise<{ id: strin
     return (
       <div className="flex flex-col items-center justify-center py-24 gap-4">
         <p className="text-muted-foreground">Report not found.</p>
-        <a href="/reports" className="text-sm text-primary hover:underline">&larr; Back to Reports</a>
+        <Link href="/reports" className="text-sm text-primary hover:underline">&larr; Back to Reports</Link>
       </div>
     );
   }

@@ -51,6 +51,22 @@ async function getShellOpen() {
  * In Tauri, uses the shell plugin; in browser, falls back to window.open.
  */
 export async function openUrl(url: string): Promise<void> {
+  // Validate protocol to prevent opening dangerous URLs (e.g. file:, javascript:)
+  const ALLOWED_PROTOCOLS = ['http:', 'https:', 'mailto:', 'blob:'];
+  try {
+    const parsed = new URL(url);
+    if (!ALLOWED_PROTOCOLS.includes(parsed.protocol)) {
+      console.warn('openUrl blocked: unsupported protocol', parsed.protocol);
+      return;
+    }
+  } catch {
+    // If URL parsing fails, only allow if it looks like a relative path or blob
+    if (!url.startsWith('/') && !url.startsWith('blob:')) {
+      console.warn('openUrl blocked: invalid URL', url);
+      return;
+    }
+  }
+
   if (isTauri()) {
     const open = await getShellOpen();
     await open(url);

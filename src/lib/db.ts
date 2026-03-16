@@ -270,7 +270,7 @@ export async function deleteProject(id: string): Promise<void> {
 
     const reports = await tx.objectStore('dailyReports').index('by-project').getAll(id);
     for (const report of reports) {
-      for (const att of report.attachments) {
+      for (const att of (report.attachments ?? [])) {
         if (att.blobKey) await tx.objectStore('fileBlobs').delete(att.blobKey);
       }
       await tx.objectStore('dailyReports').delete(report.id);
@@ -296,6 +296,20 @@ export async function deleteProject(id: string): Promise<void> {
 
     await tx.objectStore('projects').delete(id);
     await tx.done;
+
+    // Notify sync bridge about cascade-deleted children
+    for (const file of files) notifySync('delete', 'files', file.id, null);
+    for (const note of notes) notifySync('delete', 'notes', note.id, null);
+    for (const dev of devices) notifySync('delete', 'devices', dev.id, null);
+    for (const ip of ips) notifySync('delete', 'ipPlan', ip.id, null);
+    for (const report of reports) notifySync('delete', 'dailyReports', report.id, null);
+    for (const d of diagrams) notifySync('delete', 'networkDiagrams', d.id, null);
+    for (const p of pings) notifySync('delete', 'pingSessions', p.id, null);
+    for (const tl of termLogs) notifySync('delete', 'terminalLogs', tl.id, null);
+    for (const cp of connProfiles) notifySync('delete', 'connectionProfiles', cp.id, null);
+    for (const rc of regCalcs) notifySync('delete', 'registerCalculations', rc.id, null);
+    for (const ps of pidSessions) notifySync('delete', 'pidTuningSessions', ps.id, null);
+
     notifySync('delete', 'projects', id, null);
   } catch (e) {
     tx.abort();
@@ -349,6 +363,7 @@ export async function deleteFile(id: string): Promise<void> {
   const fileNotes = await db.getAllFromIndex('notes', 'by-file', id);
   for (const note of fileNotes) {
     await db.delete('notes', note.id);
+    notifySync('delete', 'notes', note.id, null);
   }
   await db.delete('files', id);
   notifySync('delete', 'files', id, null);
@@ -1001,8 +1016,9 @@ export async function purgeOrphanedRecords(): Promise<number> {
     for (const item of allItems) {
       const rec = item as Record<string, unknown>;
       const pid = rec.projectId as string | undefined;
-      // Delete if projectId is missing, empty, non-UUID, or references a deleted project
-      if (!pid || !UUID_RE.test(pid) || !validIds.has(pid)) {
+      // Only purge if projectId is a valid UUID that doesn't match any existing project
+      // Records with empty/missing/non-UUID projectId are unassigned, not orphaned
+      if (pid && UUID_RE.test(pid) && !validIds.has(pid)) {
         // If this is a file record, collect its blob keys for cleanup
         if (storeName === 'files') {
           const versions = (rec.versions ?? []) as Array<{ blobKey?: string }>;

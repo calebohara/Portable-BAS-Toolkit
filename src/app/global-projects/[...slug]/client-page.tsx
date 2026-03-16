@@ -1799,6 +1799,12 @@ function DocumentsTab({
   );
 }
 
+function FilePreviewImage({ file }: { file: File }) {
+  const url = useMemo(() => URL.createObjectURL(file), [file]);
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  return <img src={url} alt="Preview" className="mx-auto mb-2 max-h-24 rounded-md object-contain" />;
+}
+
 function AddDocumentDialog({ open, onOpenChange, onSubmit, projectId }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -1927,11 +1933,7 @@ function AddDocumentDialog({ open, onOpenChange, onSubmit, projectId }: {
               {file ? (
                 <div className="text-center">
                   {isImageFile(file.type) && (
-                    <img
-                      src={URL.createObjectURL(file)}
-                      alt="Preview"
-                      className="mx-auto mb-2 max-h-24 rounded-md object-contain"
-                    />
+                    <FilePreviewImage file={file} />
                   )}
                   <p className="text-sm font-medium truncate max-w-[280px]">{file.name}</p>
                   <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>

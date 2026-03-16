@@ -186,8 +186,10 @@ function ResultRow({ target, results }: { target: PingTarget; results: PingResul
   const latest = results[results.length - 1];
   const reachableCount = results.filter(r => r.status === 'reachable').length;
   const totalCount = results.length;
-  const avgTime = results.filter(r => r.responseTimeMs !== undefined)
-    .reduce((sum, r) => sum + (r.responseTimeMs || 0), 0) / (reachableCount || 1);
+  const reachableWithTime = results.filter(r => r.status === 'reachable' && r.responseTimeMs !== undefined && r.responseTimeMs > 0);
+  const avgTime = reachableWithTime.length > 0
+    ? reachableWithTime.reduce((sum, r) => sum + (r.responseTimeMs || 0), 0) / reachableWithTime.length
+    : 0;
 
   if (!latest) return null;
 

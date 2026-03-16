@@ -159,6 +159,7 @@ export default function SearchPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="h-12 pl-12 pr-10 text-base"
+            aria-label="Search"
             autoFocus
           />
           {query && (

@@ -2,12 +2,12 @@ import type { PidLoopType, PidControlMode, PidTuningValues, PidResponseData, Pid
 
 // ─── Conversion helpers ─────────────────────────────────────
 export function gainToProportionalBand(gain: number): number {
-  if (gain <= 0) return 999;
+  if (gain <= 0) return Infinity;
   return Math.round((100 / gain) * 10) / 10;
 }
 
 export function proportionalBandToGain(pb: number): number {
-  if (pb <= 0) return 999;
+  if (pb <= 0) return Infinity;
   return Math.round((100 / pb) * 100) / 100;
 }
 

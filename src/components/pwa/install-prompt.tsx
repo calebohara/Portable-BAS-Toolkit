@@ -20,7 +20,12 @@ export function InstallPrompt() {
 
   useEffect(() => {
     // Check if already dismissed recently
-    const dismissed = localStorage.getItem(DISMISS_KEY);
+    let dismissed: string | null = null;
+    try {
+      dismissed = localStorage.getItem(DISMISS_KEY);
+    } catch {
+      // localStorage may be unavailable (private browsing, iframe sandbox, etc.)
+    }
     if (dismissed) {
       const ts = parseInt(dismissed, 10);
       if (Date.now() - ts < DISMISS_DURATION_MS) return;
@@ -56,7 +61,11 @@ export function InstallPrompt() {
   }, [deferredPrompt]);
 
   const handleDismiss = useCallback(() => {
-    localStorage.setItem(DISMISS_KEY, Date.now().toString());
+    try {
+      localStorage.setItem(DISMISS_KEY, Date.now().toString());
+    } catch {
+      // localStorage may be unavailable; silently ignore
+    }
     setVisible(false);
     setDeferredPrompt(null);
   }, []);

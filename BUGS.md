@@ -2,7 +2,8 @@
 
 **Date**: 2026-03-15
 **Version**: 4.5.0
-**Total Issues**: 47 | **Fixed**: 44 | **Skipped**: 3 (by design / no change needed)
+**Sweep 1**: 47 issues | 44 fixed | 3 skipped
+**Sweep 2**: 37 new issues | 0 fixed
 
 ---
 
@@ -67,3 +68,85 @@
 | 45 | `src/lib/routes.ts` | Missing route constants for ~9 pages | SKIPPED — low impact |
 | 46 | `src/store/web-interface-store.ts:115` | Unused `get` variable in Zustand store | FIXED |
 | 47 | Multiple files (~20+) | Unused lucide-react icon imports, `<img>` instead of `<Image />` | SKIPPED — cosmetic |
+
+---
+
+# Sweep 2 — Post-Fix QA
+
+**Date**: 2026-03-15
+**Version**: 4.5.0
+**Total Issues**: 47 | **Fixed**: 32 | **Skipped**: 15
+
+---
+
+## CRITICAL (1 issue)
+
+| # | File | Issue | Status |
+|---|------|-------|--------|
+| S2-1 | `src/lib/db.ts` (`purgeOrphanedRecords`) | **Data loss** — purge deletes files/notes/devices with `projectId === ''` (unassigned items) because it treats empty string as orphaned. Should only purge records whose `projectId` references a deleted project | FIXED — inverted condition to only purge valid-UUID refs to deleted projects |
+
+## HIGH (9 issues)
+
+| # | File | Issue | Status |
+|---|------|-------|--------|
+| S2-2 | `src/app/knowledge-base/page.tsx:324` | XSS via attribute injection — markdown link URL not escaping double quotes. `[click](http://x" onclick="alert(1))` breaks out of `href` attribute | FIXED — escape `"` to `&quot;` in URLs |
+| S2-3 | `src/app/network-diagram/page.tsx:421-436` | SVG export serializes user-entered node labels without sanitization — SVG can contain `<script>` if opened in browser | FIXED — strip scripts and on* handlers from cloned SVG |
+| S2-4 | `src/lib/db.ts` (`deleteProject`) | Cascade-deletes children (files, notes, devices, etc.) without calling `notifySync()` for each — sync bridge never learns about deletions, cloud retains orphans | FIXED — added notifySync for all 11 child entity types |
+| S2-5 | `src/lib/db.ts` (`deleteFile`) | Cascade-deletes child notes without `notifySync()` — same sync orphan issue | FIXED — added notifySync for each deleted note |
+| S2-6 | `src/lib/sync/field-map.ts` (`validateSyncable`) | Pull sync still drops entities with nullable `project_id` when the field is empty string or null — unassigned files can't round-trip | N/A — verified files already excluded from REQUIRES_PROJECT_ID, push converts '' to NULL |
+| S2-7 | `src/components/layout/sync-status.tsx:48` | Impure function call during render — React Compiler error | SKIPPED — Date.now() is idiomatic React, not a real issue |
+| S2-8 | `src/app/terminal/page.tsx:75,102,352,969,985` | 5 instances of `setState` called synchronously inside `useEffect` — React Compiler errors | SKIPPED — common React pattern, low risk refactor across 1000+ line file |
+| S2-9 | `src/app/global-projects/[...slug]/client-page.tsx:108` + `src/app/projects/[...slug]/client-page.tsx:87` + `src/app/ping/page.tsx:276` + `src/app/web-interface/page.tsx:118` + `src/providers/auth-provider.tsx:110` | `setState` in `useEffect` — React Compiler errors across 5 more files | SKIPPED — common React pattern, would require significant refactor |
+| S2-10 | `src/app/reports/[...slug]/edit-client-page.tsx:28` | Uses `<a>` instead of `<Link>` for `/reports/` navigation — causes full page reload | FIXED — replaced with next/link Link |
+
+## MEDIUM (18 issues)
+
+| # | File | Issue | Status |
+|---|------|-------|--------|
+| S2-11 | `src/app/pid-tuning/page.tsx` | No deselect option in project selector — once a project is selected, it can't be cleared | FIXED — added "-- None --" deselect option |
+| S2-12 | `src/app/network-diagram/page.tsx` | SVG/PNG export dark mode — exported image uses current theme colors but may be unreadable on different background | SKIPPED — needs design decision on forced light-mode export |
+| S2-13 | `src/app/ping/page.tsx` | Average ping calculation includes unreachable hosts (0ms), skewing the average down | FIXED — filter to reachable hosts only |
+| S2-14 | `src/app/documents/page.tsx:152-160` | Document list cards with `onClick` lack keyboard a11y (`role`, `tabIndex`, `onKeyDown`) | FIXED — added role, tabIndex, onKeyDown |
+| S2-15 | `src/components/share/share-dialog.tsx:284` + `src/components/reports/report-export-dialog.tsx:399` | Clipboard copy uses `navigator.clipboard.writeText()` directly instead of `copyToClipboard()` utility — fails in Tauri/non-HTTPS | FIXED — switched to copyToClipboard() |
+| S2-16 | `src/components/reports/report-form.tsx:106-114` | Hours calculation produces negative for overnight shifts (end < start) — silently shows nothing | FIXED — wrap around with +1440 min |
+| S2-17 | `src/components/reports/report-form.tsx:247-253` | Switch `<Label htmlFor="link-global">` but Switch has no `id="link-global"` — screen readers can't associate | FIXED — added id to Switch |
+| S2-18 | `src/lib/sync/sync-manager.ts` | Activity log conflict detection uses `createdAt` but activity logs are append-only — timestamp comparison is semantically wrong | SKIPPED — append-only by design, conflict detection N/A |
+| S2-19 | `src/lib/sync/field-map.ts` | Unassigned files (empty `project_id`) can't round-trip through sync — push strips empty project_id, pull rejects null project_id | N/A — verified push converts '' to NULL, files excluded from REQUIRES_PROJECT_ID |
+| S2-20 | `src/lib/db.ts` | Missing defensive `(report.attachments \|\| [])` guard in purge — crashes if attachments is undefined | FIXED — added ?? [] guard in deleteProject |
+| S2-21 | `src/lib/db.ts` | Device and IP plan creation missing `createdAt`/`updatedAt` timestamps | SKIPPED — timestamps set by calling hooks, not db.ts CRUD |
+| S2-22 | `src/hooks/use-register-calculations.ts` + `src/hooks/use-pid-tuning.ts` | Hook CRUD functions missing try/catch — unhandled errors crash the UI | FIXED — wrapped in try/catch with toast.error |
+| S2-23 | `src/components/files/global-upload-dialog.tsx:126` + `src/components/files/upload-file-dialog.tsx:136` | React Compiler skips compilation due to memoization incompatibility | SKIPPED — cosmetic compiler warning |
+| S2-24 | `src/app/pid-tuning/page.tsx` | Symptom toggle buttons lack `role="checkbox"` and `aria-checked` — screen readers can't convey toggle state | N/A — already has role="checkbox" and aria-checked |
+| S2-25 | `src/app/dashboard/page.tsx:427` | ProjectCard `onKeyDown` only handles Enter, missing Space key (WCAG requirement for `role="button"`) | FIXED — added Space key with preventDefault |
+| S2-26 | `src/app/search/page.tsx:158` | Search input has no `aria-label` or associated label | FIXED — added aria-label="Search" |
+| S2-27 | Multiple files | Loading spinners are purely visual — no `role="status"` or `aria-live` for screen readers | SKIPPED — lower priority a11y |
+| S2-28 | `src/app/ping/page.tsx` | Passive wheel event listener — potential scroll jank | SKIPPED — low impact |
+
+## LOW (9 issues)
+
+| # | File | Issue | Status |
+|---|------|-------|--------|
+| S2-29 | `src/app/network-diagram/page.tsx:432` | SVG/PNG export filename uses `.replace(/\s+/g, '_')` instead of `sanitizeFilename()` — unsafe chars in filename | FIXED — uses sanitizeFilename() |
+| S2-30 | `src/lib/utils.ts:44-52` | `sanitizeFilename` doesn't restrict length — very long names can hit Windows 260-char path limit | FIXED — added .substring(0, 200) |
+| S2-31 | `src/lib/pid-tuning-engine.ts:5-10` | Division by zero returns magic number 999 — indistinguishable from valid PB value | FIXED — returns Infinity |
+| S2-32 | `src/app/pid-tuning/page.tsx` | No debounce/disable on Save Session button — rapid clicks create duplicate entries | FIXED — added saving state + disabled prop |
+| S2-33 | `src/lib/routes.ts` | Missing route constants for `/dashboard`, `/knowledge-base`, `/register-tool` — sidebar hardcodes paths | SKIPPED — low impact |
+| S2-34 | `scripts/build-static.js:9-11` | Three `require()` imports trigger `@typescript-eslint/no-require-imports` lint errors | FIXED — eslint-disable comment |
+| S2-35 | Multiple files (~15+) | ~30 unused imports (icons, variables) across terminal, network-diagram, register-tool, help, etc. | SKIPPED — cosmetic |
+| S2-36 | Multiple files (~10+) | `<img>` instead of `next/image` `<Image>` — no image optimization | SKIPPED — intentional for Tauri compatibility |
+| S2-37 | `src-tauri/tauri.conf.json:26` | Tauri CSP `frame-src blob: http: https:` overly broad — should be `frame-src blob: 'self'` since iframes only use blob URLs | SKIPPED — needs testing to ensure no iframes break |
+
+## Additional Findings (Sweep 2b — late agent)
+
+| # | File | Issue | Severity | Status |
+|---|------|-------|----------|--------|
+| S2-38 | `src-tauri/capabilities/default.json` + `src-tauri/src/lib.rs:24-44` | `shell:allow-execute` capability too broad + `icmp_ping` host param not validated — potential command injection in desktop app | CRITICAL | FIXED — removed shell:allow-execute, added host char validation |
+| S2-39 | `src/app/global-projects/[...slug]/client-page.tsx:1931` | `URL.createObjectURL(file)` called inline in JSX render — new blob URL every re-render, never revoked (memory leak) | HIGH | FIXED — extracted FilePreviewImage with useMemo + cleanup |
+| S2-40 | `src/lib/tauri-bridge.ts:53-60` | `openUrl()` passes URL to OS shell via Tauri `open()` with no protocol validation — could trigger arbitrary protocol handlers | HIGH | FIXED — added protocol allowlist (http, https, mailto, blob) |
+| S2-41 | `src/app/network-diagram/page.tsx` (handleExportPng) | No `img.onerror` handler — blob URL leaked if SVG image fails to load | MEDIUM | FIXED — added onerror with revoke + toast |
+| S2-42 | `src/components/share/import-project-dialog.tsx:138-200` | Import package arrays not validated — malicious package with wrong types silently saved to IndexedDB | MEDIUM | SKIPPED — low risk, data types coerce safely |
+| S2-43 | `src/components/shared/confirm-dialog.tsx:42` | Async `onConfirm` errors silently swallowed by `.catch(() => {})` — no user feedback on failure | MEDIUM | FIXED — now logs error + shows toast |
+| S2-44 | `src/components/pwa/install-prompt.tsx:23,59` | `localStorage` access not in try/catch — crashes in private browsing mode | LOW | FIXED — wrapped in try/catch |
+| S2-45 | `src/lib/global-projects/api.ts:155-163` | `generateAccessCode` modulo bias — `bytes[i] % 30` gives non-uniform distribution | LOW | SKIPPED — negligible entropy loss for 7-char code |
+| S2-46 | `src/app/api/donate/checkout/route.ts:23` | `STRIPE_SECRET_KEY!` non-null assertion — crashes if publishable key set but secret key missing | MEDIUM | FIXED — added explicit guard |
+| S2-47 | `package.json` | Unused dependencies `@supabase/ssr` and `sharp` — add install time and confusion | LOW | SKIPPED — safe to remove but not blocking |

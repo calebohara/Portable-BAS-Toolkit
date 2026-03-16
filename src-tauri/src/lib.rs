@@ -22,6 +22,11 @@ pub struct PingResult {
 #[tauri::command]
 #[allow(non_snake_case)]
 async fn icmp_ping(host: String, count: Option<u32>, timeoutMs: Option<u32>) -> Result<Vec<PingResult>, String> {
+    // Validate host - must be a valid hostname or IP (no shell metacharacters)
+    if host.is_empty() || host.chars().any(|c| !c.is_alphanumeric() && c != '.' && c != '-' && c != ':' && c != '_') {
+        return Err(format!("Invalid host: contains disallowed characters"));
+    }
+
     let count = count.unwrap_or(4);
     let timeout_ms = timeoutMs.unwrap_or(5000);
     let timeout_secs = (timeout_ms / 1000).max(1);
@@ -118,6 +123,11 @@ pub struct PortCheckResult {
 #[tauri::command]
 #[allow(non_snake_case)]
 async fn check_port(host: String, port: u16, timeoutMs: Option<u64>) -> Result<PortCheckResult, String> {
+    // Validate host - must be a valid hostname or IP (no shell metacharacters)
+    if host.is_empty() || host.chars().any(|c| !c.is_alphanumeric() && c != '.' && c != '-' && c != ':' && c != '_') {
+        return Err(format!("Invalid host: contains disallowed characters"));
+    }
+
     let timeout = std::time::Duration::from_millis(timeoutMs.unwrap_or(3000));
     let start = Instant::now();
     let addr = format!("{}:{}", host, port);

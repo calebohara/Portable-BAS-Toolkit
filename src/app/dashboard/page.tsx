@@ -424,7 +424,7 @@ function ProjectCard({ project, onClick, counts }: {
   counts?: { files: number; notes: number; devices: number };
 }) {
   return (
-    <Card role="button" tabIndex={0} className="cursor-pointer transition-all hover:shadow-md hover:border-primary/20 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" onClick={onClick} onKeyDown={(e) => { if (e.key === 'Enter') onClick(); }}>
+    <Card role="button" tabIndex={0} className="cursor-pointer transition-all hover:shadow-md hover:border-primary/20 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" onClick={onClick} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}>
       <CardContent className="p-4">
         <div className="mb-2 flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">

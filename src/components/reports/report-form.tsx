@@ -108,7 +108,8 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
       const [eh, em] = endTime.split(':').map(Number);
       if (!isNaN(sh) && !isNaN(sm) && !isNaN(eh) && !isNaN(em)) {
         const diff = (eh * 60 + em) - (sh * 60 + sm);
-        if (diff > 0) setHoursOnSite((diff / 60).toFixed(1));
+        const adjustedDiff = diff <= 0 ? diff + 1440 : diff;
+        setHoursOnSite((adjustedDiff / 60).toFixed(1));
       }
     }
   }, [startTime, endTime]);
@@ -244,6 +245,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
               <div className="sm:col-span-2 space-y-2">
                 <div className="flex items-center gap-2">
                   <Switch
+                    id="link-global"
                     checked={linkToGlobal}
                     onCheckedChange={(checked) => setLinkToGlobal(!!checked)}
                     disabled={isReadOnly}

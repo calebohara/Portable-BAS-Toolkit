@@ -20,7 +20,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useNetworkDiagrams } from '@/hooks/use-projects';
 import { useProjects } from '@/hooks/use-projects';
@@ -385,6 +385,10 @@ export default function NetworkDiagramPage() {
     const url = URL.createObjectURL(svgBlob);
 
     const img = new Image();
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      toast.error('Failed to export diagram as PNG');
+    };
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = (bbox.width + padding * 2) * 2;
@@ -402,7 +406,7 @@ export default function NetworkDiagramPage() {
         const dl = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = dl;
-        a.download = `${diagramName.replace(/\s+/g, '_')}_diagram.png`;
+        a.download = `${sanitizeFilename(diagramName)}_diagram.png`;
         a.click();
         setTimeout(() => URL.revokeObjectURL(dl), 5000);
         toast.success('Diagram exported as PNG');
@@ -419,6 +423,15 @@ export default function NetworkDiagramPage() {
     const padding = 40;
 
     const cloned = svgEl.cloneNode(true) as SVGSVGElement;
+
+    // Strip any script elements and event handlers from exported SVG
+    cloned.querySelectorAll('script').forEach(el => el.remove());
+    cloned.querySelectorAll('*').forEach(el => {
+      for (const attr of [...el.attributes]) {
+        if (attr.name.startsWith('on')) el.removeAttribute(attr.name);
+      }
+    });
+
     cloned.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`);
     cloned.setAttribute('width', String(bbox.width + padding * 2));
     cloned.setAttribute('height', String(bbox.height + padding * 2));
@@ -429,7 +442,7 @@ export default function NetworkDiagramPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${diagramName.replace(/\s+/g, '_')}_diagram.svg`;
+    a.download = `${sanitizeFilename(diagramName)}_diagram.svg`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Diagram exported as SVG');

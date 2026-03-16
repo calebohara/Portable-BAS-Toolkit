@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { cn, escapeHtml } from '@/lib/utils';
+import { cn, escapeHtml, copyToClipboard } from '@/lib/utils';
 import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import type { DailyReport, Project, ReportAttachment } from '@/types';
@@ -396,7 +396,7 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
   // ─── Copy to clipboard ─────────────────────────────────────
   const handleCopy = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
       setCopied(true);
       toast.success('Copied to clipboard');
       setTimeout(() => setCopied(false), 2000);

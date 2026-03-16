@@ -161,6 +161,9 @@ export default function PidTuningPage() {
   // Export dropdown
   const [exportOpen, setExportOpen] = useState(false);
 
+  // Save debounce
+  const [saving, setSaving] = useState(false);
+
   // ─── Derived data ───────────────────────────────────────
   const diagnosis = useMemo(() =>
     diagnoseSymptoms(selectedSymptoms, loopType, controlMode, currentValues),
@@ -251,41 +254,47 @@ export default function PidTuningPage() {
   }, []);
 
   const handleSave = useCallback(async () => {
+    if (saving) return;
     if (!loopName.trim()) {
       toast.error('Enter a loop name before saving');
       return;
     }
-    const data = {
-      projectId: selectedProjectId,
-      loopName: loopName.trim(),
-      equipment: equipment.trim(),
-      loopType,
-      controlledVariable: controlledVariable.trim(),
-      outputType,
-      actuatorStrokeTime: actuatorStrokeTime ? parseFloat(actuatorStrokeTime) : null,
-      action,
-      controlMode,
-      currentValues,
-      recommendedValues,
-      symptoms: selectedSymptoms,
-      responseData,
-      fieldNotes,
-    };
+    setSaving(true);
+    try {
+      const data = {
+        projectId: selectedProjectId,
+        loopName: loopName.trim(),
+        equipment: equipment.trim(),
+        loopType,
+        controlledVariable: controlledVariable.trim(),
+        outputType,
+        actuatorStrokeTime: actuatorStrokeTime ? parseFloat(actuatorStrokeTime) : null,
+        action,
+        controlMode,
+        currentValues,
+        recommendedValues,
+        symptoms: selectedSymptoms,
+        responseData,
+        fieldNotes,
+      };
 
-    if (activeSessionId) {
-      await updateSession({
-        ...data,
-        id: activeSessionId,
-        createdAt: sessions.find(s => s.id === activeSessionId)?.createdAt ?? new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      toast.success('Session updated');
-    } else {
-      const session = await addSession(data);
-      setActiveSessionId(session.id);
-      toast.success('Session saved');
+      if (activeSessionId) {
+        await updateSession({
+          ...data,
+          id: activeSessionId,
+          createdAt: sessions.find(s => s.id === activeSessionId)?.createdAt ?? new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+        toast.success('Session updated');
+      } else {
+        const session = await addSession(data);
+        if (session) setActiveSessionId(session.id);
+        toast.success('Session saved');
+      }
+    } finally {
+      setSaving(false);
     }
-  }, [loopName, equipment, loopType, controlledVariable, outputType, actuatorStrokeTime, action, controlMode, currentValues, recommendedValues, selectedSymptoms, responseData, fieldNotes, selectedProjectId, activeSessionId, sessions, addSession, updateSession]);
+  }, [saving, loopName, equipment, loopType, controlledVariable, outputType, actuatorStrokeTime, action, controlMode, currentValues, recommendedValues, selectedSymptoms, responseData, fieldNotes, selectedProjectId, activeSessionId, sessions, addSession, updateSession]);
 
   // ─── Export helpers ─────────────────────────────────────
   const formatSessionText = useCallback(() => {
@@ -399,8 +408,8 @@ export default function PidTuningPage() {
           <Button size="sm" variant="outline" className="gap-1.5" onClick={resetForm}>
             <Plus className="h-3.5 w-3.5" /> New Session
           </Button>
-          <Button size="sm" className="gap-1.5" onClick={handleSave}>
-            <Save className="h-3.5 w-3.5" /> {activeSessionId ? 'Update' : 'Save'}
+          <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={saving}>
+            <Save className="h-3.5 w-3.5" /> {saving ? 'Saving…' : (activeSessionId ? 'Update' : 'Save')}
           </Button>
           <Button size="sm" variant="outline" className="gap-1.5" onClick={loadDefaults}>
             <RotateCcw className="h-3.5 w-3.5" /> Load Defaults
@@ -455,9 +464,10 @@ export default function PidTuningPage() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FieldGroup label="Project">
-                    <Select value={selectedProjectId} onValueChange={(v) => setSelectedProjectId(v ?? '')}>
+                    <Select value={selectedProjectId || '_none'} onValueChange={(v) => setSelectedProjectId(!v || v === '_none' ? '' : v)}>
                       <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="No project" /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="_none">— None —</SelectItem>
                         {projects.map(p => (
                           <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                         ))}
