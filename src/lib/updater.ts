@@ -59,8 +59,14 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
     logUpdateDebug('tauri-check', { available: false });
     return { available: false };
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to check for updates';
-    logUpdateDebug('tauri-check-error', { error: message });
+    const raw = err instanceof Error ? err.message : 'Failed to check for updates';
+    // Sanitize: if the error contains raw git protocol data or is excessively long,
+    // replace with a user-friendly message (happens when latest.json is missing from release)
+    const isRawProtocol = raw.includes('refs/tags') || raw.includes('refs/heads') || raw.length > 300;
+    const message = isRawProtocol
+      ? 'Could not fetch update info. The update manifest may be missing from the latest release.'
+      : raw;
+    logUpdateDebug('tauri-check-error', { error: raw });
     return {
       available: false,
       error: message,
