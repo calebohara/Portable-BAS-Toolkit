@@ -306,7 +306,7 @@ export default function DashboardPage() {
                     <p className="text-xs text-muted-foreground/60">Activity will appear as you work on projects.</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-border max-h-[400px] overflow-y-auto">
+                  <div className="divide-y divide-border overflow-y-auto" style={{ maxHeight: 400 }}>
                     {activity.map((entry) => {
                       const Icon = actionIcons[entry.action] || FileText;
                       const projectName = projectNameMap.get(entry.projectId) ?? 'Unknown';
@@ -351,7 +351,7 @@ export default function DashboardPage() {
                     <p className="text-xs text-muted-foreground/60">Notes will appear here as you add them to projects.</p>
                   </div>
                 ) : (
-                  <div className="divide-y divide-border max-h-[400px] overflow-y-auto">
+                  <div className="divide-y divide-border overflow-y-auto" style={{ maxHeight: 400 }}>
                     {recentNotes.map((note) => {
                       const projectName = projectNameMap.get(note.projectId) ?? 'Unknown';
                       return (
