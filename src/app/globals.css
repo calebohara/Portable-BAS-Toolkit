@@ -440,3 +440,64 @@
     transform: none;
   }
 }
+
+/* ─── Maintenance Page Animations ────────────────────────────────────────── */
+
+@keyframes mt-grid-drift {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(-30px, -20px); }
+  100% { transform: translate(0, 0); }
+}
+
+@keyframes mt-scan-line {
+  0% { top: -2px; opacity: 0; }
+  5% { opacity: 1; }
+  95% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+@keyframes mt-pulse-glow {
+  0%, 100% { opacity: 0.15; transform: scale(1); }
+  50% { opacity: 0.35; transform: scale(1.15); }
+}
+
+@keyframes mt-data-flow {
+  0% { width: 20%; opacity: 0.3; }
+  50% { width: 80%; opacity: 1; }
+  100% { width: 20%; opacity: 0.3; }
+}
+
+@keyframes mt-fade-in-up {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes mt-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes mt-status-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 oklch(0.65 0.12 185 / 40%); }
+  50% { box-shadow: 0 0 0 6px oklch(0.65 0.12 185 / 0%); }
+}
+
+@keyframes mt-orb-drift-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(40px, -30px) scale(1.1); }
+  50% { transform: translate(-20px, -50px) scale(0.95); }
+  75% { transform: translate(-40px, 20px) scale(1.05); }
+}
+
+@keyframes mt-orb-drift-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25% { transform: translate(-50px, 20px) scale(1.08); }
+  50% { transform: translate(30px, 40px) scale(0.92); }
+  75% { transform: translate(20px, -30px) scale(1.12); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mt-animated {
+    animation: none !important;
+  }
+}

@@ -9,6 +9,8 @@ import { InstallPrompt } from '@/components/pwa/install-prompt';
 import { TourOverlay } from '@/components/onboarding/tour-overlay';
 import { GlobalNotepad } from '@/components/notepad/global-notepad';
 import { WebUpdateBanner } from './web-update-banner';
+import { MaintenancePage } from '@/components/maintenance/maintenance-page';
+import { isMaintenanceMode } from '@/lib/maintenance';
 import { cn } from '@/lib/utils';
 
 // Routes that render their own full-page layout (no sidebar)
@@ -95,6 +97,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
   }, [setSidebarOpen]);
+
+  // Maintenance gate: block all non-admin users when maintenance mode is active
+  if (isMaintenanceMode() && profile?.role !== 'admin') {
+    return <MaintenancePage />;
+  }
 
   // Full-page routes render without sidebar chrome
   if (isFullPage) {
