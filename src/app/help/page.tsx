@@ -6,7 +6,7 @@ import {
   Database, Network, StickyNote, FileText, Download, Settings,
   ChevronDown, ChevronRight, Wifi, WifiOff, Palette, Share2,
   Monitor, Smartphone, Shield, Activity, TerminalSquare, BookmarkPlus,
-  Users2, BookOpen, Cloud, MessageSquare, Calculator, RefreshCw,
+  Users2, BookOpen, Cloud, MessageSquare, Calculator, RefreshCw, Gauge,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -164,6 +164,21 @@ const featureGuides = [
       'Calculate BACnet, Modbus, and LonWorks register values',
       'Convert between decimal, hex, binary, and register formats',
       'Useful for commissioning and troubleshooting field devices',
+    ],
+  },
+  {
+    icon: Gauge,
+    title: 'PID Tuning Tool',
+    items: [
+      'Diagnose PID control loop issues with 11 field-observed symptoms',
+      'Rule-based tuning recommendations with confidence levels and explanations',
+      'Supports all common BAS loop types: SAT, DAT, static pressure, room temp, humidity, VFD, and more',
+      'Gain / Proportional Band live conversion (PB% = 100/Kp)',
+      'Before vs After comparison with percentage deltas',
+      'Flags non-tuning issues (mechanical sticking, sensor lag) honestly',
+      'Save tuning sessions to projects for documentation',
+      'BAS-specific PID reference guide with typical ranges by loop type',
+      'Export as clipboard text, print/PDF, or JSON',
     ],
   },
   {

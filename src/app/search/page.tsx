@@ -20,7 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { FILE_CATEGORY_LABELS } from '@/types';
-import { navigateToProject } from '@/lib/routes';
+import { navigateToProject, navigateToGlobalProject } from '@/lib/routes';
 import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry } from '@/types';
 
 function Highlight({ text, query }: { text: string; query: string }) {
@@ -417,12 +417,9 @@ export default function SearchPage() {
                                   messages: 'messages',
                                 };
                                 const tab = tabMap[r.sourceTable] || '';
-                                const path = tab
-                                  ? `/global-projects/${r.projectId}/${tab}`
-                                  : `/global-projects/${r.projectId}`;
-                                router.push(path);
+                                navigateToGlobalProject(router, r.projectId, tab || undefined);
                               } else if (r.sourceTable === 'messages') {
-                                router.push('/messages');
+                                router.push('/global-projects');
                               }
                             }}
                             className="flex w-full items-start gap-3 rounded-lg border border-border p-3 text-left hover:bg-accent transition-colors"

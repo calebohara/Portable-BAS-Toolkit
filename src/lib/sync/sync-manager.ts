@@ -192,7 +192,7 @@ export class SyncManager implements SyncManagerInterface {
         // Conflict detection: for updates, check if remote is newer
         if (item.action === 'update') {
           const localPayload = item.payload as Record<string, unknown>;
-          const localUpdatedAt = localPayload.updatedAt as string | undefined;
+          const localUpdatedAt = (localPayload.updatedAt ?? localPayload.completedAt ?? localPayload.createdAt) as string | undefined;
 
           if (localUpdatedAt) {
             // Fetch remote row's updated_at
@@ -203,7 +203,7 @@ export class SyncManager implements SyncManagerInterface {
               .maybeSingle();
 
             if (!fetchError && remoteRow) {
-              const remoteUpdatedAt = remoteRow.updated_at as string | undefined;
+              const remoteUpdatedAt = (remoteRow.updated_at ?? remoteRow.completed_at ?? remoteRow.created_at) as string | undefined;
               if (remoteUpdatedAt && new Date(remoteUpdatedAt) > new Date(localUpdatedAt)) {
                 // Conflict: remote is newer — store conflict, remove from queue
                 console.warn(
@@ -419,12 +419,9 @@ export class SyncManager implements SyncManagerInterface {
             .eq('user_id', this.userId);
 
           // Incremental: only fetch rows updated since last pull
-          if (lastPulledAt) {
-            // Some tables don't have updated_at — use their creation timestamp instead
+          if (lastPulledAt && entityType !== 'terminalLogs') {
             const timestampCol =
               entityType === 'activityLog' ? 'timestamp' :
-              entityType === 'pingSessions' ? 'created_at' :
-              entityType === 'terminalLogs' ? 'created_at' :
               'updated_at';
             query = query.gte(timestampCol, lastPulledAt);
           }

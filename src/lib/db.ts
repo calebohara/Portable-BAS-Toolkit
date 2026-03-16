@@ -1010,6 +1010,12 @@ export async function purgeOrphanedRecords(): Promise<number> {
             if (v.blobKey) orphanedBlobKeys.push(v.blobKey);
           }
         }
+        if (storeName === 'dailyReports') {
+          const attachments = (rec.attachments ?? []) as Array<{ blobKey?: string }>;
+          for (const att of attachments) {
+            if (att.blobKey) orphanedBlobKeys.push(att.blobKey);
+          }
+        }
         await tx.store.delete(rec.id as string);
         totalDeleted++;
       }
@@ -1067,7 +1073,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'syncQueue',
+    'pidTuningSessions', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');

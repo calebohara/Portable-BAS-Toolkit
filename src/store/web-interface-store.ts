@@ -112,7 +112,7 @@ interface WebInterfaceStore {
 
 export const useWebInterfaceStore = create<WebInterfaceStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       endpoints: [],
 
       saveEndpoint: (ep) => {

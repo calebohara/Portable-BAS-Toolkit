@@ -298,7 +298,7 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
     a.href = url;
     a.download = `${(project.projectNumber || project.name).replace(/[<>:"|?*\\\/]/g, '_')}-share-package.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Package downloaded');
   };
 

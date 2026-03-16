@@ -319,7 +319,6 @@ export function generateRecommendation(
   currentValues: PidTuningValues,
   symptoms: string[],
   responseData: PidResponseData,
-  _action: PidAction,
 ): TuningRecommendation {
   const defaults = LOOP_TYPE_DEFAULTS[loopType];
   const explanations: Record<string, string> = {};

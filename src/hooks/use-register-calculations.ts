@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { SavedCalculation, RegisterToolModule, SavedCalcCategory } from '@/types';
 import * as db from '@/lib/db';
+import { onPullComplete } from '@/lib/sync/sync-bridge';
 import { v4 as uuid } from 'uuid';
 
 export function useRegisterCalculations(projectId?: string) {
@@ -23,6 +24,7 @@ export function useRegisterCalculations(projectId?: string) {
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => onPullComplete(refresh), [refresh]);
 
   const addCalculation = useCallback(async (data: {
     label: string;
@@ -47,8 +49,8 @@ export function useRegisterCalculations(projectId?: string) {
   }, [refresh]);
 
   const updateCalculation = useCallback(async (calc: SavedCalculation) => {
-    calc.updatedAt = new Date().toISOString();
-    await db.saveRegisterCalculation(calc);
+    const updated = { ...calc, updatedAt: new Date().toISOString() };
+    await db.saveRegisterCalculation(updated);
     await refresh();
   }, [refresh]);
 

@@ -95,8 +95,8 @@ function CanvasNode({
       </foreignObject>
       {/* Label */}
       <text x={0} y={26} textAnchor="middle" fill="currentColor"
-        fontSize={11 / zoom > 11 ? 11 : Math.max(9, 11)} fontWeight={500}
-        className="select-none" style={{ fontSize: 11 }}>
+        fontSize={Math.max(9, 11 / zoom)} fontWeight={500}
+        className="select-none">
         {node.label.length > 10 ? node.label.slice(0, 10) + '...' : node.label}
       </text>
       {/* IP below */}
@@ -233,7 +233,7 @@ export default function NetworkDiagramPage() {
       setActiveDiagramId(d.id);
       toast.success('Diagram created');
     }
-  }, [activeDiagramId, selectedProjectId, diagramName, diagramDesc, nodes, connections, createDiagram, updateDiagram]);
+  }, [activeDiagramId, selectedProjectId, diagramName, diagramDesc, nodes, connections, diagrams, createDiagram, updateDiagram]);
 
   // ─── Add node ──────────────────────────────────────────
   const addNode = useCallback((type: DiagramNodeType) => {
@@ -404,7 +404,7 @@ export default function NetworkDiagramPage() {
         a.href = dl;
         a.download = `${diagramName.replace(/\s+/g, '_')}_diagram.png`;
         a.click();
-        URL.revokeObjectURL(dl);
+        setTimeout(() => URL.revokeObjectURL(dl), 5000);
         toast.success('Diagram exported as PNG');
       });
     };
@@ -431,7 +431,7 @@ export default function NetworkDiagramPage() {
     a.href = url;
     a.download = `${diagramName.replace(/\s+/g, '_')}_diagram.svg`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Diagram exported as SVG');
   }, [diagramName]);
 
@@ -539,9 +539,10 @@ export default function NetworkDiagramPage() {
           {/* Project selector */}
           <div className="p-3 border-b border-border space-y-2">
             <Label className="text-xs">Project</Label>
-            <Select value={selectedProjectId} onValueChange={v => v && setSelectedProjectId(v)}>
+            <Select value={selectedProjectId} onValueChange={v => setSelectedProjectId(v === '_none' ? '' : (v ?? ''))}>
               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select project..." /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="_none">No project</SelectItem>
                 {projects.map(p => (
                   <SelectItem key={p.id} value={p.id}>{p.projectNumber} — {p.name}</SelectItem>
                 ))}
@@ -795,8 +796,7 @@ export default function NetworkDiagramPage() {
               {/* Empty state */}
               {nodes.length === 0 && (
                 <text x="50%" y="50%" textAnchor="middle" fill="currentColor" fillOpacity={0.3} fontSize={14}>
-                  <tspan x="50%" dy="0" className="hidden md:inline">Add nodes from the sidebar to start building your diagram</tspan>
-                  <tspan x="50%" dy="0" className="md:hidden">Tap + below to add nodes</tspan>
+                  {isMobile ? 'Tap + below to add nodes' : 'Add nodes from the sidebar to start building your diagram'}
                 </text>
               )}
             </svg>

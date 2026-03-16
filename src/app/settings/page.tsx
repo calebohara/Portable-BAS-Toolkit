@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Palette, HardDrive, Info, Trash2, Download, PlayCircle, User, LogOut,
   Cloud, Upload, AlertTriangle, Monitor, KeyRound, Mail, Database,
@@ -95,14 +95,19 @@ interface PendingUser {
   created_at: string;
 }
 
-function AdminApprovalPanel({ session }: { session: { access_token: string } | null }) {
+// NOTE: In Tauri mode, queries use the anon-key client. RLS policies on the
+// `profiles` table MUST restrict SELECT and UPDATE to users whose own
+// profile.role = 'admin'. The client-side role check below is defense-in-depth.
+function AdminApprovalPanel({ session, currentUserRole }: { session: { access_token: string } | null; currentUserRole?: string }) {
   const [users, setUsers] = useState<PendingUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [denyTarget, setDenyTarget] = useState<{ id: string; email: string } | null>(null);
   const isDesktop = isTauri();
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     if (!session) return;
+    if (currentUserRole !== 'admin') return;
     setLoading(true);
     try {
       if (isDesktop) {
@@ -130,9 +135,9 @@ function AdminApprovalPanel({ session }: { session: { access_token: string } | n
     } finally {
       setLoading(false);
     }
-  };
+  }, [session, isDesktop, currentUserRole]);
 
-  useEffect(() => { fetchUsers(); }, [session]);
+  useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
   const handleApproval = async (userId: string, approved: boolean) => {
     if (!session) return;
@@ -178,16 +183,20 @@ function AdminApprovalPanel({ session }: { session: { access_token: string } | n
     }
   };
 
-  const handleDeny = async (userId: string, email: string) => {
+  const handleDeny = (userId: string, email: string) => {
     if (!session) return;
     if (isDesktop) {
       toast.error('Deny & delete requires the web app (needs server-side admin privileges).');
       return;
     }
-    if (!confirm(`Permanently deny and delete ${email}? This cannot be undone.`)) return;
-    setUpdating(userId);
+    setDenyTarget({ id: userId, email });
+  };
+
+  const executeDeny = async () => {
+    if (!session || !denyTarget) return;
+    setUpdating(denyTarget.id);
     try {
-      const res = await fetch(`/api/admin/users?userId=${userId}`, {
+      const res = await fetch(`/api/admin/users?userId=${denyTarget.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -329,6 +338,16 @@ function AdminApprovalPanel({ session }: { session: { access_token: string } | n
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={denyTarget !== null}
+        onOpenChange={(open) => { if (!open) setDenyTarget(null); }}
+        title="Deny & Delete User"
+        description={`Permanently deny and delete ${denyTarget?.email ?? ''}? This cannot be undone.`}
+        confirmLabel="Deny & Delete"
+        variant="destructive"
+        onConfirm={executeDeny}
+      />
     </section>
   );
 }
@@ -539,7 +558,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Change Password */}
-              <Card className="transition-colors hover:border-primary/30 cursor-pointer" onClick={() => setShowPasswordDialog(true)}>
+              <Card className="transition-colors hover:border-primary/30 cursor-pointer" role="button" tabIndex={0} onClick={() => setShowPasswordDialog(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowPasswordDialog(true); } }}>
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                     <KeyRound className="h-4.5 w-4.5 text-primary" />
@@ -553,7 +572,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Change Email */}
-              <Card className="transition-colors hover:border-primary/30 cursor-pointer" onClick={() => setShowEmailDialog(true)}>
+              <Card className="transition-colors hover:border-primary/30 cursor-pointer" role="button" tabIndex={0} onClick={() => setShowEmailDialog(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowEmailDialog(true); } }}>
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
                     <Mail className="h-4.5 w-4.5 text-primary" />
@@ -567,7 +586,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Delete Account */}
-              <Card className="border-destructive/30 transition-colors hover:border-destructive/50 cursor-pointer" onClick={() => setShowDeleteDialog(true)}>
+              <Card className="border-destructive/30 transition-colors hover:border-destructive/50 cursor-pointer" role="button" tabIndex={0} onClick={() => setShowDeleteDialog(true)} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setShowDeleteDialog(true); } }}>
                 <CardContent className="p-4 flex items-center gap-4">
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-destructive/10">
                     <Trash2 className="h-4.5 w-4.5 text-destructive" />
@@ -587,7 +606,7 @@ export default function SettingsPage() {
             ADMIN — ACCOUNT APPROVAL
         ═══════════════════════════════════════════════════════════ */}
         {mode === 'authenticated' && profile?.role === 'admin' && (
-          <AdminApprovalPanel session={session} />
+          <AdminApprovalPanel session={session} currentUserRole={profile?.role} />
         )}
 
         {/* ═══════════════════════════════════════════════════════════

@@ -46,7 +46,7 @@ import {
 function CopyBtn({ value, label }: { value: string; label?: string }) {
   return (
     <button
-      onClick={() => { navigator.clipboard.writeText(value); toast.success(`Copied ${label || 'value'}`); }}
+      onClick={() => { navigator.clipboard.writeText(value).then(() => toast.success(`Copied ${label || 'value'}`)).catch(() => toast.error('Clipboard access denied')); }}
       className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
       title={`Copy ${label || 'value'}`}
     >

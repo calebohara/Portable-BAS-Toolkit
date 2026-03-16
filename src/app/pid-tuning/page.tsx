@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useId } from 'react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -22,7 +22,7 @@ import { useProjects } from '@/hooks/use-projects';
 import { usePidTuningSessions } from '@/hooks/use-pid-tuning';
 import { format } from 'date-fns';
 import type {
-  PidLoopType, PidOutputType, PidControlMode, PidAction, PidGainMode,
+  PidLoopType, PidOutputType, PidControlMode, PidAction,
   PidTuningValues, PidResponseData, PidTuningSession,
 } from '@/types';
 import {
@@ -82,10 +82,11 @@ function FieldGroup({ label, hint, children }: {
   hint?: string;
   children: React.ReactNode;
 }) {
+  const id = useId();
   return (
     <div className="space-y-1.5">
       <div className="flex items-center gap-1">
-        <Label className="text-xs">{label}</Label>
+        <Label htmlFor={id} className="text-xs">{label}</Label>
         {hint && (
           <Tooltip>
             <TooltipTrigger>
@@ -95,7 +96,7 @@ function FieldGroup({ label, hint, children }: {
           </Tooltip>
         )}
       </div>
-      {children}
+      <div id={id}>{children}</div>
     </div>
   );
 }
@@ -130,7 +131,8 @@ function CompareRow({ label, before, after, unit }: {
 export default function PidTuningPage() {
   const { projects } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState('');
-  const { sessions, addSession, updateSession, removeSession } = usePidTuningSessions(selectedProjectId || undefined);
+  const [filterProjectId, setFilterProjectId] = useState('');
+  const { sessions, loading: sessionsLoading, addSession, updateSession, removeSession } = usePidTuningSessions(filterProjectId || undefined);
 
   // Active session state
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -165,9 +167,14 @@ export default function PidTuningPage() {
     [selectedSymptoms, loopType, controlMode, currentValues]
   );
 
+  const hasConflictingSymptoms = useMemo(() =>
+    selectedSymptoms.includes('hunting') && selectedSymptoms.includes('sluggish'),
+    [selectedSymptoms]
+  );
+
   const recommendation = useMemo(() =>
-    generateRecommendation(loopType, controlMode, currentValues, selectedSymptoms, responseData, action),
-    [loopType, controlMode, currentValues, selectedSymptoms, responseData, action]
+    generateRecommendation(loopType, controlMode, currentValues, selectedSymptoms, responseData),
+    [loopType, controlMode, currentValues, selectedSymptoms, responseData]
   );
 
   // ─── Actions ────────────────────────────────────────────
@@ -216,6 +223,7 @@ export default function PidTuningPage() {
     setActuatorStrokeTime('');
     setAction('reverse');
     setControlMode('pi');
+    setSelectedProjectId('');
     setCurrentValues(defaultTuningValues());
     setRecommendedValues(defaultTuningValues());
     setSelectedSymptoms([]);
@@ -329,8 +337,12 @@ export default function PidTuningPage() {
   }, [loopName, equipment, loopType, controlMode, action, outputType, actuatorStrokeTime, currentValues, recommendedValues, selectedSymptoms, fieldNotes, selectedProjectId, projects]);
 
   const handleCopyClipboard = useCallback(async () => {
-    await navigator.clipboard.writeText(formatSessionText());
-    toast.success('Copied to clipboard');
+    try {
+      await navigator.clipboard.writeText(formatSessionText());
+      toast.success('Copied to clipboard');
+    } catch {
+      toast.error('Clipboard access denied');
+    }
     setExportOpen(false);
   }, [formatSessionText]);
 
@@ -349,11 +361,12 @@ export default function PidTuningPage() {
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
+    const safeName = (loopName || 'session').replace(/[^a-zA-Z0-9_-]/g, '_');
     const a = document.createElement('a');
     a.href = url;
-    a.download = `pid-tuning_${loopName || 'session'}_${format(new Date(), 'yyyy-MM-dd')}.json`;
+    a.download = `pid-tuning_${safeName}_${format(new Date(), 'yyyy-MM-dd')}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('JSON exported');
     setExportOpen(false);
   }, [loopName, equipment, loopType, controlMode, action, outputType, actuatorStrokeTime, currentValues, recommendedValues, selectedSymptoms, responseData, fieldNotes]);
@@ -443,9 +456,8 @@ export default function PidTuningPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FieldGroup label="Project">
                     <Select value={selectedProjectId} onValueChange={(v) => setSelectedProjectId(v ?? '')}>
-                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select project..." /></SelectTrigger>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="No project" /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value=" ">No project</SelectItem>
                         {projects.map(p => (
                           <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                         ))}
@@ -597,6 +609,9 @@ export default function PidTuningPage() {
                     return (
                       <button
                         key={sym.id}
+                        role="checkbox"
+                        aria-checked={active}
+                        aria-label={sym.label}
                         onClick={() => setSelectedSymptoms(prev => active ? prev.filter(s => s !== sym.id) : [...prev, sym.id])}
                         className={cn(
                           'w-full text-left rounded-lg border px-3 py-2.5 transition-colors',
@@ -632,6 +647,12 @@ export default function PidTuningPage() {
                 {selectedSymptoms.length > 0 && (
                   <div className="space-y-3 pt-2 border-t border-border">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Diagnosis</p>
+                    {hasConflictingSymptoms && (
+                      <div className="flex items-start gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 px-3 py-2">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
+                        <span className="text-xs text-amber-400">Conflicting symptoms selected: &quot;Hunting&quot; and &quot;Sluggish&quot; suggest opposite tuning adjustments. Verify which symptom is dominant before applying changes.</span>
+                      </div>
+                    )}
                     <p className="text-xs">{diagnosis.overallAssessment}</p>
 
                     {diagnosis.tuningAdjustments.map((adj, i) => (
@@ -796,13 +817,13 @@ export default function PidTuningPage() {
                 {(recommendedValues.gain !== null || recommendedValues.integralTime !== null) && (
                   <div className="rounded-lg bg-muted/50 px-3 py-2 mt-2">
                     <p className="text-xs font-medium mb-1">Change Summary</p>
-                    {currentValues.gain !== null && recommendedValues.gain !== null && currentValues.gain !== recommendedValues.gain && (
+                    {currentValues.gain !== null && currentValues.gain !== 0 && recommendedValues.gain !== null && currentValues.gain !== recommendedValues.gain && (
                       <p className="text-[11px] text-muted-foreground">
                         Gain {recommendedValues.gain > currentValues.gain ? 'increased' : 'decreased'} by{' '}
                         {Math.abs(Math.round((1 - recommendedValues.gain / currentValues.gain) * 100))}%
                       </p>
                     )}
-                    {currentValues.integralTime !== null && recommendedValues.integralTime !== null && currentValues.integralTime !== recommendedValues.integralTime && (
+                    {currentValues.integralTime !== null && currentValues.integralTime !== 0 && recommendedValues.integralTime !== null && currentValues.integralTime !== recommendedValues.integralTime && (
                       <p className="text-[11px] text-muted-foreground">
                         Integral time {recommendedValues.integralTime > currentValues.integralTime ? 'increased' : 'decreased'} by{' '}
                         {Math.abs(Math.round((1 - recommendedValues.integralTime / currentValues.integralTime) * 100))}%
@@ -830,10 +851,9 @@ export default function PidTuningPage() {
               {/* Saved Sessions */}
               <SectionCard title="Saved Sessions" icon={FolderOpen}>
                 <FieldGroup label="Filter by Project">
-                  <Select value={selectedProjectId} onValueChange={(v) => setSelectedProjectId(v ?? '')}>
-                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All sessions..." /></SelectTrigger>
+                  <Select value={filterProjectId} onValueChange={(v) => setFilterProjectId(v ?? '')}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All sessions" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value=" ">All sessions</SelectItem>
                       {projects.map(p => (
                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}
@@ -841,8 +861,10 @@ export default function PidTuningPage() {
                   </Select>
                 </FieldGroup>
 
-                {sessions.length === 0 ? (
-                  <p className="text-xs text-muted-foreground text-center py-8">No saved sessions{selectedProjectId ? ' for this project' : ''}.</p>
+                {sessionsLoading ? (
+                  <p className="text-xs text-muted-foreground text-center py-8">Loading sessions...</p>
+                ) : sessions.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-8">No saved sessions{filterProjectId ? ' for this project' : ''}.</p>
                 ) : (
                   <div className="space-y-2 max-h-[400px] overflow-y-auto">
                     {sessions.map(session => (
@@ -854,9 +876,9 @@ export default function PidTuningPage() {
                         )}
                       >
                         <div className="flex items-center justify-between">
-                          <button onClick={() => loadSession(session)} className="flex-1 text-left">
-                            <p className="text-xs font-medium">{session.loopName}</p>
-                            <p className="text-[10px] text-muted-foreground">
+                          <button onClick={() => loadSession(session)} className="flex-1 text-left min-w-0">
+                            <p className="text-xs font-medium truncate">{session.loopName}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">
                               {session.equipment} &middot; {PID_LOOP_TYPE_LABELS[session.loopType]} &middot; {format(new Date(session.updatedAt), 'MMM d, yyyy')}
                             </p>
                           </button>
@@ -864,7 +886,7 @@ export default function PidTuningPage() {
                             size="sm"
                             variant="ghost"
                             className="h-7 w-7 p-0 shrink-0"
-                            onClick={(e) => { e.stopPropagation(); removeSession(session.id); toast.success('Session deleted'); }}
+                            onClick={async (e) => { e.stopPropagation(); await removeSession(session.id); toast.success('Session deleted'); }}
                           >
                             <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
                           </Button>

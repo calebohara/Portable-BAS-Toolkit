@@ -113,6 +113,14 @@ export const TOUR_STEPS: TourStep[] = [
     action: 'open-sidebar',
   },
   {
+    id: 'nav-pid-tuning',
+    target: '[data-tour="nav-pid-tuning"]',
+    title: 'PID Tuning Tool',
+    content: 'Diagnose and tune PID control loops for BAS HVAC systems. Get symptom-based recommendations, compare before/after values, and save tuning sessions to projects.',
+    placement: 'right',
+    action: 'open-sidebar',
+  },
+  {
     id: 'nav-inbox',
     target: '[data-tour="nav-documents"]',
     title: 'Uploads Inbox',

@@ -48,9 +48,9 @@ export function useProjects() {
   }, [refresh]);
 
   const updateProject = useCallback(async (project: Project) => {
-    project.updatedAt = new Date().toISOString();
+    const updated = { ...project, updatedAt: new Date().toISOString() };
     try {
-      await db.saveProject(project);
+      await db.saveProject(updated);
     } catch (e) {
       console.error('Failed to update project:', e);
       throw e;
@@ -212,12 +212,12 @@ export function useProjectNotes(projectId: string) {
   }, [projectId, refresh]);
 
   const updateNote = useCallback(async (note: FieldNote) => {
-    note.updatedAt = new Date().toISOString();
+    const updated = { ...note, updatedAt: new Date().toISOString() };
     try {
-      await db.saveNote(note);
+      await db.saveNote(updated);
       await db.addActivity({
         id: uuid(), projectId, action: 'Note updated',
-        details: `${note.category} note updated`, timestamp: note.updatedAt, user: note.author,
+        details: `${updated.category} note updated`, timestamp: updated.updatedAt, user: updated.author,
       });
     } catch (e) {
       console.error('Failed to update note:', e);
@@ -459,13 +459,13 @@ export function useDailyReports(projectId?: string) {
   }, [refresh]);
 
   const updateReport = useCallback(async (report: DailyReport) => {
-    report.updatedAt = new Date().toISOString();
+    const updated = { ...report, updatedAt: new Date().toISOString() };
     try {
-      await db.saveDailyReport(report);
-      if (report.projectId) {
+      await db.saveDailyReport(updated);
+      if (updated.projectId) {
         await db.addActivity({
-          id: uuid(), projectId: report.projectId, action: 'Daily report updated',
-          details: `Daily Report #${report.reportNumber} updated`, timestamp: report.updatedAt, user: report.technicianName || 'User',
+          id: uuid(), projectId: updated.projectId, action: 'Daily report updated',
+          details: `Daily Report #${updated.reportNumber} updated`, timestamp: updated.updatedAt, user: updated.technicianName || 'User',
         });
       }
     } catch (e) {
@@ -562,9 +562,9 @@ export function useNetworkDiagrams(projectId?: string) {
   }, [refresh]);
 
   const updateDiagram = useCallback(async (diagram: NetworkDiagram) => {
-    diagram.updatedAt = new Date().toISOString();
+    const updated = { ...diagram, updatedAt: new Date().toISOString() };
     try {
-      await db.saveDiagram(diagram);
+      await db.saveDiagram(updated);
     } catch (e) {
       console.error('Failed to update diagram:', e);
       throw e;
@@ -618,9 +618,9 @@ export function useCommandSnippets() {
   }, [refresh]);
 
   const updateSnippet = useCallback(async (snippet: CommandSnippet) => {
-    snippet.updatedAt = new Date().toISOString();
+    const updated = { ...snippet, updatedAt: new Date().toISOString() };
     try {
-      await db.saveSnippet(snippet);
+      await db.saveSnippet(updated);
     } catch (e) {
       console.error('Failed to update snippet:', e);
       throw e;
@@ -642,10 +642,9 @@ export function useCommandSnippets() {
     const all = await db.getAllSnippets();
     const snippet = all.find(s => s.id === id);
     if (snippet) {
-      snippet.usageCount += 1;
-      snippet.lastUsedAt = new Date().toISOString();
+      const updated = { ...snippet, usageCount: snippet.usageCount + 1, lastUsedAt: new Date().toISOString() };
       try {
-        await db.saveSnippet(snippet);
+        await db.saveSnippet(updated);
       } catch (e) {
         console.error('Failed to record snippet usage:', e);
         throw e;
@@ -821,9 +820,9 @@ export function useConnectionProfiles(projectId?: string) {
     const all = await db.getAllConnectionProfiles();
     const p = all.find(x => x.id === id);
     if (p) {
-      p.lastConnectedAt = new Date().toISOString();
-      p.updatedAt = new Date().toISOString();
-      await db.saveConnectionProfile(p);
+      const now = new Date().toISOString();
+      const updated = { ...p, lastConnectedAt: now, updatedAt: now };
+      await db.saveConnectionProfile(updated);
       await refresh();
     }
   }, [refresh]);

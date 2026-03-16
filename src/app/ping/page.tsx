@@ -367,7 +367,7 @@ export default function PingToolPage() {
     }
 
     setRunning(false);
-  }, [targets, mode, repeatCount, intervalMs, scanPorts, isDesktop, pingMethod]);
+  }, [running, targets, mode, repeatCount, intervalMs, scanPorts, isDesktop, pingMethod]);
 
   const stopTest = useCallback(() => {
     abortRef.current = true;
@@ -654,7 +654,7 @@ export default function PingToolPage() {
                 <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
                   <strong className="text-foreground">Summary:</strong>{' '}
                   {validTargets.filter(t => {
-                    const r = results[t.host];
+                    const r = results[`${t.host}:${t.port}`];
                     return r && r[r.length - 1]?.status === 'reachable';
                   }).length} of {validTargets.length} hosts reachable
                 </div>
@@ -662,7 +662,7 @@ export default function PingToolPage() {
 
               {/* Unreachable help */}
               {!running && validTargets.some(t => {
-                const r = results[t.host];
+                const r = results[`${t.host}:${t.port}`];
                 return r && r[r.length - 1]?.status === 'unreachable';
               }) && (
                 <div className="rounded-lg border border-field-warning/20 bg-field-warning/5 px-4 py-3 text-xs flex gap-3">

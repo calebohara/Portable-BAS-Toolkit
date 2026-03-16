@@ -15,6 +15,32 @@ import { cn } from '@/lib/utils';
 import type { DeviceEntry } from '@/types';
 import { toast } from 'sonner';
 
+function SortHeader({ field, sortField, sortDir, onSort, children }: {
+  field: string;
+  sortField: string;
+  sortDir: 'asc' | 'desc';
+  onSort: (field: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50 whitespace-nowrap"
+      onClick={() => onSort(field)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(field); } }}
+      tabIndex={0}
+      role="columnheader"
+      aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {sortField === field && (
+          <ChevronDown className={cn('h-3 w-3 transition-transform', sortDir === 'desc' && 'rotate-180')} />
+        )}
+      </div>
+    </TableHead>
+  );
+}
+
 interface Props {
   projectId: string;
   devices: DeviceEntry[];
@@ -66,8 +92,11 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
   };
 
   const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard');
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('Copied to clipboard');
+    }).catch(() => {
+      toast.error('Clipboard access denied');
+    });
   };
 
   const openAdd = () => { setEditDevice(undefined); setDialogOpen(true); };
@@ -97,24 +126,6 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
     }
     setDeleteTarget(null);
   };
-
-  const SortHeader = ({ field, children }: { field: keyof DeviceEntry; children: React.ReactNode }) => (
-    <TableHead
-      className="cursor-pointer select-none hover:bg-muted/50 whitespace-nowrap"
-      onClick={() => handleSort(field)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort(field); } }}
-      tabIndex={0}
-      role="columnheader"
-      aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-    >
-      <div className="flex items-center gap-1">
-        {children}
-        {sortField === field && (
-          <ChevronDown className={cn('h-3 w-3 transition-transform', sortDir === 'desc' && 'rotate-180')} />
-        )}
-      </div>
-    </TableHead>
-  );
 
   return (
     <div className="space-y-4">
@@ -168,15 +179,15 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
-                <SortHeader field="deviceName">Device</SortHeader>
-                <SortHeader field="description">Description</SortHeader>
-                <SortHeader field="system">System</SortHeader>
-                <SortHeader field="panel">Panel</SortHeader>
-                <SortHeader field="controllerType">Type</SortHeader>
-                <SortHeader field="ipAddress">IP Address</SortHeader>
-                <SortHeader field="floor">Floor</SortHeader>
-                <SortHeader field="area">Area</SortHeader>
-                <SortHeader field="status">Status</SortHeader>
+                <SortHeader field="deviceName" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Device</SortHeader>
+                <SortHeader field="description" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Description</SortHeader>
+                <SortHeader field="system" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>System</SortHeader>
+                <SortHeader field="panel" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Panel</SortHeader>
+                <SortHeader field="controllerType" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Type</SortHeader>
+                <SortHeader field="ipAddress" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>IP Address</SortHeader>
+                <SortHeader field="floor" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Floor</SortHeader>
+                <SortHeader field="area" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Area</SortHeader>
+                <SortHeader field="status" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Status</SortHeader>
                 <TableHead className="w-16" />
               </TableRow>
             </TableHeader>

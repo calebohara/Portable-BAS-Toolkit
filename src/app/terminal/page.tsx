@@ -831,7 +831,7 @@ function SnippetLibraryPanel({
               <button onClick={() => toggleFavorite(s)} className="p-1 rounded hover:bg-muted" title="Favorite">
                 <Star className={cn('h-3 w-3', s.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-muted-foreground')} />
               </button>
-              <button onClick={() => { navigator.clipboard.writeText(s.command); toast.success('Copied'); }}
+              <button onClick={() => { navigator.clipboard.writeText(s.command).then(() => toast.success('Copied')).catch(() => toast.error('Clipboard access denied')); }}
                 className="p-1 rounded hover:bg-muted" title="Copy">
                 <Copy className="h-3 w-3 text-muted-foreground" />
               </button>
@@ -1255,7 +1255,7 @@ export default function TelnetPage() {
     a.href = url;
     a.download = generateFileName(session);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Session log exported');
   }, [session]);
 

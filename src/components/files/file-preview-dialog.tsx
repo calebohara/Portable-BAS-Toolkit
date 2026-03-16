@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { FileIcon, formatFileSize } from '@/components/shared/file-icon';
 import { getFileBlob } from '@/lib/db';
 import type { ProjectFile } from '@/types';
+import { sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 import { openUrl } from '@/lib/tauri-bridge';
 
@@ -122,9 +123,9 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
       const url = URL.createObjectURL(downloadBlob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = file.fileName;
+      a.download = sanitizeFilename(file.fileName);
       a.click();
-      URL.revokeObjectURL(url);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch {
       toast.error('Download failed');
     }

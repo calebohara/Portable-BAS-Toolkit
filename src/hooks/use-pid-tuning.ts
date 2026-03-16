@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { PidTuningSession } from '@/types';
 import * as db from '@/lib/db';
+import { onPullComplete } from '@/lib/sync/sync-bridge';
 import { v4 as uuid } from 'uuid';
 
 export function usePidTuningSessions(projectId?: string) {
@@ -23,6 +24,7 @@ export function usePidTuningSessions(projectId?: string) {
   }, [projectId]);
 
   useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => onPullComplete(refresh), [refresh]);
 
   const addSession = useCallback(async (data: Omit<PidTuningSession, 'id' | 'createdAt' | 'updatedAt'>) => {
     const now = new Date().toISOString();
@@ -48,8 +50,8 @@ export function usePidTuningSessions(projectId?: string) {
   }, [refresh]);
 
   const updateSession = useCallback(async (session: PidTuningSession) => {
-    session.updatedAt = new Date().toISOString();
-    await db.savePidTuningSession(session);
+    const updated = { ...session, updatedAt: new Date().toISOString() };
+    await db.savePidTuningSession(updated);
     await refresh();
   }, [refresh]);
 

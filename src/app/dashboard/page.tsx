@@ -74,7 +74,7 @@ export default function DashboardPage() {
 
   const quickActions = [
     { icon: FolderPlus, label: 'New Project', onClick: () => router.push('/projects?new=1') },
-    { icon: Upload, label: 'Upload File', onClick: () => router.push('/projects') },
+    { icon: Upload, label: 'Upload File', onClick: () => router.push('/documents') },
     { icon: StickyNote, label: 'Field Note', onClick: () => router.push('/projects') },
     { icon: Database, label: 'Latest Backup', onClick: () => router.push('/search?q=backup&category=backups') },
     { icon: Network, label: 'IP Plan', onClick: () => router.push('/search?category=ip-plan') },

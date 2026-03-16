@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import { migrateLocalToGlobal } from '@/lib/global-projects/migrate';
+import { navigateToGlobalProject } from '@/lib/routes';
 import type { Project, FieldNote, DeviceEntry, IpPlanEntry, DailyReport } from '@/types';
 import type { MigrationResult } from '@/lib/global-projects/migrate';
 
@@ -168,7 +169,7 @@ export function ShareToGlobalDialog({
               className="gap-1.5"
               onClick={() => {
                 handleOpenChange(false);
-                router.push(`/global-projects/${result.globalProjectId}`);
+                navigateToGlobalProject(router, result.globalProjectId);
               }}
             >
               <ExternalLink className="h-4 w-4" />

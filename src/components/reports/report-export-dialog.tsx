@@ -414,7 +414,7 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
     a.href = url;
     a.download = `report-${report.reportNumber}-${report.date}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Package downloaded');
   };
 

@@ -39,10 +39,14 @@ function UrlPreview({ protocol, host, port, path }: {
 
   const handleCopy = async () => {
     if (!url) return;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast.success('URL copied');
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success('URL copied');
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Clipboard access denied');
+    }
   };
 
   if (!host) return null;
@@ -295,10 +299,14 @@ function EmbeddedWorkspace() {
   const [copied, setCopied] = useState(false);
 
   const handleCopyUrl = async () => {
-    await navigator.clipboard.writeText(activeUrl);
-    setCopied(true);
-    toast.success('URL copied');
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await navigator.clipboard.writeText(activeUrl);
+      setCopied(true);
+      toast.success('URL copied');
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Clipboard access denied');
+    }
   };
 
   const handleOpenExternal = () => {
@@ -521,7 +529,7 @@ export default function WebInterfacePage() {
     a.href = url;
     a.download = `panel-endpoints-${format(new Date(), 'yyyy-MM-dd')}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Endpoints exported');
   }, [endpoints]);
 
