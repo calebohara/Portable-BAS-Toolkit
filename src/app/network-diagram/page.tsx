@@ -910,7 +910,7 @@ export default function NetworkDiagramPage() {
                   <h3 className="text-sm font-semibold">Project & Diagrams</h3>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Project</Label>
-                    <Select value={selectedProjectId} onValueChange={v => { v && setSelectedProjectId(v); }}>
+                    <Select value={selectedProjectId} onValueChange={v => { if (v) setSelectedProjectId(v); }}>
                       <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select project..." /></SelectTrigger>
                       <SelectContent>
                         {projects.map(p => (

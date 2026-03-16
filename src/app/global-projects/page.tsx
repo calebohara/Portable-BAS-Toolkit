@@ -174,7 +174,7 @@ function GlobalProjectsPageInner() {
                     tabIndex={0}
                     className="group cursor-pointer border-l-4 border-l-blue-500 transition-all hover:shadow-md hover:border-primary/20 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     onClick={() => navigateToGlobalProject(router, project.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') navigateToGlobalProject(router, project.id); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigateToGlobalProject(router, project.id); } }}
                   >
                     <CardContent className="p-4">
                       <div className="mb-2 flex items-start justify-between gap-2">

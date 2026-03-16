@@ -7,7 +7,7 @@ import {
   Bold, Italic, List, ListOrdered, Heading2, Code, Link2, Quote,
 } from 'lucide-react';
 import { useKbCategories } from '@/hooks/use-knowledge-base';
-import { useAuth } from '@/providers/auth-provider';
+
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -54,8 +54,7 @@ const TOOLBAR_ACTIONS: ToolbarAction[] = [
 
 export default function NewArticlePage() {
   const router = useRouter();
-  const { categories, addCategory } = useKbCategories();
-  const { user } = useAuth();
+  const { categories } = useKbCategories();
 
   // Form state
   const [subject, setSubject] = useState('');

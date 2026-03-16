@@ -123,7 +123,7 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
                 key={file.id}
                 role="button"
                 tabIndex={0}
-                aria-selected={selectedFileId === file.id}
+                aria-pressed={selectedFileId === file.id}
                 className={cn(
                   'cursor-pointer transition-all hover:shadow-sm',
                   selectedFileId === file.id && 'ring-2 ring-primary border-primary/20'

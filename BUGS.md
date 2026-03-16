@@ -1,9 +1,44 @@
 # BAU Suite — QA Bug Report
 
-**Date**: 2026-03-15
+<!--
+RULES:
+1. COUNTS: When updating any issue status, recount ALL rows in every table and update
+   the summary counts below. Count FIXED (including N/A) and SKIPPED separately.
+   Section headers (e.g. "## HIGH (11 issues)") must also be recounted to match.
+2. VERIFY: When this file is referenced by the user (e.g. "check BUGS.md", "look at BUGS.md"),
+   always review all CRITICAL and HIGH issues first — verify they are actually fixed
+   in the codebase, not just marked FIXED. Spot-check at least 2 MEDIUM fixes too.
+3. TIMESTAMPS: Timestamp every bug when it is logged (Found column) and when it is fixed
+   (Fixed column) using ISO datetime format (YYYY-MM-DD HH:MM). Add these columns to
+   all new tables.
+4. LAST UPDATED: Update the "Last updated" line below every time this file is modified,
+   including time.
+5. AUDIT TRAIL: Never remove or overwrite a previous sweep's data. New sweeps get their
+   own section appended below. This preserves the full history.
+6. REGRESSIONS: If a previously-FIXED bug is found broken again, do NOT change the
+   original row. Instead, add a new row in the current sweep referencing the original
+   (e.g. "Regression of #1 — ...") so both the fix and the regression are tracked.
+7. SKIPPED REVIEW: SKIPPED items must include a reason. On each new sweep, re-evaluate
+   all previously SKIPPED items — if the codebase has changed enough to make a fix
+   trivial, upgrade the status. Never let SKIPPED items go stale without review.
+8. SEVERITY: Use exactly these levels: CRITICAL (data loss, security exploit, crash),
+   HIGH (wrong behavior, broken feature, security hardening), MEDIUM (degraded UX,
+   edge case, a11y gap), LOW (cosmetic, style, nice-to-have). Never inflate severity.
+9. DUPLICATES: Before adding a new issue, check all existing rows (all sweeps) for
+   duplicates. If the same root cause exists, add a note to the existing row instead
+   of creating a new entry.
+10. BUILD GATE: Every sweep must end with a passing `tsc --noEmit` and `npm run build`.
+    Record the result at the bottom of each sweep section.
+11. REPLY LOG: Every user reply during a BUGS.md or QC session must be logged verbatim
+    in `REPLY.md` with a timestamp (YYYY-MM-DD HH:MM). This preserves user intent,
+    decisions, and feedback as an audit trail.
+-->
+
 **Version**: 4.5.0
+**Last updated**: 2026-03-16 00:15
 **Sweep 1**: 47 issues | 44 fixed | 3 skipped
-**Sweep 2**: 37 new issues | 0 fixed
+**Sweep 2**: 47 issues | 32 fixed | 15 skipped
+**Sweep 3**: 18 issues | 15 fixed | 3 skipped
 
 ---
 
@@ -150,3 +185,56 @@
 | S2-45 | `src/lib/global-projects/api.ts:155-163` | `generateAccessCode` modulo bias — `bytes[i] % 30` gives non-uniform distribution | LOW | SKIPPED — negligible entropy loss for 7-char code |
 | S2-46 | `src/app/api/donate/checkout/route.ts:23` | `STRIPE_SECRET_KEY!` non-null assertion — crashes if publishable key set but secret key missing | MEDIUM | FIXED — added explicit guard |
 | S2-47 | `package.json` | Unused dependencies `@supabase/ssr` and `sharp` — add install time and confusion | LOW | SKIPPED — safe to remove but not blocking |
+
+---
+
+# Sweep 3 — QA Sweep
+
+**Date**: 2026-03-15 23:45
+**Version**: 4.5.0
+**Total Issues**: 18 | **Fixed**: 15 | **Skipped**: 3
+
+**Regressions**: 1 (S3-7 — regression of S2-25)
+**Build gate**: tsc --noEmit PASS | npm run build PASS (pre-fix baseline)
+
+---
+
+## CRITICAL (1 issue)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S3-1 | `src/lib/sync/sync-manager.ts:559` | **Data loss** — `purgeOrphans` deletes rows with `project_id IS NULL` for tables that legitimately allow nullable project_id (`files`, `pingSessions`, `terminalLogs`, `connectionProfiles`, `registerCalculations`). Runs on every `fullSync()`. Destroys unassigned files and unscoped sessions | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — filter uses `REQUIRES_PROJECT_ID` set |
+
+## HIGH (3 issues)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S3-2 | `src/lib/sync/sync-manager.ts:448` | Pull sync orphan filter drops legitimate null-project_id rows — only exempts `projects` and `commandSnippets`, misses `files`, `pingSessions`, `terminalLogs`, `connectionProfiles`, `registerCalculations` | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — filter uses `REQUIRES_PROJECT_ID` set |
+| S3-3 | `supabase/schema.sql` + `src/lib/sync/field-map.ts:21` | `pidTuningSessions` mapped to `pid_tuning_sessions` table in sync but no `CREATE TABLE` exists in schema — push sync fails with "relation does not exist" | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — added table, RLS, trigger, index |
+| S3-4 | `src/lib/db.ts:300-311` | `deleteProject` calls `notifySync` for 11 child types but skips `activityLog` — activity log entries for deleted projects remain as orphans in Supabase | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — added notifySync for activityLog |
+
+## MEDIUM (6 issues)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S3-5 | `supabase/schema.sql:388-401` | `ping_sessions` table has `updated_at` column but no `set_updated_at()` trigger — incremental pull via `updated_at >= lastPulledAt` misses updates | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — added trigger |
+| S3-6 | `src/lib/db.ts:511` | `deleteDailyReport` accesses `report.attachments` without `?? []` guard — crashes if undefined. Same class as S2-20 (fixed in deleteProject) but unfixed here | 2026-03-15 23:30 | FIXED 2026-03-16 00:00 — added ?? [] guard |
+| S3-7 | `src/app/projects/page.tsx:172` + `src/app/global-projects/page.tsx` | **[REGRESSION of S2-25]** — Card `onKeyDown` only handles Enter, missing Space key for `role="button"` (WCAG requirement). Fixed in dashboard but not projects/global-projects | 2026-03-15 23:30 | FIXED 2026-03-16 00:05 — added Space key + preventDefault |
+| S3-8 | `src/app/dashboard/page.tsx` | Activity feed shows raw snake_case action strings (`file_uploaded`, `device_created`) instead of human-readable labels | 2026-03-15 23:30 | FIXED 2026-03-16 00:05 — format with replace + capitalize |
+| S3-9 | `src/app/documents/page.tsx:33,41` | Unused vars `_router` and `_assigningFile` — ESLint warnings | 2026-03-15 23:30 | FIXED 2026-03-16 00:05 — removed router, destructure without getter |
+| S3-10 | `src/app/knowledge-base/page.tsx:36` + `src/lib/hmi/ansi-parser.ts:214` | `let` should be `const` (prefer-const lint errors) | 2026-03-15 23:30 | FIXED 2026-03-16 00:05 — changed to const |
+
+## LOW (8 issues)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S3-11 | `src/app/knowledge-base/page.tsx:243` | Unused state pair `confirmDeleteReplyId` / `setConfirmDeleteReplyId` | 2026-03-15 23:30 | FIXED 2026-03-16 00:10 — removed |
+| S3-12 | `src/app/knowledge-base/new/page.tsx:57-58` | Unused `addCategory` and `user` variables | 2026-03-15 23:30 | FIXED 2026-03-16 00:10 — removed destructurings + useAuth import |
+| S3-13 | `src/app/offline/page.tsx:24` | Unused `loading` variable | 2026-03-15 23:30 | FIXED 2026-03-16 00:10 — removed from destructuring |
+| S3-14 | `src/components/files/file-preview-dialog.tsx:104` | Missing `blobUrl` in useEffect dependency array (react-hooks/exhaustive-deps) | 2026-03-15 23:30 | SKIPPED — false positive, blobUrl is in separate cleanup effect |
+| S3-15 | `src/components/files/file-list-view.tsx:122` | `aria-selected` not supported by `role="button"` — should use `role="option"` or remove `aria-selected` | 2026-03-15 23:30 | FIXED 2026-03-16 00:10 — changed to aria-pressed |
+| S3-16 | `src/app/network-diagram/page.tsx:913` | Unused expression — no assignment or function call (no-unused-expressions) | 2026-03-15 23:30 | FIXED 2026-03-16 00:10 — changed short-circuit to if statement |
+| S3-17 | `src/app/knowledge-base/new/page.tsx` | Uses native `<select>` instead of shadcn Select component — inconsistent with rest of app | 2026-03-15 23:30 | SKIPPED — cosmetic, functional as-is |
+| S3-18 | `src/app/knowledge-base/new/page.tsx` | Form labels lack `htmlFor`/`id` association — screen readers can't associate labels with inputs | 2026-03-15 23:30 | SKIPPED — lower priority a11y |
+
+**Build gate (post-fix)**: tsc --noEmit PASS | npm run build PASS (2026-03-16 00:15)

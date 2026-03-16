@@ -29,6 +29,18 @@ You are a senior QA engineer testing **BAU Suite**, a portable project toolkit f
 | Toasts | `sonner` |
 | Routing | App Router with static export catch-all `_` pattern and `?_id=` query params |
 
+### Pre-Sweep: BUGS.md Review (MANDATORY)
+
+Before launching any agents, **every sweep must**:
+
+1. **Read `BUGS.md`** in full — load all previous sweeps, issues, fixes, and skipped items into context
+2. **Check regression targets** — any issue previously marked `FIXED` must be re-verified in the current code. If a fix has regressed, flag it as `[REGRESSION]` with Critical severity
+3. **Re-evaluate skipped items** — any issue marked `SKIPPED` in a previous sweep must be re-assessed. If it's now fixable, report it. If still skipped, carry the reason forward
+4. **Deduplicate** — do NOT re-report issues that already exist in BUGS.md unless the issue has changed or regressed. Reference the original issue number (e.g., "S1-3 regression")
+5. **Learn from history** — use past fix patterns to inform current findings. If a class of bug was found before (e.g., missing `notifySync`, unsanitized filenames), scan for the same pattern in any new or changed code
+
+> **Why**: Without BUGS.md context, sweeps repeat known issues, miss regressions, and lose institutional knowledge. The bug history IS the project's QA memory.
+
 ### Instructions
 
 Run **5 parallel test agents**, each covering a distinct area. Do NOT commit or push — report findings only.
@@ -237,6 +249,76 @@ Each agent must return findings in this format:
 
 ---
 
+### Post-Sweep: BUGS.md Update (MANDATORY)
+
+After all agents report and findings are consolidated:
+
+1. **Append a new sweep section** to `BUGS.md` — never overwrite previous sweeps
+2. **Assign sequential issue IDs** — format `S{sweep}-{number}` (e.g., S3-1, S3-2)
+3. **Timestamp every issue** — use `YYYY-MM-DD HH:MM` format
+4. **Recount totals** — update the sweep header counts (Total, Fixed, Skipped) to match actual rows
+5. **Update the "Last updated" line** at the top of BUGS.md
+6. **Cross-reference regressions** — if a previously fixed issue reappeared, link to the original (e.g., "Regression of S1-3")
+
+---
+
+### QC Expert Rules
+
+These rules govern sweep quality and must be followed by all agents:
+
+#### 1. Severity Calibration
+- **Critical** = data loss, security vulnerability, or crash. Do NOT inflate severity for cosmetic issues
+- **High** = feature broken or producing wrong results for the user. Must be reproducible
+- **Medium** = missing validation, a11y gaps, inconsistent behavior that doesn't block usage
+- **Low** = code quality, polish, style. If the user would never notice, it's Low
+
+#### 2. Evidence-Based Reporting
+- Every finding must include a **file path and line number**
+- Every finding must have a concrete **Expected vs Actual** description
+- Vague findings ("this could be better") are not valid — be specific or don't report
+
+#### 3. Fix Quality Standards
+- Suggested fixes must be **minimal and surgical** — don't propose refactors as bug fixes
+- Fixes must not introduce new issues — consider side effects on related code
+- If a fix touches shared logic (db.ts, sync engine, utils), verify all callers
+
+#### 4. Build Gate
+- After fixing, `tsc --noEmit` and `npm run build` must both pass cleanly
+- Any fix that breaks the build is worse than the original bug — roll it back
+
+#### 5. Scope Discipline
+- Each agent stays in its lane — Agent 1 doesn't report sync issues, Agent 3 doesn't report UI bugs
+- If an agent discovers an issue outside its scope, note it but defer to the responsible agent
+- Do NOT report the same issue from multiple agents
+
+#### 6. False Positive Prevention
+- Before reporting, verify the issue is **real** by reading surrounding code context
+- Check if apparent "missing" functionality exists elsewhere (different file, different pattern)
+- Don't report intentional design decisions as bugs (e.g., sentinel values used deliberately)
+
+#### 7. Reply Logging
+- Every user reply during a QC or BUGS session must be logged verbatim in `REPLY.md` with a timestamp (`YYYY-MM-DD HH:MM`)
+- This preserves user intent, decisions, and feedback as an audit trail
+- Create `REPLY.md` if it doesn't exist; append to it if it does
+- Never edit or remove previous entries — append only
+
+#### 9. Pattern-Based Scanning
+After reviewing BUGS.md history, scan for **recurring bug classes** across new/changed code:
+- Missing `notifySync` calls after IndexedDB writes
+- Missing `try/catch` on clipboard, localStorage, or IndexedDB operations
+- Unsanitized filenames in download/export paths
+- Missing keyboard/ARIA support on interactive non-button elements
+- Cascade deletes that skip child entity types
+- Division by zero in percentage/average calculations
+- Blob URL leaks (missing `URL.revokeObjectURL`)
+
+#### 10. Incremental Value
+- Each sweep should find **fewer** issues than the last — if issue counts aren't trending down, review fix quality
+- Prioritize issues that affect real user workflows over theoretical edge cases
+- A sweep that finds 5 real bugs is more valuable than one that finds 50 style nits
+
+---
+
 ---
 
 ## Part 2: Edge-Case Test Suite Generator
@@ -309,6 +391,12 @@ You are being dropped into an existing codebase. You do **not** know the stack, 
 ### Process
 
 Execute these phases **in order**:
+
+#### Phase 0 — BUGS.md Review (silent, no output yet)
+
+1. Read `BUGS.md` to understand previously reported bugs and their fixes
+2. Use this knowledge to prioritize test coverage — write tests that would catch regressions of previously fixed bugs
+3. If a bug was marked `SKIPPED`, consider whether a test could validate the expected behavior
 
 #### Phase 1 — Discovery (silent, no output yet)
 

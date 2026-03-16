@@ -445,8 +445,8 @@ export class SyncManager implements SyncManagerInterface {
         for (const row of allRows) {
           if (!isActivityLog && isDeletedRow(row)) {
             toDeleteIds.push(row.id as string);
-          } else if (entityType !== 'projects' && entityType !== 'commandSnippets' && !row.project_id) {
-            // Orphaned row: has no project_id — skip it (old demo data / orphaned child)
+          } else if (entityType !== 'projects' && REQUIRES_PROJECT_ID.has(entityType) && !row.project_id) {
+            // Orphaned row: requires project_id but has none — skip it (old demo data / orphaned child)
             orphanCount++;
           } else {
             toUpsert.push(fromSupabaseRow(entityType, row));
@@ -556,7 +556,7 @@ export class SyncManager implements SyncManagerInterface {
 
     // ── Step 1b: Delete orphaned child rows with NULL project_id (old demo data) ──
     try {
-      const childTables = SYNC_ORDER.filter((t) => t !== 'projects' && t !== 'commandSnippets' && t !== 'activityLog');
+      const childTables = SYNC_ORDER.filter((t) => REQUIRES_PROJECT_ID.has(t));
       for (const entityType of childTables) {
         try {
           const table = entityTypeToTable[entityType];

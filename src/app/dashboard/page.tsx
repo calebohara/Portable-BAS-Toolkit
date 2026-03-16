@@ -320,7 +320,7 @@ export default function DashboardPage() {
                             <Icon className="h-3.5 w-3.5 text-muted-foreground" />
                           </div>
                           <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium truncate">{entry.action}</p>
+                            <p className="text-sm font-medium truncate">{entry.action.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}</p>
                             <p className="text-xs text-muted-foreground truncate">{entry.details}</p>
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span className="text-[10px] font-medium text-primary truncate">{projectName}</span>

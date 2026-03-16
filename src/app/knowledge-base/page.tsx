@@ -33,7 +33,7 @@ function formatFileSize(bytes: number): string {
 
 function renderMarkdown(text: string): string {
   if (!text) return '';
-  let html = text
+  const html = text
     // Escape HTML
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -240,7 +240,6 @@ function ArticleCard({ article, userId, onDeleteArticle, onReply, onDeleteReply 
   const [replying, setReplying] = useState(false);
   const [showReplies, setShowReplies] = useState(true);
   const [confirmDeleteArticle, setConfirmDeleteArticle] = useState(false);
-  const [confirmDeleteReplyId, setConfirmDeleteReplyId] = useState<string | null>(null);
 
   const handleReply = async () => {
     if (!replyBody.trim()) return;

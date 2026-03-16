@@ -298,6 +298,7 @@ export async function deleteProject(id: string): Promise<void> {
     await tx.done;
 
     // Notify sync bridge about cascade-deleted children
+    for (const log of logs) notifySync('delete', 'activityLog', log.id, null);
     for (const file of files) notifySync('delete', 'files', file.id, null);
     for (const note of notes) notifySync('delete', 'notes', note.id, null);
     for (const dev of devices) notifySync('delete', 'devices', dev.id, null);
@@ -508,7 +509,7 @@ export async function deleteDailyReport(id: string): Promise<void> {
   const report = await db.get('dailyReports', id);
   if (report) {
     // Delete attachment blobs
-    for (const att of report.attachments) {
+    for (const att of (report.attachments ?? [])) {
       if (att.blobKey) await db.delete('fileBlobs', att.blobKey);
     }
   }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+
 import { format } from 'date-fns';
 import {
   Search, Download, Eye, Trash2, FolderOpen,
@@ -30,7 +30,6 @@ import { getUnassignedFiles, getAllProjects, deleteFile, getFileBlob, saveFile, 
 import { toast } from 'sonner';
 
 export default function DocumentsPage() {
-  const _router = useRouter();
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,7 +37,7 @@ export default function DocumentsPage() {
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectFile | null>(null);
   const [previewFile, setPreviewFile] = useState<ProjectFile | null>(null);
-  const [_assigningFile, setAssigningFile] = useState<ProjectFile | null>(null);
+  const [, setAssigningFile] = useState<ProjectFile | null>(null);
 
   const refresh = useCallback(async () => {
     try {

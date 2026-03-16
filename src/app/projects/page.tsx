@@ -169,7 +169,7 @@ function ProjectsPageInner() {
                   useAppStore.getState().addRecentProject(project.id);
                   navigateToProject(router, project.id);
                 }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { useAppStore.getState().addRecentProject(project.id); navigateToProject(router, project.id); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); useAppStore.getState().addRecentProject(project.id); navigateToProject(router, project.id); } }}
               >
                 <CardContent className="p-4">
                   <div className="mb-2 flex items-start justify-between gap-2">
