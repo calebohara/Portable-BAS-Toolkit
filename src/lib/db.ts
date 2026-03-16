@@ -122,6 +122,9 @@ let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 function getDB() {
   if (!dbPromise) {
     dbPromise = openDB<BasToolkitDB>('bas-toolkit', 10, {
+      blocked(currentVersion, blockedVersion) {
+        console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
+      },
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           // Projects
