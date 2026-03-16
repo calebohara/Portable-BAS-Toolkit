@@ -113,7 +113,7 @@ function GlobalProjectsPageInner() {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
+                <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
                   {statuses.map(({ value, label }) => (
                     <button
                       key={value}
@@ -252,12 +252,12 @@ function GlobalProjectsPageInner() {
           const result = await joinProject(code);
           // Handle ApiResult wrapper
           if (result && 'error' in result && result.error) {
-            return { error: result.error };
+            return { error: String(result.error) };
           }
           if (result && 'data' in result && result.data) {
-            return result.data as any;
+            return result.data as { projectId: string; projectName: string; role: string };
           }
-          return result as any;
+          return result as { projectId: string; projectName: string; role: string };
         }}
         onNavigate={(id) => navigateToGlobalProject(router, id)}
       />

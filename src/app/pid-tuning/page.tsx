@@ -17,7 +17,7 @@ import {
   ArrowUpDown, HelpCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import { useProjects } from '@/hooks/use-projects';
 import { usePidTuningSessions } from '@/hooks/use-pid-tuning';
 import { format } from 'date-fns';
@@ -114,7 +114,7 @@ function CompareRow({ label, before, after, unit }: {
     ? after - before : null;
 
   return (
-    <div className="grid grid-cols-4 gap-2 items-center py-1.5 border-b border-border/50 last:border-0">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-center py-1.5 border-b border-border/50 last:border-0">
       <span className="text-xs font-medium text-muted-foreground">{label}</span>
       <span className="text-xs text-center">{bVal}{unit && before !== null ? ` ${unit}` : ''}</span>
       <span className={cn('text-xs text-center font-medium', changed && 'text-primary')}>
@@ -347,7 +347,7 @@ export default function PidTuningPage() {
 
   const handleCopyClipboard = useCallback(async () => {
     try {
-      await navigator.clipboard.writeText(formatSessionText());
+      await copyToClipboard(formatSessionText());
       toast.success('Copied to clipboard');
     } catch {
       toast.error('Clipboard access denied');
@@ -545,7 +545,7 @@ export default function PidTuningPage() {
                   <span className={cn(currentValues.gainMode === 'proportional-band' ? 'font-medium text-foreground' : 'text-muted-foreground')}>PB%</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FieldGroup label={currentValues.gainMode === 'gain' ? 'Gain (Kp)' : 'Proportional Band (%)'}>
                     <Input
                       className="h-8 text-xs"
@@ -699,7 +699,7 @@ export default function PidTuningPage() {
               {/* Response Interpretation */}
               <SectionCard title="Response Interpretation" icon={TrendingUp}>
                 <p className="text-xs text-muted-foreground">Enter observed step response data from trending or field testing.</p>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FieldGroup label="Setpoint">
                     <Input className="h-8 text-xs" type="number" step="0.1" value={responseData.setpoint ?? ''} onChange={e => setResponseData(prev => ({ ...prev, setpoint: e.target.value === '' ? null : parseFloat(e.target.value) }))} />
                   </FieldGroup>
@@ -805,7 +805,7 @@ export default function PidTuningPage() {
 
               {/* Before vs After */}
               <SectionCard title="Before vs After Comparison" icon={ArrowUpDown}>
-                <div className="grid grid-cols-4 gap-2 pb-2 border-b border-border">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pb-2 border-b border-border">
                   <span className="text-[10px] font-semibold text-muted-foreground uppercase">Parameter</span>
                   <span className="text-[10px] font-semibold text-muted-foreground uppercase text-center">Before</span>
                   <span className="text-[10px] font-semibold text-muted-foreground uppercase text-center">After</span>
@@ -861,9 +861,10 @@ export default function PidTuningPage() {
               {/* Saved Sessions */}
               <SectionCard title="Saved Sessions" icon={FolderOpen}>
                 <FieldGroup label="Filter by Project">
-                  <Select value={filterProjectId} onValueChange={(v) => setFilterProjectId(v ?? '')}>
+                  <Select value={filterProjectId || '_all'} onValueChange={(v) => setFilterProjectId(v === '_all' ? '' : (v ?? ''))}>
                     <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All sessions" /></SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="_all">All sessions</SelectItem>
                       {projects.map(p => (
                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                       ))}

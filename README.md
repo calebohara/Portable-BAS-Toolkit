@@ -185,7 +185,7 @@ Native desktop app via [Tauri](https://v2.tauri.app/) with capabilities browsers
 | VPN network access | HTTP only | Full |
 | Install size | ~0 MB | ~15 MB |
 
-Download from [GitHub Releases](https://github.com/calebohara/Portable-BAS-Toolkit/releases) — Windows (.msi), macOS (.dmg), Linux (.deb/.AppImage).
+Download from [GitHub Releases](https://github.com/calebohara/Portable-BAS-Toolkit/releases) — Windows (.msi), macOS (.dmg).
 
 ```bash
 npm run tauri:dev      # Dev mode

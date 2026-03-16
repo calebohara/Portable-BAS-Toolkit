@@ -7,7 +7,7 @@ import {
   Download, Plus, X, Settings2, History, FileText, ChevronDown, ChevronUp,
   AlertCircle, CheckCircle2, Loader2, Circle, BookOpen, Paperclip,
   BookmarkPlus, Star, Tag, Search, Copy, PlayCircle, Clock, StickyNote,
-  Wifi, WifiOff, Save, Edit2, CircleHelp,
+  Wifi, Save, Edit2, CircleHelp,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -18,7 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@/components/ui/select';
-import { cn, sanitizeFilename } from '@/lib/utils';
+import { cn, sanitizeFilename, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   useTerminalStore,
@@ -134,7 +134,7 @@ function ProfilesSidebar({ session, onApplyProfile }: {
 }) {
   const { profiles, addProfile, updateProfile, removeProfile } = useConnectionProfiles();
   const [showAdd, setShowAdd] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
+
   const [profileName, setProfileName] = useState('');
 
   const handleSaveCurrentAsProfile = async () => {
@@ -831,7 +831,7 @@ function SnippetLibraryPanel({
               <button onClick={() => toggleFavorite(s)} className="p-1 rounded hover:bg-muted" title="Favorite">
                 <Star className={cn('h-3 w-3', s.isFavorite ? 'fill-yellow-500 text-yellow-500' : 'text-muted-foreground')} />
               </button>
-              <button onClick={() => { navigator.clipboard.writeText(s.command).then(() => toast.success('Copied')).catch(() => toast.error('Clipboard access denied')); }}
+              <button onClick={() => { copyToClipboard(s.command).then(() => toast.success('Copied')).catch(() => toast.error('Clipboard access denied')); }}
                 className="p-1 rounded hover:bg-muted" title="Copy">
                 <Copy className="h-3 w-3 text-muted-foreground" />
               </button>
@@ -1771,7 +1771,7 @@ export default function TelnetPage() {
 
       {/* Help Dialog */}
       <Dialog open={showHelp} onOpenChange={setShowHelp}>
-        <DialogContent className="max-w-xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CircleHelp className="h-4 w-4" /> HMI Terminal Help

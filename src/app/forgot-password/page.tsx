@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -16,11 +16,11 @@ export default function ForgotPasswordPage() {
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
 
-  // Already authenticated — no need for reset
-  if (mode === 'authenticated') {
-    router.replace('/dashboard');
-    return null;
-  }
+  // Already authenticated — redirect via effect (not during render)
+  useEffect(() => {
+    if (mode === 'authenticated') router.replace('/dashboard');
+  }, [mode, router]);
+  if (mode === 'authenticated') return null;
 
   if (!isConfigured) {
     return (

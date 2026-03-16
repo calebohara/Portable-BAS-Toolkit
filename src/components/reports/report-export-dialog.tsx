@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { cn, escapeHtml, copyToClipboard } from '@/lib/utils';
+import { cn, escapeHtml, copyToClipboard, sanitizeFilename } from '@/lib/utils';
 import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import type { DailyReport, Project, ReportAttachment } from '@/types';
@@ -412,7 +412,7 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `report-${report.reportNumber}-${report.date}.json`;
+    a.download = sanitizeFilename(`report-${report.reportNumber}-${report.date}`) + '.json';
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Package downloaded');

@@ -20,7 +20,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import {
@@ -40,7 +40,7 @@ function UrlPreview({ protocol, host, port, path }: {
   const handleCopy = async () => {
     if (!url) return;
     try {
-      await navigator.clipboard.writeText(url);
+      await copyToClipboard(url);
       setCopied(true);
       toast.success('URL copied');
       setTimeout(() => setCopied(false), 1500);
@@ -143,7 +143,6 @@ function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
-        <div style={{ maxHeight: '85vh', overflowY: 'auto' }}>
           <DialogHeader>
             <DialogTitle>{endpoint ? 'Edit Endpoint' : 'Save Endpoint'}</DialogTitle>
             <DialogDescription>Configure a saved panel web interface endpoint.</DialogDescription>
@@ -258,7 +257,6 @@ function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button onClick={handleSave}>{endpoint ? 'Save Changes' : 'Save Endpoint'}</Button>
           </DialogFooter>
-        </div>
       </DialogContent>
     </Dialog>
   );
@@ -300,7 +298,7 @@ function EmbeddedWorkspace() {
 
   const handleCopyUrl = async () => {
     try {
-      await navigator.clipboard.writeText(activeUrl);
+      await copyToClipboard(activeUrl);
       setCopied(true);
       toast.success('URL copied');
       setTimeout(() => setCopied(false), 1500);

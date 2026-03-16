@@ -3,10 +3,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Network, Plus, Trash2, Download, Save, ZoomIn, ZoomOut, Move,
-  MousePointer, Link as LinkIcon, Edit3, X, RotateCcw, Copy,
+  MousePointer, Link as LinkIcon, Edit3, X, RotateCcw,
   Server, Router, MonitorSmartphone, Cpu, Thermometer, Gauge,
-  LayoutGrid, Cloud, ArrowRightLeft, Settings2, Eye,
-  FolderKanban, ChevronUp, Layers,
+  LayoutGrid, Cloud, ArrowRightLeft, Settings2,
+  FolderKanban,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,6 @@ import { useNetworkDiagrams } from '@/hooks/use-projects';
 import { useProjects } from '@/hooks/use-projects';
 import type { NetworkDiagram, DiagramNode, DiagramConnection, DiagramNodeType, ConnectionStyle } from '@/types';
 import { DIAGRAM_NODE_LABELS } from '@/types';
-import { escapeHtml } from '@/lib/utils';
 
 // ─── Node Icons ──────────────────────────────────────────────
 const NODE_ICONS: Record<DiagramNodeType, typeof Server> = {
@@ -149,7 +148,7 @@ type MobilePanel = 'none' | 'project' | 'nodes';
 export default function NetworkDiagramPage() {
   const { projects } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState('');
-  const { diagrams, createDiagram, updateDiagram, removeDiagram } = useNetworkDiagrams(selectedProjectId || undefined);
+  const { diagrams, createDiagram, updateDiagram } = useNetworkDiagrams(selectedProjectId || undefined);
 
   // Current diagram
   const [activeDiagramId, setActiveDiagramId] = useState<string | null>(null);

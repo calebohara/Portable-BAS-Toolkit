@@ -32,7 +32,6 @@ const LOCAL_ONLY_FIELDS = new Set([
 const UUID_FK_COLUMNS = new Set([
   'project_id',
   'file_id',
-  'current_version_id',
 ]);
 
 // Per-entity fields to SKIP (field exists locally but NOT in the Supabase schema).

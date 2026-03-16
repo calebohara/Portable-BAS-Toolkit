@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import {
-  Palette, HardDrive, Info, Trash2, Download, PlayCircle, User, LogOut,
+  Palette, HardDrive, Info, Trash2, Download, PlayCircle, LogOut,
   Cloud, Upload, AlertTriangle, Monitor, KeyRound, Mail, Database,
   RefreshCw, ChevronRight, Camera, Loader2, ShieldCheck, UserCheck, UserX,
 } from 'lucide-react';
@@ -519,7 +519,7 @@ export default function SettingsPage() {
                   {/* Name fields */}
                   <div className="space-y-3">
                     <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Profile</p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="firstName" className="text-xs">First Name</Label>
                         <Input

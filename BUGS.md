@@ -39,11 +39,12 @@ RULES:
 -->
 
 **Version**: 4.5.0
-**Last updated**: 2026-03-16 01:20
+**Last updated**: 2026-03-16 02:00
 **Sweep 1**: 47 issues | 44 fixed | 3 skipped
 **Sweep 2**: 47 issues | 32 fixed | 15 skipped
 **Sweep 3**: 18 issues | 15 fixed | 3 skipped
 **Sweep 4**: 15 issues | 13 fixed | 2 skipped
+**Sweep 5**: 22 issues | 22 fixed | 0 skipped
 
 ---
 
@@ -314,3 +315,68 @@ RULES:
 **Migration required**: Run `supabase/migrations/add-sync-columns-activity-terminal.sql` in Supabase Dashboard → SQL Editor
 
 **Build gate (post-fix)**: tsc --noEmit PASS | npm run build PASS (2026-03-16 01:20)
+
+---
+
+# Sweep 5 — Supplementary Agent Fixes
+
+**Date**: 2026-03-16 02:00
+**Version**: 4.5.0
+**Total Issues**: 22 | **Fixed**: 22 | **Skipped**: 0
+**Source**: Late findings from Sweep 4 agents (1, 3, 4, 5, 7) that completed after Sweep 4 was finalized
+
+**Regressions**: 0
+**Build gate**: tsc --noEmit PASS | npm run build PASS (post-fix)
+
+---
+
+## CRITICAL (1 issue)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S5-1 | `data-cleanup-dialog.tsx:100-104` | Data cleanup deletes ALL rows with NULL `project_id` from Supabase child tables — destroys legitimate unassigned data (Uploads Inbox files, unlinked pings) | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — removed NULL project_id deletion loop |
+
+## HIGH (1 issue)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S5-2 | `field-map.ts:32-36` | `current_version_id` in UUID_FK_COLUMNS but column is `text NOT NULL` not `uuid` — empty strings converted to null causing NOT NULL violation on push | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — removed from UUID_FK_COLUMNS |
+
+## MEDIUM (12 issues)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S5-3 | 7 files | `navigator.clipboard.writeText()` used directly instead of `copyToClipboard()` utility — fails in Tauri/non-HTTPS | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — swapped to utility in register-tool, web-interface (×2), terminal, ip-plan-view, device-list-view, pid-tuning |
+| S5-4 | `client-page.tsx:764` | Download filename uses `.replace(/\s+/g, '_')` not `sanitizeFilename()` — path traversal risk | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — switched to sanitizeFilename() |
+| S5-5 | `share-dialog.tsx:299` | Inline filename sanitization missing leading dot, control char, length checks | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — switched to sanitizeFilename() |
+| S5-6 | `report-export-dialog.tsx:415` | Download filename unsanitized — user-editable reportNumber used directly | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — switched to sanitizeFilename() |
+| S5-7 | `new-project-dialog.tsx:63` | Dialog doesn't reset form when closed via X/backdrop | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — added reset on close |
+| S5-8 | `pid-tuning/page.tsx:864` | Session filter Select has no "All" deselect option | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — added "All sessions" option |
+| S5-9 | `web-interface/page.tsx:146` | EndpointEditDialog has redundant nested scroll container | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — removed redundant div wrapper |
+| S5-10 | `terminal/page.tsx:1774` | Help dialog `max-h-[80vh] overflow-y-auto` conflicts with DialogContent | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — removed conflicting classes |
+| S5-11 | `sync-conflicts-dialog.tsx:83` | Same scroll conflict + content not wrapped in DialogBody | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — removed overflow, added DialogBody |
+| S5-12 | `global-projects/page.tsx:258,260` | Explicit `any` type casts (lint errors) | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — replaced with concrete types |
+| S5-13 | `forgot-password/page.tsx:20-22` | `router.replace()` called during render body (side effect) | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — moved to useEffect |
+
+## LOW (8 issues)
+
+| # | File | Issue | Found | Status |
+|---|------|-------|-------|--------|
+| S5-14 | `ping/page.tsx:233` | Ping result table lacks `overflow-x-auto` on mobile | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — changed to `overflow-auto` |
+| S5-15 | `layout.tsx:67` | `maximumScale: 1` prevents pinch-to-zoom (WCAG 1.4.4) | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — changed to `maximumScale: 5` |
+| S5-16 | `pid-tuning/page.tsx` (×4) | Grids use unconditional `grid-cols-2`/`grid-cols-4` — cramped on mobile | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — added responsive breakpoints |
+| S5-17 | `projects/page.tsx`, `global-projects/page.tsx` | Status filter pills lack `flex-wrap` — overflow on 375px | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — added flex-wrap |
+| S5-18 | `settings/page.tsx:522` | Profile name grid unconditional `grid-cols-2` | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — added `grid-cols-1 sm:grid-cols-2` |
+| S5-19 | `register-tool/page.tsx:657` | Scaling grid jumps from 1 to 4 cols at sm: breakpoint | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — added `grid-cols-2 sm:grid-cols-4` |
+| S5-20 | `README.md:188` | Claims Linux builds available but CI only builds Windows + macOS | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — removed Linux reference |
+| S5-21 | `routes.ts` | Missing route constants for `knowledge-base` and `register-tool` | 2026-03-16 01:30 | FIXED 2026-03-16 02:00 — added to ROUTES |
+
+## INFO (not counted)
+
+| # | Note |
+|---|------|
+| I-1 | ~39 unused imports cleaned up across 10 files (in progress via agent) |
+| I-2 | Sync layer verified clean by 2 independent Agent 3 runs — 0 new mapping issues |
+| I-3 | All agents ran 2-3 times with convergent results — issue set is stable |
+
+**Build gate (post-fix)**: tsc --noEmit PASS | npm run build PASS (2026-03-16 02:00)

@@ -11,7 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import type { DeviceEntry } from '@/types';
 import { toast } from 'sonner';
 
@@ -91,8 +91,8 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
     }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
+  const handleCopy = (text: string) => {
+    copyToClipboard(text).then(() => {
       toast.success('Copied to clipboard');
     }).catch(() => {
       toast.error('Clipboard access denied');
@@ -202,7 +202,7 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
                   <TableCell className="text-xs whitespace-nowrap">
                     {device.ipAddress ? (
                       <button
-                        onClick={(e) => { e.stopPropagation(); copyToClipboard(device.ipAddress!); }}
+                        onClick={(e) => { e.stopPropagation(); handleCopy(device.ipAddress!); }}
                         className="flex items-center gap-1 font-mono text-primary hover:underline"
                         title="Copy IP"
                       >
@@ -279,7 +279,7 @@ export function DeviceListView({ projectId, devices, onAddDevice, onUpdateDevice
                   <div className="col-span-2">
                     <span className="text-muted-foreground">IP:</span>{' '}
                     <button
-                      onClick={() => copyToClipboard(device.ipAddress!)}
+                      onClick={() => handleCopy(device.ipAddress!)}
                       className="font-mono text-primary hover:underline"
                     >
                       {device.ipAddress}

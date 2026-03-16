@@ -34,7 +34,7 @@ import { ActivityTimeline } from '@/components/projects/activity-timeline';
 import { ShareDialog } from '@/components/share/share-dialog';
 import { ShareToGlobalDialog } from '@/components/global-projects/share-to-global-dialog';
 import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry, type TerminalSessionLog } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeFilename } from '@/lib/utils';
 import { deleteProject } from '@/lib/db';
 import { useAppStore } from '@/store/app-store';
 import { toast } from 'sonner';
@@ -761,7 +761,7 @@ function TerminalLogsView({ logs, onDelete }: { logs: TerminalSessionLog[]; onDe
     const a = document.createElement('a');
     a.href = url;
     const mode = log.connectionMode === 'serial' ? 'serial' : 'telnet';
-    a.download = `${log.sessionLabel.replace(/\s+/g, '_')}_${mode}_${format(new Date(log.createdAt), 'yyyy-MM-dd_HH-mm')}.txt`;
+    a.download = sanitizeFilename(`${log.sessionLabel}_${mode}_${format(new Date(log.createdAt), 'yyyy-MM-dd_HH-mm')}`) + '.txt';
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 5000);
   };

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   BookOpen, Send, Trash2, Reply, ChevronDown, ChevronUp,
-  Filter, Plus, FileText, Download, Search, MessageSquare, PenLine,
+  Filter, FileText, Download, Search, MessageSquare, PenLine,
 } from 'lucide-react';
 import { useKbCategories, useKbArticles } from '@/hooks/use-knowledge-base';
 import { useAuth } from '@/providers/auth-provider';

@@ -6,8 +6,8 @@ import { format } from 'date-fns';
 import {
   ArrowLeft, LayoutGrid, StickyNote, Server, Network, FileText, FolderOpen,
   History, Users, Plus, Trash2, Edit2, MapPin, Hash, Building2,
-  Copy, Check, Clock, User, ClipboardList, ChevronDown, ChevronUp, Pencil, FolderKanban,
-  Upload, X, Download, Image as ImageIcon, ExternalLink,
+  Copy, Check, Clock, User, ChevronDown, ChevronUp, Pencil, FolderKanban,
+  Upload, X, ExternalLink,
 } from 'lucide-react';
 import {
   validateFileSize, isImageFile, buildStoragePath, uploadProjectFile,
@@ -53,7 +53,6 @@ import type {
   GlobalProjectFile,
   GlobalDailyReport,
   GlobalActivityLogEntry,
-  GlobalProjectMember,
 } from '@/types/global-projects';
 
 const tabs = [

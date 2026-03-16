@@ -99,7 +99,7 @@ function ProjectsPageInner() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
+            <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
               {statuses.map(({ value, label }) => (
                 <button
                   key={value}

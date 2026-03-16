@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import type { IpPlanEntry } from '@/types';
 import { toast } from 'sonner';
 
@@ -105,8 +105,8 @@ export function IpPlanView({ projectId, entries, onAddEntry, onUpdateEntry, onDe
     else { setSortField(field); setSortDir('asc'); }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
+  const handleCopy = (text: string) => {
+    copyToClipboard(text).then(() => {
       toast.success('Copied to clipboard');
     }).catch(() => {
       toast.error('Clipboard access denied');
@@ -246,7 +246,7 @@ export function IpPlanView({ projectId, entries, onAddEntry, onUpdateEntry, onDe
                 >
                   <TableCell className="font-mono text-xs font-medium whitespace-nowrap">
                     <button
-                      onClick={() => copyToClipboard(entry.ipAddress)}
+                      onClick={() => handleCopy(entry.ipAddress)}
                       className="flex items-center gap-1 text-primary hover:underline"
                       title="Copy IP"
                     >

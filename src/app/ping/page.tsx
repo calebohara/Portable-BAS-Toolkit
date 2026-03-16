@@ -11,7 +11,6 @@ import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@/components/ui/select';
@@ -230,7 +229,7 @@ function ResultRow({ target, results }: { target: PingTarget; results: PingResul
       </button>
 
       {expanded && results.length > 0 && (
-        <div className="border-t border-border bg-muted/20 max-h-48 overflow-y-auto">
+        <div className="border-t border-border bg-muted/20 max-h-48 overflow-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border text-muted-foreground">
