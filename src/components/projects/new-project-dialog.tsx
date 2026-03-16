@@ -60,7 +60,7 @@ export function NewProjectDialog({ open, onOpenChange, onCreate }: Props) {
   const updateField = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) { setForm({ name: '', customerName: '', siteAddress: '', buildingArea: '', projectNumber: '44OP-', technicianNotes: '', tags: '' }); setPnWarning(''); } onOpenChange(v); }}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>New BAS Project</DialogTitle>

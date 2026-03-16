@@ -48,5 +48,6 @@ export function sanitizeFilename(name: string): string {
     .replace(/^\.+/, '')          // no leading dots
     .replace(/[\x00-\x1f\x7f]/g, '') // strip control chars
     .trim()
+    .substring(0, 200)
     || 'unnamed';
 }

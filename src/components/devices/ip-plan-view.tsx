@@ -12,9 +12,35 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import type { IpPlanEntry } from '@/types';
 import { toast } from 'sonner';
+
+function SortHeader({ field, sortField, sortDir, onSort, children }: {
+  field: string;
+  sortField: string;
+  sortDir: 'asc' | 'desc';
+  onSort: (field: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <TableHead
+      className="cursor-pointer select-none hover:bg-muted/50 whitespace-nowrap"
+      onClick={() => onSort(field)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSort(field); } }}
+      tabIndex={0}
+      role="columnheader"
+      aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
+    >
+      <div className="flex items-center gap-1">
+        {children}
+        {sortField === field && (
+          <ChevronDown className={cn('h-3 w-3 transition-transform', sortDir === 'desc' && 'rotate-180')} />
+        )}
+      </div>
+    </TableHead>
+  );
+}
 
 interface Props {
   projectId: string;
@@ -79,9 +105,12 @@ export function IpPlanView({ projectId, entries, onAddEntry, onUpdateEntry, onDe
     else { setSortField(field); setSortDir('asc'); }
   };
 
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    toast.success('Copied to clipboard');
+  const handleCopy = (text: string) => {
+    copyToClipboard(text).then(() => {
+      toast.success('Copied to clipboard');
+    }).catch(() => {
+      toast.error('Clipboard access denied');
+    });
   };
 
   const openAdd = () => { setEditEntry(undefined); setDialogOpen(true); };
@@ -117,22 +146,6 @@ export function IpPlanView({ projectId, entries, onAddEntry, onUpdateEntry, onDe
   const reservedCount = entries.filter((e) => e.status === 'reserved').length;
   const subnets = [...new Set(entries.map((e) => e.subnet).filter(Boolean))];
   const vlans = [...new Set(entries.map((e) => e.vlan).filter(Boolean))];
-
-  const SortHeader = ({ field, children }: { field: keyof IpPlanEntry; children: React.ReactNode }) => (
-    <TableHead
-      className="cursor-pointer select-none hover:bg-muted/50 whitespace-nowrap"
-      onClick={() => handleSort(field)}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleSort(field); } }}
-      tabIndex={0}
-      role="columnheader"
-      aria-sort={sortField === field ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}
-    >
-      <div className="flex items-center gap-1">
-        {children}
-        {sortField === field && <ChevronDown className={cn('h-3 w-3', sortDir === 'desc' && 'rotate-180')} />}
-      </div>
-    </TableHead>
-  );
 
   const statusColors: Record<string, string> = {
     active: 'bg-field-success/10 text-field-success',
@@ -214,13 +227,13 @@ export function IpPlanView({ projectId, entries, onAddEntry, onUpdateEntry, onDe
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
-                <SortHeader field="ipAddress">IP Address</SortHeader>
-                <SortHeader field="hostname">Hostname</SortHeader>
-                <SortHeader field="panel">Panel</SortHeader>
-                <SortHeader field="vlan">VLAN</SortHeader>
-                <SortHeader field="subnet">Subnet</SortHeader>
-                <SortHeader field="deviceRole">Role</SortHeader>
-                <SortHeader field="status">Status</SortHeader>
+                <SortHeader field="ipAddress" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>IP Address</SortHeader>
+                <SortHeader field="hostname" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Hostname</SortHeader>
+                <SortHeader field="panel" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Panel</SortHeader>
+                <SortHeader field="vlan" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>VLAN</SortHeader>
+                <SortHeader field="subnet" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Subnet</SortHeader>
+                <SortHeader field="deviceRole" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Role</SortHeader>
+                <SortHeader field="status" sortField={sortField} sortDir={sortDir} onSort={handleSort as (field: string) => void}>Status</SortHeader>
                 <TableHead>Notes</TableHead>
                 <TableHead className="w-16" />
               </TableRow>
@@ -233,7 +246,7 @@ export function IpPlanView({ projectId, entries, onAddEntry, onUpdateEntry, onDe
                 >
                   <TableCell className="font-mono text-xs font-medium whitespace-nowrap">
                     <button
-                      onClick={() => copyToClipboard(entry.ipAddress)}
+                      onClick={() => handleCopy(entry.ipAddress)}
                       className="flex items-center gap-1 text-primary hover:underline"
                       title="Copy IP"
                     >

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   BookOpen, Send, Trash2, Reply, ChevronDown, ChevronUp,
-  Filter, Plus, FileText, Download, Search, MessageSquare, PenLine,
+  Filter, FileText, Download, Search, MessageSquare, PenLine,
 } from 'lucide-react';
 import { useKbCategories, useKbArticles } from '@/hooks/use-knowledge-base';
 import { useAuth } from '@/providers/auth-provider';
@@ -33,7 +33,7 @@ function formatFileSize(bytes: number): string {
 
 function renderMarkdown(text: string): string {
   if (!text) return '';
-  let html = text
+  const html = text
     // Escape HTML
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -54,7 +54,10 @@ function renderMarkdown(text: string): string {
     // Ordered lists
     .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>')
     // Links
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">$1</a>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match: string, text: string, url: string) => {
+      const safeUrl = /^(https?:\/\/|\/|mailto:)/i.test(url) ? url.replace(/"/g, '&quot;') : '#';
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">${text}</a>`;
+    })
     // Line breaks
     .replace(/\n/g, '<br />');
   return html;
@@ -237,7 +240,6 @@ function ArticleCard({ article, userId, onDeleteArticle, onReply, onDeleteReply 
   const [replying, setReplying] = useState(false);
   const [showReplies, setShowReplies] = useState(true);
   const [confirmDeleteArticle, setConfirmDeleteArticle] = useState(false);
-  const [confirmDeleteReplyId, setConfirmDeleteReplyId] = useState<string | null>(null);
 
   const handleReply = async () => {
     if (!replyBody.trim()) return;

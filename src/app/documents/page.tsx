@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+
 import { format } from 'date-fns';
 import {
-  Upload, Search, Download, Eye, Trash2, FolderOpen,
-  MoreHorizontal, Pin, Star, ChevronDown, Clock, FileText,
+  Search, Download, Eye, Trash2, FolderOpen,
+  MoreHorizontal,
   ArrowRight,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
@@ -14,7 +14,6 @@ import { FileStatusBadge } from '@/components/shared/status-badge';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { FilePreviewDialog } from '@/components/files/file-preview-dialog';
-import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -26,12 +25,11 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { FILE_CATEGORY_LABELS, type ProjectFile, type Project } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeFilename } from '@/lib/utils';
 import { getUnassignedFiles, getAllProjects, deleteFile, getFileBlob, saveFile, addActivity } from '@/lib/db';
 import { toast } from 'sonner';
 
 export default function DocumentsPage() {
-  const router = useRouter();
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,7 +37,7 @@ export default function DocumentsPage() {
   const [selectedFileId, setSelectedFileId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectFile | null>(null);
   const [previewFile, setPreviewFile] = useState<ProjectFile | null>(null);
-  const [assigningFile, setAssigningFile] = useState<ProjectFile | null>(null);
+  const [, setAssigningFile] = useState<ProjectFile | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -104,9 +102,9 @@ export default function DocumentsPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = file.fileName;
+    a.download = sanitizeFilename(file.fileName);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   return (
@@ -157,7 +155,10 @@ export default function DocumentsPage() {
                     'cursor-pointer transition-all hover:shadow-sm',
                     selectedFileId === file.id && 'ring-2 ring-primary border-primary/20'
                   )}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setSelectedFileId(file.id === selectedFileId ? null : file.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedFileId(file.id === selectedFileId ? null : file.id); } }}
                   onDoubleClick={() => setPreviewFile(file)}
                 >
                   <CardContent className="p-3">

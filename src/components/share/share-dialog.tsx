@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { cn, escapeHtml } from '@/lib/utils';
+import { cn, escapeHtml, copyToClipboard, sanitizeFilename } from '@/lib/utils';
 import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import {
@@ -281,7 +281,7 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
   // ─── Step 3: Review & Export ───────────────────────────────
   const handleCopy = async (text: string) => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
       setCopied(true);
       toast.success('Copied to clipboard');
       setTimeout(() => setCopied(false), 2000);
@@ -296,9 +296,9 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${(project.projectNumber || project.name).replace(/[<>:"|?*\\\/]/g, '_')}-share-package.json`;
+    a.download = sanitizeFilename(`${project.projectNumber || project.name}-share-package`) + '.json';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Package downloaded');
   };
 

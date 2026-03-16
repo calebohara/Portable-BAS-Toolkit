@@ -211,7 +211,7 @@ export function parseAnsiLine(text: string): ParsedLine {
 export function processCarriageReturns(text: string): string {
   // First, normalise \r\n to a placeholder so we don't treat them as bare \r.
   const CRLF_PLACEHOLDER = '\x00CRLF\x00';
-  let working = text.replaceAll('\r\n', CRLF_PLACEHOLDER);
+  const working = text.replaceAll('\r\n', CRLF_PLACEHOLDER);
 
   // Process each line that was separated by real newlines
   const lines = working.split('\n');

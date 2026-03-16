@@ -3,10 +3,10 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Network, Plus, Trash2, Download, Save, ZoomIn, ZoomOut, Move,
-  MousePointer, Link as LinkIcon, Edit3, X, RotateCcw, Copy,
+  MousePointer, Link as LinkIcon, Edit3, X, RotateCcw,
   Server, Router, MonitorSmartphone, Cpu, Thermometer, Gauge,
-  LayoutGrid, Cloud, ArrowRightLeft, Settings2, Eye,
-  FolderKanban, ChevronUp, Layers,
+  LayoutGrid, Cloud, ArrowRightLeft, Settings2,
+  FolderKanban,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -20,13 +20,12 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useNetworkDiagrams } from '@/hooks/use-projects';
 import { useProjects } from '@/hooks/use-projects';
 import type { NetworkDiagram, DiagramNode, DiagramConnection, DiagramNodeType, ConnectionStyle } from '@/types';
 import { DIAGRAM_NODE_LABELS } from '@/types';
-import { escapeHtml } from '@/lib/utils';
 
 // ─── Node Icons ──────────────────────────────────────────────
 const NODE_ICONS: Record<DiagramNodeType, typeof Server> = {
@@ -95,8 +94,8 @@ function CanvasNode({
       </foreignObject>
       {/* Label */}
       <text x={0} y={26} textAnchor="middle" fill="currentColor"
-        fontSize={11 / zoom > 11 ? 11 : Math.max(9, 11)} fontWeight={500}
-        className="select-none" style={{ fontSize: 11 }}>
+        fontSize={Math.max(9, 11 / zoom)} fontWeight={500}
+        className="select-none">
         {node.label.length > 10 ? node.label.slice(0, 10) + '...' : node.label}
       </text>
       {/* IP below */}
@@ -149,7 +148,7 @@ type MobilePanel = 'none' | 'project' | 'nodes';
 export default function NetworkDiagramPage() {
   const { projects } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState('');
-  const { diagrams, createDiagram, updateDiagram, removeDiagram } = useNetworkDiagrams(selectedProjectId || undefined);
+  const { diagrams, createDiagram, updateDiagram } = useNetworkDiagrams(selectedProjectId || undefined);
 
   // Current diagram
   const [activeDiagramId, setActiveDiagramId] = useState<string | null>(null);
@@ -233,7 +232,7 @@ export default function NetworkDiagramPage() {
       setActiveDiagramId(d.id);
       toast.success('Diagram created');
     }
-  }, [activeDiagramId, selectedProjectId, diagramName, diagramDesc, nodes, connections, createDiagram, updateDiagram]);
+  }, [activeDiagramId, selectedProjectId, diagramName, diagramDesc, nodes, connections, diagrams, createDiagram, updateDiagram]);
 
   // ─── Add node ──────────────────────────────────────────
   const addNode = useCallback((type: DiagramNodeType) => {
@@ -385,6 +384,10 @@ export default function NetworkDiagramPage() {
     const url = URL.createObjectURL(svgBlob);
 
     const img = new Image();
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      toast.error('Failed to export diagram as PNG');
+    };
     img.onload = () => {
       const canvas = document.createElement('canvas');
       canvas.width = (bbox.width + padding * 2) * 2;
@@ -402,9 +405,9 @@ export default function NetworkDiagramPage() {
         const dl = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = dl;
-        a.download = `${diagramName.replace(/\s+/g, '_')}_diagram.png`;
+        a.download = `${sanitizeFilename(diagramName)}_diagram.png`;
         a.click();
-        URL.revokeObjectURL(dl);
+        setTimeout(() => URL.revokeObjectURL(dl), 5000);
         toast.success('Diagram exported as PNG');
       });
     };
@@ -419,6 +422,15 @@ export default function NetworkDiagramPage() {
     const padding = 40;
 
     const cloned = svgEl.cloneNode(true) as SVGSVGElement;
+
+    // Strip any script elements and event handlers from exported SVG
+    cloned.querySelectorAll('script').forEach(el => el.remove());
+    cloned.querySelectorAll('*').forEach(el => {
+      for (const attr of [...el.attributes]) {
+        if (attr.name.startsWith('on')) el.removeAttribute(attr.name);
+      }
+    });
+
     cloned.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`);
     cloned.setAttribute('width', String(bbox.width + padding * 2));
     cloned.setAttribute('height', String(bbox.height + padding * 2));
@@ -429,9 +441,9 @@ export default function NetworkDiagramPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${diagramName.replace(/\s+/g, '_')}_diagram.svg`;
+    a.download = `${sanitizeFilename(diagramName)}_diagram.svg`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Diagram exported as SVG');
   }, [diagramName]);
 
@@ -539,9 +551,10 @@ export default function NetworkDiagramPage() {
           {/* Project selector */}
           <div className="p-3 border-b border-border space-y-2">
             <Label className="text-xs">Project</Label>
-            <Select value={selectedProjectId} onValueChange={v => v && setSelectedProjectId(v)}>
+            <Select value={selectedProjectId || '_none'} onValueChange={v => setSelectedProjectId(v === '_none' ? '' : (v ?? ''))}>
               <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select project..." /></SelectTrigger>
               <SelectContent>
+                <SelectItem value="_none">No project</SelectItem>
                 {projects.map(p => (
                   <SelectItem key={p.id} value={p.id}>{p.projectNumber} — {p.name}</SelectItem>
                 ))}
@@ -795,8 +808,7 @@ export default function NetworkDiagramPage() {
               {/* Empty state */}
               {nodes.length === 0 && (
                 <text x="50%" y="50%" textAnchor="middle" fill="currentColor" fillOpacity={0.3} fontSize={14}>
-                  <tspan x="50%" dy="0" className="hidden md:inline">Add nodes from the sidebar to start building your diagram</tspan>
-                  <tspan x="50%" dy="0" className="md:hidden">Tap + below to add nodes</tspan>
+                  {isMobile ? 'Tap + below to add nodes' : 'Add nodes from the sidebar to start building your diagram'}
                 </text>
               )}
             </svg>
@@ -897,9 +909,10 @@ export default function NetworkDiagramPage() {
                   <h3 className="text-sm font-semibold">Project & Diagrams</h3>
                   <div className="space-y-1.5">
                     <Label className="text-xs">Project</Label>
-                    <Select value={selectedProjectId} onValueChange={v => { v && setSelectedProjectId(v); }}>
+                    <Select value={selectedProjectId || '_none'} onValueChange={v => setSelectedProjectId(v === '_none' ? '' : (v ?? ''))}>
                       <SelectTrigger className="h-9 text-xs"><SelectValue placeholder="Select project..." /></SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="_none">No project</SelectItem>
                         {projects.map(p => (
                           <SelectItem key={p.id} value={p.id}>{p.projectNumber} — {p.name}</SelectItem>
                         ))}

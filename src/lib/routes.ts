@@ -33,6 +33,9 @@ export const ROUTES = {
   HELP: '/help',
   SETTINGS: '/settings',
   GLOBAL_PROJECTS: '/global-projects',
+  PID_TUNING: '/pid-tuning',
+  KNOWLEDGE_BASE: '/knowledge-base',
+  REGISTER_TOOL: '/register-tool',
 } as const;
 
 // ─── Dynamic route helpers ──────────────────────────────────

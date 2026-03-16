@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { useDailyReport, useDailyReports, useProject } from '@/hooks/use-projects';
 import { getFileBlob } from '@/lib/db';
+import { sanitizeFilename } from '@/lib/utils';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -94,10 +95,10 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
       url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = att.fileName;
+      a.download = sanitizeFilename(att.fileName);
       a.click();
     } finally {
-      if (url) URL.revokeObjectURL(url);
+      if (url) setTimeout(() => URL.revokeObjectURL(url!), 5000);
     }
   };
 

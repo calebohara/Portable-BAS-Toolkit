@@ -266,12 +266,19 @@ create table if not exists activity_log (
   action text not null,
   details text not null default '',
   file_id uuid,
-  timestamp timestamptz not null default now()
+  timestamp timestamptz not null default now(),
+  deleted_at timestamptz,
+  sync_version int not null default 1,
+  updated_at timestamptz not null default now()
 );
 
 alter table activity_log enable row level security;
 create policy "Users can manage their own activity"
   on activity_log for all using (auth.uid() = user_id);
+
+create trigger activity_log_updated_at
+  before update on activity_log
+  for each row execute function set_updated_at();
 
 -- ─── Network Diagrams ───────────────────────────────────────────────────────
 create table if not exists network_diagrams (
@@ -404,6 +411,10 @@ alter table ping_sessions enable row level security;
 create policy "Users can manage their own ping sessions"
   on ping_sessions for all using (auth.uid() = user_id);
 
+create trigger ping_sessions_updated_at
+  before update on ping_sessions
+  for each row execute function set_updated_at();
+
 -- ─── Terminal Session Logs ──────────────────────────────────────────────────
 create table if not exists terminal_session_logs (
   id uuid primary key default gen_random_uuid(),
@@ -421,12 +432,72 @@ create table if not exists terminal_session_logs (
   ended_at timestamptz,
   deleted_at timestamptz,
   sync_version int not null default 1,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 alter table terminal_session_logs enable row level security;
 create policy "Users can manage their own terminal logs"
   on terminal_session_logs for all using (auth.uid() = user_id);
+
+create trigger terminal_session_logs_updated_at
+  before update on terminal_session_logs
+  for each row execute function set_updated_at();
+
+-- ─── PID Tuning Sessions ──────────────────────────────────────────────────
+create table if not exists pid_tuning_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid not null references projects(id) on delete cascade,
+  loop_name text not null default '',
+  equipment text not null default '',
+  loop_type text not null default 'generic',
+  controlled_variable text not null default '',
+  output_type text not null default 'valve',
+  actuator_stroke_time real,
+  action text not null default 'direct',
+  control_mode text not null default 'pi',
+  current_values jsonb not null default '{}',
+  recommended_values jsonb not null default '{}',
+  symptoms text[] not null default '{}',
+  response_data jsonb not null default '{}',
+  field_notes text not null default '',
+  deleted_at timestamptz,
+  sync_version int not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table pid_tuning_sessions enable row level security;
+create policy "Users can manage their own PID tuning sessions"
+  on pid_tuning_sessions for all using (auth.uid() = user_id);
+
+create trigger pid_tuning_sessions_updated_at
+  before update on pid_tuning_sessions
+  for each row execute function set_updated_at();
+
+-- ─── Project Notepad Entries ─────────────────────────────────────────────────
+-- Per-project notepad notes (independent from the floating sticky notepad).
+create table if not exists project_notepad_entries (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid not null references projects(id) on delete cascade,
+  name text not null default '',
+  content text not null default '',
+  linked_tab_id text,
+  deleted_at timestamptz,
+  sync_version int not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table project_notepad_entries enable row level security;
+create policy "Users can manage their own notepad entries"
+  on project_notepad_entries for all using (auth.uid() = user_id);
+
+create trigger project_notepad_entries_updated_at
+  before update on project_notepad_entries
+  for each row execute function set_updated_at();
 
 -- ─── User Settings ──────────────────────────────────────────────────────────
 -- Per-user app preferences that may sync across devices in the future.
@@ -466,3 +537,6 @@ create index if not exists idx_conn_profiles_user on connection_profiles(user_id
 create index if not exists idx_calcs_project on register_calculations(project_id);
 create index if not exists idx_ping_project on ping_sessions(project_id);
 create index if not exists idx_terminal_project on terminal_session_logs(project_id);
+create index if not exists idx_pid_tuning_project on pid_tuning_sessions(project_id);
+create index if not exists idx_notepad_entries_project on project_notepad_entries(project_id);
+create index if not exists idx_notepad_entries_user on project_notepad_entries(user_id);

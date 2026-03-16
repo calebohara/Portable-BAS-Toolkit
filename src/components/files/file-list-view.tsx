@@ -19,7 +19,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeFilename } from '@/lib/utils';
 import { deleteFile, getFileBlob, saveFile } from '@/lib/db';
 import { UploadFileDialog } from '@/components/files/upload-file-dialog';
 import { FilePreviewDialog } from '@/components/files/file-preview-dialog';
@@ -123,7 +123,7 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
                 key={file.id}
                 role="button"
                 tabIndex={0}
-                aria-selected={selectedFileId === file.id}
+                aria-pressed={selectedFileId === file.id}
                 className={cn(
                   'cursor-pointer transition-all hover:shadow-sm',
                   selectedFileId === file.id && 'ring-2 ring-primary border-primary/20'
@@ -195,9 +195,9 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement('a');
                           a.href = url;
-                          a.download = selectedFile.fileName;
+                          a.download = sanitizeFilename(selectedFile.fileName);
                           a.click();
-                          URL.revokeObjectURL(url);
+                          setTimeout(() => URL.revokeObjectURL(url), 5000);
                         }}><Download className="mr-2 h-4 w-4" /> Download</DropdownMenuItem>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={async () => {

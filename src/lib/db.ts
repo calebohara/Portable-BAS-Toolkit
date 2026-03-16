@@ -1,9 +1,10 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type {
-  Project, ProjectFile, FileVersion, FieldNote,
+  Project, ProjectFile, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
-  ConnectionProfile, SavedCalculation, SyncQueueItem, SyncConflict,
+  ConnectionProfile, SavedCalculation, PidTuningSession, ProjectNotepadEntry,
+  SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
 
@@ -94,6 +95,16 @@ interface BasToolkitDB extends DBSchema {
     value: SavedCalculation;
     indexes: { 'by-project': string; 'by-module': string };
   };
+  pidTuningSessions: {
+    key: string;
+    value: PidTuningSession;
+    indexes: { 'by-project': string };
+  };
+  projectNotepadEntries: {
+    key: string;
+    value: ProjectNotepadEntry;
+    indexes: { 'by-project': string };
+  };
   syncQueue: {
     key: string;
     value: SyncQueueItem;
@@ -110,7 +121,10 @@ let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 8, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 10, {
+      blocked(currentVersion, blockedVersion) {
+        console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
+      },
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
           // Projects
@@ -201,6 +215,18 @@ function getDB() {
           conflictStore.createIndex('by-entity-type', 'entityType');
           conflictStore.createIndex('by-detected', 'detectedAt');
         }
+
+        if (oldVersion < 9) {
+          // PID Tuning Sessions
+          const pidStore = db.createObjectStore('pidTuningSessions', { keyPath: 'id' });
+          pidStore.createIndex('by-project', 'projectId');
+        }
+
+        if (oldVersion < 10) {
+          // Project Notepad Entries
+          const notepadStore = db.createObjectStore('projectNotepadEntries', { keyPath: 'id' });
+          notepadStore.createIndex('by-project', 'projectId');
+        }
       },
     }).catch((err) => {
       // Reset so next call retries instead of returning cached failure
@@ -231,7 +257,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions', 'projectNotepadEntries'], 'readwrite');
 
   try {
     // Delete associated data
@@ -259,7 +285,7 @@ export async function deleteProject(id: string): Promise<void> {
 
     const reports = await tx.objectStore('dailyReports').index('by-project').getAll(id);
     for (const report of reports) {
-      for (const att of report.attachments) {
+      for (const att of (report.attachments ?? [])) {
         if (att.blobKey) await tx.objectStore('fileBlobs').delete(att.blobKey);
       }
       await tx.objectStore('dailyReports').delete(report.id);
@@ -280,8 +306,30 @@ export async function deleteProject(id: string): Promise<void> {
     const regCalcs = await tx.objectStore('registerCalculations').index('by-project').getAll(id);
     for (const rc of regCalcs) await tx.objectStore('registerCalculations').delete(rc.id);
 
+    const pidSessions = await tx.objectStore('pidTuningSessions').index('by-project').getAll(id);
+    for (const ps of pidSessions) await tx.objectStore('pidTuningSessions').delete(ps.id);
+
+    const notepadEntries = await tx.objectStore('projectNotepadEntries').index('by-project').getAll(id);
+    for (const ne of notepadEntries) await tx.objectStore('projectNotepadEntries').delete(ne.id);
+
     await tx.objectStore('projects').delete(id);
     await tx.done;
+
+    // Notify sync bridge about cascade-deleted children
+    for (const log of logs) notifySync('delete', 'activityLog', log.id, null);
+    for (const file of files) notifySync('delete', 'files', file.id, null);
+    for (const note of notes) notifySync('delete', 'notes', note.id, null);
+    for (const dev of devices) notifySync('delete', 'devices', dev.id, null);
+    for (const ip of ips) notifySync('delete', 'ipPlan', ip.id, null);
+    for (const report of reports) notifySync('delete', 'dailyReports', report.id, null);
+    for (const d of diagrams) notifySync('delete', 'networkDiagrams', d.id, null);
+    for (const p of pings) notifySync('delete', 'pingSessions', p.id, null);
+    for (const tl of termLogs) notifySync('delete', 'terminalLogs', tl.id, null);
+    for (const cp of connProfiles) notifySync('delete', 'connectionProfiles', cp.id, null);
+    for (const rc of regCalcs) notifySync('delete', 'registerCalculations', rc.id, null);
+    for (const ps of pidSessions) notifySync('delete', 'pidTuningSessions', ps.id, null);
+    for (const ne of notepadEntries) notifySync('delete', 'projectNotepadEntries', ne.id, null);
+
     notifySync('delete', 'projects', id, null);
   } catch (e) {
     tx.abort();
@@ -335,6 +383,7 @@ export async function deleteFile(id: string): Promise<void> {
   const fileNotes = await db.getAllFromIndex('notes', 'by-file', id);
   for (const note of fileNotes) {
     await db.delete('notes', note.id);
+    notifySync('delete', 'notes', note.id, null);
   }
   await db.delete('files', id);
   notifySync('delete', 'files', id, null);
@@ -479,7 +528,7 @@ export async function deleteDailyReport(id: string): Promise<void> {
   const report = await db.get('dailyReports', id);
   if (report) {
     // Delete attachment blobs
-    for (const att of report.attachments) {
+    for (const att of (report.attachments ?? [])) {
       if (att.blobKey) await db.delete('fileBlobs', att.blobKey);
     }
   }
@@ -724,6 +773,55 @@ export async function deleteRegisterCalculation(id: string): Promise<void> {
   notifySync('delete', 'registerCalculations', id, null);
 }
 
+// ─── PID Tuning Sessions ─────────────────────────────────────
+export async function getAllPidTuningSessions(): Promise<PidTuningSession[]> {
+  const db = await getDB();
+  const sessions = await db.getAll('pidTuningSessions');
+  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getProjectPidTuningSessions(projectId: string): Promise<PidTuningSession[]> {
+  const db = await getDB();
+  const sessions = await db.getAllFromIndex('pidTuningSessions', 'by-project', projectId);
+  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getPidTuningSession(id: string): Promise<PidTuningSession | undefined> {
+  const db = await getDB();
+  return db.get('pidTuningSessions', id);
+}
+
+export async function savePidTuningSession(session: PidTuningSession): Promise<void> {
+  const db = await getDB();
+  await db.put('pidTuningSessions', session);
+  notifySync('update', 'pidTuningSessions', session.id, session);
+}
+
+export async function deletePidTuningSession(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('pidTuningSessions', id);
+  notifySync('delete', 'pidTuningSessions', id, null);
+}
+
+// ─── Project Notepad Entries ──────────────────────────────────
+export async function getProjectNotepadEntries(projectId: string): Promise<ProjectNotepadEntry[]> {
+  const db = await getDB();
+  const entries = await db.getAllFromIndex('projectNotepadEntries', 'by-project', projectId);
+  return entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function saveProjectNotepadEntry(entry: ProjectNotepadEntry): Promise<void> {
+  const db = await getDB();
+  await db.put('projectNotepadEntries', entry);
+  notifySync('update', 'projectNotepadEntries', entry.id, entry);
+}
+
+export async function deleteProjectNotepadEntry(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('projectNotepadEntries', id);
+  notifySync('delete', 'projectNotepadEntries', id, null);
+}
+
 // Global search across all projects
 export async function searchGlobal(query: string): Promise<{
   projects: Project[];
@@ -890,6 +988,45 @@ export async function getFirstSyncError(): Promise<string | null> {
   return `${failed.length} failed item(s) with no error details`;
 }
 
+/** Get recent activity across ALL projects, ordered by timestamp descending. */
+export async function getAllRecentActivity(limit = 15): Promise<ActivityLogEntry[]> {
+  const db = await getDB();
+  const entries: ActivityLogEntry[] = [];
+  let cursor = await db.transaction('activityLog').store.index('by-timestamp').openCursor(null, 'prev');
+  while (cursor && entries.length < limit) {
+    entries.push(cursor.value);
+    cursor = await cursor.continue();
+  }
+  return entries;
+}
+
+/** Get file/note/device counts for multiple projects in a single transaction. */
+export async function getAllProjectEntityCounts(
+  projectIds: string[]
+): Promise<Map<string, { files: number; notes: number; devices: number }>> {
+  const db = await getDB();
+  const tx = db.transaction(['files', 'notes', 'devices'], 'readonly');
+  const result = new Map<string, { files: number; notes: number; devices: number }>();
+  for (const id of projectIds) {
+    const [files, notes, devices] = await Promise.all([
+      tx.objectStore('files').index('by-project').count(id),
+      tx.objectStore('notes').index('by-project').count(id),
+      tx.objectStore('devices').index('by-project').count(id),
+    ]);
+    result.set(id, { files, notes, devices });
+  }
+  return result;
+}
+
+/** Get most recent field notes across all projects. */
+export async function getRecentNotes(limit = 5): Promise<FieldNote[]> {
+  const db = await getDB();
+  const allNotes = await db.getAll('notes');
+  return allNotes
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .slice(0, limit);
+}
+
 /**
  * Delete orphaned child records from IndexedDB — records whose projectId
  * doesn't match any existing project. Returns count of deleted records.
@@ -903,7 +1040,8 @@ export async function purgeOrphanedRecords(): Promise<number> {
   const childStores = [
     'files', 'notes', 'devices', 'ipPlan', 'activityLog',
     'dailyReports', 'networkDiagrams', 'pingSessions',
-    'terminalLogs', 'connectionProfiles', 'registerCalculations',
+    'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions',
+    'projectNotepadEntries',
   ] as const;
 
   let totalDeleted = 0;
@@ -918,13 +1056,20 @@ export async function purgeOrphanedRecords(): Promise<number> {
     for (const item of allItems) {
       const rec = item as Record<string, unknown>;
       const pid = rec.projectId as string | undefined;
-      // Delete if projectId is missing, empty, non-UUID, or references a deleted project
-      if (!pid || !UUID_RE.test(pid) || !validIds.has(pid)) {
+      // Only purge if projectId is a valid UUID that doesn't match any existing project
+      // Records with empty/missing/non-UUID projectId are unassigned, not orphaned
+      if (pid && UUID_RE.test(pid) && !validIds.has(pid)) {
         // If this is a file record, collect its blob keys for cleanup
         if (storeName === 'files') {
           const versions = (rec.versions ?? []) as Array<{ blobKey?: string }>;
           for (const v of versions) {
             if (v.blobKey) orphanedBlobKeys.push(v.blobKey);
+          }
+        }
+        if (storeName === 'dailyReports') {
+          const attachments = (rec.attachments ?? []) as Array<{ blobKey?: string }>;
+          for (const att of attachments) {
+            if (att.blobKey) orphanedBlobKeys.push(att.blobKey);
           }
         }
         await tx.store.delete(rec.id as string);
@@ -984,7 +1129,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'syncQueue',
+    'pidTuningSessions', 'projectNotepadEntries', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');

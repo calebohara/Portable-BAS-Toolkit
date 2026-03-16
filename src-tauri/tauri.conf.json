@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "BAU Suite",
-  "version": "4.3.0",
+  "version": "4.5.0",
   "identifier": "com.bau-suite.app",
   "build": {
     "frontendDist": "../out",
@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: asset: https://asset.localhost; font-src 'self'; connect-src 'self' ws: wss: http: https:; frame-src blob: http: https:; object-src 'none'"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: asset: https://asset.localhost https://*.supabase.co; font-src 'self'; connect-src 'self' ws: wss: http: https:; frame-src blob: http: https:; object-src 'none'"
     }
   },
   "plugins": {

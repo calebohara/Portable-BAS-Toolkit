@@ -11,7 +11,6 @@ import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@/components/ui/select';
@@ -186,8 +185,10 @@ function ResultRow({ target, results }: { target: PingTarget; results: PingResul
   const latest = results[results.length - 1];
   const reachableCount = results.filter(r => r.status === 'reachable').length;
   const totalCount = results.length;
-  const avgTime = results.filter(r => r.responseTimeMs !== undefined)
-    .reduce((sum, r) => sum + (r.responseTimeMs || 0), 0) / (reachableCount || 1);
+  const reachableWithTime = results.filter(r => r.status === 'reachable' && r.responseTimeMs !== undefined && r.responseTimeMs > 0);
+  const avgTime = reachableWithTime.length > 0
+    ? reachableWithTime.reduce((sum, r) => sum + (r.responseTimeMs || 0), 0) / reachableWithTime.length
+    : 0;
 
   if (!latest) return null;
 
@@ -228,7 +229,7 @@ function ResultRow({ target, results }: { target: PingTarget; results: PingResul
       </button>
 
       {expanded && results.length > 0 && (
-        <div className="border-t border-border bg-muted/20 max-h-48 overflow-y-auto">
+        <div className="border-t border-border bg-muted/20 max-h-48 overflow-auto">
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b border-border text-muted-foreground">
@@ -367,7 +368,7 @@ export default function PingToolPage() {
     }
 
     setRunning(false);
-  }, [targets, mode, repeatCount, intervalMs, scanPorts, isDesktop, pingMethod]);
+  }, [running, targets, mode, repeatCount, intervalMs, scanPorts, isDesktop, pingMethod]);
 
   const stopTest = useCallback(() => {
     abortRef.current = true;
@@ -441,7 +442,7 @@ export default function PingToolPage() {
     a.href = url;
     a.download = sanitizeFilename(`ping_results_${format(new Date(), 'yyyy-MM-dd_HH-mm')}.txt`);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Results exported');
   }, [targets, results, mode]);
 
@@ -654,7 +655,7 @@ export default function PingToolPage() {
                 <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
                   <strong className="text-foreground">Summary:</strong>{' '}
                   {validTargets.filter(t => {
-                    const r = results[t.host];
+                    const r = results[`${t.host}:${t.port}`];
                     return r && r[r.length - 1]?.status === 'reachable';
                   }).length} of {validTargets.length} hosts reachable
                 </div>
@@ -662,7 +663,7 @@ export default function PingToolPage() {
 
               {/* Unreachable help */}
               {!running && validTargets.some(t => {
-                const r = results[t.host];
+                const r = results[`${t.host}:${t.port}`];
                 return r && r[r.length - 1]?.status === 'unreachable';
               }) && (
                 <div className="rounded-lg border border-field-warning/20 bg-field-warning/5 px-4 py-3 text-xs flex gap-3">

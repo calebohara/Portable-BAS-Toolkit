@@ -223,20 +223,18 @@ export function AvatarCropDialog({
     }
   };
 
-  // Compute image transform for display
-  const getImageStyle = (): React.CSSProperties => {
-    if (!imageRef.current) return {};
-    const img = imageRef.current;
-    const minDim = Math.min(img.naturalWidth, img.naturalHeight);
+  const imageStyle: React.CSSProperties = (() => {
+    if (imageSize.w === 0 || imageSize.h === 0) return {};
+    const minDim = Math.min(imageSize.w, imageSize.h);
     const scale = (CROP_SIZE / minDim) * zoom;
 
     return {
-      width: img.naturalWidth * scale,
-      height: img.naturalHeight * scale,
+      width: imageSize.w * scale,
+      height: imageSize.h * scale,
       transform: `translate(${pan.x}px, ${pan.y}px)`,
       cursor: dragging ? 'grabbing' : 'grab',
     };
-  };
+  })();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -299,7 +297,7 @@ export function AvatarCropDialog({
                     src={imageSrc}
                     alt="Crop preview"
                     className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 select-none pointer-events-none"
-                    style={getImageStyle()}
+                    style={imageStyle}
                     draggable={false}
                   />
                 </div>

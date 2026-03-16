@@ -20,7 +20,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import {
@@ -39,10 +39,14 @@ function UrlPreview({ protocol, host, port, path }: {
 
   const handleCopy = async () => {
     if (!url) return;
-    await navigator.clipboard.writeText(url);
-    setCopied(true);
-    toast.success('URL copied');
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await copyToClipboard(url);
+      setCopied(true);
+      toast.success('URL copied');
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Clipboard access denied');
+    }
   };
 
   if (!host) return null;
@@ -139,7 +143,6 @@ function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
-        <div style={{ maxHeight: '85vh', overflowY: 'auto' }}>
           <DialogHeader>
             <DialogTitle>{endpoint ? 'Edit Endpoint' : 'Save Endpoint'}</DialogTitle>
             <DialogDescription>Configure a saved panel web interface endpoint.</DialogDescription>
@@ -254,7 +257,6 @@ function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
             <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button onClick={handleSave}>{endpoint ? 'Save Changes' : 'Save Endpoint'}</Button>
           </DialogFooter>
-        </div>
       </DialogContent>
     </Dialog>
   );
@@ -295,10 +297,14 @@ function EmbeddedWorkspace() {
   const [copied, setCopied] = useState(false);
 
   const handleCopyUrl = async () => {
-    await navigator.clipboard.writeText(activeUrl);
-    setCopied(true);
-    toast.success('URL copied');
-    setTimeout(() => setCopied(false), 1500);
+    try {
+      await copyToClipboard(activeUrl);
+      setCopied(true);
+      toast.success('URL copied');
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Clipboard access denied');
+    }
   };
 
   const handleOpenExternal = () => {
@@ -521,7 +527,7 @@ export default function WebInterfacePage() {
     a.href = url;
     a.download = `panel-endpoints-${format(new Date(), 'yyyy-MM-dd')}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success('Endpoints exported');
   }, [endpoints]);
 

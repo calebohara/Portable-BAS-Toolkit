@@ -97,11 +97,6 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
             const { error } = await supabase.from(table).delete().in('project_id', ids);
             if (error) console.warn(`[cleanup] Failed to delete from ${table}:`, error.message);
           }
-          // Also delete any orphaned rows with NULL project_id
-          for (const table of SUPABASE_PROJECT_CHILD_TABLES) {
-            const { error } = await supabase.from(table).delete().is('project_id', null);
-            if (error) console.warn(`[cleanup] Failed to purge NULL rows from ${table}:`, error.message);
-          }
           // Delete the projects themselves
           const { error: projErr } = await supabase.from('projects').delete().in('id', ids);
           if (projErr) console.warn('[cleanup] Failed to delete projects:', projErr.message);

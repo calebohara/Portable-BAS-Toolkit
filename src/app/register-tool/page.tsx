@@ -5,8 +5,7 @@ import { format } from 'date-fns';
 import {
   Calculator, Binary, Layers, ArrowLeftRight, Cpu, Grid3X3,
   TrendingUp, Database, Clock, Save, Trash2, Copy, RotateCcw,
-  HelpCircle, ChevronDown, ChevronUp, Paperclip, Download,
-  Star, AlertTriangle, Check, Info,
+  HelpCircle, AlertTriangle, Info,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -21,11 +20,11 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useProjects } from '@/hooks/use-projects';
 import { useRegisterCalculations } from '@/hooks/use-register-calculations';
-import type { SavedCalculation, RegisterToolModule, SavedCalcCategory } from '@/types';
+import type { RegisterToolModule, SavedCalcCategory } from '@/types';
 import { SAVED_CALC_CATEGORY_LABELS } from '@/types';
 import {
   parseNumberInput,
@@ -35,8 +34,7 @@ import {
   interpretRegister, interpretRegisterPair,
   generateAllByteOrders,
   wordsToFloat32, float32ToWords, floatToIEEE754Breakdown, isReasonableFloat,
-  getBits, toggleBit, setBit, clearBit, applyMask, shiftLeft, shiftRight,
-  extractBitfield,
+  getBits, toggleBit, applyMask, shiftLeft, shiftRight,
   scaleLinear, inverseScaleLinear, SCALING_PRESETS,
   modbusAddressInfo, MODBUS_REFERENCE,
   type ByteOrderResult,
@@ -46,7 +44,7 @@ import {
 function CopyBtn({ value, label }: { value: string; label?: string }) {
   return (
     <button
-      onClick={() => { navigator.clipboard.writeText(value); toast.success(`Copied ${label || 'value'}`); }}
+      onClick={() => { copyToClipboard(value).then(() => toast.success(`Copied ${label || 'value'}`)).catch(() => toast.error('Clipboard access denied')); }}
       className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground transition-colors"
       title={`Copy ${label || 'value'}`}
     >
@@ -654,7 +652,7 @@ function ScalingCalculator() {
       </div>
 
       {/* Range setup */}
-      <div className="grid gap-3 sm:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
         <div className="space-y-1.5">
           <Label className="text-xs">Raw Min</Label>
           <Input value={rawMin} onChange={e => setRawMin(e.target.value)} className="h-8 font-mono text-xs" />

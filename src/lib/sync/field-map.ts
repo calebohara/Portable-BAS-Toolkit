@@ -18,6 +18,8 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   terminalLogs: 'terminal_session_logs',
   connectionProfiles: 'connection_profiles',
   registerCalculations: 'register_calculations',
+  pidTuningSessions: 'pid_tuning_sessions',
+  projectNotepadEntries: 'project_notepad_entries',
 };
 
 // Fields to strip from local entities before pushing to Supabase.
@@ -177,6 +179,27 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  pidTuningSessions: {
+    projectId: 'project_id',
+    loopName: 'loop_name',
+    loopType: 'loop_type',
+    controlledVariable: 'controlled_variable',
+    outputType: 'output_type',
+    actuatorStrokeTime: 'actuator_stroke_time',
+    controlMode: 'control_mode',
+    currentValues: 'current_values',
+    recommendedValues: 'recommended_values',
+    responseData: 'response_data',
+    fieldNotes: 'field_notes',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
+  projectNotepadEntries: {
+    projectId: 'project_id',
+    linkedTabId: 'linked_tab_id',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
 };
 
 /**
@@ -228,6 +251,8 @@ export const REQUIRES_PROJECT_ID: Set<SyncEntityType> = new Set([
   'dailyReports',  // daily_reports.project_id NOT NULL
   'activityLog',   // activity_log.project_id NOT NULL
   'networkDiagrams', // network_diagrams.project_id NOT NULL
+  'pidTuningSessions', // pid_tuning_sessions.project_id NOT NULL
+  'projectNotepadEntries', // project_notepad_entries.project_id NOT NULL
 ]);
 // These tables have project_id nullable: files, commandSnippets,
 // pingSessions, terminalLogs, connectionProfiles, registerCalculations
@@ -247,7 +272,7 @@ export function validateSyncable(
   // All entity types with a projectId field must have a valid UUID projectId.
   // This prevents orphaned demo data (non-UUID projectIds like "proj-ahu-upgrade")
   // from being pushed to Supabase where they'd become NULL project_id rows.
-  if (entityType !== 'projects' && entityType !== 'commandSnippets') {
+  if (REQUIRES_PROJECT_ID.has(entityType)) {
     const projectId = localEntity.projectId as string | undefined;
     if (!projectId || !UUID_RE.test(projectId)) {
       return `invalid projectId: ${projectId ?? 'missing'} (${entityType})`;
@@ -288,9 +313,8 @@ export function fromSupabaseRow(
     entity[camelKey] = value;
   }
 
-  // Entity-specific fixups
   if (entityType === 'activityLog') {
-    entity.user = 'User'; // local-only field not stored in Supabase
+    entity.user = (row.user_id as string) ?? 'User';
   }
 
   return entity;
@@ -316,4 +340,6 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'terminalLogs',
   'connectionProfiles',
   'registerCalculations',
+  'pidTuningSessions',
+  'projectNotepadEntries',
 ];

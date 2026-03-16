@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(xargs grep:*)",
+      "Bash(grep -r \"devUrl\\\\|frontendDist\\\\|tauri://\" /d/Github_Repositories/Portable-BAS-Toolkit/src-tauri --include=*.rs --include=*.toml)",
+      "Bash(grep -r \"sign-in\\\\|sign-up\\\\|session\\\\|auth\" /d/Github_Repositories/Portable-BAS-Toolkit/src/app --include=*.ts --include=*.tsx)",
+      "Bash(find /d/Github_Repositories/Portable-BAS-Toolkit/src -name *auth* -type f)",
+      "Bash(grep -r \"tauri\\\\|__TAURI__\\\\|window.location\\\\|devUrl\" /d/Github_Repositories/Portable-BAS-Toolkit/src --include=*.tsx --include=*.ts)",
+      "Bash(grep -r \"/api/donate\\\\|fetch.*donate\\\\|checkout\" /d/Github_Repositories/Portable-BAS-Toolkit/src --include=*.tsx --include=*.ts)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(npm install:*)",
+      "Bash(npx next:*)",
+      "Bash(npm run:*)",
+      "Bash(grep -E \"\\\\.tsx$\")",
+      "Bash(grep -rh \"import.*from ''lucide-react''\" D:/Github_Repositories/Portable-BAS-Toolkit/src/app/projects/page.tsx D:/Github_Repositories/Portable-BAS-Toolkit/src/app/reports/page.tsx D:/Github_Repositories/Portable-BAS-Toolkit/src/app/settings/page.tsx D:/Github_Repositories/Portable-BAS-Toolkit/src/app/dashboard/page.tsx)",
+      "Bash(powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep 5; node scripts/build-static.js\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(npx tsc:*)",
+      "Bash(cargo check:*)",
+      "Bash(ls -laS C:UsersCalebAppDataLocalTempclaudeD--Github-Repositories-Portable-BAS-Toolkit1fbe8ea8-7eb9-48a3-832d-0ac3ae2c5aa8tasks/*.output)",
+      "Bash(find C:/Users/Caleb/AppData/Local/Temp/claude/D--Github-Repositories-Portable-BAS-Toolkit/1fbe8ea8-7eb9-48a3-832d-0ac3ae2c5aa8/tasks/ -name *.output -size +0c -newer C:/Users/Caleb/AppData/Local/Temp/claude/D--Github-Repositories-Portable-BAS-Toolkit/1fbe8ea8-7eb9-48a3-832d-0ac3ae2c5aa8/tasks/a22792f22c0b55788.output)",
+      "Bash(ls -lat \"C:/Users/Caleb/AppData/Local/Temp/claude/D--Github-Repositories-Portable-BAS-Toolkit/1fbe8ea8-7eb9-48a3-832d-0ac3ae2c5aa8/tasks/\"b*.output)",
+      "Bash(find D:Github_RepositoriesPortable-BAS-Toolkitsrc -maxdepth 1 -name .env* -o -name *.config.*)",
+      "Bash(grep -r \"process.env\\\\|NEXT_PUBLIC\" D:Github_RepositoriesPortable-BAS-Toolkitsrclib --include=*.ts --include=*.tsx)",
+      "Bash(find D:Github_RepositoriesPortable-BAS-Toolkitsrc -name *config* -type f)"
+    ]
+  }
+}

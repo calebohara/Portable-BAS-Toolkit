@@ -1,11 +1,13 @@
 'use client';
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
   Wrench, Shield, WifiOff, ArrowRight, UserPlus, MessageSquare,
-  Zap, Layers, Monitor, ChevronRight, Wifi, Clock, Heart, Code,
+  Zap, Layers, Monitor, ChevronRight, Wifi, Heart, Code,
+  Gauge, BookOpen, Download,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
@@ -37,6 +39,7 @@ const toolGroups = [
       { icon: Share2, name: 'Share to Global', desc: 'Migrate local projects to Global with all data in one click' },
       { icon: ClipboardList, name: 'Linked Reports', desc: 'Attach daily reports to Global Projects from your profile' },
       { icon: Activity, name: 'Activity Tracking', desc: 'Every change logged with before/after diffs and creator attribution' },
+      { icon: BookOpen, name: 'Knowledge Base', desc: 'Forum-style articles with markdown editor, categories, attachments, and threaded replies' },
     ],
   },
   {
@@ -49,6 +52,7 @@ const toolGroups = [
       { icon: Activity, name: 'Ping Tool', desc: 'HTTP and ICMP reachability with port scanning and result export' },
       { icon: Network, name: 'Network Diagrams', desc: 'Visual topology mapping with drag-and-drop and PNG/SVG export' },
       { icon: Calculator, name: 'Register Tool', desc: 'Hex/decimal/binary, IEEE 754, byte order, and Modbus addressing' },
+      { icon: Gauge, name: 'PID Tuning', desc: 'Interactive loop tuning calculator with diagnosis, recommendations, and session management' },
     ],
   },
   {
@@ -133,13 +137,24 @@ const heroCards = [
 
 export default function HomePage() {
   const router = useRouter();
-  const { mode, user } = useAuth();
+  const { mode, user, loading: authLoading } = useAuth();
   const isAuthed = mode === 'authenticated';
   const scrollRef = useScrollReveal();
 
+  // In Tauri desktop app, skip the marketing home page and go straight to /login
+  // Uses hard navigation (window.location) to avoid static-export client-side routing issues
+  const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+
+  useEffect(() => {
+    if (isTauri && !authLoading && !isAuthed) {
+      window.location.replace('/login');
+    }
+  }, [isTauri, authLoading, isAuthed]);
+
   const goApp = () => router.push('/dashboard');
-  const goSignup = () => router.push('/login?tab=signup');
-  const goLogin = () => router.push('/login');
+  // Use hard navigation in Tauri to bypass static-export Suspense/hydration issues
+  const goSignup = () => isTauri ? window.location.assign('/login?tab=signup') : router.push('/login?tab=signup');
+  const goLogin = () => isTauri ? window.location.assign('/login') : router.push('/login');
 
   return (
     <div ref={scrollRef} className="min-h-screen bg-background">
@@ -254,7 +269,7 @@ export default function HomePage() {
                 style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.65s', opacity: 0 }}
               >
                 {[
-                  { value: '14+', label: 'Tools' },
+                  { value: '21+', label: 'Tools' },
                   { value: '100%', label: 'Offline' },
                   { value: 'NEW', label: 'Global Projects' },
                 ].map(({ value, label }) => (
@@ -340,7 +355,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Wrench className="h-4 w-4 text-primary" />
-                    <span>14+ field tools</span>
+                    <span>21+ field tools</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4 text-primary" />
@@ -592,7 +607,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Desktop App — Coming Soon ─────────────────────────────────── */}
+      {/* ── Desktop App — Available Now ──────────────────────────────── */}
       <section
         className="relative"
         style={{ paddingTop: 'clamp(3rem, 6vw, 5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}
@@ -615,12 +630,12 @@ export default function HomePage() {
                   {/* Left: Copy */}
                   <div>
                     <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm mb-5">
-                      <Clock className="h-3.5 w-3.5" />
-                      Coming Soon
+                      <Download className="h-3.5 w-3.5" />
+                      Available Now
                     </div>
 
                     <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-                      Desktop App for Windows
+                      Desktop App for Windows &amp; macOS
                     </h2>
                     <p className="mt-3 text-sm sm:text-base text-white/70 leading-relaxed max-w-lg">
                       A dedicated desktop experience built with Tauri. Full network access,
@@ -629,11 +644,11 @@ export default function HomePage() {
 
                     <Button
                       size="lg"
-                      onClick={() => router.push('/desktop')}
+                      onClick={() => window.open('https://github.com/calebohara/Portable-BAS-Toolkit/releases/latest', '_blank', 'noopener,noreferrer')}
                       className="mt-6 gap-2 bg-white/15 text-white border-white/20 hover:bg-white/25 backdrop-blur-sm"
                       variant="outline"
                     >
-                      <Monitor className="h-4 w-4" /> Learn More <ArrowRight className="h-4 w-4" />
+                      <Download className="h-4 w-4" /> Download <ArrowRight className="h-4 w-4" />
                     </Button>
                   </div>
 

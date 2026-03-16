@@ -99,7 +99,7 @@ function ProjectsPageInner() {
             />
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
+            <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
               {statuses.map(({ value, label }) => (
                 <button
                   key={value}
@@ -169,7 +169,7 @@ function ProjectsPageInner() {
                   useAppStore.getState().addRecentProject(project.id);
                   navigateToProject(router, project.id);
                 }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { useAppStore.getState().addRecentProject(project.id); navigateToProject(router, project.id); } }}
+                onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); useAppStore.getState().addRecentProject(project.id); navigateToProject(router, project.id); } }}
               >
                 <CardContent className="p-4">
                   <div className="mb-2 flex items-start justify-between gap-2">

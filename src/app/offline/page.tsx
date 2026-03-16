@@ -21,7 +21,7 @@ import { toast } from 'sonner';
 
 export default function OfflinePage() {
   const router = useRouter();
-  const { projects, loading, updateProject } = useProjects();
+  const { projects, updateProject } = useProjects();
   const isOnline = useAppStore((s) => s.isOnline);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const [showClearConfirm, setShowClearConfirm] = useState(false);

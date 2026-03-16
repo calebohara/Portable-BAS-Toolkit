@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog, ConnectionProfile } from '@/types';
 import * as db from '@/lib/db';
+import { getAllRecentActivity, getAllProjectEntityCounts, getRecentNotes } from '@/lib/db';
 import { onPullComplete } from '@/lib/sync/sync-bridge';
 import { v4 as uuid } from 'uuid';
 
@@ -47,9 +48,9 @@ export function useProjects() {
   }, [refresh]);
 
   const updateProject = useCallback(async (project: Project) => {
-    project.updatedAt = new Date().toISOString();
+    const updated = { ...project, updatedAt: new Date().toISOString() };
     try {
-      await db.saveProject(project);
+      await db.saveProject(updated);
     } catch (e) {
       console.error('Failed to update project:', e);
       throw e;
@@ -211,12 +212,12 @@ export function useProjectNotes(projectId: string) {
   }, [projectId, refresh]);
 
   const updateNote = useCallback(async (note: FieldNote) => {
-    note.updatedAt = new Date().toISOString();
+    const updated = { ...note, updatedAt: new Date().toISOString() };
     try {
-      await db.saveNote(note);
+      await db.saveNote(updated);
       await db.addActivity({
         id: uuid(), projectId, action: 'Note updated',
-        details: `${note.category} note updated`, timestamp: note.updatedAt, user: note.author,
+        details: `${updated.category} note updated`, timestamp: updated.updatedAt, user: updated.author,
       });
     } catch (e) {
       console.error('Failed to update note:', e);
@@ -458,13 +459,13 @@ export function useDailyReports(projectId?: string) {
   }, [refresh]);
 
   const updateReport = useCallback(async (report: DailyReport) => {
-    report.updatedAt = new Date().toISOString();
+    const updated = { ...report, updatedAt: new Date().toISOString() };
     try {
-      await db.saveDailyReport(report);
-      if (report.projectId) {
+      await db.saveDailyReport(updated);
+      if (updated.projectId) {
         await db.addActivity({
-          id: uuid(), projectId: report.projectId, action: 'Daily report updated',
-          details: `Daily Report #${report.reportNumber} updated`, timestamp: report.updatedAt, user: report.technicianName || 'User',
+          id: uuid(), projectId: updated.projectId, action: 'Daily report updated',
+          details: `Daily Report #${updated.reportNumber} updated`, timestamp: updated.updatedAt, user: updated.technicianName || 'User',
         });
       }
     } catch (e) {
@@ -561,9 +562,9 @@ export function useNetworkDiagrams(projectId?: string) {
   }, [refresh]);
 
   const updateDiagram = useCallback(async (diagram: NetworkDiagram) => {
-    diagram.updatedAt = new Date().toISOString();
+    const updated = { ...diagram, updatedAt: new Date().toISOString() };
     try {
-      await db.saveDiagram(diagram);
+      await db.saveDiagram(updated);
     } catch (e) {
       console.error('Failed to update diagram:', e);
       throw e;
@@ -617,9 +618,9 @@ export function useCommandSnippets() {
   }, [refresh]);
 
   const updateSnippet = useCallback(async (snippet: CommandSnippet) => {
-    snippet.updatedAt = new Date().toISOString();
+    const updated = { ...snippet, updatedAt: new Date().toISOString() };
     try {
-      await db.saveSnippet(snippet);
+      await db.saveSnippet(updated);
     } catch (e) {
       console.error('Failed to update snippet:', e);
       throw e;
@@ -638,18 +639,16 @@ export function useCommandSnippets() {
   }, [refresh]);
 
   const recordUsage = useCallback(async (id: string) => {
-    const all = await db.getAllSnippets();
-    const snippet = all.find(s => s.id === id);
-    if (snippet) {
-      snippet.usageCount += 1;
-      snippet.lastUsedAt = new Date().toISOString();
-      try {
-        await db.saveSnippet(snippet);
-      } catch (e) {
-        console.error('Failed to record snippet usage:', e);
-        throw e;
+    try {
+      const all = await db.getAllSnippets();
+      const snippet = all.find(s => s.id === id);
+      if (snippet) {
+        const updated = { ...snippet, usageCount: snippet.usageCount + 1, lastUsedAt: new Date().toISOString() };
+        await db.saveSnippet(updated);
+        await refresh();
       }
-      await refresh();
+    } catch (e) {
+      console.error('Failed to record snippet usage:', e);
     }
   }, [refresh]);
 
@@ -817,15 +816,86 @@ export function useConnectionProfiles(projectId?: string) {
   }, [refresh]);
 
   const touchProfile = useCallback(async (id: string) => {
-    const all = await db.getAllConnectionProfiles();
-    const p = all.find(x => x.id === id);
-    if (p) {
-      p.lastConnectedAt = new Date().toISOString();
-      p.updatedAt = new Date().toISOString();
-      await db.saveConnectionProfile(p);
-      await refresh();
+    try {
+      const all = await db.getAllConnectionProfiles();
+      const p = all.find(x => x.id === id);
+      if (p) {
+        const now = new Date().toISOString();
+        const updated = { ...p, lastConnectedAt: now, updatedAt: now };
+        await db.saveConnectionProfile(updated);
+        await refresh();
+      }
+    } catch (e) {
+      console.error('Failed to touch profile:', e);
     }
   }, [refresh]);
 
   return { profiles, loading, refresh, addProfile, updateProfile, removeProfile, touchProfile };
+}
+
+// ─── Dashboard Aggregate Hooks ──────────────────────────────
+export function useRecentActivity(limit = 15) {
+  const [activity, setActivity] = useState<ActivityLogEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await getAllRecentActivity(limit);
+      setActivity(data);
+    } catch {
+      // non-fatal
+    } finally {
+      setLoading(false);
+    }
+  }, [limit]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
+
+  return { activity, loading, refresh };
+}
+
+export function useProjectCounts(projectIds: string[]) {
+  const [counts, setCounts] = useState<Map<string, { files: number; notes: number; devices: number }>>(new Map());
+  const [loading, setLoading] = useState(true);
+
+  const key = projectIds.join(',');
+  const refresh = useCallback(async () => {
+    if (projectIds.length === 0) { setLoading(false); return; }
+    try {
+      const data = await getAllProjectEntityCounts(projectIds);
+      setCounts(data);
+    } catch {
+      // non-fatal
+    } finally {
+      setLoading(false);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
+
+  return { counts, loading, refresh };
+}
+
+export function useRecentNotes(limit = 5) {
+  const [notes, setNotes] = useState<FieldNote[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const data = await getRecentNotes(limit);
+      setNotes(data);
+    } catch {
+      // non-fatal
+    } finally {
+      setLoading(false);
+    }
+  }, [limit]);
+
+  useEffect(() => { refresh(); }, [refresh]);
+  usePullRefresh(refresh);
+
+  return { notes, loading, refresh };
 }

@@ -113,7 +113,7 @@ function GlobalProjectsPageInner() {
                 />
               </div>
               <div className="flex items-center gap-2">
-                <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
+                <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
                   {statuses.map(({ value, label }) => (
                     <button
                       key={value}
@@ -174,7 +174,7 @@ function GlobalProjectsPageInner() {
                     tabIndex={0}
                     className="group cursor-pointer border-l-4 border-l-blue-500 transition-all hover:shadow-md hover:border-primary/20 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
                     onClick={() => navigateToGlobalProject(router, project.id)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') navigateToGlobalProject(router, project.id); }}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigateToGlobalProject(router, project.id); } }}
                   >
                     <CardContent className="p-4">
                       <div className="mb-2 flex items-start justify-between gap-2">
@@ -252,12 +252,12 @@ function GlobalProjectsPageInner() {
           const result = await joinProject(code);
           // Handle ApiResult wrapper
           if (result && 'error' in result && result.error) {
-            return { error: result.error };
+            return { error: String(result.error) };
           }
           if (result && 'data' in result && result.data) {
-            return result.data as any;
+            return result.data as { projectId: string; projectName: string; role: string };
           }
-          return result as any;
+          return result as { projectId: string; projectName: string; role: string };
         }}
         onNavigate={(id) => navigateToGlobalProject(router, id)}
       />

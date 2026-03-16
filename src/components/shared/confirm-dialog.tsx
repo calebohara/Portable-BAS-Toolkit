@@ -5,6 +5,7 @@ import {
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -39,7 +40,10 @@ export function ConfirmDialog({
             onClick={() => {
               const result = onConfirm();
               if (result && typeof (result as Promise<unknown>).then === 'function') {
-                (result as Promise<unknown>).then(() => onOpenChange(false)).catch(() => {});
+                (result as Promise<unknown>).then(() => onOpenChange(false)).catch((err) => {
+                  console.error('Confirm action failed:', err);
+                  toast.error('Action failed. Please try again.');
+                });
               } else {
                 onOpenChange(false);
               }

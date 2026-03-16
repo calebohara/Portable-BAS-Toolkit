@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, use, useEffect, useCallback } from 'react';
+import { useState, useMemo, use, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
@@ -8,6 +8,7 @@ import {
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
   ChevronRight, Share2, FolderOpen, Terminal, Download, Globe,
+  NotebookPen, Link2, RefreshCw,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
@@ -34,9 +35,11 @@ import { ActivityTimeline } from '@/components/projects/activity-timeline';
 import { ShareDialog } from '@/components/share/share-dialog';
 import { ShareToGlobalDialog } from '@/components/global-projects/share-to-global-dialog';
 import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry, type TerminalSessionLog } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeFilename } from '@/lib/utils';
 import { deleteProject } from '@/lib/db';
 import { useAppStore } from '@/store/app-store';
+import { useNotepadStore } from '@/store/notepad-store';
+import { useProjectNotepad } from '@/hooks/use-project-notepad';
 import { toast } from 'sonner';
 
 const sections = [
@@ -49,6 +52,7 @@ const sections = [
   { id: 'backups', label: 'Backups', icon: HardDrive },
   { id: 'general-documents', label: 'General Docs', icon: FolderOpen },
   { id: 'notes', label: 'Notes', icon: StickyNote },
+  { id: 'notepad', label: 'Notepad', icon: NotebookPen },
   { id: 'terminal-logs', label: 'Terminal Logs', icon: Terminal },
   { id: 'history', label: 'History', icon: History },
 ] as const;
@@ -68,6 +72,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { activity } = useProjectActivity(id);
   const { logs: terminalLogs, removeLog: removeTerminalLog } = useTerminalLogs(id);
   const { reports } = useDailyReports(id);
+  const { entries: notepadEntries } = useProjectNotepad(id);
   const getInitialTab = () => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
@@ -203,6 +208,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               const count = sectionId === 'device-list' ? devices.length
                 : sectionId === 'ip-plan' ? ipEntries.length
                 : sectionId === 'notes' ? notes.length
+                : sectionId === 'notepad' ? notepadEntries.length
                 : sectionId !== 'overview' && sectionId !== 'history' ? fileCounts[sectionId] || 0
                 : 0;
               return (
@@ -284,6 +290,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onUpdateNote={updateNote}
               onDeleteNote={removeNote}
             />
+          )}
+
+          {activeTab === 'notepad' && (
+            <NotepadView projectId={id} projectName={project.name} />
           )}
 
           {activeTab === 'terminal-logs' && (
@@ -750,6 +760,201 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Hash; label: strin
   );
 }
 
+// ─── Notepad View (project-specific notepad with sync from floating notepad) ─────
+function NotepadView({ projectId, projectName }: { projectId: string; projectName: string }) {
+  const { entries, addEntry, updateContent, removeEntry, syncFromTab } = useProjectNotepad(projectId);
+
+  const floatingTabs = useNotepadStore(s => s.tabs);
+  const setTabProject = useNotepadStore(s => s.setTabProject);
+  const removeFloatingTab = useNotepadStore(s => s.removeTab);
+  const linkedFloatingTabs = useMemo(() => floatingTabs.filter(t => t.projectId === projectId), [floatingTabs, projectId]);
+
+  const handleNewNote = async () => {
+    await addEntry(`Note ${entries.length + 1}`, '');
+  };
+
+  const handleSyncFromNotepad = async (entryId: string, linkedTabId: string) => {
+    const tab = floatingTabs.find(t => t.id === linkedTabId);
+    if (tab) {
+      await syncFromTab(entryId, tab.content);
+      toast.success('Synced from notepad');
+    }
+  };
+
+  const handleImportFromNotepad = async (tab: { id: string; name: string; content: string }) => {
+    await addEntry(tab.name, tab.content, tab.id);
+    toast.success(`Imported "${tab.name}" to project notepad`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <NotebookPen className="h-5 w-5" /> Notepad
+        </h2>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewNote}>
+            <Plus className="h-3.5 w-3.5" /> New Note
+          </Button>
+        </div>
+      </div>
+
+      {/* Import from floating notepad */}
+      {linkedFloatingTabs.length > 0 && (
+        <Card>
+          <CardContent className="p-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Link2 className="h-3 w-3" /> Linked in floating notepad — import a copy:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {linkedFloatingTabs.map(tab => {
+                const alreadyImported = entries.some(e => e.linkedTabId === tab.id);
+                return (
+                  <div key={tab.id} className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-xs"
+                      onClick={() => handleImportFromNotepad(tab)}
+                      disabled={alreadyImported}
+                      title={alreadyImported ? 'Already imported — use Sync to update' : `Import "${tab.name}"`}
+                    >
+                      <NotebookPen className="h-3 w-3" />
+                      {tab.name}
+                      {alreadyImported && <span className="text-muted-foreground">(imported)</span>}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        setTabProject(tab.id, undefined, undefined);
+                        toast.success(`Unlinked "${tab.name}" from project`);
+                      }}
+                      title="Unlink from project"
+                    >
+                      <Link2 className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => {
+                        removeFloatingTab(tab.id);
+                        toast.success(`Deleted "${tab.name}" from notepad`);
+                      }}
+                      title="Delete from floating notepad"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {entries.length === 0 ? (
+        <EmptyState
+          icon={NotebookPen}
+          title="No Project Notes"
+          description={linkedFloatingTabs.length > 0
+            ? 'Import a note from the floating notepad above, or create a new one.'
+            : 'Create a new note, or link one from the floating notepad first.'}
+        />
+      ) : (
+        <div className="space-y-3">
+          {entries.map(entry => (
+            <Card key={entry.id}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <NotebookPen className="h-3.5 w-3.5 text-primary" />
+                    {entry.name}
+                    {entry.linkedTabId && (
+                      <span className="text-[10px] text-muted-foreground font-normal">(linked)</span>
+                    )}
+                  </CardTitle>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground mr-1">
+                      {format(new Date(entry.updatedAt), 'MMM d, h:mm a')}
+                    </span>
+                    {entry.linkedTabId && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                        onClick={() => handleSyncFromNotepad(entry.id, entry.linkedTabId!)}
+                        title="Sync latest from floating notepad"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeEntry(entry.id)}
+                      title="Delete note"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <DebouncedNotepadTextarea
+                  entryId={entry.id}
+                  initialContent={entry.content}
+                  onSave={updateContent}
+                />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Textarea with local state + debounced save to IndexedDB */
+function DebouncedNotepadTextarea({ entryId, initialContent, onSave }: {
+  entryId: string;
+  initialContent: string;
+  onSave: (id: string, content: string) => Promise<void>;
+}) {
+  const [value, setValue] = useState(initialContent);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  // Sync from external updates (e.g. pull sync)
+  useEffect(() => { setValue(initialContent); }, [initialContent]);
+
+  const handleChange = (content: string) => {
+    setValue(content);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => { onSave(entryId, content); }, 500);
+  };
+
+  // Flush on unmount
+  useEffect(() => () => { clearTimeout(timerRef.current); }, []);
+
+  return (
+    <>
+      <Textarea
+        value={value}
+        onChange={e => handleChange(e.target.value)}
+        placeholder="Type your notes here..."
+        className="min-h-32 font-mono text-sm resize-y"
+        rows={6}
+      />
+      <p className="text-[10px] text-muted-foreground mt-1.5">
+        {value.length.toLocaleString()} chars
+      </p>
+    </>
+  );
+}
+
 // ─── Terminal Logs View ──────────────────────────────────────
 function TerminalLogsView({ logs, onDelete }: { logs: TerminalSessionLog[]; onDelete: (id: string) => Promise<void> }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -761,9 +966,9 @@ function TerminalLogsView({ logs, onDelete }: { logs: TerminalSessionLog[]; onDe
     const a = document.createElement('a');
     a.href = url;
     const mode = log.connectionMode === 'serial' ? 'serial' : 'telnet';
-    a.download = `${log.sessionLabel.replace(/\s+/g, '_')}_${mode}_${format(new Date(log.createdAt), 'yyyy-MM-dd_HH-mm')}.txt`;
+    a.download = sanitizeFilename(`${log.sessionLabel}_${mode}_${format(new Date(log.createdAt), 'yyyy-MM-dd_HH-mm')}`) + '.txt';
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
   };
 
   const handleDelete = async (id: string) => {
