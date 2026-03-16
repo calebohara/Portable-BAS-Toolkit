@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, use, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, use, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
@@ -8,7 +8,7 @@ import {
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
   ChevronRight, Share2, FolderOpen, Terminal, Download, Globe,
-  NotebookPen, Link2, Unlink,
+  NotebookPen, Link2, Unlink, RefreshCw,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
@@ -39,6 +39,7 @@ import { cn, sanitizeFilename } from '@/lib/utils';
 import { deleteProject } from '@/lib/db';
 import { useAppStore } from '@/store/app-store';
 import { useNotepadStore } from '@/store/notepad-store';
+import { useProjectNotepadStore } from '@/store/project-notepad-store';
 import { toast } from 'sonner';
 
 const sections = [
@@ -71,8 +72,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { activity } = useProjectActivity(id);
   const { logs: terminalLogs, removeLog: removeTerminalLog } = useTerminalLogs(id);
   const { reports } = useDailyReports(id);
-  const allNotepadTabs = useNotepadStore(s => s.tabs);
-  const notepadTabs = useMemo(() => allNotepadTabs.filter(t => t.projectId === id), [allNotepadTabs, id]);
+  const projectNotepadEntries = useProjectNotepadStore(s => s.entries);
+  const notepadCount = useMemo(() => projectNotepadEntries.filter(e => e.projectId === id).length, [projectNotepadEntries, id]);
   const getInitialTab = () => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
@@ -208,7 +209,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               const count = sectionId === 'device-list' ? devices.length
                 : sectionId === 'ip-plan' ? ipEntries.length
                 : sectionId === 'notes' ? notes.length
-                : sectionId === 'notepad' ? notepadTabs.length
+                : sectionId === 'notepad' ? notepadCount
                 : sectionId !== 'overview' && sectionId !== 'history' ? fileCounts[sectionId] || 0
                 : 0;
               return (
@@ -760,36 +761,37 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Hash; label: strin
   );
 }
 
-// ─── Notepad View (linked notepad tabs for this project) ─────
+// ─── Notepad View (project-specific notepad with sync from floating notepad) ─────
 function NotepadView({ projectId, projectName }: { projectId: string; projectName: string }) {
-  const allTabs = useNotepadStore(s => s.tabs);
-  const updateTabContent = useNotepadStore(s => s.updateTabContent);
-  const setTabProject = useNotepadStore(s => s.setTabProject);
-  const addTab = useNotepadStore(s => s.addTab);
+  const allEntries = useProjectNotepadStore(s => s.entries);
+  const addEntry = useProjectNotepadStore(s => s.addEntry);
+  const updateContent = useProjectNotepadStore(s => s.updateContent);
+  const removeEntry = useProjectNotepadStore(s => s.removeEntry);
+  const syncFromTab = useProjectNotepadStore(s => s.syncFromTab);
 
-  const linkedTabs = useMemo(() => allTabs.filter(t => t.projectId === projectId), [allTabs, projectId]);
+  const floatingTabs = useNotepadStore(s => s.tabs);
 
-  const handleNewLinkedNote = () => {
-    addTab();
-    const allTabs = useNotepadStore.getState().tabs;
-    const newTab = allTabs[allTabs.length - 1];
-    setTabProject(newTab.id, projectId, projectName);
+  const entries = useMemo(() => allEntries.filter(e => e.projectId === projectId), [allEntries, projectId]);
+
+  // Floating notepad tabs linked to this project (for sync)
+  const linkedFloatingTabs = useMemo(() => floatingTabs.filter(t => t.projectId === projectId), [floatingTabs, projectId]);
+
+  const handleNewNote = () => {
+    addEntry(projectId, `Note ${entries.length + 1}`, '');
   };
 
-  if (linkedTabs.length === 0) {
-    return (
-      <EmptyState
-        icon={NotebookPen}
-        title="No Notepad Notes Linked"
-        description="Link a notepad note to this project from the floating notepad, or create one here."
-        action={
-          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewLinkedNote}>
-            <Plus className="h-3.5 w-3.5" /> New Linked Note
-          </Button>
-        }
-      />
-    );
-  }
+  const handleSyncFromNotepad = (entryId: string, linkedTabId: string) => {
+    const tab = floatingTabs.find(t => t.id === linkedTabId);
+    if (tab) {
+      syncFromTab(entryId, tab.content);
+      toast.success('Synced from notepad');
+    }
+  };
+
+  const handleImportFromNotepad = (tab: { id: string; name: string; content: string }) => {
+    addEntry(projectId, tab.name, tab.content, tab.id);
+    toast.success(`Imported "${tab.name}" to project notepad`);
+  };
 
   return (
     <div className="space-y-4">
@@ -797,53 +799,108 @@ function NotepadView({ projectId, projectName }: { projectId: string; projectNam
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <NotebookPen className="h-5 w-5" /> Notepad
         </h2>
-        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewLinkedNote}>
-          <Plus className="h-3.5 w-3.5" /> New Note
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNewNote}>
+            <Plus className="h-3.5 w-3.5" /> New Note
+          </Button>
+        </div>
       </div>
 
-      <div className="space-y-3">
-        {linkedTabs.map(tab => (
-          <Card key={tab.id}>
-            <CardHeader className="pb-2">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Link2 className="h-3.5 w-3.5 text-primary" />
-                  {tab.name}
-                </CardTitle>
-                <div className="flex items-center gap-1">
-                  {tab.updatedAt && (
-                    <span className="text-[10px] text-muted-foreground mr-2">
-                      {format(new Date(tab.updatedAt), 'MMM d, h:mm a')}
-                    </span>
-                  )}
+      {/* Import from floating notepad */}
+      {linkedFloatingTabs.length > 0 && (
+        <Card>
+          <CardContent className="p-3">
+            <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+              <Link2 className="h-3 w-3" /> Linked in floating notepad — import a copy:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {linkedFloatingTabs.map(tab => {
+                const alreadyImported = entries.some(e => e.linkedTabId === tab.id);
+                return (
                   <Button
-                    variant="ghost"
+                    key={tab.id}
+                    variant="outline"
                     size="sm"
-                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                    onClick={() => setTabProject(tab.id, undefined, undefined)}
-                    title="Unlink from project"
+                    className="gap-1.5 text-xs"
+                    onClick={() => handleImportFromNotepad(tab)}
+                    disabled={alreadyImported}
+                    title={alreadyImported ? 'Already imported — use Sync to update' : `Import "${tab.name}"`}
                   >
-                    <Unlink className="h-3.5 w-3.5" />
+                    <NotebookPen className="h-3 w-3" />
+                    {tab.name}
+                    {alreadyImported && <span className="text-muted-foreground">(imported)</span>}
                   </Button>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {entries.length === 0 ? (
+        <EmptyState
+          icon={NotebookPen}
+          title="No Project Notes"
+          description={linkedFloatingTabs.length > 0
+            ? 'Import a note from the floating notepad above, or create a new one.'
+            : 'Create a new note, or link one from the floating notepad first.'}
+        />
+      ) : (
+        <div className="space-y-3">
+          {entries.map(entry => (
+            <Card key={entry.id}>
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-medium flex items-center gap-2">
+                    <NotebookPen className="h-3.5 w-3.5 text-primary" />
+                    {entry.name}
+                    {entry.linkedTabId && (
+                      <span className="text-[10px] text-muted-foreground font-normal">(linked)</span>
+                    )}
+                  </CardTitle>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground mr-1">
+                      {format(new Date(entry.updatedAt), 'MMM d, h:mm a')}
+                    </span>
+                    {entry.linkedTabId && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                        onClick={() => handleSyncFromNotepad(entry.id, entry.linkedTabId!)}
+                        title="Sync latest from floating notepad"
+                      >
+                        <RefreshCw className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeEntry(entry.id)}
+                      title="Delete note"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <Textarea
-                value={tab.content}
-                onChange={e => updateTabContent(tab.id, e.target.value)}
-                placeholder="Type your notes here..."
-                className="min-h-32 font-mono text-sm resize-y"
-                rows={6}
-              />
-              <p className="text-[10px] text-muted-foreground mt-1.5">
-                {tab.content.length.toLocaleString()} chars
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <Textarea
+                  value={entry.content}
+                  onChange={e => updateContent(entry.id, e.target.value)}
+                  placeholder="Type your notes here..."
+                  className="min-h-32 font-mono text-sm resize-y"
+                  rows={6}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1.5">
+                  {entry.content.length.toLocaleString()} chars
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
