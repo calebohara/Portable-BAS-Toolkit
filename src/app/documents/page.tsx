@@ -6,9 +6,11 @@ import { format } from 'date-fns';
 import {
   Search, Download, Eye, Trash2, FolderOpen,
   MoreHorizontal,
-  ArrowRight,
+  ArrowRight, Upload,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
+import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
+import { Button } from '@/components/ui/button';
 import { FileIcon, formatFileSize } from '@/components/shared/file-icon';
 import { FileStatusBadge } from '@/components/shared/status-badge';
 import { EmptyState } from '@/components/shared/empty-state';
@@ -38,6 +40,7 @@ export default function DocumentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectFile | null>(null);
   const [previewFile, setPreviewFile] = useState<ProjectFile | null>(null);
   const [, setAssigningFile] = useState<ProjectFile | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -119,6 +122,10 @@ export default function DocumentsPage() {
               {files.length} unassigned {files.length === 1 ? 'document' : 'documents'} — assign to a project or keep here for later
             </p>
           </div>
+          <Button onClick={() => setShowUpload(true)} className="gap-1.5 shrink-0">
+            <Upload className="h-4 w-4" />
+            Upload
+          </Button>
         </div>
 
         {/* Search */}
@@ -143,7 +150,7 @@ export default function DocumentsPage() {
           <EmptyState
             icon={FolderOpen}
             title={search ? 'No matching documents' : 'Inbox is empty'}
-            description={search ? 'Try a different search term.' : 'Use the Upload button in the top bar to quickly upload documents.'}
+            description={search ? 'Try a different search term.' : 'Use the Upload button above to add documents.'}
           />
         ) : (
           <div className="flex flex-col lg:flex-row gap-4">
@@ -292,6 +299,12 @@ export default function DocumentsPage() {
         open={!!previewFile}
         onOpenChange={(open) => { if (!open) setPreviewFile(null); }}
         file={previewFile}
+      />
+
+      <GlobalUploadDialog
+        open={showUpload}
+        onOpenChange={setShowUpload}
+        onUploaded={refresh}
       />
     </>
   );
