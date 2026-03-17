@@ -496,8 +496,24 @@
   75% { transform: translate(20px, -30px) scale(1.12); }
 }
 
+/* Bug crawling animation for the TopBar bug report button */
+@keyframes bug-crawl {
+  0%   { transform: translate(0, 0) rotate(0deg); }
+  15%  { transform: translate(1px, -1px) rotate(-8deg); }
+  30%  { transform: translate(-1px, 0) rotate(5deg); }
+  45%  { transform: translate(0, 1px) rotate(-3deg); }
+  60%  { transform: translate(1px, 0) rotate(6deg); }
+  75%  { transform: translate(-1px, -1px) rotate(-5deg); }
+  100% { transform: translate(0, 0) rotate(0deg); }
+}
+
+.animate-bug-crawl {
+  animation: bug-crawl 3s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .mt-animated {
+  .mt-animated,
+  .animate-bug-crawl {
     animation: none !important;
   }
 }

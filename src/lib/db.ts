@@ -3,7 +3,7 @@ import type {
   Project, ProjectFile, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
-  ConnectionProfile, SavedCalculation, PidTuningSession, ProjectNotepadEntry,
+  ConnectionProfile, SavedCalculation, PidTuningSession, ProjectNotepadEntry, BugReport,
   SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
@@ -105,6 +105,11 @@ interface BasToolkitDB extends DBSchema {
     value: ProjectNotepadEntry;
     indexes: { 'by-project': string };
   };
+  bugReports: {
+    key: string;
+    value: BugReport;
+    indexes: { 'by-status': string; 'by-severity': string };
+  };
   syncQueue: {
     key: string;
     value: SyncQueueItem;
@@ -121,7 +126,7 @@ let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 10, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 11, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
       },
@@ -226,6 +231,13 @@ function getDB() {
           // Project Notepad Entries
           const notepadStore = db.createObjectStore('projectNotepadEntries', { keyPath: 'id' });
           notepadStore.createIndex('by-project', 'projectId');
+        }
+
+        if (oldVersion < 11) {
+          // Bug Reports
+          const bugReportStore = db.createObjectStore('bugReports', { keyPath: 'id' });
+          bugReportStore.createIndex('by-status', 'status');
+          bugReportStore.createIndex('by-severity', 'severity');
         }
       },
     }).catch((err) => {
@@ -822,6 +834,30 @@ export async function deleteProjectNotepadEntry(id: string): Promise<void> {
   notifySync('delete', 'projectNotepadEntries', id, null);
 }
 
+// ─── Bug Reports ──────────────────────────────────────────────
+export async function getAllBugReports(): Promise<BugReport[]> {
+  const db = await getDB();
+  const reports = await db.getAll('bugReports');
+  return reports.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function getBugReport(id: string): Promise<BugReport | undefined> {
+  const db = await getDB();
+  return db.get('bugReports', id);
+}
+
+export async function saveBugReport(report: BugReport): Promise<void> {
+  const db = await getDB();
+  await db.put('bugReports', report);
+  notifySync('update', 'bugReports', report.id, report);
+}
+
+export async function deleteBugReport(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('bugReports', id);
+  notifySync('delete', 'bugReports', id, null);
+}
+
 // Global search across all projects
 export async function searchGlobal(query: string): Promise<{
   projects: Project[];
@@ -1129,7 +1165,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'projectNotepadEntries', 'syncQueue', 'syncConflicts',
+    'pidTuningSessions', 'projectNotepadEntries', 'bugReports', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');

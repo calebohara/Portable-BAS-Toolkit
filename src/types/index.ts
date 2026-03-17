@@ -90,6 +90,25 @@ export interface ProjectNotepadEntry {
   updatedAt: string;
 }
 
+export type BugReportSeverity = 'low' | 'medium' | 'high' | 'critical';
+export type BugReportStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
+
+export interface BugReport {
+  id: string;
+  title: string;
+  description: string;
+  stepsToReproduce?: string;
+  severity: BugReportSeverity;
+  status: BugReportStatus;
+  appVersion: string;
+  deviceClass: string;
+  desktopOS: string;
+  currentPage: string;
+  syncStatus: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DeviceEntry {
   id: string;
   projectId: string;
@@ -192,7 +211,7 @@ export type SyncEntityType =
   | 'dailyReports' | 'activityLog' | 'networkDiagrams'
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
   | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
-  | 'projectNotepadEntries';
+  | 'projectNotepadEntries' | 'bugReports';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 

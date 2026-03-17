@@ -17,6 +17,7 @@ import { ChangePasswordDialog } from '@/components/settings/change-password-dial
 import { ChangeEmailDialog } from '@/components/settings/change-email-dialog';
 import { DeleteAccountDialog } from '@/components/settings/delete-account-dialog';
 import { AvatarCropDialog } from '@/components/settings/avatar-crop-dialog';
+import { BugReportsPanel } from '@/components/settings/bug-reports-panel';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -608,6 +609,20 @@ export default function SettingsPage() {
         ═══════════════════════════════════════════════════════════ */}
         {mode === 'authenticated' && profile?.role === 'admin' && (
           <AdminApprovalPanel session={session} currentUserRole={profile?.role} />
+        )}
+
+        {/* ═══════════════════════════════════════════════════════════
+            BUG REPORTS (Admin View)
+        ═══════════════════════════════════════════════════════════ */}
+        {mode === 'authenticated' && profile?.role === 'admin' && (
+          <section>
+            <SectionHeading>Bug Reports</SectionHeading>
+            <Card>
+              <CardContent className="p-5">
+                <BugReportsPanel />
+              </CardContent>
+            </Card>
+          </section>
         )}
 
         {/* ═══════════════════════════════════════════════════════════

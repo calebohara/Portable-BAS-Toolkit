@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Search, WifiOff, Menu, RefreshCw, Upload, Mail } from 'lucide-react';
+import { Search, WifiOff, Menu, RefreshCw, Upload, Mail, Bug } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useAppStore } from '@/store/app-store';
 import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
@@ -11,6 +11,7 @@ import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { Button } from '@/components/ui/button';
 import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
 import { InboxPanel } from '@/components/inbox/inbox-panel';
+import { BugReportDialog } from '@/components/shared/bug-report-dialog';
 
 export function TopBar({ title, children }: { title?: string; children?: React.ReactNode }) {
   const router = useRouter();
@@ -20,6 +21,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const [showUpload, setShowUpload] = useState(false);
   const [showInbox, setShowInbox] = useState(false);
+  const [showBugReport, setShowBugReport] = useState(false);
   const { unreadCount } = useInbox();
 
   const goToSearch = useCallback(() => router.push('/search'), [router]);
@@ -99,6 +101,16 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             </kbd>
           </Button>
 
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 text-destructive hover:text-destructive hover:bg-destructive/10"
+            onClick={() => setShowBugReport(true)}
+            aria-label="Report a bug"
+          >
+            <Bug className="h-3.5 w-3.5 animate-bug-crawl" />
+          </Button>
+
           <ThemeSwitcher />
 
           {/* Inbox button with notification badge */}
@@ -153,6 +165,12 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
       <InboxPanel
         open={showInbox}
         onOpenChange={setShowInbox}
+      />
+
+      <BugReportDialog
+        open={showBugReport}
+        onOpenChange={setShowBugReport}
+        pageTitle={title}
       />
     </>
   );

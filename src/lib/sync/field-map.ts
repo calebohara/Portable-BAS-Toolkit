@@ -20,6 +20,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   registerCalculations: 'register_calculations',
   pidTuningSessions: 'pid_tuning_sessions',
   projectNotepadEntries: 'project_notepad_entries',
+  bugReports: 'bug_reports',
 };
 
 // Fields to strip from local entities before pushing to Supabase.
@@ -200,6 +201,16 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  bugReports: {
+    stepsToReproduce: 'steps_to_reproduce',
+    appVersion: 'app_version',
+    deviceClass: 'device_class',
+    desktopOS: 'desktop_os',
+    currentPage: 'current_page',
+    syncStatus: 'sync_status',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
 };
 
 /**
@@ -342,4 +353,5 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'registerCalculations',
   'pidTuningSessions',
   'projectNotepadEntries',
+  'bugReports',
 ];
