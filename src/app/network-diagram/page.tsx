@@ -1027,7 +1027,7 @@ export default function NetworkDiagramPage() {
       </Dialog>
 
       {/* New Diagram Dialog */}
-      <Dialog open={showNewDiagram} onOpenChange={setShowNewDiagram}>
+      <Dialog open={showNewDiagram} onOpenChange={(o) => { setShowNewDiagram(o); if (!o) setNewName(''); }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>New Network Diagram</DialogTitle>

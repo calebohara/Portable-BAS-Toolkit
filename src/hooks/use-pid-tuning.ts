@@ -52,6 +52,7 @@ export function usePidTuningSessions(projectId?: string) {
     } catch (err) {
       console.error('Failed to add session:', err);
       toast.error('Failed to add session');
+      throw err;
     }
   }, [refresh]);
 
@@ -63,6 +64,7 @@ export function usePidTuningSessions(projectId?: string) {
     } catch (err) {
       console.error('Failed to update session:', err);
       toast.error('Failed to update session');
+      throw err;
     }
   }, [refresh]);
 
@@ -73,6 +75,7 @@ export function usePidTuningSessions(projectId?: string) {
     } catch (err) {
       console.error('Failed to remove session:', err);
       toast.error('Failed to remove session');
+      throw err;
     }
   }, [refresh]);
 

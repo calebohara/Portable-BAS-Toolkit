@@ -39,12 +39,13 @@ RULES:
 -->
 
 **Version**: 4.5.0
-**Last updated**: 2026-03-16 02:00
+**Last updated**: 2026-03-16 17:30
 **Sweep 1**: 47 issues | 44 fixed | 3 skipped
 **Sweep 2**: 47 issues | 32 fixed | 15 skipped
 **Sweep 3**: 18 issues | 15 fixed | 3 skipped
 **Sweep 4**: 15 issues | 13 fixed | 2 skipped
 **Sweep 5**: 22 issues | 22 fixed | 0 skipped
+**Sweep 6**: 15 issues | 15 fixed | 0 skipped
 
 ---
 
@@ -380,3 +381,65 @@ RULES:
 | I-3 | All agents ran 2-3 times with convergent results — issue set is stable |
 
 **Build gate (post-fix)**: tsc --noEmit PASS | npm run build PASS (2026-03-16 02:00)
+
+---
+
+# Sweep 6 — 9-Agent QA Sweep
+
+**Date**: 2026-03-16 17:15
+**Version**: 4.5.0
+**Total Issues**: 15 | **Fixed**: 15 | **Skipped**: 0
+**Agents**: 9 (UI, Data, Sync, Build, A11y/Security, Supabase, Mobile, Landing Page, README)
+
+**Regressions**: 0
+**Build gate**: tsc --noEmit PASS | npm run build PASS (pre-sweep baseline — no changes made)
+
+---
+
+## CRITICAL (0 issues)
+
+None.
+
+## HIGH (0 issues)
+
+None.
+
+## MEDIUM (0 issues)
+
+None.
+
+## LOW (15 issues)
+
+| # | Agent | File | Issue | Found | Status |
+|---|-------|------|-------|-------|--------|
+| S6-1 | 1 | `src/app/network-diagram/page.tsx:1030` | New Diagram dialog doesn't reset `newName` when dismissed — stale text on reopen | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — reset newName in onOpenChange |
+| S6-2 | 1 | `src/app/register-tool/page.tsx:894-930` | SaveDialog doesn't reset form state (projectId, category) when dismissed | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — reset projectId and category after save |
+| S6-3 | 1 | `src/app/register-tool/page.tsx:1085-1104` | Tab content loses form state on tab switch (Base UI TabsContent unmounts inactive) | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — render calculator modules always with CSS hidden toggle |
+| S6-4 | 2 | `src/hooks/use-project-notepad.ts:27-41` | Missing try/catch around IndexedDB write operations (addEntry, updateContent, removeEntry, syncFromTab) | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — wrapped all 4 mutations in try/catch with toast + re-throw |
+| S6-5 | 2 | `src/hooks/use-pid-tuning.ts:30-56` | `addSession` catch swallows error without re-throwing — callers can't detect failure | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — added throw err after toast |
+| S6-6 | 2 | `src/hooks/use-register-calculations.ts:30-55` | `addCalculation` catch swallows error without re-throwing — same pattern as S6-5 | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — added throw err after toast |
+| S6-7 | 2 | `src/hooks/use-pid-tuning.ts:58-67` + `use-register-calculations.ts:57-66` | `updateSession`/`removeSession`/`updateCalculation`/`removeCalculation` also swallow errors | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — added throw err in all 6 catch blocks |
+| S6-8 | 4 | `src/app/terminal/page.tsx:6-10,524,643` | 5 unused icon imports + 2 unused variables (post-refactoring cleanup missed) | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — removed TerminalIcon, FileText, BookOpen, Tag, Edit2, target, createSession |
+| S6-9 | 5 | `src/components/global-projects/message-board.tsx:105-114` | Native `<select>` missing `aria-label` — screen readers announce unnamed dropdown | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — added aria-label="Associate with project" |
+| S6-10 | 5 | `src/app/knowledge-base/page.tsx:296-303` | Icon-only delete button missing `aria-label` and `title` | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — added aria-label="Delete article" title="Delete" |
+| S6-11 | 5 | `src/components/global-projects/message-board.tsx:293-300` | Icon-only delete button on messages missing `aria-label` | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — added aria-label="Delete message" title="Delete" |
+| S6-12 | 5 | `src/components/global-projects/message-board.tsx:133-154` | Filter pill buttons lack `aria-pressed` state for screen readers | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — added role="radiogroup"/role="radio" + aria-checked |
+| S6-13 | 5 | `src/components/inbox/inbox-panel.tsx:127,133,201` | 3 icon-only buttons (back, delete, back) missing `aria-label` | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — added aria-label to all 3 buttons |
+| S6-14 | 7 | `src/app/terminal/page.tsx:184` | ProfilesSidebar fixed `w-56` with no responsive collapse — consumes 224px on 375px viewport | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — mobile: full-screen overlay, md+: w-56 sidebar |
+| S6-15 | 7 | `src/app/web-interface/page.tsx:552-554` | Left panel maxHeight consumes full viewport on mobile — workspace iframe gets zero height | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — max-h-[50vh] on mobile, full height on lg+ |
+| S6-8b | 8 | `src/app/page.tsx:64` | Landing page uses "HMI Terminal" but sidebar uses "Telnet HMI" — naming inconsistency | 2026-03-16 17:15 | FIXED 2026-03-16 17:30 — changed to "Telnet HMI" |
+
+## INFO (not counted)
+
+| # | Note |
+|---|------|
+| I-1 | 0 regressions — all previously FIXED issues verified intact |
+| I-2 | Agent 3 (Sync): 0 issues — all 15 entity types fully wired, field mappings verified |
+| I-3 | Agent 6 (Supabase): 0 issues — all tables, RLS, triggers, indexes in sync |
+| I-4 | Agent 9 (README): 0 issues — README fully up to date |
+| I-5 | Agent 4: tsc --noEmit PASS, npm run build PASS, versions 4.5.0 consistent |
+| I-6 | Known SKIPPED items carried forward: S2-7 (sync-status Date.now), S2-8/S2-9 (setState in effect), S2-23 (upload dialog useCallback), S2-35/S2-36 (unused imports, img vs Image), S2-37 (Tauri CSP), S4-18 (dashboard empty state) |
+| I-7 | Agent 7 issue #2 (terminal settings sm:grid-cols-5) deemed borderline — not logged as issue |
+| I-8 | Landing page "Documents" vs sidebar "Uploads Inbox" naming — intentional marketing difference, not logged |
+
+**Build gate (post-fix)**: tsc --noEmit PASS | npm run build PASS (2026-03-16 17:30)

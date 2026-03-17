@@ -551,7 +551,7 @@ export default function WebInterfacePage() {
       <TopBar title="Web Interface" />
       <div className="flex flex-col lg:flex-row" style={{ height: 'calc(100vh - 3.5rem)' }}>
         {/* Left panel — launch form + endpoints + recent */}
-        <div className="w-full lg:w-96 shrink-0 border-r border-border overflow-y-auto" style={{ maxHeight: 'calc(100vh - 3.5rem)' }}>
+        <div className="w-full lg:w-96 shrink-0 border-r border-border overflow-y-auto max-h-[50vh] lg:max-h-[calc(100vh-3.5rem)]">
           {/* Launch Form */}
           <div className="p-4 space-y-3 border-b border-border">
             <h2 className="text-sm font-semibold flex items-center gap-2">

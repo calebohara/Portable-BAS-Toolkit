@@ -3,11 +3,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { format } from 'date-fns';
 import {
-  Terminal as TerminalIcon, Plug, Unplug, RotateCcw, Trash2, Pause, Play,
-  Download, Plus, X, Settings2, History, FileText, ChevronDown, ChevronUp,
-  AlertCircle, CheckCircle2, Loader2, Circle, BookOpen, Paperclip,
-  BookmarkPlus, Star, Tag, Search, Copy, PlayCircle, Clock, StickyNote,
-  Wifi, Save, Edit2, CircleHelp,
+  Plug, Unplug, RotateCcw, Trash2, Pause, Play,
+  Download, Plus, X, Settings2, History, ChevronDown, ChevronUp,
+  AlertCircle, CheckCircle2, Loader2, Circle, Paperclip,
+  BookmarkPlus, Star, Search, Copy, PlayCircle, Clock, StickyNote,
+  Wifi, Save, CircleHelp,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -181,7 +181,7 @@ function ProfilesSidebar({ session, onApplyProfile }: {
   });
 
   return (
-    <div className="w-56 shrink-0 border-r border-border bg-muted/20 flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-40 w-full bg-background md:relative md:z-auto md:w-56 md:shrink-0 border-r border-border md:bg-muted/20 flex flex-col overflow-hidden">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <h3 className="text-xs font-semibold">Profiles</h3>
         <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={() => setShowAdd(!showAdd)} title="Save current as profile">
@@ -521,7 +521,6 @@ function AttachDialog({ open, onOpenChange, session }: {
 // ─── Export Helpers ───────────────────────────────────────────
 function generateFileName(session: TerminalSession) {
   const isSerial = session.connectionMode === 'serial';
-  const target = isSerial ? (session.serialPort || 'serial') : (session.host || 'local');
   const mode = isSerial ? 'serial' : 'telnet';
   const date = format(new Date(), 'yyyy-MM-dd_HH-mm');
   return sanitizeFilename(`${session.label.replace(/\s+/g, '_')}_${mode}_session_${date}.txt`);
@@ -640,7 +639,6 @@ function SettingsPanel() {
 function HistoryPanel() {
   const history = useTerminalStore(s => s.sessionHistory);
   const clearHistory = useTerminalStore(s => s.clearHistory);
-  const createSession = useTerminalStore(s => s.createSession);
   const updateSession = useTerminalStore(s => s.updateSession);
   const activeSessionId = useTerminalStore(s => s.activeSessionId);
 

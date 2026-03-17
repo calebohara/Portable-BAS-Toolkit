@@ -105,6 +105,7 @@ export function MessageBoard({ projects, onUnreadChange }: MessageBoardProps) {
             <select
               value={selectedProjectId}
               onChange={(e) => setSelectedProjectId(e.target.value)}
+              aria-label="Associate with project"
               className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
             >
               <option value="">No project (general)</option>
@@ -129,8 +130,10 @@ export function MessageBoard({ projects, onUnreadChange }: MessageBoardProps) {
       {projectsInMessages.length > 0 && (
         <div className="flex items-center gap-2">
           <Filter className="h-3.5 w-3.5 text-muted-foreground" />
-          <div className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
+          <div role="radiogroup" aria-label="Filter by project" className="inline-flex items-center gap-0.5 rounded-lg border border-border bg-muted/50 p-0.5">
             <button
+              role="radio"
+              aria-checked={!filterProjectId}
               onClick={() => setFilterProjectId('')}
               className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                 !filterProjectId
@@ -143,6 +146,8 @@ export function MessageBoard({ projects, onUnreadChange }: MessageBoardProps) {
             {projectsInMessages.map((p) => (
               <button
                 key={p.id}
+                role="radio"
+                aria-checked={filterProjectId === p.id}
                 onClick={() => setFilterProjectId(p.id)}
                 className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors truncate max-w-32 ${
                   filterProjectId === p.id
@@ -295,6 +300,8 @@ function MessageCard({ message: msg, userId, projects, onDelete, onReply, isRepl
                 size="sm"
                 className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 max-sm:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
                 onClick={() => setConfirmDeleteMsg(true)}
+                aria-label="Delete message"
+                title="Delete"
               >
                 <Trash2 className="h-3.5 w-3.5" />
               </Button>

@@ -51,6 +51,7 @@ export function useRegisterCalculations(projectId?: string) {
     } catch (err) {
       console.error('Failed to add calculation:', err);
       toast.error('Failed to add calculation');
+      throw err;
     }
   }, [refresh]);
 
@@ -62,6 +63,7 @@ export function useRegisterCalculations(projectId?: string) {
     } catch (err) {
       console.error('Failed to update calculation:', err);
       toast.error('Failed to update calculation');
+      throw err;
     }
   }, [refresh]);
 
@@ -72,6 +74,7 @@ export function useRegisterCalculations(projectId?: string) {
     } catch (err) {
       console.error('Failed to remove calculation:', err);
       toast.error('Failed to remove calculation');
+      throw err;
     }
   }, [refresh]);
 

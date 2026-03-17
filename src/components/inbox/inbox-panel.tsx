@@ -124,13 +124,13 @@ function MessageDetail({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onBack}>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onBack} aria-label="Go back">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <span className="text-sm font-medium truncate flex-1">
           {message.subject || '(No subject)'}
         </span>
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={onDelete}>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive" onClick={onDelete} aria-label="Delete message">
           <Trash2 className="h-3.5 w-3.5" />
         </Button>
       </div>
@@ -198,7 +198,7 @@ function ComposeView({
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center gap-2 px-4 py-3 border-b border-border">
-        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onCancel}>
+        <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={onCancel} aria-label="Go back">
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <span className="text-sm font-semibold">New Message</span>

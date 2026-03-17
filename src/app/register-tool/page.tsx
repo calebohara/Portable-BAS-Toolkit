@@ -920,6 +920,8 @@ function SaveDialog({ open, onOpenChange, activeModule }: {
       onOpenChange(false);
       setLabel('');
       setNotes('');
+      setProjectId('');
+      setCategory('general');
     } catch {
       toast.error('Failed to save');
     }
@@ -1095,13 +1097,14 @@ export default function RegisterToolPage() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-4 md:p-6">
-            <TabsContent value="convert"><QuickConverter /></TabsContent>
-            <TabsContent value="register"><RegisterInterpreter /></TabsContent>
-            <TabsContent value="byte-order"><ByteOrderTool /></TabsContent>
-            <TabsContent value="float"><FloatDecoder /></TabsContent>
-            <TabsContent value="bitmask"><BitmaskTool /></TabsContent>
-            <TabsContent value="scaling"><ScalingCalculator /></TabsContent>
-            <TabsContent value="modbus"><ModbusBuilder /></TabsContent>
+            {/* Calculator modules rendered always with CSS hiding to preserve form state across tab switches */}
+            <div className={activeTab === 'convert' ? '' : 'hidden'}><QuickConverter /></div>
+            <div className={activeTab === 'register' ? '' : 'hidden'}><RegisterInterpreter /></div>
+            <div className={activeTab === 'byte-order' ? '' : 'hidden'}><ByteOrderTool /></div>
+            <div className={activeTab === 'float' ? '' : 'hidden'}><FloatDecoder /></div>
+            <div className={activeTab === 'bitmask' ? '' : 'hidden'}><BitmaskTool /></div>
+            <div className={activeTab === 'scaling' ? '' : 'hidden'}><ScalingCalculator /></div>
+            <div className={activeTab === 'modbus' ? '' : 'hidden'}><ModbusBuilder /></div>
             <TabsContent value="history"><CalculationHistory onSaveRequest={() => setShowSave(true)} /></TabsContent>
             <TabsContent value="help"><HelpReference /></TabsContent>
           </div>

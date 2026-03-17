@@ -298,6 +298,8 @@ function ArticleCard({ article, userId, onDeleteArticle, onReply, onDeleteReply 
                 size="sm"
                 className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 max-sm:opacity-100 transition-opacity text-muted-foreground hover:text-destructive shrink-0"
                 onClick={() => setConfirmDeleteArticle(true)}
+                aria-label="Delete article"
+                title="Delete"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

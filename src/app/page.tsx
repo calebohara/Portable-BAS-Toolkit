@@ -61,7 +61,7 @@ const toolGroups = [
     gradient: 'from-siemens-navy/10 to-siemens-navy/5',
     items: [
       { icon: Globe, name: 'Web Interface', desc: 'Access BAS controller web panels with saved endpoints' },
-      { icon: TerminalSquare, name: 'HMI Terminal', desc: 'Browser-based terminal with session tabs and logging' },
+      { icon: TerminalSquare, name: 'Telnet HMI', desc: 'Browser-based terminal with session tabs and logging' },
       { icon: Wrench, name: 'Command Snippets', desc: 'Reusable commands for BACnet, Modbus, Niagara, and more' },
       { icon: StickyNote, name: 'Sticky Notepad', desc: 'Floating scratchpad with tabbed notes and offline persistence' },
     ],
