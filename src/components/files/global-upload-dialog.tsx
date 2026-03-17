@@ -17,6 +17,7 @@ import {
 import { saveFile, saveFileBlob, addActivity, getAllProjects } from '@/lib/db';
 import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type FileVersion, type Project } from '@/types';
 import { formatFileSize } from '@/components/shared/file-icon';
+import { FileIcon } from '@/components/shared/file-icon';
 import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -38,25 +39,7 @@ const UPLOAD_CATEGORIES: { value: FileCategory; label: string }[] = [
   { value: 'other', label: 'Other' },
 ];
 
-type UploadStage = 'idle' | 'preparing' | 'storing' | 'saving' | 'complete' | 'failed';
-
-const STAGE_LABELS: Record<UploadStage, string> = {
-  idle: '',
-  preparing: 'Preparing upload...',
-  storing: 'Storing file data...',
-  saving: 'Saving metadata...',
-  complete: 'Upload complete',
-  failed: 'Upload failed',
-};
-
-const STAGE_PROGRESS: Record<UploadStage, number> = {
-  idle: 0,
-  preparing: 15,
-  storing: 50,
-  saving: 85,
-  complete: 100,
-  failed: 0,
-};
+type UploadStage = 'idle' | 'uploading' | 'complete' | 'failed';
 
 function getFileExtension(name: string): string {
   const dot = name.lastIndexOf('.');
@@ -64,23 +47,23 @@ function getFileExtension(name: string): string {
 }
 
 export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [dragOver, setDragOver] = useState(false);
   const [stage, setStage] = useState<UploadStage>('idle');
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
   const [errorMessage, setErrorMessage] = useState('');
   const [projects, setProjects] = useState<Project[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const submittingRef = useRef(false);
 
   const [form, setForm] = useState({
-    title: '',
     projectId: '', // '' = unassigned
     category: 'general-documents' as FileCategory,
     uploadedBy: '',
     notes: '',
   });
 
-  const isUploading = stage !== 'idle' && stage !== 'complete' && stage !== 'failed';
+  const isUploading = stage === 'uploading';
 
   // Load projects when dialog opens
   useEffect(() => {
@@ -90,10 +73,11 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
   }, [open]);
 
   const resetForm = useCallback(() => {
-    setFile(null);
-    setForm({ title: '', projectId: '', category: 'general-documents', uploadedBy: '', notes: '' });
+    setFiles([]);
+    setForm({ projectId: '', category: 'general-documents', uploadedBy: '', notes: '' });
     setDragOver(false);
     setStage('idle');
+    setUploadProgress({ current: 0, total: 0 });
     setErrorMessage('');
     submittingRef.current = false;
   }, []);
@@ -104,120 +88,141 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
     onOpenChange(nextOpen);
   };
 
-  const handleFileSelect = (selected: File | null) => {
-    if (!selected || isUploading) return;
-    if (selected.size > MAX_FILE_SIZE) {
-      toast.error(`File exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
-      return;
+  const addFiles = (newFiles: File[]) => {
+    if (isUploading) return;
+    const valid: File[] = [];
+    for (const f of newFiles) {
+      if (f.size > MAX_FILE_SIZE) {
+        toast.error(`"${f.name}" exceeds ${MAX_FILE_SIZE / 1024 / 1024}MB limit`);
+        continue;
+      }
+      if (f.size === 0) {
+        toast.error(`"${f.name}" is empty`);
+        continue;
+      }
+      valid.push(f);
     }
-    if (selected.size === 0) {
-      toast.error('File is empty');
-      return;
+    if (valid.length > 0) {
+      setFiles(prev => [...prev, ...valid]);
+      setStage('idle');
+      setErrorMessage('');
     }
-    setFile(selected);
-    setStage('idle');
-    setErrorMessage('');
-    if (!form.title) {
-      const nameWithoutExt = selected.name.replace(/\.[^.]+$/, '');
-      setForm(f => ({ ...f, title: nameWithoutExt }));
-    }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
-    const dropped = e.dataTransfer.files[0];
-    if (dropped) handleFileSelect(dropped);
+    const dropped = Array.from(e.dataTransfer.files);
+    if (dropped.length > 0) addFiles(dropped);
   }, [isUploading]);
 
   const handleSubmit = async () => {
-    if (!file || !form.title.trim() || submittingRef.current) return;
+    if (files.length === 0 || submittingRef.current) return;
     submittingRef.current = true;
     setErrorMessage('');
+    setStage('uploading');
+    setUploadProgress({ current: 0, total: files.length });
 
-    try {
-      setStage('preparing');
-      const now = new Date().toISOString();
-      const fileId = crypto.randomUUID();
-      const versionId = crypto.randomUUID();
-      const blobKey = crypto.randomUUID();
-      const ext = getFileExtension(file.name);
+    let successCount = 0;
+    let lastError = '';
 
-      const version: FileVersion = {
-        id: versionId,
-        fileId,
-        versionNumber: 1,
-        uploadedAt: now,
-        uploadedBy: form.uploadedBy.trim() || 'Unknown',
-        notes: form.notes.trim(),
-        size: file.size,
-        status: 'current',
-        blobKey,
-      };
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      setUploadProgress({ current: i + 1, total: files.length });
 
-      const projectFile: ProjectFile = {
-        id: fileId,
-        projectId: form.projectId, // '' if unassigned
-        title: form.title.trim(),
-        fileName: sanitizeFilename(file.name),
-        fileType: ext,
-        mimeType: file.type || 'application/octet-stream',
-        category: form.category,
-        revisionNumber: 'Rev 1',
-        revisionDate: now,
-        uploadedBy: form.uploadedBy.trim() || 'Unknown',
-        notes: form.notes.trim(),
-        tags: [],
-        status: 'current',
-        isPinned: false,
-        isFavorite: false,
-        isOfflineCached: true,
-        currentVersionId: versionId,
-        versions: [version],
-        createdAt: now,
-        updatedAt: now,
-        size: file.size,
-      };
+      try {
+        const now = new Date().toISOString();
+        const fileId = crypto.randomUUID();
+        const versionId = crypto.randomUUID();
+        const blobKey = crypto.randomUUID();
+        const ext = getFileExtension(file.name);
+        const titleFromName = file.name.replace(/\.[^.]+$/, '');
 
-      setStage('storing');
-      await saveFileBlob(blobKey, file);
-
-      setStage('saving');
-      await saveFile(projectFile);
-
-      // Log activity if assigned to a project
-      if (form.projectId) {
-        await addActivity({
-          id: crypto.randomUUID(),
-          projectId: form.projectId,
-          action: 'file_uploaded',
-          details: `Uploaded "${form.title.trim()}" to ${FILE_CATEGORY_LABELS[form.category]}`,
-          timestamp: now,
-          user: form.uploadedBy.trim() || 'Unknown',
+        const version: FileVersion = {
+          id: versionId,
           fileId,
-        });
-      }
+          versionNumber: 1,
+          uploadedAt: now,
+          uploadedBy: form.uploadedBy.trim() || 'Unknown',
+          notes: form.notes.trim(),
+          size: file.size,
+          status: 'current',
+          blobKey,
+        };
 
+        const projectFile: ProjectFile = {
+          id: fileId,
+          projectId: form.projectId,
+          title: titleFromName,
+          fileName: sanitizeFilename(file.name),
+          fileType: ext,
+          mimeType: file.type || 'application/octet-stream',
+          category: form.category,
+          revisionNumber: 'Rev 1',
+          revisionDate: now,
+          uploadedBy: form.uploadedBy.trim() || 'Unknown',
+          notes: form.notes.trim(),
+          tags: [],
+          status: 'current',
+          isPinned: false,
+          isFavorite: false,
+          isOfflineCached: true,
+          currentVersionId: versionId,
+          versions: [version],
+          createdAt: now,
+          updatedAt: now,
+          size: file.size,
+        };
+
+        await saveFileBlob(blobKey, file);
+        await saveFile(projectFile);
+
+        if (form.projectId) {
+          await addActivity({
+            id: crypto.randomUUID(),
+            projectId: form.projectId,
+            action: 'file_uploaded',
+            details: `Uploaded "${titleFromName}" to ${FILE_CATEGORY_LABELS[form.category]}`,
+            timestamp: now,
+            user: form.uploadedBy.trim() || 'Unknown',
+            fileId,
+          });
+        }
+
+        successCount++;
+      } catch (err) {
+        lastError = err instanceof Error ? err.message : 'Unexpected error';
+      }
+    }
+
+    if (successCount === files.length) {
       setStage('complete');
       const projectName = form.projectId
         ? projects.find(p => p.id === form.projectId)?.name
         : null;
       toast.success(
-        projectName
-          ? `"${form.title.trim()}" uploaded to ${projectName}`
-          : `"${form.title.trim()}" uploaded to inbox`
+        files.length === 1
+          ? `"${files[0].name.replace(/\.[^.]+$/, '')}" uploaded${projectName ? ` to ${projectName}` : ' to inbox'}`
+          : `${successCount} files uploaded${projectName ? ` to ${projectName}` : ' to inbox'}`
       );
-
       setTimeout(() => {
         handleOpenChange(false);
         onUploaded?.();
         window.dispatchEvent(new CustomEvent('bau-file-uploaded', {
-          detail: { projectId: form.projectId, fileId },
+          detail: { projectId: form.projectId },
         }));
       }, 600);
-    } catch (err) {
+    } else if (successCount > 0) {
       setStage('failed');
-      setErrorMessage(err instanceof Error ? err.message : 'An unexpected error occurred. Check storage space.');
+      setErrorMessage(`${successCount}/${files.length} uploaded. Error: ${lastError}`);
+      submittingRef.current = false;
+    } else {
+      setStage('failed');
+      setErrorMessage(lastError || 'An unexpected error occurred. Check storage space.');
       submittingRef.current = false;
     }
   };
@@ -230,13 +235,15 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
 
   const u = (field: string, value: string) => setForm(f => ({ ...f, [field]: value }));
 
+  const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Quick Upload</DialogTitle>
             <DialogDescription>
-              Upload a document to a project or the uploads inbox. Max {MAX_FILE_SIZE / 1024 / 1024}MB.
+              Upload documents to a project or the uploads inbox. Max {MAX_FILE_SIZE / 1024 / 1024}MB per file.
             </DialogDescription>
           </DialogHeader>
 
@@ -254,21 +261,17 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
                   {stage === 'failed' && <AlertCircle className="h-4 w-4 text-destructive shrink-0" />}
                   {isUploading && <Loader2 className="h-4 w-4 animate-spin text-primary shrink-0" />}
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium truncate">{file?.name}</p>
-                    <p className={cn(
-                      'text-xs',
-                      stage === 'complete' ? 'text-field-success' :
-                      stage === 'failed' ? 'text-destructive' :
-                      'text-muted-foreground'
-                    )}>
-                      {STAGE_LABELS[stage]}
-                      {file && isUploading && ` (${formatFileSize(file.size)})`}
+                    <p className="text-sm font-medium">
+                      {stage === 'complete' ? 'Upload complete' :
+                       stage === 'failed' ? 'Upload failed' :
+                       `Uploading ${uploadProgress.current} of ${uploadProgress.total}...`}
                     </p>
                   </div>
                 </div>
-                {(isUploading || stage === 'complete') && (
-                  <Progress value={STAGE_PROGRESS[stage]} className="h-1.5" />
+                {isUploading && (
+                  <Progress value={(uploadProgress.current / uploadProgress.total) * 100} className="h-1.5" />
                 )}
+                {stage === 'complete' && <Progress value={100} className="h-1.5" />}
                 {stage === 'failed' && (
                   <div className="space-y-1.5">
                     {errorMessage && (
@@ -288,7 +291,7 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
                 className={cn(
                   'relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors cursor-pointer',
                   dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40',
-                  file && stage !== 'failed' && 'border-field-success/50 bg-field-success/5'
+                  files.length > 0 && stage !== 'failed' && 'border-field-success/50 bg-field-success/5'
                 )}
                 onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                 onDragLeave={() => setDragOver(false)}
@@ -299,34 +302,59 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
                   ref={inputRef}
                   type="file"
                   accept="*"
+                  multiple
                   className="hidden"
-                  onChange={(e) => { handleFileSelect(e.target.files?.[0] || null); if (e.target) e.target.value = ''; }}
+                  onChange={(e) => {
+                    const selected = e.target.files;
+                    if (selected && selected.length > 0) {
+                      addFiles(Array.from(selected));
+                    }
+                    if (e.target) e.target.value = '';
+                  }}
                 />
-                {file ? (
+                {files.length > 0 ? (
                   <>
                     <FileUp className="h-8 w-8 text-field-success" />
                     <div className="text-center">
-                      <p className="text-sm font-medium truncate max-w-[280px]">{file.name}</p>
-                      <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                      <p className="text-sm font-medium">
+                        {files.length} {files.length === 1 ? 'file' : 'files'} selected
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatFileSize(totalSize)} total — click or drop to add more
+                      </p>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute top-2 right-2 h-6 w-6 p-0"
-                      onClick={(e) => { e.stopPropagation(); setFile(null); setStage('idle'); }}
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </Button>
                   </>
                 ) : (
                   <>
                     <Upload className="h-8 w-8 text-muted-foreground" />
                     <div className="text-center">
-                      <p className="text-sm font-medium">Drop file here or click to browse</p>
-                      <p className="text-xs text-muted-foreground">Any document type accepted</p>
+                      <p className="text-sm font-medium">Drop files here or click to browse</p>
+                      <p className="text-xs text-muted-foreground">Any document type accepted — select multiple files</p>
                     </div>
                   </>
                 )}
+              </div>
+            )}
+
+            {/* File List */}
+            {files.length > 0 && !isUploading && stage !== 'complete' && (
+              <div className="space-y-1 max-h-32 overflow-y-auto rounded-md border border-border p-2">
+                {files.map((f, i) => (
+                  <div key={`${f.name}-${f.size}-${i}`} className="flex items-center gap-2 text-sm py-1 px-1 rounded hover:bg-muted/50 group">
+                    <FileIcon fileType={getFileExtension(f.name)} className="h-4 w-4 shrink-0" />
+                    <span className="truncate flex-1 min-w-0">{f.name}</span>
+                    <span className="text-xs text-muted-foreground shrink-0">{formatFileSize(f.size)}</span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 shrink-0"
+                      onClick={(e) => { e.stopPropagation(); removeFile(i); }}
+                      aria-label={`Remove ${f.name}`}
+                    >
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
 
@@ -334,18 +362,6 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
             {stage !== 'complete' && (
               <fieldset disabled={isUploading}>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  {/* Title */}
-                  <div className="space-y-1.5 sm:col-span-2">
-                    <Label htmlFor="gu-title">Title *</Label>
-                    <Input
-                      id="gu-title"
-                      placeholder="e.g. AHU-1 Startup Report"
-                      value={form.title}
-                      onChange={e => u('title', e.target.value)}
-                      required
-                    />
-                  </div>
-
                   {/* Project Selector */}
                   <div className="space-y-1.5 sm:col-span-2">
                     <Label>Destination Project</Label>
@@ -404,7 +420,7 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
                     <Label htmlFor="gu-notes">Notes</Label>
                     <Textarea
                       id="gu-notes"
-                      placeholder="Optional notes about this document..."
+                      placeholder="Optional notes about these documents..."
                       value={form.notes}
                       onChange={e => u('notes', e.target.value)}
                       rows={2}
@@ -428,12 +444,12 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
             {stage !== 'complete' && (
               <Button
                 onClick={handleSubmit}
-                disabled={isUploading || !file || !form.title.trim()}
+                disabled={isUploading || files.length === 0}
               >
                 {isUploading ? (
                   <><Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> Uploading...</>
                 ) : (
-                  'Upload'
+                  files.length > 1 ? `Upload ${files.length} Files` : 'Upload'
                 )}
               </Button>
             )}
