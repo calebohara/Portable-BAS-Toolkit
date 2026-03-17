@@ -8,6 +8,7 @@ import {
   Rocket, Users, Server,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { APP_VERSION } from '@/lib/version';
 import { useScrollReveal } from '@/hooks/use-scroll-reveal';
@@ -100,7 +101,7 @@ export default function DonatePage() {
         window.location.href = data.url;
       }
     } catch {
-      // Fail silently — the button will re-enable
+      toast.error('Checkout failed — please try again');
     } finally {
       setLoading(null);
     }

@@ -126,6 +126,7 @@ export default function DocumentsPage() {
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              aria-label="Search documents"
               placeholder="Search documents..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -135,8 +136,8 @@ export default function DocumentsPage() {
         )}
 
         {loading ? (
-          <div className="flex items-center justify-center p-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div className="flex items-center justify-center p-16" role="status" aria-live="polite">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" />
           </div>
         ) : filteredFiles.length === 0 ? (
           <EmptyState

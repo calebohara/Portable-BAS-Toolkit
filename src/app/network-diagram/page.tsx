@@ -637,28 +637,28 @@ export default function NetworkDiagramPage() {
           <div className="hidden md:flex shrink-0 items-center gap-1 px-3 py-1.5 border-b border-border bg-muted/30 flex-wrap">
             <div className="flex items-center gap-0.5 border-r border-border pr-2 mr-1">
               <Button size="sm" variant={tool === 'select' ? 'secondary' : 'ghost'} className="h-7 w-7 p-0"
-                onClick={() => setTool('select')} title="Select (V)">
+                onClick={() => setTool('select')} title="Select (V)" aria-label="Select tool">
                 <MousePointer className="h-3.5 w-3.5" />
               </Button>
               <Button size="sm" variant={tool === 'pan' ? 'secondary' : 'ghost'} className="h-7 w-7 p-0"
-                onClick={() => setTool('pan')} title="Pan (H)">
+                onClick={() => setTool('pan')} title="Pan (H)" aria-label="Pan tool">
                 <Move className="h-3.5 w-3.5" />
               </Button>
               <Button size="sm" variant={tool === 'connect' ? 'secondary' : 'ghost'} className="h-7 w-7 p-0"
-                onClick={() => { setTool('connect'); setConnectFrom(null); }} title="Connect (C)">
+                onClick={() => { setTool('connect'); setConnectFrom(null); }} title="Connect (C)" aria-label="Connect tool">
                 <LinkIcon className="h-3.5 w-3.5" />
               </Button>
             </div>
 
             <div className="flex items-center gap-0.5 border-r border-border pr-2 mr-1">
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.min(3, z + 0.2))} title="Zoom In">
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.min(3, z + 0.2))} title="Zoom In" aria-label="Zoom in">
                 <ZoomIn className="h-3.5 w-3.5" />
               </Button>
               <span className="text-[10px] text-muted-foreground w-8 text-center">{Math.round(zoom * 100)}%</span>
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.max(0.2, z - 0.2))} title="Zoom Out">
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setZoom(z => Math.max(0.2, z - 0.2))} title="Zoom Out" aria-label="Zoom out">
                 <ZoomOut className="h-3.5 w-3.5" />
               </Button>
-              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} title="Reset View">
+              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} title="Reset View" aria-label="Reset view">
                 <RotateCcw className="h-3.5 w-3.5" />
               </Button>
             </div>
@@ -669,7 +669,7 @@ export default function NetworkDiagramPage() {
                   onClick={() => selectedNodeId ? setShowNodeProps(true) : setShowConnProps(true)}>
                   <Edit3 className="h-3 w-3" /> Properties
                 </Button>
-                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={deleteSelected} title="Delete">
+                <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-destructive" onClick={deleteSelected} title="Delete" aria-label="Delete selected">
                   <Trash2 className="h-3.5 w-3.5" />
                 </Button>
               </div>
@@ -713,27 +713,27 @@ export default function NetworkDiagramPage() {
           <div className="md:hidden shrink-0 flex items-center gap-1 px-2 py-1.5 border-b border-border bg-muted/30 overflow-x-auto scrollbar-none">
             <div className="flex items-center gap-0.5 shrink-0">
               <Button size="sm" variant={tool === 'select' ? 'secondary' : 'ghost'} className="h-8 w-8 p-0"
-                onClick={() => setTool('select')}>
+                onClick={() => setTool('select')} aria-label="Select tool">
                 <MousePointer className="h-4 w-4" />
               </Button>
               <Button size="sm" variant={tool === 'pan' ? 'secondary' : 'ghost'} className="h-8 w-8 p-0"
-                onClick={() => setTool('pan')}>
+                onClick={() => setTool('pan')} aria-label="Pan tool">
                 <Move className="h-4 w-4" />
               </Button>
               <Button size="sm" variant={tool === 'connect' ? 'secondary' : 'ghost'} className="h-8 w-8 p-0"
-                onClick={() => { setTool('connect'); setConnectFrom(null); }}>
+                onClick={() => { setTool('connect'); setConnectFrom(null); }} aria-label="Connect tool">
                 <LinkIcon className="h-4 w-4" />
               </Button>
             </div>
             <div className="w-px h-5 bg-border shrink-0" />
             <div className="flex items-center gap-0.5 shrink-0">
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setZoom(z => Math.min(3, z + 0.2))}>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setZoom(z => Math.min(3, z + 0.2))} aria-label="Zoom in">
                 <ZoomIn className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setZoom(z => Math.max(0.2, z - 0.2))}>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setZoom(z => Math.max(0.2, z - 0.2))} aria-label="Zoom out">
                 <ZoomOut className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} aria-label="Reset view">
                 <RotateCcw className="h-4 w-4" />
               </Button>
             </div>
@@ -741,19 +741,19 @@ export default function NetworkDiagramPage() {
             {(selectedNodeId || selectedConnId) && (
               <div className="flex items-center gap-0.5 shrink-0">
                 <Button size="sm" variant="ghost" className="h-8 w-8 p-0"
-                  onClick={() => selectedNodeId ? setShowNodeProps(true) : setShowConnProps(true)}>
+                  onClick={() => selectedNodeId ? setShowNodeProps(true) : setShowConnProps(true)} aria-label="Edit properties">
                   <Edit3 className="h-4 w-4" />
                 </Button>
-                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={deleteSelected}>
+                <Button size="sm" variant="ghost" className="h-8 w-8 p-0 text-destructive" onClick={deleteSelected} aria-label="Delete selected">
                   <Trash2 className="h-4 w-4" />
                 </Button>
               </div>
             )}
             <div className="flex items-center gap-0.5 ml-auto shrink-0">
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleSave} disabled={!selectedProjectId}>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={handleSave} disabled={!selectedProjectId} aria-label="Save diagram">
                 <Save className="h-4 w-4" />
               </Button>
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setShowMobileActions(true)}>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setShowMobileActions(true)} aria-label="Export options">
                 <Download className="h-4 w-4" />
               </Button>
             </div>

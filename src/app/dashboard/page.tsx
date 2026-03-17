@@ -55,8 +55,8 @@ export default function DashboardPage() {
     return (
       <>
         <TopBar title="Dashboard" />
-        <div className="flex items-center justify-center p-16">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="flex items-center justify-center p-16" role="status" aria-live="polite">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" />
         </div>
       </>
     );

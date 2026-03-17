@@ -514,9 +514,9 @@ export default function PingToolPage() {
             {/* Mode selector */}
             <div className="flex items-center gap-3 sm:gap-4 flex-wrap">
               <div className="space-y-1.5">
-                <Label className="text-xs">Mode</Label>
+                <Label htmlFor="ping-mode" className="text-xs">Mode</Label>
                 <Select value={mode} onValueChange={v => v && setMode(v as typeof mode)}>
-                  <SelectTrigger className="h-8 text-xs w-28 sm:w-36"><SelectValue /></SelectTrigger>
+                  <SelectTrigger id="ping-mode" className="h-8 text-xs w-28 sm:w-36"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="single">Single Check</SelectItem>
                     <SelectItem value="repeated">Repeated</SelectItem>
@@ -527,14 +527,14 @@ export default function PingToolPage() {
               {mode === 'repeated' && (
                 <>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Count</Label>
-                    <Input type="number" value={repeatCount} min={2} max={100}
+                    <Label htmlFor="ping-count" className="text-xs">Count</Label>
+                    <Input id="ping-count" type="number" value={repeatCount} min={2} max={100}
                       onChange={e => setRepeatCount(parseInt(e.target.value) || 5)}
                       className="h-8 text-xs w-20" />
                   </div>
                   <div className="space-y-1.5">
-                    <Label className="text-xs">Interval (ms)</Label>
-                    <Input type="number" value={intervalMs} min={500} max={10000} step={500}
+                    <Label htmlFor="ping-interval" className="text-xs">Interval (ms)</Label>
+                    <Input id="ping-interval" type="number" value={intervalMs} min={500} max={10000} step={500}
                       onChange={e => setIntervalMs(parseInt(e.target.value) || 1000)}
                       className="h-8 text-xs w-24" />
                   </div>
@@ -542,9 +542,9 @@ export default function PingToolPage() {
               )}
               {isDesktop && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs">Method</Label>
+                  <Label htmlFor="ping-method" className="text-xs">Method</Label>
                   <Select value={pingMethod} onValueChange={v => v && setPingMethod(v as typeof pingMethod)}>
-                    <SelectTrigger className="h-8 text-xs w-32"><SelectValue /></SelectTrigger>
+                    <SelectTrigger id="ping-method" className="h-8 text-xs w-32"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="auto">ICMP (Native)</SelectItem>
                       <SelectItem value="http">HTTP Only</SelectItem>
@@ -554,9 +554,10 @@ export default function PingToolPage() {
               )}
               {(!isDesktop || pingMethod === 'http') && (
                 <div className="space-y-1.5">
-                  <Label className="text-xs">BAS Ports</Label>
+                  <Label htmlFor="ping-scan-ports" className="text-xs">BAS Ports</Label>
                   <label className="flex items-center gap-2 h-8 cursor-pointer">
                     <input
+                      id="ping-scan-ports"
                       type="checkbox"
                       checked={scanPorts}
                       onChange={e => setScanPorts(e.target.checked)}
@@ -571,7 +572,7 @@ export default function PingToolPage() {
 
             {/* Targets */}
             <div className="space-y-2">
-              <Label className="text-xs">Targets</Label>
+              <Label id="ping-targets-label" className="text-xs">Targets</Label>
               {targets.map((target, idx) => (
                 <div key={idx} className="flex flex-wrap items-center gap-2">
                   <Input

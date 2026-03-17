@@ -231,10 +231,11 @@ export default function NewArticlePage() {
         <div className="flex-1 max-w-4xl mx-auto w-full px-4 md:px-6 py-6 md:py-8 space-y-6">
           {/* Subject */}
           <div className="space-y-2">
-            <Label>
+            <Label htmlFor="kb-subject">
               Subject <span className="text-destructive">*</span>
             </Label>
             <Input
+              id="kb-subject"
               placeholder="Enter a descriptive title for your article..."
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
@@ -244,13 +245,13 @@ export default function NewArticlePage() {
 
           {/* Category */}
           <div className="space-y-2">
-            <Label>
+            <Label htmlFor="kb-category">
               Category <span className="text-destructive">*</span>
             </Label>
             {!showNewCategory ? (
               <div className="flex items-center gap-3">
                 <Select value={categoryId} onValueChange={v => setCategoryId(v ?? '')}>
-                  <SelectTrigger className="flex-1 h-10">
+                  <SelectTrigger id="kb-category" className="flex-1 h-10">
                     <SelectValue placeholder="Select a category..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -290,7 +291,7 @@ export default function NewArticlePage() {
 
           {/* Content Editor */}
           <div className="space-y-2">
-            <Label>Content</Label>
+            <Label htmlFor="kb-content">Content</Label>
             <Card className="overflow-hidden">
               {/* Formatting Toolbar */}
               <div className="flex items-center gap-0.5 px-3 py-2 border-b border-border bg-muted/30 flex-wrap">

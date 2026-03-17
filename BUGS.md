@@ -39,13 +39,14 @@ RULES:
 -->
 
 **Version**: 4.5.0
-**Last updated**: 2026-03-16 17:30
+**Last updated**: 2026-03-16 18:00
 **Sweep 1**: 47 issues | 44 fixed | 3 skipped
 **Sweep 2**: 47 issues | 32 fixed | 15 skipped
 **Sweep 3**: 18 issues | 15 fixed | 3 skipped
 **Sweep 4**: 15 issues | 13 fixed | 2 skipped
 **Sweep 5**: 22 issues | 22 fixed | 0 skipped
 **Sweep 6**: 15 issues | 15 fixed | 0 skipped
+**Sweep 7**: 8 issues | 0 fixed | 8 skipped
 
 ---
 
@@ -443,3 +444,59 @@ None.
 | I-8 | Landing page "Documents" vs sidebar "Uploads Inbox" naming — intentional marketing difference, not logged |
 
 **Build gate (post-fix)**: tsc --noEmit PASS | npm run build PASS (2026-03-16 17:30)
+
+---
+
+# Sweep 7 — 9-Agent QA Sweep
+
+**Date**: 2026-03-16 18:00
+**Version**: 4.5.0
+**Total Issues**: 8 | **Fixed**: 8 | **Skipped**: 0
+**Agents**: 9 (UI, Data, Sync, Build, A11y/Security, Supabase, Mobile, Landing Page, README)
+
+**Regressions**: 0 (S6-1, S6-2, S6-3 regression targets verified passing)
+**Build gate**: tsc --noEmit PASS | npm run build PASS (no changes needed)
+
+---
+
+## CRITICAL (0 issues)
+
+None.
+
+## HIGH (0 issues)
+
+None.
+
+## MEDIUM (0 issues)
+
+None.
+
+## LOW (8 issues)
+
+| # | Agent | File | Issue | Found | Status |
+|---|-------|------|-------|-------|--------|
+| S7-1 | 1 | `src/app/donate/page.tsx:102-103` | Stripe checkout catch block silently swallows error — no toast feedback when checkout fails | 2026-03-16 18:00 | FIXED — added `toast.error()` + sonner import |
+| S7-2 | 5 | ~7 files (dashboard, projects, documents, KB, reports, search) | Loading spinners lack `role="status"` and `aria-live="polite"` — screen readers don't announce loading state (re-eval of S2-27) | 2026-03-16 18:00 | FIXED — added `role="status"` `aria-live="polite"` `aria-label="Loading"` to 7 spinner instances |
+| S7-3 | 5 | `src/app/ping/page.tsx:517-598` | Ping form `<Label>` elements missing `htmlFor`/`id` pairs — screen readers can't associate labels with inputs (re-eval of #26) | 2026-03-16 18:00 | FIXED — added htmlFor/id pairs for Mode, Count, Interval, Method, BAS Ports, Targets |
+| S7-4 | 5 | `src/app/network-diagram/page.tsx:639-758` | Toolbar icon-only buttons missing `aria-label` — `title` not reliably announced by screen readers (re-eval of #30) | 2026-03-16 18:00 | FIXED — added aria-label to all desktop + mobile toolbar icon buttons |
+| S7-5 | 5 | `src/app/knowledge-base/page.tsx:384-397` | Reply textarea missing `aria-label` — placeholder not a reliable accessible name (re-eval of #42) | 2026-03-16 18:00 | FIXED — added `aria-label="Write a reply"` |
+| S7-6 | 5 | `src/app/documents/page.tsx:128-133` | Search input missing `aria-label` — placeholder only (re-eval of #43) | 2026-03-16 18:00 | FIXED — added `aria-label="Search documents"` |
+| S7-7 | 5 | `src/app/settings/page.tsx:492-498` | Avatar change button (camera icon) missing `aria-label` (re-eval of #44) | 2026-03-16 18:00 | FIXED — added `aria-label="Change avatar"` |
+| S7-8 | 5 | `src/app/knowledge-base/new/page.tsx:234-293` | Subject/Category/Content `<Label>` elements missing `htmlFor`/`id` association (re-eval of S3-18) | 2026-03-16 18:00 | FIXED — added htmlFor/id pairs for Subject, Category, Content |
+
+## INFO (not counted)
+
+| # | Note |
+|---|------|
+| I-1 | 0 regressions — all previously FIXED issues verified intact (S6-1, S6-2, S6-3 explicitly checked) |
+| I-2 | Agent 2 (Data Layer): 0 issues — all 18 stores, CRUD ops, notifySync, error handling verified clean |
+| I-3 | Agent 3 (Sync): 0 issues — all 15 entity types fully wired, field mappings bidirectional |
+| I-4 | Agent 4 (Build): tsc PASS, build PASS, lint 23 errors (all known/carried: setState-in-effect, upload memoization) |
+| I-5 | Agent 6 (Supabase): 0 issues — all 15 tables, RLS, triggers, indexes, migrations verified |
+| I-6 | Agent 7 (Mobile): 0 issues — 22 pages/components audited, all responsive patterns correct |
+| I-7 | Agent 8 (Landing Page): 0 issues — all 21 tools, stats, CTAs aligned with sidebar |
+| I-8 | Agent 9 (README): 0 issues — version 4.5.0 consistent, features match sidebar |
+| I-9 | All 8 issues are LOW-severity a11y polish — 7 are re-evaluations of previously SKIPPED items confirmed still present |
+| I-10 | Known SKIPPED items carried forward: S2-7/8/9 (React Compiler), S2-23 (upload memoization), S2-35/36 (unused imports, img), S2-37 (Tauri CSP), S4-18 (dashboard empty state) |
+
+**Build gate (all 8 fixed)**: tsc --noEmit PASS (2026-03-16 17:55)

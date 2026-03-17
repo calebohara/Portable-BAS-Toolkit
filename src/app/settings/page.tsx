@@ -491,6 +491,7 @@ export default function SettingsPage() {
                       </div>
                       <button
                         type="button"
+                        aria-label="Change avatar"
                         onClick={() => setShowAvatarDialog(true)}
                         className="absolute inset-0 flex items-center justify-center rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                       >

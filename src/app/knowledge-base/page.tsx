@@ -192,8 +192,8 @@ export default function KnowledgeBasePage() {
 
         {/* Articles */}
         {loading ? (
-          <div className="flex items-center justify-center p-16">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <div className="flex items-center justify-center p-16" role="status" aria-live="polite">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" />
           </div>
         ) : filtered.length === 0 ? (
           <EmptyState
@@ -382,6 +382,7 @@ function ArticleCard({ article, userId, onDeleteArticle, onReply, onDeleteReply 
           <div className="px-5 py-4 border-t border-border/50 bg-muted/10">
             <div className="flex items-start gap-3">
               <textarea
+                aria-label="Write a reply"
                 placeholder="Write a reply..."
                 value={replyBody}
                 onChange={(e) => setReplyBody(e.target.value)}
