@@ -6,6 +6,18 @@
 
 ---
 
+## QC Run Log
+
+> Updated automatically each time QC.md is run. Tracks when sweeps happened, what changed in QC.md itself, and what was added to the codebase since the last run.
+
+| Date | Time | Sweep | QC.md Updates | Codebase Additions/Changes |
+|------|------|-------|---------------|---------------------------|
+| 2026-03-16 | 17:30 PDT | Sweep 6 | Initial run log added; Rule 12 (Codebase Consistency Gate) added | No new pages, hooks, or stores since last sweep |
+
+> **Instructions for updating this log**: At the start of every QC run, before launching agents, append a new row with the current date/time, sweep number, any updates made to QC.md itself (new rules, updated checklists, corrected references), and any codebase additions detected by Rule 12's consistency check (new pages, hooks, stores, sync entities, sidebar items).
+
+---
+
 ## Part 1: 5-Agent QA Sweep
 
 > Paste this section into Claude Code to run a full code-review sweep.
@@ -502,6 +514,124 @@ After reviewing BUGS.md history, scan for **recurring bug classes** across new/c
   4. Entry in `SYNC_ORDER`
   5. CRUD functions in `src/lib/db.ts`
 - If any are missing, it's **HIGH** severity — half-wired sync causes silent failures on push/pull
+
+#### 12. Codebase Consistency Gate (MANDATORY — run BEFORE agents launch)
+
+Before launching any agents, verify that QC.md's references match the actual codebase. If any discrepancy is found, **update QC.md first**, then log the change in the QC Run Log table, then launch agents with the corrected references.
+
+**12a. Pages — Agent 1 page table vs `src/app/` directories**
+
+The following routes must appear in Agent 1's "Pages to test" table. If a route exists in `src/app/` but is missing from the table, add it. If a route is listed but no longer exists, remove it.
+
+| Route | Directory |
+|-------|-----------|
+| `/dashboard` | `src/app/dashboard/` |
+| `/projects` | `src/app/projects/` |
+| `/global-projects` | `src/app/global-projects/` |
+| `/reports` | `src/app/reports/` |
+| `/register-tool` | `src/app/register-tool/` |
+| `/pid-tuning` | `src/app/pid-tuning/` |
+| `/network-diagram` | `src/app/network-diagram/` |
+| `/terminal` | `src/app/terminal/` |
+| `/ping` | `src/app/ping/` |
+| `/knowledge-base` | `src/app/knowledge-base/` |
+| `/documents` | `src/app/documents/` |
+| `/settings` | `src/app/settings/` |
+| `/search` | `src/app/search/` |
+| `/help` | `src/app/help/` |
+| `/web-interface` | `src/app/web-interface/` |
+| `/login` | `src/app/login/` |
+| `/donate` | `src/app/donate/` |
+| `/desktop` | `src/app/desktop/` |
+| `/forgot-password` | `src/app/forgot-password/` |
+| `/reset-password` | `src/app/reset-password/` |
+| `/pending-approval` | `src/app/pending-approval/` |
+| `/offline` | `src/app/offline/` |
+
+**Verify**: `ls -d src/app/*/` — every directory (except `api/`) must appear above.
+
+**12b. Hooks — Agent 2 hook table vs `src/hooks/` files**
+
+The following hook files must appear in Agent 2's "Hooks to verify" table. If a hook exists in `src/hooks/` but is missing from the table, add it.
+
+| Hook file | Purpose |
+|-----------|---------|
+| `use-projects.ts` | Projects CRUD |
+| `use-global-projects.ts` | Global/shared projects |
+| `use-register-calculations.ts` | Register calculations |
+| `use-pid-tuning.ts` | PID tuning sessions |
+| `use-project-notepad.ts` | Project notepad entries |
+| `use-knowledge-base.ts` | Knowledge base articles |
+| `use-inbox.ts` | Inbox/DM messages |
+| `use-online-users.ts` | Online presence tracking |
+| `use-device-class.ts` | Device/platform detection |
+| `use-keyboard-shortcut.ts` | Keyboard shortcut bindings |
+| `use-scroll-reveal.ts` | Scroll-triggered animations |
+
+**Verify**: `ls src/hooks/*.ts` — every file must appear above.
+
+**12c. IndexedDB Stores — Agent 2 store list vs `BasToolkitDB` interface in `src/lib/db.ts`**
+
+The following stores must be accounted for in Agent 2's testing scope:
+
+| Store | Type |
+|-------|------|
+| `projects` | `Project` |
+| `files` | `ProjectFile` |
+| `fileBlobs` | `{ id, blob, cachedAt }` |
+| `notes` | `FieldNote` |
+| `devices` | `DeviceEntry` |
+| `ipPlan` | `IpPlanEntry` |
+| `activityLog` | `ActivityLogEntry` |
+| `dailyReports` | `DailyReport` |
+| `networkDiagrams` | `NetworkDiagram` |
+| `commandSnippets` | `CommandSnippet` |
+| `pingSessions` | `PingSession` |
+| `terminalLogs` | `TerminalSessionLog` |
+| `connectionProfiles` | `ConnectionProfile` |
+| `registerCalculations` | `SavedCalculation` |
+| `pidTuningSessions` | `PidTuningSession` |
+| `projectNotepadEntries` | `ProjectNotepadEntry` |
+| `syncQueue` | `SyncQueueItem` |
+| `syncConflicts` | `SyncConflict` |
+
+**Verify**: Read `interface BasToolkitDB` in `src/lib/db.ts` — every store must appear above.
+
+**12d. Sync Entity Types — Agent 3 & 6 vs `SyncEntityType` in `src/types/index.ts`**
+
+The following entity types must appear in Agent 3's sync scope and Agent 6's schema audit:
+
+```
+'projects' | 'files' | 'notes' | 'devices' | 'ipPlan'
+| 'dailyReports' | 'activityLog' | 'networkDiagrams'
+| 'commandSnippets' | 'pingSessions' | 'terminalLogs'
+| 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
+| 'projectNotepadEntries'
+```
+
+**Verify**: Grep `SyncEntityType` in `src/types/index.ts` — every member must appear above.
+
+**12e. Landing Page — Agent 8 `toolGroups` vs sidebar**
+
+Cross-reference `src/components/layout/sidebar.tsx` nav items against `toolGroups` in `src/app/page.tsx`. Every sidebar tool must appear in at least one `toolGroups` category. Update this rule's reference if the sidebar changes.
+
+**12f. How to run the consistency check**:
+
+```bash
+# Pages
+diff <(ls -d src/app/*/ | sed 's|src/app/||;s|/||' | grep -v api | sort) <(echo "ROUTES_FROM_12a" | sort)
+
+# Hooks
+diff <(ls src/hooks/*.ts | sed 's|src/hooks/||' | sort) <(echo "HOOKS_FROM_12b" | sort)
+
+# Stores
+grep -oP "^\s+\K\w+(?=:)" src/lib/db.ts | head -18 | sort
+
+# Sync types
+grep -oP "'(\w+)'" src/types/index.ts | grep -A1 SyncEntityType
+```
+
+If any diff shows additions → update QC.md tables, log in QC Run Log, then proceed with agents.
 
 ---
 
