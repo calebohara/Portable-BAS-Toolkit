@@ -3,7 +3,7 @@ import type {
   Project, ProjectFile, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
-  ConnectionProfile, SavedCalculation, PidTuningSession, ProjectNotepadEntry, BugReport,
+  ConnectionProfile, SavedCalculation, PidTuningSession, ProjectNotepadEntry, NotepadDocument, BugReport,
   SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
@@ -105,6 +105,11 @@ interface BasToolkitDB extends DBSchema {
     value: ProjectNotepadEntry;
     indexes: { 'by-project': string };
   };
+  notepadDocuments: {
+    key: string;
+    value: NotepadDocument;
+    indexes: { 'by-updated': string; 'by-language': string };
+  };
   bugReports: {
     key: string;
     value: BugReport;
@@ -126,7 +131,7 @@ let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 11, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 12, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
       },
@@ -238,6 +243,13 @@ function getDB() {
           const bugReportStore = db.createObjectStore('bugReports', { keyPath: 'id' });
           bugReportStore.createIndex('by-status', 'status');
           bugReportStore.createIndex('by-severity', 'severity');
+        }
+
+        if (oldVersion < 12) {
+          // Notepad Documents (full editor tool)
+          const notepadDocStore = db.createObjectStore('notepadDocuments', { keyPath: 'id' });
+          notepadDocStore.createIndex('by-updated', 'updatedAt');
+          notepadDocStore.createIndex('by-language', 'language');
         }
       },
     }).catch((err) => {
@@ -834,6 +846,30 @@ export async function deleteProjectNotepadEntry(id: string): Promise<void> {
   notifySync('delete', 'projectNotepadEntries', id, null);
 }
 
+// ─── Notepad Documents (full editor tool) ─────────────────────
+export async function getAllNotepadDocuments(): Promise<NotepadDocument[]> {
+  const db = await getDB();
+  const docs = await db.getAll('notepadDocuments');
+  return docs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getNotepadDocument(id: string): Promise<NotepadDocument | undefined> {
+  const db = await getDB();
+  return db.get('notepadDocuments', id);
+}
+
+export async function saveNotepadDocument(doc: NotepadDocument): Promise<void> {
+  const db = await getDB();
+  await db.put('notepadDocuments', doc);
+  notifySync('update', 'notepadDocuments', doc.id, doc);
+}
+
+export async function deleteNotepadDocument(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('notepadDocuments', id);
+  notifySync('delete', 'notepadDocuments', id, null);
+}
+
 // ─── Bug Reports ──────────────────────────────────────────────
 export async function getAllBugReports(): Promise<BugReport[]> {
   const db = await getDB();
@@ -1165,7 +1201,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'projectNotepadEntries', 'bugReports', 'syncQueue', 'syncConflicts',
+    'pidTuningSessions', 'projectNotepadEntries', 'notepadDocuments', 'bugReports', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');

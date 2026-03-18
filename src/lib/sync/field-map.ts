@@ -20,6 +20,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   registerCalculations: 'register_calculations',
   pidTuningSessions: 'pid_tuning_sessions',
   projectNotepadEntries: 'project_notepad_entries',
+  notepadDocuments: 'notepad_documents',
   bugReports: 'bug_reports',
 };
 
@@ -201,6 +202,10 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  notepadDocuments: {
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
   bugReports: {
     stepsToReproduce: 'steps_to_reproduce',
     appVersion: 'app_version',
@@ -353,5 +358,6 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'registerCalculations',
   'pidTuningSessions',
   'projectNotepadEntries',
+  'notepadDocuments',
   'bugReports',
 ];

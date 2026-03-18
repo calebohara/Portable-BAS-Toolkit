@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
   ChevronLeft, ChevronRight, X, FolderOpen, HelpCircle, ClipboardList, TerminalSquare, Globe,
-  Network, Activity, Calculator, Users2, BookOpen, Gauge,
+  Network, Activity, Calculator, Users2, BookOpen, Gauge, FileCode2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
@@ -42,6 +42,7 @@ const navGroups = [
       { href: '/ping', icon: Activity, label: 'Ping Tool', tourId: 'nav-ping' },
       { href: '/register-tool', icon: Calculator, label: 'Register Tool', tourId: 'nav-register-tool' },
       { href: '/pid-tuning', icon: Gauge, label: 'PID Tuning', tourId: 'nav-pid-tuning' },
+      { href: '/notepad', icon: FileCode2, label: 'Notepad', tourId: 'nav-notepad' },
     ],
   },
   {

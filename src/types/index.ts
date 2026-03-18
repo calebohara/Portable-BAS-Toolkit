@@ -80,6 +80,31 @@ export interface FieldNote {
   tags: string[];
 }
 
+// ─── Notepad Documents (full editor tool) ───────────────────
+export type NotepadLanguage =
+  | 'plaintext' | 'json' | 'xml' | 'javascript' | 'python'
+  | 'css' | 'html' | 'markdown';
+
+export const NOTEPAD_LANGUAGE_LABELS: Record<NotepadLanguage, string> = {
+  plaintext: 'Plain Text',
+  json: 'JSON',
+  xml: 'XML',
+  javascript: 'JavaScript',
+  python: 'Python',
+  css: 'CSS',
+  html: 'HTML',
+  markdown: 'Markdown',
+};
+
+export interface NotepadDocument {
+  id: string;
+  name: string;
+  content: string;
+  language: NotepadLanguage;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ProjectNotepadEntry {
   id: string;
   projectId: string;
@@ -211,7 +236,7 @@ export type SyncEntityType =
   | 'dailyReports' | 'activityLog' | 'networkDiagrams'
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
   | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
-  | 'projectNotepadEntries' | 'bugReports';
+  | 'projectNotepadEntries' | 'notepadDocuments' | 'bugReports';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 
