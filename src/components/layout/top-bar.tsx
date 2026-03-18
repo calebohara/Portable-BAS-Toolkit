@@ -65,6 +65,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             </div>
           )}
 
+          {/* 1. Upload */}
           <Button
             variant="default"
             size="sm"
@@ -77,16 +78,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             <span className="hidden sm:inline">Upload</span>
           </Button>
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 w-8 p-0 text-muted-foreground"
-            onClick={handleRefresh}
-            aria-label="Refresh page"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-          </Button>
-
+          {/* 2. Search */}
           <Button
             variant="outline"
             size="sm"
@@ -101,6 +93,21 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             </kbd>
           </Button>
 
+          {/* 3. Theme Switcher */}
+          <ThemeSwitcher />
+
+          {/* 4. Refresh */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 w-8 p-0 text-muted-foreground"
+            onClick={handleRefresh}
+            aria-label="Refresh page"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+          </Button>
+
+          {/* 5. Bug Report */}
           <Button
             variant="ghost"
             size="sm"
@@ -111,9 +118,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             <Bug className="h-3.5 w-3.5 animate-bug-crawl" />
           </Button>
 
-          <ThemeSwitcher />
-
-          {/* Inbox button with notification badge */}
+          {/* 6. Inbox / Mail */}
           {user && (
             <button
               type="button"
@@ -130,7 +135,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             </button>
           )}
 
-          {/* Profile pill — navigates to settings */}
+          {/* 7. Profile */}
           {user && (
             <button
               type="button"
