@@ -12,11 +12,13 @@ import { Button } from '@/components/ui/button';
 import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
 import { InboxPanel } from '@/components/inbox/inbox-panel';
 import { BugReportDialog } from '@/components/shared/bug-report-dialog';
+import { hasSyncAccess } from '@/lib/paywall';
 
 export function TopBar({ title, children }: { title?: string; children?: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const { user, profile } = useAuth();
+  const showMail = hasSyncAccess(profile?.subscriptionTier);
   const isOnline = useAppStore((s) => s.isOnline);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const [showUpload, setShowUpload] = useState(false);
@@ -118,8 +120,8 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             <Bug className="h-3.5 w-3.5 animate-bug-crawl" />
           </Button>
 
-          {/* 6. Inbox / Mail */}
-          {user && (
+          {/* 6. Inbox / Mail — Pro+ only when paywall enabled */}
+          {user && showMail && (
             <button
               type="button"
               onClick={() => setShowInbox(true)}

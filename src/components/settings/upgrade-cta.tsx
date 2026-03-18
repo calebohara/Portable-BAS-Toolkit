@@ -17,6 +17,7 @@ const PRO_FEATURES = [
   'Automatic cloud backup',
   'Cloud restore & recovery',
   'Sync conflict resolution',
+  'Direct messaging & inbox',
 ];
 
 const TEAM_FEATURES = [
@@ -70,7 +71,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
               RECOMMENDED
             </Badge>
           </div>
-          <CardContent className="p-5 pt-6 space-y-4">
+          <CardContent className="p-5 pt-6 flex flex-col h-full">
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                 <Cloud className="h-4.5 w-4.5 text-primary" />
@@ -81,12 +82,12 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 mt-4">
               <p className="text-2xl font-bold">$8<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
               <p className="text-xs text-muted-foreground">or $79/year (save 18%)</p>
             </div>
 
-            <ul className="space-y-1.5">
+            <ul className="space-y-1.5 mt-4 flex-1">
               {PRO_FEATURES.map((f) => (
                 <li key={f} className="flex items-start gap-2 text-xs text-muted-foreground">
                   <Check className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
@@ -95,7 +96,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
               ))}
             </ul>
 
-            <div className="space-y-2">
+            <div className="space-y-2 mt-4">
               <Button
                 className="w-full gap-1.5"
                 size="sm"
@@ -121,7 +122,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
 
         {/* Team Card */}
         <Card>
-          <CardContent className="p-5 space-y-4">
+          <CardContent className="p-5 flex flex-col h-full">
             <div className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-500/10">
                 <Users className="h-4.5 w-4.5 text-blue-500" />
@@ -132,12 +133,12 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
               </div>
             </div>
 
-            <div className="space-y-1">
+            <div className="space-y-1 mt-4">
               <p className="text-2xl font-bold">$15<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
               <p className="text-xs text-muted-foreground">or $149/year (save 17%)</p>
             </div>
 
-            <ul className="space-y-1.5">
+            <ul className="space-y-1.5 mt-4 flex-1">
               {TEAM_FEATURES.map((f) => (
                 <li key={f} className="flex items-start gap-2 text-xs text-muted-foreground">
                   <Check className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
@@ -146,7 +147,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
               ))}
             </ul>
 
-            <div className="space-y-2">
+            <div className="space-y-2 mt-4">
               <Button
                 variant="outline"
                 className="w-full gap-1.5"

@@ -7,8 +7,9 @@ import {
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
   Wrench, Shield, WifiOff, ArrowRight, UserPlus, MessageSquare,
   Zap, Layers, Monitor, ChevronRight, Wifi, Heart, Code,
-  Gauge, BookOpen, Download,
+  Gauge, BookOpen, Download, Cloud, Users, Check, Mail,
 } from 'lucide-react';
+import { isPaywallEnabled } from '@/lib/paywall';
 import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { APP_VERSION } from '@/lib/version';
@@ -337,16 +338,21 @@ export default function HomePage() {
             <div className="grid lg:grid-cols-5 gap-8 lg:gap-12 items-center">
               {/* Left: narrative — 3 columns */}
               <div className="lg:col-span-3">
-                <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Support the project</p>
+                <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">
+                  {isPaywallEnabled() ? 'Plans & Pricing' : 'Support the project'}
+                </p>
                 <h2 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-4">
-                  Independently built.
-                  <br />
-                  Community supported.
+                  {isPaywallEnabled() ? (
+                    <>Free to use.<br />Pro to sync.</>
+                  ) : (
+                    <>Independently built.<br />Community supported.</>
+                  )}
                 </h2>
                 <p className="text-base text-muted-foreground leading-relaxed max-w-lg mb-5">
-                  BAU Suite is designed, built, and maintained by one developer for BAS technicians
-                  and controls engineers. Your support helps fund new tools, infrastructure,
-                  and continued development of the platform.
+                  {isPaywallEnabled()
+                    ? 'BAU Suite is free for all local features. Upgrade to Pro for cloud sync and backup, or Team for full collaboration.'
+                    : 'BAU Suite is designed, built, and maintained by one developer for BAS technicians and controls engineers. Your support helps fund new tools, infrastructure, and continued development of the platform.'
+                  }
                 </p>
                 <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                   <div className="flex items-center gap-2">
@@ -359,28 +365,97 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4 text-primary" />
-                    <span>Secure & free to use</span>
+                    <span>{isPaywallEnabled() ? 'Free local-first' : 'Secure & free to use'}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Right: CTA card — 2 columns */}
+              {/* Right: CTA / Pricing cards — 2 columns */}
               <div className="lg:col-span-2">
-                <div className="hp-card-surface p-6 sm:p-8 text-center">
-                  <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-xl bg-primary/10 border border-primary/15 mb-4">
-                    <Heart className="h-6 w-6 text-primary" />
+                {isPaywallEnabled() ? (
+                  <div className="space-y-4">
+                    {/* Free tier */}
+                    <div className="hp-card-surface p-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <p className="text-sm font-bold">Free</p>
+                          <p className="text-xs text-muted-foreground">All local features, forever</p>
+                        </div>
+                        <p className="text-xl font-bold">$0</p>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> 21+ tools</span>
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Offline-first</span>
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Desktop app</span>
+                      </div>
+                    </div>
+
+                    {/* Pro tier */}
+                    <div className="hp-card-surface p-5 border border-primary/30 relative overflow-visible">
+                      <div className="absolute -top-2.5 right-4 z-10 bg-primary text-primary-foreground text-[10px] font-bold px-2.5 py-0.5 rounded-full shadow-sm">POPULAR</div>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Cloud className="h-4 w-4 text-primary" />
+                          <div>
+                            <p className="text-sm font-bold">Pro</p>
+                            <p className="text-xs text-muted-foreground">Cloud Sync</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xl font-bold">$8<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+                          <p className="text-[10px] text-muted-foreground">or $79/year</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Multi-device sync</span>
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Cloud backup</span>
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Messaging</span>
+                      </div>
+                    </div>
+
+                    {/* Team tier */}
+                    <div className="hp-card-surface p-5">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Users className="h-4 w-4 text-blue-500" />
+                          <div>
+                            <p className="text-sm font-bold">Team</p>
+                            <p className="text-xs text-muted-foreground">Collaborate</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xl font-bold">$15<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+                          <p className="text-[10px] text-muted-foreground">or $149/year</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-blue-500" /> Global Projects</span>
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-blue-500" /> Knowledge Base</span>
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-blue-500" /> Team messaging</span>
+                      </div>
+                    </div>
+
+                    <Button size="lg" onClick={() => router.push(user ? '/settings' : '/login')} className="w-full gap-2 hp-btn-glow">
+                      <Zap className="h-4 w-4" /> {user ? 'View Plans' : 'Get Started Free'}
+                    </Button>
                   </div>
-                  <h3 className="text-lg font-bold tracking-tight mb-2">Back the project</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed mb-5">
-                    Help keep BAU Suite growing. Every contribution funds development, hosting, and new features.
-                  </p>
-                  <Button size="lg" onClick={() => router.push('/donate')} className="w-full gap-2 hp-btn-glow">
-                    <Heart className="h-4 w-4" /> Support BAU Suite
-                  </Button>
-                  <p className="mt-3 text-[11px] text-muted-foreground">
-                    One-time and monthly options available
-                  </p>
-                </div>
+                ) : (
+                  <div className="hp-card-surface p-6 sm:p-8 text-center">
+                    <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-xl bg-primary/10 border border-primary/15 mb-4">
+                      <Heart className="h-6 w-6 text-primary" />
+                    </div>
+                    <h3 className="text-lg font-bold tracking-tight mb-2">Back the project</h3>
+                    <p className="text-sm text-muted-foreground leading-relaxed mb-5">
+                      Help keep BAU Suite growing. Every contribution funds development, hosting, and new features.
+                    </p>
+                    <Button size="lg" onClick={() => router.push('/donate')} className="w-full gap-2 hp-btn-glow">
+                      <Heart className="h-4 w-4" /> Support BAU Suite
+                    </Button>
+                    <p className="mt-3 text-[11px] text-muted-foreground">
+                      One-time and monthly options available
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

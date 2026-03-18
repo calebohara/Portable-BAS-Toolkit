@@ -336,14 +336,17 @@ Wraps the app and manages the `SyncManager` lifecycle:
 ```
 App mount → SyncProvider
   ├── mode !== 'authenticated'  → sync disabled, no manager
+  ├── paywall enabled + free tier (no grace period) → sync disabled
   ├── no Supabase client        → sync disabled
-  └── authenticated + client    → create SyncManager
+  └── authenticated + client + access granted → create SyncManager
         ├── Register with sync bridge
         ├── Start 5s polling interval
         ├── Report initial conflict count
         ├── Auto-pull on first login (if no lastPulledAt)
         └── Listen for 'online' events
 ```
+
+**Paywall gate:** When `NEXT_PUBLIC_SYNC_PAYWALL=true`, SyncProvider checks `profile.subscriptionTier` before initializing the SyncManager. Free-tier users get `syncStatus = 'disabled'`. Pro and Team users sync normally. A 7-day grace period allows sync to continue briefly after subscription expiry. When the flag is off (default), all authenticated users sync freely.
 
 **Auto-pull on first login:** If the user has never pulled (new device), SyncProvider automatically purges orphans then does a full pull. This happens once per session (`autoPullFiredRef`).
 

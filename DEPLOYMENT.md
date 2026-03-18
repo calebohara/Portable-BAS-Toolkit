@@ -186,6 +186,18 @@ Configure these in GitHub → Settings → Secrets and variables → Actions:
 | `NEXT_PUBLIC_SUPABASE_URL` | Static export | Baked into the frontend at build time. Without this, the desktop app runs in local-only mode (no sync). |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Static export | Baked into the frontend at build time. Used for Supabase client auth. |
 
+### Subscription paywall (optional — Vercel only)
+
+| Variable | Required by | Purpose |
+|---|---|---|
+| `NEXT_PUBLIC_SYNC_PAYWALL` | Paywall gate | Set to `true` to enable cloud sync paywall. Unset or `false` = free sync for all. |
+| `STRIPE_PRO_MONTHLY_PRICE_ID` | `/api/subscribe/checkout` | Stripe price ID for Pro monthly ($8/mo) |
+| `STRIPE_PRO_YEARLY_PRICE_ID` | `/api/subscribe/checkout` | Stripe price ID for Pro yearly ($79/yr) |
+| `STRIPE_TEAM_MONTHLY_PRICE_ID` | `/api/subscribe/checkout` | Stripe price ID for Team monthly ($15/mo) |
+| `STRIPE_TEAM_YEARLY_PRICE_ID` | `/api/subscribe/checkout` | Stripe price ID for Team yearly ($149/yr) |
+
+These are only needed on Vercel (web deployment). The desktop app has no paywall — it's always free.
+
 > **Important:** `NEXT_PUBLIC_*` vars are embedded in the JavaScript bundle during static export. They are not secret — they're the public anon key. The `SUPABASE_SERVICE_ROLE_KEY` is **never** used in CI because the desktop app has no server-side code.
 
 ### Generating signing keys

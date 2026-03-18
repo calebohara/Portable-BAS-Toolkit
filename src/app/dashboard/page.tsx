@@ -6,7 +6,7 @@ import { format, formatDistanceToNow } from 'date-fns';
 import {
   FolderPlus, Upload, StickyNote, Database, Network, Pin,
   Clock, Star, ChevronRight, HardDrive, FolderKanban, Monitor, ArrowRight,
-  Cloud, FileText, Settings, AlertTriangle, CheckCircle, History,
+  Cloud, FileText, Settings, AlertTriangle, CheckCircle, History, Zap,
 } from 'lucide-react';
 import { useProjects, useRecentActivity, useProjectCounts, useRecentNotes } from '@/hooks/use-projects';
 import { useAppStore } from '@/store/app-store';
@@ -18,6 +18,8 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { navigateToProject } from '@/lib/routes';
 import { useDeviceClass } from '@/hooks/use-device-class';
+import { useAuth } from '@/providers/auth-provider';
+import { isPaywallEnabled, hasSyncAccess } from '@/lib/paywall';
 import { actionIcons } from '@/components/projects/activity-timeline';
 import type { Project } from '@/types';
 
@@ -31,6 +33,8 @@ export default function DashboardPage() {
   const syncConflictCount = useAppStore((s) => s.syncConflictCount);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const { isWindowsDesktopWeb } = useDeviceClass();
+  const { mode, profile } = useAuth();
+  const showUpgradeBanner = isPaywallEnabled() && mode === 'authenticated' && !hasSyncAccess(profile?.subscriptionTier);
 
   // New dashboard data hooks
   const { activity } = useRecentActivity(12);
@@ -132,6 +136,33 @@ export default function DashboardPage() {
               </Button>
             </div>
           </div>
+        )}
+
+        {/* Upgrade Banner — only when paywall is on and user is free tier */}
+        {showUpgradeBanner && (
+          <section>
+            <Card className="border-primary/20 bg-gradient-to-r from-primary/5 via-transparent to-primary/5">
+              <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10">
+                  <Cloud className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold">Unlock Cloud Sync & Collaboration</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Sync projects across devices, automatic cloud backup, direct messaging, and team collaboration. Plans start at $8/month.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  className="gap-1.5 shrink-0"
+                  onClick={() => router.push('/settings')}
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  View Plans
+                </Button>
+              </CardContent>
+            </Card>
+          </section>
         )}
 
         {/* Quick Actions */}

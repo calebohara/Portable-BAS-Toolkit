@@ -5,6 +5,7 @@ import {
   Palette, HardDrive, Info, Trash2, Download, PlayCircle, LogOut,
   Cloud, Upload, AlertTriangle, Monitor, KeyRound, Mail, Database,
   RefreshCw, ChevronRight, Camera, Loader2, ShieldCheck, UserCheck, UserX,
+  Crown, ExternalLink,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
@@ -517,6 +518,70 @@ export default function SettingsPage() {
                       <LogOut className="h-3.5 w-3.5" /> Sign Out
                     </Button>
                   </div>
+
+                  <Separator />
+
+                  {/* Subscription Tier Badge & Management */}
+                  {isPaywallEnabled() && (
+                    <div className="flex items-center justify-between rounded-lg border border-border bg-muted/30 px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                          profile?.subscriptionTier === 'team' ? 'bg-blue-500/10' :
+                          profile?.subscriptionTier === 'pro' ? 'bg-primary/10' :
+                          'bg-muted'
+                        }`}>
+                          <Crown className={`h-4 w-4 ${
+                            profile?.subscriptionTier === 'team' ? 'text-blue-500' :
+                            profile?.subscriptionTier === 'pro' ? 'text-primary' :
+                            'text-muted-foreground'
+                          }`} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold">
+                              {profile?.subscriptionTier === 'team' ? 'Team' :
+                               profile?.subscriptionTier === 'pro' ? 'Pro' : 'Free'} Plan
+                            </p>
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${
+                              profile?.subscriptionTier === 'team' ? 'bg-blue-500/15 text-blue-500 border border-blue-500/25' :
+                              profile?.subscriptionTier === 'pro' ? 'bg-primary/15 text-primary border border-primary/25' :
+                              'bg-muted text-muted-foreground border border-border'
+                            }`}>
+                              {profile?.subscriptionTier === 'free' ? 'FREE' : profile?.subscriptionTier?.toUpperCase()}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {profile?.subscriptionTier === 'free'
+                              ? 'Local-only — upgrade for cloud sync'
+                              : profile?.subscriptionExpiresAt
+                                ? `Renews ${new Date(profile.subscriptionExpiresAt).toLocaleDateString()}`
+                                : 'Active subscription'}
+                          </p>
+                        </div>
+                      </div>
+                      {profile?.subscriptionTier !== 'free' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="gap-1.5 text-xs shrink-0"
+                          onClick={async () => {
+                            try {
+                              const res = await fetch('/api/subscribe/portal', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ stripeCustomerId: '' }),
+                              });
+                              const data = await res.json();
+                              if (data.url) window.location.href = data.url;
+                              else toast.error(data.error || 'Unable to open portal');
+                            } catch { toast.error('Failed to open subscription portal'); }
+                          }}
+                        >
+                          <ExternalLink className="h-3 w-3" /> Manage
+                        </Button>
+                      )}
+                    </div>
+                  )}
 
                   <Separator />
 
