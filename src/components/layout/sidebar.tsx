@@ -15,6 +15,8 @@ import { UpdateNotifier } from './update-notifier';
 import { SyncStatusIndicator } from './sync-status';
 import { OnlineUsers } from './online-users';
 import { APP_VERSION } from '@/lib/version';
+import { useAuth } from '@/providers/auth-provider';
+import { hasSyncAccess } from '@/lib/paywall';
 
 const navGroups = [
   {
@@ -64,6 +66,8 @@ export function Sidebar() {
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
   const isOnline = useAppStore((s) => s.isOnline);
+  const { profile } = useAuth();
+  const showOnlineUsers = hasSyncAccess(profile?.subscriptionTier);
 
   return (
     <aside
@@ -166,8 +170,8 @@ export function Sidebar() {
 
       {/* Footer: sync status, offline warning, version & collapse */}
       <div className="border-t border-sidebar-border px-2 py-2 space-y-1.5">
-        {/* Online users — presence indicator */}
-        <OnlineUsers collapsed={!sidebarOpen} />
+        {/* Online users — presence indicator (Pro+ only when paywall enabled) */}
+        {showOnlineUsers && <OnlineUsers collapsed={!sidebarOpen} />}
 
         {/* Sync indicator — always visible, full-width tap target */}
         <SyncStatusIndicator collapsed={!sidebarOpen} />
