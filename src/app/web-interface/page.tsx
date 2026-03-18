@@ -21,7 +21,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog';
 import { cn, copyToClipboard } from '@/lib/utils';
-import { openUrl } from '@/lib/tauri-bridge';
+import { openUrl, isTauri, nativeProxyFetch } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import {
   useWebInterfaceStore,
@@ -296,18 +296,52 @@ function EmbeddedWorkspace() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [copied, setCopied] = useState(false);
   const [certTrusted, setCertTrusted] = useState(false);
+  const [proxyHtml, setProxyHtml] = useState<string | null>(null);
   const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Detect HTTPS URLs that may have self-signed certs (timeout-based detection)
   const isHttps = activeUrl.startsWith('https://');
   const isPrivateNetwork = /^https?:\/\/(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|localhost|127\.)/.test(activeUrl);
+  const isTauriApp = typeof window !== 'undefined' && isTauri();
 
-  // Start a timeout when loading begins — if iframe hasn't fired onLoad after 8s
-  // and it's HTTPS on a private network, it's likely a cert issue
+  // In Tauri + HTTPS + private network: use Rust proxy to bypass cert issues
   useEffect(() => {
+    if (!activeUrl || !isTauriApp || !isHttps || !isPrivateNetwork) return;
+    if (embedState !== 'loading') return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await nativeProxyFetch(activeUrl);
+        if (cancelled) return;
+        if (response.status >= 200 && response.status < 400 && !response.is_binary) {
+          // Inject a <base> tag so relative URLs resolve correctly
+          const baseTag = `<base href="${activeUrl}">`;
+          const html = response.body.includes('<head>')
+            ? response.body.replace('<head>', `<head>${baseTag}`)
+            : `${baseTag}${response.body}`;
+          setProxyHtml(html);
+          setEmbedState('loaded');
+          if (activeEndpointId) {
+            updateEndpoint(activeEndpointId, { lastKnownEmbedSupport: 'supported' });
+          }
+        } else {
+          setEmbedState('blocked');
+        }
+      } catch {
+        if (!cancelled) {
+          setEmbedState('cert-issue');
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [activeUrl, isTauriApp, isHttps, isPrivateNetwork, embedState, activeEndpointId, setEmbedState, updateEndpoint]);
+
+  // For non-Tauri (web browser): timeout-based cert issue detection
+  useEffect(() => {
+    if (isTauriApp) return; // Tauri uses proxy, not timeout detection
     if (embedState === 'loading' && isHttps && isPrivateNetwork) {
       loadTimerRef.current = setTimeout(() => {
-        // Still loading after 8s on a private HTTPS address = likely self-signed cert
         setEmbedState('cert-issue');
       }, 8000);
     }
@@ -317,7 +351,7 @@ function EmbeddedWorkspace() {
         loadTimerRef.current = null;
       }
     };
-  }, [embedState, isHttps, isPrivateNetwork, setEmbedState]);
+  }, [embedState, isHttps, isPrivateNetwork, setEmbedState, isTauriApp]);
 
   const handleCopyUrl = async () => {
     try {
@@ -335,10 +369,15 @@ function EmbeddedWorkspace() {
   };
 
   const handleRefresh = () => {
-    if (iframeRef.current) {
-      setEmbedState('loading');
-      iframeRef.current.src = activeUrl;
+    setProxyHtml(null);
+    setEmbedState('loading');
+    if (!isTauriApp || !isHttps || !isPrivateNetwork) {
+      // Non-proxy path: reload iframe directly
+      if (iframeRef.current) {
+        iframeRef.current.src = activeUrl;
+      }
     }
+    // Proxy path: the useEffect will re-trigger due to embedState changing to 'loading'
   };
 
   // Trust Certificate flow: open URL in new tab so user can accept the cert,
@@ -469,6 +508,14 @@ function EmbeddedWorkspace() {
               </div>
             </div>
           </div>
+        ) : proxyHtml ? (
+          <iframe
+            ref={iframeRef}
+            srcDoc={proxyHtml}
+            className="w-full h-full border-0"
+            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            title="Panel Web Interface"
+          />
         ) : (
           <iframe
             ref={iframeRef}
@@ -477,7 +524,6 @@ function EmbeddedWorkspace() {
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
             referrerPolicy="no-referrer"
             onLoad={() => {
-              // Clear the cert timeout since we got a response
               if (loadTimerRef.current) {
                 clearTimeout(loadTimerRef.current);
                 loadTimerRef.current = null;
@@ -492,7 +538,6 @@ function EmbeddedWorkspace() {
                 clearTimeout(loadTimerRef.current);
                 loadTimerRef.current = null;
               }
-              // If HTTPS on private network, assume cert issue rather than generic block
               if (isHttps && isPrivateNetwork) {
                 setEmbedState('cert-issue');
               } else {

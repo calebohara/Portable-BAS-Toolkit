@@ -641,6 +641,112 @@ fn resolve_spa_route(path: String) -> Option<String> {
     None
 }
 
+// ─── HTTPS Proxy for BAS Controllers ────────────────────────
+// Many BAS controllers (Siemens PXC, Tridium Niagara, Honeywell, etc.) serve
+// their web UI over HTTPS with self-signed certificates. Browsers block these
+// in iframes with no way to accept the cert. This command proxies requests
+// through the Rust backend using reqwest with cert validation disabled,
+// allowing the frontend to embed controller UIs seamlessly.
+
+#[derive(Serialize, Deserialize)]
+pub struct ProxyResponse {
+    pub status: u16,
+    pub content_type: String,
+    pub body: String,
+    pub is_binary: bool,
+}
+
+/// Check if a host is on a private/local network (safe to proxy without cert validation)
+fn is_private_network(host: &str) -> bool {
+    // RFC 1918 private ranges + localhost
+    host.starts_with("10.")
+        || host.starts_with("192.168.")
+        || host.starts_with("127.")
+        || host == "localhost"
+        || (host.starts_with("172.") && {
+            let parts: Vec<&str> = host.split('.').collect();
+            parts.len() >= 2 && parts[1].parse::<u8>().map_or(false, |n| (16..=31).contains(&n))
+        })
+}
+
+#[tauri::command]
+async fn proxy_fetch(url: String) -> Result<ProxyResponse, String> {
+    // Parse URL to validate and extract host
+    let parsed = reqwest::Url::parse(&url)
+        .map_err(|e| format!("Invalid URL: {}", e))?;
+
+    let host = parsed.host_str().unwrap_or("");
+
+    // Only allow proxying to private network addresses (security boundary)
+    if !is_private_network(host) {
+        return Err("Proxy only available for private network addresses (10.x, 172.16-31.x, 192.168.x, localhost)".to_string());
+    }
+
+    // Build a client that accepts invalid certs (self-signed BAS controllers)
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let response = client.get(&url)
+        .send()
+        .await
+        .map_err(|e| format!("Request failed: {}", e))?;
+
+    let status = response.status().as_u16();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("text/html")
+        .to_string();
+
+    // For HTML content, return as string. For binary, base64 encode.
+    let is_text = content_type.contains("text") || content_type.contains("json")
+        || content_type.contains("xml") || content_type.contains("javascript")
+        || content_type.contains("css") || content_type.contains("svg");
+
+    if is_text {
+        let body = response.text().await
+            .map_err(|e| format!("Failed to read response: {}", e))?;
+        Ok(ProxyResponse {
+            status,
+            content_type,
+            body,
+            is_binary: false,
+        })
+    } else {
+        let bytes = response.bytes().await
+            .map_err(|e| format!("Failed to read response: {}", e))?;
+        use serde::ser::Error;
+        let base64 = base64_encode(&bytes);
+        Ok(ProxyResponse {
+            status,
+            content_type,
+            body: base64,
+            is_binary: true,
+        })
+    }
+}
+
+/// Simple base64 encoding (no external dep needed)
+fn base64_encode(data: &[u8]) -> String {
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut result = String::with_capacity((data.len() + 2) / 3 * 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0] as u32;
+        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
+        let n = (b0 << 16) | (b1 << 8) | b2;
+        result.push(CHARS[(n >> 18 & 63) as usize] as char);
+        result.push(CHARS[(n >> 12 & 63) as usize] as char);
+        if chunk.len() > 1 { result.push(CHARS[(n >> 6 & 63) as usize] as char); } else { result.push('='); }
+        if chunk.len() > 2 { result.push(CHARS[(n & 63) as usize] as char); } else { result.push('='); }
+    }
+    result
+}
+
 // ─── Tauri App ──────────────────────────────────────────────
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -727,6 +833,7 @@ pub fn run() {
             serial_connect,
             serial_send,
             serial_disconnect,
+            proxy_fetch,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

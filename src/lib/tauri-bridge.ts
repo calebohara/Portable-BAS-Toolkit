@@ -158,6 +158,23 @@ export async function onTelnetError(
   return listen(`telnet-error-${sessionId}`, (event: any) => handler(event.payload as string));
 }
 
+// ─── BAS Controller Proxy (cert bypass) ─────────────────────
+// Proxies HTTPS requests to BAS controllers through the Rust backend,
+// bypassing self-signed certificate validation. Only works for private
+// network addresses (10.x, 172.16-31.x, 192.168.x, localhost).
+
+export interface ProxyResponse {
+  status: number;
+  content_type: string;
+  body: string;
+  is_binary: boolean;
+}
+
+export async function nativeProxyFetch(url: string): Promise<ProxyResponse> {
+  const invoke = await getInvoke();
+  return invoke('proxy_fetch', { url }) as Promise<ProxyResponse>;
+}
+
 // ─── Native Serial Port ──────────────────────────────────────
 export interface NativeSerialPortInfo {
   name: string;

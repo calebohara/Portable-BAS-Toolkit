@@ -63,9 +63,12 @@ export async function checkForUpdate(): Promise<UpdateStatus> {
     // Sanitize: if the error contains raw git protocol data or is excessively long,
     // replace with a user-friendly message (happens when latest.json is missing from release)
     const isRawProtocol = raw.includes('refs/tags') || raw.includes('refs/heads') || raw.length > 300;
+    const isNotFound = raw.includes('404') || raw.includes('Not Found') || raw.includes('not found');
     const message = isRawProtocol
       ? 'Could not fetch update info. The update manifest may be missing from the latest release.'
-      : raw;
+      : isNotFound
+        ? 'Update server unreachable. The repository may be private — auto-updates require a public GitHub repository or a custom update endpoint.'
+        : raw;
     logUpdateDebug('tauri-check-error', { error: raw });
     return {
       available: false,
