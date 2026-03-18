@@ -40,3 +40,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# internal strategy docs
+/docs/internal/
+ABCA.md
+AGENTS.md
+audit-report.html
