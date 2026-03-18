@@ -63,6 +63,13 @@ export default function NotepadPage() {
   const isFullscreen = useNotepadEditorStore(s => s.isFullscreen);
   const setFullscreen = useNotepadEditorStore(s => s.setFullscreen);
 
+  // On mobile, always start with file panel closed to prevent fixed overlay blocking the UI
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setShowFilePanel(false);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, col: 1, selectionLength: 0 });
   // Local content buffer for debounced saving
   const [localContent, setLocalContent] = useState<string>('');
