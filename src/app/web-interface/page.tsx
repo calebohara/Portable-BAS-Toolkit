@@ -295,6 +295,29 @@ function EmbeddedWorkspace() {
   const updateEndpoint = useWebInterfaceStore(s => s.updateEndpoint);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [copied, setCopied] = useState(false);
+  const [certTrusted, setCertTrusted] = useState(false);
+  const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Detect HTTPS URLs that may have self-signed certs (timeout-based detection)
+  const isHttps = activeUrl.startsWith('https://');
+  const isPrivateNetwork = /^https?:\/\/(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.|localhost|127\.)/.test(activeUrl);
+
+  // Start a timeout when loading begins — if iframe hasn't fired onLoad after 8s
+  // and it's HTTPS on a private network, it's likely a cert issue
+  useEffect(() => {
+    if (embedState === 'loading' && isHttps && isPrivateNetwork) {
+      loadTimerRef.current = setTimeout(() => {
+        // Still loading after 8s on a private HTTPS address = likely self-signed cert
+        setEmbedState('cert-issue');
+      }, 8000);
+    }
+    return () => {
+      if (loadTimerRef.current) {
+        clearTimeout(loadTimerRef.current);
+        loadTimerRef.current = null;
+      }
+    };
+  }, [embedState, isHttps, isPrivateNetwork, setEmbedState]);
 
   const handleCopyUrl = async () => {
     try {
@@ -315,6 +338,28 @@ function EmbeddedWorkspace() {
     if (iframeRef.current) {
       setEmbedState('loading');
       iframeRef.current.src = activeUrl;
+    }
+  };
+
+  // Trust Certificate flow: open URL in new tab so user can accept the cert,
+  // then retry the embedded iframe
+  const handleTrustCert = () => {
+    openUrl(activeUrl);
+    setCertTrusted(true);
+    toast.info('Accept the certificate in the new tab, then click "Retry Embed" here.');
+  };
+
+  const handleRetryAfterTrust = () => {
+    setCertTrusted(false);
+    setEmbedState('loading');
+    if (iframeRef.current) {
+      // Force reload by blanking then re-setting the src
+      iframeRef.current.src = 'about:blank';
+      setTimeout(() => {
+        if (iframeRef.current) {
+          iframeRef.current.src = activeUrl;
+        }
+      }, 300);
     }
   };
 
@@ -354,7 +399,7 @@ function EmbeddedWorkspace() {
         </div>
       </div>
 
-      {/* Iframe / blocked fallback */}
+      {/* Iframe / blocked / cert-issue fallback */}
       <div className="flex-1 relative bg-white">
         {embedState === 'loading' && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80 z-10">
@@ -365,7 +410,46 @@ function EmbeddedWorkspace() {
           </div>
         )}
 
-        {embedState === 'blocked' ? (
+        {/* Self-signed certificate detected */}
+        {embedState === 'cert-issue' ? (
+          <div className="flex items-center justify-center h-full bg-background">
+            <div className="text-center space-y-4 px-6 max-w-md">
+              <div className="mx-auto w-12 h-12 rounded-full bg-field-warning/10 flex items-center justify-center">
+                <Shield className="h-6 w-6 text-field-warning" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold mb-1">Self-Signed Certificate Detected</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  This device uses HTTPS with an untrusted certificate, which browsers block in embedded views. Trust the certificate in a new tab, then return here to load the embedded interface.
+                </p>
+              </div>
+              <div className="space-y-2">
+                {!certTrusted ? (
+                  <Button onClick={handleTrustCert} className="gap-1.5">
+                    <Shield className="h-4 w-4" /> Trust Certificate in New Tab
+                  </Button>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-primary font-medium">
+                      ✓ Accept the certificate warning in the new tab, then click below.
+                    </p>
+                    <Button onClick={handleRetryAfterTrust} className="gap-1.5">
+                      <RefreshCw className="h-4 w-4" /> Retry Embedded View
+                    </Button>
+                  </div>
+                )}
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <Button variant="ghost" size="sm" onClick={handleOpenExternal} className="gap-1 text-xs text-muted-foreground">
+                    <ExternalLink className="h-3 w-3" /> Open in New Tab Instead
+                  </Button>
+                </div>
+              </div>
+              <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                This is common for BAS controllers (Siemens, Tridium, Honeywell) on private networks. The certificate is self-signed, not a security threat on your local network.
+              </p>
+            </div>
+          </div>
+        ) : embedState === 'blocked' ? (
           <div className="flex items-center justify-center h-full bg-background">
             <div className="text-center space-y-4 px-6 max-w-md">
               <AlertTriangle className="h-10 w-10 text-field-warning mx-auto" />
@@ -393,13 +477,27 @@ function EmbeddedWorkspace() {
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
             referrerPolicy="no-referrer"
             onLoad={() => {
+              // Clear the cert timeout since we got a response
+              if (loadTimerRef.current) {
+                clearTimeout(loadTimerRef.current);
+                loadTimerRef.current = null;
+              }
               setEmbedState('loaded');
               if (activeEndpointId) {
                 updateEndpoint(activeEndpointId, { lastKnownEmbedSupport: 'supported' });
               }
             }}
             onError={() => {
-              setEmbedState('blocked');
+              if (loadTimerRef.current) {
+                clearTimeout(loadTimerRef.current);
+                loadTimerRef.current = null;
+              }
+              // If HTTPS on private network, assume cert issue rather than generic block
+              if (isHttps && isPrivateNetwork) {
+                setEmbedState('cert-issue');
+              } else {
+                setEmbedState('blocked');
+              }
               if (activeEndpointId) {
                 updateEndpoint(activeEndpointId, { lastKnownEmbedSupport: 'blocked' });
               }

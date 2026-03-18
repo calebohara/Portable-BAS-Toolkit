@@ -104,9 +104,9 @@ interface WebInterfaceStore {
   // Active workspace
   activeUrl: string;
   activeEndpointId: string;
-  embedState: 'idle' | 'loading' | 'loaded' | 'blocked';
+  embedState: 'idle' | 'loading' | 'loaded' | 'blocked' | 'cert-issue';
   setActiveUrl: (url: string, endpointId?: string) => void;
-  setEmbedState: (state: 'idle' | 'loading' | 'loaded' | 'blocked') => void;
+  setEmbedState: (state: 'idle' | 'loading' | 'loaded' | 'blocked' | 'cert-issue') => void;
   clearWorkspace: () => void;
 }
 
