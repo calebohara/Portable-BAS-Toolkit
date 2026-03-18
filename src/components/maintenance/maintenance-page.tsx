@@ -280,17 +280,6 @@ function AtmosphericBackground() {
         }}
       />
 
-      {/* Scan beam */}
-      <div
-        className="mt-animated pointer-events-none absolute left-0 right-0 h-[1px]"
-        aria-hidden="true"
-        style={{
-          background:
-            'linear-gradient(90deg, transparent, oklch(0.65 0.12 185 / 50%), oklch(0.65 0.12 185 / 70%), oklch(0.65 0.12 185 / 50%), transparent)',
-          animation: 'mt-scan-line 8s linear infinite',
-        }}
-      />
-
       {/* Glow orbs */}
       <div
         className="mt-animated pointer-events-none absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full"
