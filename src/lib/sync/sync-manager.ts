@@ -685,6 +685,39 @@ export class SyncManager implements SyncManagerInterface {
     console.info(`${LOG_PREFIX} Conflict resolved (keep remote): ${conflictId}`);
   }
 
+  /**
+   * Resolve a conflict by deleting from BOTH local IndexedDB and Supabase (soft-delete).
+   */
+  async resolveDeleteBoth(conflictId: string): Promise<void> {
+    const conflicts = await getAllSyncConflicts();
+    const conflict = conflicts.find((c) => c.id === conflictId);
+    if (!conflict) return;
+
+    const table = entityTypeToTable[conflict.entityType];
+
+    // Soft-delete in Supabase (or hard-delete for activityLog)
+    if (conflict.entityType === 'activityLog') {
+      await this.client
+        .from(table)
+        .delete()
+        .eq('id', conflict.entityId)
+        .eq('user_id', this.userId);
+    } else {
+      await this.client
+        .from(table)
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', conflict.entityId)
+        .eq('user_id', this.userId);
+    }
+
+    // Delete from local IndexedDB silently
+    await bulkDeleteSilent(conflict.entityType, [conflict.entityId]);
+
+    await deleteSyncConflict(conflictId);
+    await this.reportConflictCount();
+    console.info(`${LOG_PREFIX} Conflict resolved (delete both): ${conflictId}`);
+  }
+
   private async reportStatus(): Promise<void> {
     try {
       const counts = await getSyncQueueCount();

@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { AlertTriangle, Monitor, Cloud, ChevronDown, ChevronUp } from 'lucide-react';
+import { AlertTriangle, Monitor, Cloud, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogBody,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { useSyncContext } from '@/providers/sync-provider';
 import { toast } from 'sonner';
 import type { SyncConflict } from '@/types';
@@ -62,12 +63,15 @@ export function SyncConflictsDialog({ open, onOpenChange }: Props) {
     }
   }, [open, getConflicts]);
 
-  const handleResolve = async (id: string, resolution: 'local' | 'remote') => {
+  const handleResolve = async (id: string, resolution: 'local' | 'remote' | 'delete') => {
     setResolving(id);
     try {
       await resolveConflict(id, resolution);
       setConflicts((prev) => prev.filter((c) => c.id !== id));
-      toast.success(resolution === 'local' ? 'Kept local version' : 'Kept cloud version');
+      const msg = resolution === 'local' ? 'Kept local version'
+        : resolution === 'remote' ? 'Kept cloud version'
+        : 'Deleted from both local and cloud';
+      toast.success(msg);
       if (conflicts.length <= 1) {
         onOpenChange(false);
       }
@@ -124,9 +128,10 @@ function ConflictCard({
 }: {
   conflict: SyncConflict;
   resolving: boolean;
-  onResolve: (id: string, resolution: 'local' | 'remote') => void;
+  onResolve: (id: string, resolution: 'local' | 'remote' | 'delete') => void;
 }) {
   const [expanded, setExpanded] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   return (
     <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-4 space-y-3">
@@ -213,7 +218,27 @@ function ConflictCard({
           <Cloud className="h-3.5 w-3.5" />
           Keep Cloud
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
+          onClick={() => setShowDeleteConfirm(true)}
+          disabled={resolving}
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+          Delete
+        </Button>
       </div>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        onOpenChange={setShowDeleteConfirm}
+        title="Delete Conflicting Item"
+        description={`This will permanently delete "${getEntityLabel(conflict)}" from both your local device and the cloud. This action cannot be undone.`}
+        confirmLabel="Delete Both"
+        variant="destructive"
+        onConfirm={() => onResolve(conflict.id, 'delete')}
+      />
     </div>
   );
 }

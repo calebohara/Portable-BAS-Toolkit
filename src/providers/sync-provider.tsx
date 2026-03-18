@@ -11,7 +11,7 @@ interface SyncContextValue {
   triggerFullSync: () => Promise<{ enqueued: number; errors: string[] } | null>;
   triggerPullSync: () => Promise<{ pulled: number; deleted: number; errors: string[] } | null>;
   getConflicts: () => Promise<import('@/types').SyncConflict[]>;
-  resolveConflict: (id: string, resolution: 'local' | 'remote') => Promise<void>;
+  resolveConflict: (id: string, resolution: 'local' | 'remote' | 'delete') => Promise<void>;
 }
 
 const SyncContext = createContext<SyncContextValue>({
@@ -151,12 +151,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return managerRef.current.getConflicts();
   }, []);
 
-  const resolveConflict = useCallback(async (id: string, resolution: 'local' | 'remote') => {
+  const resolveConflict = useCallback(async (id: string, resolution: 'local' | 'remote' | 'delete') => {
     if (!managerRef.current) return;
     if (resolution === 'local') {
       await managerRef.current.resolveKeepLocal(id);
-    } else {
+    } else if (resolution === 'remote') {
       await managerRef.current.resolveKeepRemote(id);
+    } else {
+      await managerRef.current.resolveDeleteBoth(id);
     }
   }, []);
 
