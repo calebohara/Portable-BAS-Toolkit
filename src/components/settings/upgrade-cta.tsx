@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/providers/auth-provider';
 import { toast } from 'sonner';
+import { isTauri } from '@/lib/tauri-bridge';
+import { APP_BASE_URL } from '@/lib/stripe-config';
 
 interface UpgradeCTAProps {
   currentTier: string;
@@ -35,16 +37,28 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
   const handleUpgrade = async (tier: 'pro' | 'team', interval: 'month' | 'year') => {
     setLoading(`${tier}-${interval}`);
     try {
-      const res = await fetch('/api/subscribe/checkout', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tier, interval, userId: user?.id }),
-      });
-      const data = await res.json();
-      if (data.url) {
-        window.location.href = data.url;
+      if (isTauri()) {
+        // In Tauri desktop app, API routes don't exist.
+        // Open the web app's checkout URL in the system browser instead.
+        // The Stripe webhook will update the user's subscription_tier in Supabase,
+        // and the desktop app will pick up the change on next profile fetch.
+        const checkoutUrl = `${APP_BASE_URL}/api/subscribe/checkout-redirect?tier=${tier}&interval=${interval}&userId=${user?.id || ''}`;
+        const { open } = await import('@tauri-apps/plugin-shell');
+        await open(checkoutUrl);
+        toast.success('Opening checkout in your browser. Your subscription will sync automatically after purchase.');
       } else {
-        toast.error(data.error || 'Failed to start checkout');
+        // Web mode — use API route directly
+        const res = await fetch('/api/subscribe/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tier, interval, userId: user?.id }),
+        });
+        const data = await res.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else {
+          toast.error(data.error || 'Failed to start checkout');
+        }
       }
     } catch {
       toast.error('Failed to start checkout');

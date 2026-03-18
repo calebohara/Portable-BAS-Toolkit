@@ -20,6 +20,7 @@ import { navigateToProject } from '@/lib/routes';
 import { useDeviceClass } from '@/hooks/use-device-class';
 import { useAuth } from '@/providers/auth-provider';
 import { isPaywallEnabled, hasSyncAccess } from '@/lib/paywall';
+import { useAuthGate } from '@/hooks/use-auth-gate';
 import { actionIcons } from '@/components/projects/activity-timeline';
 import type { Project } from '@/types';
 
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const { isWindowsDesktopWeb } = useDeviceClass();
   const { mode, profile } = useAuth();
+  const { loading: authGateLoading, shouldShow } = useAuthGate();
   const showUpgradeBanner = isPaywallEnabled() && mode === 'authenticated' && !hasSyncAccess(profile?.subscriptionTier);
 
   // New dashboard data hooks
@@ -55,7 +57,7 @@ export default function DashboardPage() {
     getStorageEstimate().then(setStorage).catch(() => {});
   }, []);
 
-  if (loading) {
+  if (loading || authGateLoading || !shouldShow) {
     return (
       <>
         <TopBar title="Dashboard" />
