@@ -7,6 +7,8 @@ import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
 // ─── Types ──────────────────────────────────────────────────
 export type AuthMode = 'local' | 'authenticated';
 
+export type SubscriptionTier = 'free' | 'pro' | 'team';
+
 export interface UserProfile {
   firstName: string;
   lastName: string;
@@ -14,6 +16,8 @@ export interface UserProfile {
   avatarUrl: string | null;
   approved: boolean;
   role: 'user' | 'admin';
+  subscriptionTier: SubscriptionTier;
+  subscriptionExpiresAt: string | null;
 }
 
 export interface AuthState {
@@ -70,7 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Try fetching with new columns first, fall back to display_name only
       let { data, error } = await client
         .from('profiles')
-        .select('first_name, last_name, display_name, avatar_url, approved, role')
+        .select('first_name, last_name, display_name, avatar_url, approved, role, subscription_tier, subscription_expires_at')
         .eq('id', userId)
         .single();
 
@@ -97,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // Default to approved=true when column doesn't exist (pre-migration)
           approved: schemaFallback ? true : ((d.approved as boolean) ?? true),
           role: (d.role as 'user' | 'admin') ?? 'user',
+          subscriptionTier: (d.subscription_tier as SubscriptionTier) ?? 'free',
+          subscriptionExpiresAt: (d.subscription_expires_at as string) ?? null,
         });
       }
     } catch {
@@ -243,6 +249,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         avatarUrl: data.avatarUrl !== undefined ? data.avatarUrl : (prev?.avatarUrl ?? null),
         approved: prev?.approved ?? true,
         role: prev?.role ?? 'user',
+        subscriptionTier: prev?.subscriptionTier ?? 'free',
+        subscriptionExpiresAt: prev?.subscriptionExpiresAt ?? null,
       }));
 
       return { error: null };

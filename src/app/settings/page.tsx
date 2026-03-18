@@ -18,6 +18,8 @@ import { ChangeEmailDialog } from '@/components/settings/change-email-dialog';
 import { DeleteAccountDialog } from '@/components/settings/delete-account-dialog';
 import { AvatarCropDialog } from '@/components/settings/avatar-crop-dialog';
 import { BugReportsPanel } from '@/components/settings/bug-reports-panel';
+import { UpgradeCTA } from '@/components/settings/upgrade-cta';
+import { hasSyncAccess, isPaywallEnabled } from '@/lib/paywall';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -628,7 +630,14 @@ export default function SettingsPage() {
         {/* ═══════════════════════════════════════════════════════════
             CLOUD & SYNC
         ═══════════════════════════════════════════════════════════ */}
-        {mode === 'authenticated' && (
+        {mode === 'authenticated' && isPaywallEnabled() && !hasSyncAccess(profile?.subscriptionTier) && (
+          <section>
+            <SectionHeading>Cloud & Sync</SectionHeading>
+            <UpgradeCTA currentTier={profile?.subscriptionTier ?? 'free'} />
+          </section>
+        )}
+
+        {mode === 'authenticated' && (!isPaywallEnabled() || hasSyncAccess(profile?.subscriptionTier)) && (
           <section>
             <SectionHeading>Cloud & Sync</SectionHeading>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

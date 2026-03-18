@@ -18,9 +18,17 @@ import { CreateGlobalProjectDialog } from '@/components/global-projects/create-g
 import { JoinGlobalProjectDialog } from '@/components/global-projects/join-global-project-dialog';
 import { MessageBoard } from '@/components/global-projects/message-board';
 import { navigateToGlobalProject } from '@/lib/routes';
+import { isPaywallEnabled, hasCollabAccess } from '@/lib/paywall';
+import { useAuth } from '@/providers/auth-provider';
+import { UpgradeRequiredPage } from '@/components/shared/upgrade-required-page';
 import type { GlobalProjectStatus } from '@/types/global-projects';
 
 export default function GlobalProjectsPage() {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const { profile } = useAuth();
+  if (isPaywallEnabled() && !hasCollabAccess(profile?.subscriptionTier)) {
+    return <UpgradeRequiredPage feature="Global Projects" requiredTier="team" />;
+  }
   return (
     <Suspense fallback={<><TopBar title="Global Projects" /><div className="flex items-center justify-center p-16"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div></>}>
       <GlobalProjectsPageInner />

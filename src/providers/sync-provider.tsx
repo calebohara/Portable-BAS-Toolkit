@@ -6,6 +6,7 @@ import { useAppStore } from '@/store/app-store';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { SyncManager } from '@/lib/sync/sync-manager';
 import { registerSyncManager, unregisterSyncManager, emitPullComplete } from '@/lib/sync/sync-bridge';
+import { hasSyncAccess, isInGracePeriod } from '@/lib/paywall';
 
 interface SyncContextValue {
   triggerFullSync: () => Promise<{ enqueued: number; errors: string[] } | null>;
@@ -26,7 +27,7 @@ export function useSyncContext() {
 }
 
 export function SyncProvider({ children }: { children: React.ReactNode }) {
-  const { mode, user } = useAuth();
+  const { mode, user, profile: authProfile } = useAuth();
   const managerRef = useRef<SyncManager | null>(null);
   const autoPullFiredRef = useRef(false);
   const setSyncStatus = useAppStore((s) => s.setSyncStatus);
@@ -50,6 +51,15 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       setSyncStatus('disabled');
       setPendingSyncCount(0);
       return;
+    }
+
+    // Paywall gate: when enabled, only Pro/Team users (or grace period) get sync
+    if (!hasSyncAccess(authProfile?.subscriptionTier)) {
+      if (!isInGracePeriod(authProfile?.subscriptionExpiresAt ?? null)) {
+        setSyncStatus('disabled');
+        setPendingSyncCount(0);
+        return;
+      }
     }
 
     const client = getSupabaseClient();
@@ -125,7 +135,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       unregisterSyncManager();
       managerRef.current = null;
     };
-  }, [mode, userId, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt, setSyncConflictCount]);
+  }, [mode, userId, authProfile?.subscriptionTier, authProfile?.subscriptionExpiresAt, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt, setSyncConflictCount]);
 
   const triggerFullSync = useCallback(async () => {
     if (managerRef.current) {

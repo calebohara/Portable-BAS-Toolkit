@@ -19,6 +19,8 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getPublicUrl } from '@/lib/storage';
 import type { KbArticle, KbReply } from '@/types/knowledge-base';
+import { isPaywallEnabled, hasCollabAccess } from '@/lib/paywall';
+import { UpgradeRequiredPage } from '@/components/shared/upgrade-required-page';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -66,6 +68,11 @@ function renderMarkdown(text: string): string {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function KnowledgeBasePage() {
+  const { profile } = useAuth();
+  if (isPaywallEnabled() && !hasCollabAccess(profile?.subscriptionTier)) {
+    return <UpgradeRequiredPage feature="Knowledge Base" requiredTier="team" />;
+  }
+
   const router = useRouter();
   const { categories } = useKbCategories();
   const { articles, loading, removeArticle, replyToArticle, removeReply } = useKbArticles();
