@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useState, useRef } from 'react';
+import { useCallback, useRef } from 'react';
 import { X, Plus, PanelLeft } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { NotepadDocument } from '@/types';
@@ -42,11 +42,11 @@ export function NotepadTabBar({
 
   return (
     <div className="flex items-center border-b border-border bg-muted/20 shrink-0">
-      {/* File panel toggle */}
+      {/* File panel toggle — larger touch target on mobile */}
       <button
         onClick={onToggleFilePanel}
         className={cn(
-          'shrink-0 p-2 transition-colors border-r border-border',
+          'shrink-0 p-2.5 md:p-2 transition-colors border-r border-border',
           showFilePanel
             ? 'text-primary bg-primary/5'
             : 'text-muted-foreground hover:text-foreground hover:bg-muted/50',
@@ -54,7 +54,7 @@ export function NotepadTabBar({
         title={showFilePanel ? 'Hide file panel' : 'Show file panel'}
         aria-label="Toggle file panel"
       >
-        <PanelLeft className="h-3.5 w-3.5" />
+        <PanelLeft className="h-4 w-4 md:h-3.5 md:w-3.5" />
       </button>
 
       {/* Tab strip */}
@@ -66,7 +66,8 @@ export function NotepadTabBar({
             <div
               key={doc.id}
               className={cn(
-                'group flex items-center gap-1 shrink-0 border-r border-border px-3 py-1.5 text-xs font-medium cursor-pointer transition-colors',
+                'group flex items-center gap-1.5 shrink-0 border-r border-border',
+                'px-3 py-2.5 md:py-1.5 text-xs font-medium cursor-pointer transition-colors',
                 'hover:bg-muted/50',
                 isActive
                   ? 'bg-background text-foreground border-b-2 border-b-primary -mb-px'
@@ -82,24 +83,29 @@ export function NotepadTabBar({
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onCloseTab(doc.id); }}
-                className="ml-0.5 opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity p-0.5 rounded"
+                className={cn(
+                  'ml-0.5 hover:text-destructive transition-opacity rounded',
+                  // Always visible on mobile (no hover), hover-reveal on desktop
+                  'opacity-100 md:opacity-0 md:group-hover:opacity-100',
+                  'p-1 md:p-0.5',
+                )}
                 aria-label={`Close ${doc.name}`}
               >
-                <X className="h-3 w-3" />
+                <X className="h-3.5 w-3.5 md:h-3 md:w-3" />
               </button>
             </div>
           );
         })}
       </div>
 
-      {/* New document */}
+      {/* New document — larger touch target on mobile */}
       <button
         onClick={onNewDocument}
-        className="shrink-0 p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+        className="shrink-0 p-2.5 md:p-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
         aria-label="New document"
         title="New document (Ctrl+N)"
       >
-        <Plus className="h-3.5 w-3.5" />
+        <Plus className="h-4 w-4 md:h-3.5 md:w-3.5" />
       </button>
     </div>
   );

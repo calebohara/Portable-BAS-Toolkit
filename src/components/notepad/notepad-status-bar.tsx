@@ -39,28 +39,26 @@ export function NotepadStatusBar({
   const setIndentSize = useNotepadEditorStore(s => s.setIndentSize);
 
   return (
-    <div className="flex items-center gap-1 border-t border-border bg-muted/30 px-3 py-1 text-[11px] text-muted-foreground select-none shrink-0 overflow-x-auto">
-      {/* Cursor position */}
+    <div className="flex items-center gap-1.5 md:gap-1 border-t border-border bg-muted/30 px-2 md:px-3 py-1.5 md:py-1 text-[11px] text-muted-foreground select-none shrink-0">
+      {/* Cursor position — always visible */}
       <span className="shrink-0">
         Ln {cursor.line}, Col {cursor.col}
         {cursor.selectionLength > 0 && (
-          <span className="ml-1 text-primary">({cursor.selectionLength} selected)</span>
+          <span className="ml-1 text-primary">({cursor.selectionLength} sel)</span>
         )}
       </span>
 
-      <span className="mx-1.5 text-border">|</span>
-
-      {/* Counts — hidden on very small screens */}
+      {/* Counts — hidden on mobile */}
+      <span className="hidden sm:inline mx-1 text-border">|</span>
       <span className="shrink-0 hidden sm:inline">
         {charCount.toLocaleString()} chars
       </span>
-      <span className="shrink-0 hidden sm:inline ml-2">
+      <span className="shrink-0 hidden sm:inline ml-1.5">
         {wordCount.toLocaleString()} words
       </span>
 
-      <span className="hidden sm:inline mx-1.5 text-border">|</span>
-
-      {/* Indent size */}
+      {/* Indent size — hidden on mobile */}
+      <span className="hidden md:inline mx-1 text-border">|</span>
       <span className="shrink-0 hidden md:inline">
         Spaces: {indentSize}
         <button
@@ -72,20 +70,19 @@ export function NotepadStatusBar({
         </button>
       </span>
 
-      <span className="hidden md:inline mx-1.5 text-border">|</span>
-
-      {/* UTF-8 */}
+      {/* UTF-8 — hidden on mobile */}
+      <span className="hidden md:inline mx-1 text-border">|</span>
       <span className="shrink-0 hidden md:inline">UTF-8</span>
 
       {/* Spacer */}
       <div className="flex-1" />
 
-      {/* Toggle buttons */}
+      {/* Right side controls */}
       <div className="flex items-center gap-0.5 shrink-0">
-        {/* Font size */}
+        {/* Font size — hidden on mobile */}
         <button
           onClick={() => setFontSize(fontSize - 1)}
-          className="p-1 rounded hover:bg-muted hover:text-foreground transition-colors hidden sm:block"
+          className="p-1.5 md:p-1 rounded hover:bg-muted hover:text-foreground transition-colors hidden sm:block"
           title="Decrease font size"
           disabled={fontSize <= 10}
         >
@@ -94,58 +91,60 @@ export function NotepadStatusBar({
         <span className="text-[10px] min-w-6 text-center hidden sm:block">{fontSize}</span>
         <button
           onClick={() => setFontSize(fontSize + 1)}
-          className="p-1 rounded hover:bg-muted hover:text-foreground transition-colors hidden sm:block"
+          className="p-1.5 md:p-1 rounded hover:bg-muted hover:text-foreground transition-colors hidden sm:block"
           title="Increase font size"
           disabled={fontSize >= 24}
         >
           <Plus className="h-3 w-3" />
         </button>
 
-        <span className="hidden sm:inline mx-1 text-border">|</span>
+        <span className="hidden sm:inline mx-0.5 text-border">|</span>
 
-        {/* Word wrap toggle */}
+        {/* Toggle buttons — always visible, larger touch on mobile */}
         <button
           onClick={() => setWordWrap(!wordWrap)}
           className={cn(
-            'p-1 rounded transition-colors',
+            'p-1.5 md:p-1 rounded transition-colors',
             wordWrap ? 'text-primary bg-primary/10' : 'hover:bg-muted hover:text-foreground',
           )}
           title={`Word wrap: ${wordWrap ? 'On' : 'Off'}`}
+          aria-label={`Word wrap: ${wordWrap ? 'On' : 'Off'}`}
         >
-          <WrapText className="h-3 w-3" />
+          <WrapText className="h-3.5 w-3.5 md:h-3 md:w-3" />
         </button>
 
-        {/* Line numbers toggle */}
         <button
           onClick={() => setShowLineNumbers(!showLineNumbers)}
           className={cn(
-            'p-1 rounded transition-colors',
+            'p-1.5 md:p-1 rounded transition-colors',
             showLineNumbers ? 'text-primary bg-primary/10' : 'hover:bg-muted hover:text-foreground',
           )}
           title={`Line numbers: ${showLineNumbers ? 'On' : 'Off'}`}
+          aria-label={`Line numbers: ${showLineNumbers ? 'On' : 'Off'}`}
         >
-          <Hash className="h-3 w-3" />
+          <Hash className="h-3.5 w-3.5 md:h-3 md:w-3" />
         </button>
 
-        {/* Whitespace toggle */}
+        {/* Whitespace — hidden on mobile */}
         <button
           onClick={() => setShowWhitespace(!showWhitespace)}
           className={cn(
-            'p-1 rounded transition-colors hidden sm:block',
+            'p-1.5 md:p-1 rounded transition-colors hidden sm:block',
             showWhitespace ? 'text-primary bg-primary/10' : 'hover:bg-muted hover:text-foreground',
           )}
           title={`Whitespace: ${showWhitespace ? 'Visible' : 'Hidden'}`}
+          aria-label={`Whitespace: ${showWhitespace ? 'Visible' : 'Hidden'}`}
         >
           <Eye className="h-3 w-3" />
         </button>
 
-        <span className="mx-1 text-border">|</span>
+        <span className="mx-0.5 text-border">|</span>
 
-        {/* Language selector */}
+        {/* Language selector — always visible */}
         <select
           value={language}
           onChange={e => onLanguageChange(e.target.value as NotepadLanguage)}
-          className="bg-transparent text-[11px] text-muted-foreground hover:text-foreground cursor-pointer outline-none border-none pr-1"
+          className="bg-transparent text-[11px] text-muted-foreground hover:text-foreground cursor-pointer outline-none border-none py-1"
           title="Language mode"
         >
           {LANGUAGES.map(l => (

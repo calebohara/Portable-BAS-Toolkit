@@ -239,7 +239,7 @@ export default function NotepadPage() {
         'flex flex-col',
         isFullscreen ? 'fixed inset-0 z-50 bg-background' : 'flex-1',
       )}
-      style={!isFullscreen ? { height: 'calc(100vh - 3.5rem)' } : undefined}
+      style={!isFullscreen ? { height: 'calc(100dvh - 3.5rem)' } : undefined}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -282,7 +282,7 @@ export default function NotepadPage() {
           </div>
         )}
 
-        {/* File panel — hidden on mobile by default, overlay on mobile */}
+        {/* File panel — sidebar on desktop, slide-over drawer on mobile */}
         {showFilePanel && (
           <>
             {/* Mobile backdrop */}
@@ -290,10 +290,7 @@ export default function NotepadPage() {
               className="fixed inset-0 bg-black/40 z-30 md:hidden"
               onClick={() => setShowFilePanel(false)}
             />
-            <div className={cn(
-              'shrink-0 z-30',
-              'max-md:fixed max-md:left-0 max-md:top-0 max-md:bottom-0',
-            )}>
+            <div className="shrink-0 z-30 max-md:fixed max-md:left-0 max-md:top-0 max-md:bottom-0">
               <NotepadFilePanel
                 documents={documents}
                 onNewDocument={handleNewDocument}

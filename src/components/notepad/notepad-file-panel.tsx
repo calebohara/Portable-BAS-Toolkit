@@ -88,7 +88,10 @@ export function NotepadFilePanel({
 
   return (
     <>
-      <div className="flex flex-col h-full border-r border-border bg-muted/10" style={{ width: 220 }}>
+      <div
+        className="flex flex-col h-full border-r border-border bg-background md:bg-muted/10"
+        style={{ width: 'min(280px, 80vw)', minWidth: 220 }}
+      >
         {/* Header */}
         <div className="shrink-0 p-2 space-y-2 border-b border-border">
           <div className="flex items-center gap-1">
