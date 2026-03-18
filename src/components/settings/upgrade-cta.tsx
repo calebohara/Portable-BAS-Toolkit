@@ -64,9 +64,9 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {/* Pro Card */}
-        <Card className="relative border-primary/30">
-          <div className="absolute -top-2.5 left-4">
-            <Badge className="bg-primary text-primary-foreground text-[10px] font-bold">
+        <Card className="relative overflow-visible border-primary/30">
+          <div className="absolute -top-2.5 left-4 z-10">
+            <Badge className="bg-primary text-primary-foreground text-[10px] font-bold shadow-sm">
               RECOMMENDED
             </Badge>
           </div>
