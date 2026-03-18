@@ -24,6 +24,9 @@ export class SyncManager implements SyncManagerInterface {
   private processing = false;
   private onStatusChange: StatusCallback | null = null;
   private onConflictCountChange: ConflictCallback | null = null;
+  // Entity types whose Supabase tables don't exist — skip sync for these
+  // to prevent retry storms that freeze the UI
+  private brokenEntityTypes = new Set<string>();
 
   constructor(client: SupabaseClient, userId: string) {
     this.client = client;
@@ -148,6 +151,13 @@ export class SyncManager implements SyncManagerInterface {
   }
 
   private async processItem(item: SyncQueueItem): Promise<boolean> {
+    // Skip entity types whose Supabase tables are missing (prevents retry storm / UI freeze)
+    if (this.brokenEntityTypes.has(item.entityType)) {
+      console.warn(`${LOG_PREFIX} Skipping ${item.entityType}/${item.entityId} — table does not exist in Supabase`);
+      await deleteSyncItem(item.id);
+      return true;
+    }
+
     // Pre-flight validation: catch anything that slipped past enqueue
     if (item.action !== 'delete') {
       const reason = validateSyncable(item.entityType, (item.payload ?? {}) as Record<string, unknown>);
@@ -247,6 +257,20 @@ export class SyncManager implements SyncManagerInterface {
         : (err && typeof err === 'object' && 'message' in err)
           ? String((err as { message: string }).message)
           : JSON.stringify(err);
+
+      // Detect "relation does not exist" — table missing from Supabase.
+      // Mark this entity type as broken to prevent retry storms that freeze the UI.
+      const errorCode = (err && typeof err === 'object' && 'code' in err)
+        ? String((err as { code: string }).code) : '';
+      if (errorCode === '42P01' || errorMsg.includes('relation') && errorMsg.includes('does not exist')) {
+        console.error(
+          `${LOG_PREFIX} Table missing for "${item.entityType}" — disabling sync for this entity type this session`,
+        );
+        this.brokenEntityTypes.add(item.entityType);
+        await deleteSyncItem(item.id);
+        return true; // Don't retry — table doesn't exist
+      }
+
       const newRetryCount = item.retriedCount + 1;
 
       console.warn(
@@ -404,6 +428,9 @@ export class SyncManager implements SyncManagerInterface {
     const errors: string[] = [];
 
     for (const entityType of SYNC_ORDER) {
+      // Skip entity types whose tables are missing from Supabase
+      if (this.brokenEntityTypes.has(entityType)) continue;
+
       try {
         const table = entityTypeToTable[entityType];
         const isActivityLog = entityType === 'activityLog';
@@ -477,6 +504,13 @@ export class SyncManager implements SyncManagerInterface {
           : (err && typeof err === 'object' && 'message' in err)
             ? String((err as { message: string }).message)
             : String(err);
+        // Detect missing table — disable this entity type for the session
+        const errCode = (err && typeof err === 'object' && 'code' in err)
+          ? String((err as { code: string }).code) : '';
+        if (errCode === '42P01' || (msg.includes('relation') && msg.includes('does not exist'))) {
+          console.error(`${LOG_PREFIX} Table missing for "${entityType}" — disabling sync this session`);
+          this.brokenEntityTypes.add(entityType);
+        }
         console.warn(`${LOG_PREFIX} Pull failed for "${entityType}":`, msg);
         errors.push(`${entityType}: ${msg}`);
       }

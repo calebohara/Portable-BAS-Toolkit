@@ -499,6 +499,27 @@ create trigger project_notepad_entries_updated_at
   before update on project_notepad_entries
   for each row execute function set_updated_at();
 
+-- ─── Notepad Documents ─────────────────────────────────────────────────────
+-- Full-featured code/text editor documents (independent from project notepad entries).
+create table if not exists notepad_documents (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null default 'Untitled',
+  content text not null default '',
+  language text not null default 'plaintext',
+  deleted_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table notepad_documents enable row level security;
+create policy "Users can manage their own notepad documents"
+  on notepad_documents for all using (auth.uid() = user_id);
+
+create trigger notepad_documents_updated_at
+  before update on notepad_documents
+  for each row execute function set_updated_at();
+
 -- ─── User Settings ──────────────────────────────────────────────────────────
 -- Per-user app preferences that may sync across devices in the future.
 -- Currently stored in Zustand/localStorage; this table is for future sync.
@@ -540,3 +561,5 @@ create index if not exists idx_terminal_project on terminal_session_logs(project
 create index if not exists idx_pid_tuning_project on pid_tuning_sessions(project_id);
 create index if not exists idx_notepad_entries_project on project_notepad_entries(project_id);
 create index if not exists idx_notepad_entries_user on project_notepad_entries(user_id);
+create index if not exists idx_notepad_documents_user on notepad_documents(user_id);
+create index if not exists idx_notepad_documents_updated on notepad_documents(updated_at);
