@@ -49,4 +49,5 @@ audit-report.html
 
 # markdown docs (kept local only)
 *.md
+!README.md
 docs/**/*.md
