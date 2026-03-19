@@ -8,6 +8,9 @@ export type Protocol = 'http' | 'https';
 export type OpenMode = 'auto' | 'embedded' | 'new-tab';
 export type EmbedSupport = 'unknown' | 'supported' | 'blocked';
 
+export type ControllerFamily = 'siemens-pxc' | 'tridium' | 'honeywell' | 'schneider' | 'johnson-controls' | 'distech' | 'other' | '';
+export type AccessMethod = 'wlan-svc' | 'wan-tool-port' | 'building-lan' | 'vpn-remote' | 'direct-connect' | '';
+
 export interface WebEndpoint {
   id: string;
   friendlyName: string;
@@ -18,6 +21,9 @@ export interface WebEndpoint {
   projectId: string;
   panelName: string;
   systemName: string;
+  controllerFamily: ControllerFamily;
+  accessMethod: AccessMethod;
+  accessMethodNote: string;
   notes: string;
   tags: string[];
   createdAt: string;
@@ -27,6 +33,26 @@ export interface WebEndpoint {
   favorite: boolean;
   lastKnownEmbedSupport: EmbedSupport;
 }
+
+/** Siemens PXC quick-connect presets */
+export const SIEMENS_PRESETS = [
+  {
+    label: 'PXC WLAN / SVC Port',
+    host: '192.168.252.1',
+    protocol: 'https' as Protocol,
+    port: '443',
+    description: 'Wi-Fi service connection — connect to the controller\'s wireless AP first',
+    accessMethod: 'wlan-svc' as AccessMethod,
+  },
+  {
+    label: 'PXC WAN / Tool Port (Eth2)',
+    host: '192.168.250.2',
+    protocol: 'https' as Protocol,
+    port: '443',
+    description: 'Direct Ethernet to the WAN tool port — set laptop to 192.168.250.x subnet',
+    accessMethod: 'wan-tool-port' as AccessMethod,
+  },
+] as const;
 
 export interface RecentConnection {
   id: string;

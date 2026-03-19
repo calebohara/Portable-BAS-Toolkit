@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import {
   Globe, ExternalLink, Star, Copy, Check, Trash2, Edit, RefreshCw,
   Plus, ChevronDown, ChevronUp, AlertTriangle, Shield, X,
-  Clock, Play, Bookmark, Info, Download, Search,
+  Clock, Play, Bookmark, Info, Download, Search, Wifi, Plug, Zap,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -26,7 +26,8 @@ import { toast } from 'sonner';
 import {
   useWebInterfaceStore,
   buildUrl, isSafeUrl, isValidHost, isValidPort,
-  type WebEndpoint, type Protocol, type OpenMode,
+  SIEMENS_PRESETS,
+  type WebEndpoint, type Protocol, type OpenMode, type ControllerFamily, type AccessMethod,
 } from '@/store/web-interface-store';
 import { useProjects } from '@/hooks/use-projects';
 
@@ -62,37 +63,61 @@ function UrlPreview({ protocol, host, port, path }: {
   );
 }
 
-// ─── Security Guidance ───────────────────────────────────────
+// ─── Connection Guidance ─────────────────────────────────────
 function SecurityGuidance() {
   const [open, setOpen] = useState(false);
+  const isTauriApp = typeof window !== 'undefined' && isTauri();
   return (
     <div className="rounded-lg border border-border bg-muted/20 p-3 space-y-2">
       <button
         onClick={() => setOpen(!open)}
         className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground w-full"
       >
-        <Shield className="h-3.5 w-3.5" />
-        <span>Browser Security & Embedding Limitations</span>
+        <Info className="h-3.5 w-3.5" />
+        <span>Connection Help & Siemens PXC Guide</span>
         {open ? <ChevronUp className="h-3 w-3 ml-auto" /> : <ChevronDown className="h-3 w-3 ml-auto" />}
       </button>
       {open && (
-        <div className="text-xs text-muted-foreground space-y-2 pt-1">
+        <div className="text-xs text-muted-foreground space-y-3 pt-1">
+          {/* Siemens PXC Access Guide */}
           <div className="space-y-1">
-            <p className="font-medium text-foreground">Why embedded view may not work:</p>
+            <p className="font-medium text-foreground">Siemens PXC7 / PXC.A Access:</p>
             <ul className="list-disc list-inside space-y-0.5 pl-1">
-              <li><strong>X-Frame-Options / CSP headers</strong> — Most panel web interfaces deny embedding via iframe. This is a server-side security setting we cannot override.</li>
-              <li><strong>Mixed content</strong> — If BAU Suite runs on HTTPS and the panel uses HTTP, browsers block the connection. Use &quot;New Tab&quot; mode instead.</li>
-              <li><strong>Self-signed certificates</strong> — Panel HTTPS with untrusted certificates will fail silently in iframes. Open the panel URL directly in a new tab first to accept the certificate.</li>
-              <li><strong>Network access</strong> — The browser must be on the same network as the panel. BAU Suite cannot bridge networks.</li>
+              <li><strong>WLAN SVC</strong> — Connect to controller Wi-Fi AP (SSID on label), browse to <span className="font-mono">192.168.252.1</span></li>
+              <li><strong>WAN Eth2 Tool Port</strong> — Direct Ethernet, set laptop to <span className="font-mono">192.168.250.x</span>, browse to <span className="font-mono">192.168.250.2</span></li>
+              <li><strong>LAN (post-load)</strong> — After project load, use the site-assigned IP on switched LAN ports</li>
+              <li><strong>Protocol:</strong> HTTPS only (port 443). HTTP redirects to HTTPS. Self-signed certs are default.</li>
             </ul>
           </div>
+          {/* Runtime-specific guidance */}
           <div className="space-y-1">
-            <p className="font-medium text-foreground">Recommended workflow:</p>
+            <p className="font-medium text-foreground">
+              {isTauriApp ? 'Desktop App Mode:' : 'Web Browser Mode:'}
+            </p>
             <ul className="list-disc list-inside space-y-0.5 pl-1">
-              <li>Try <strong>Auto</strong> mode first — it attempts embedding and falls back to &quot;New Tab&quot; if blocked</li>
-              <li>For panels with self-signed certs, open in new tab first, accept the cert, then try embedded</li>
-              <li>Use &quot;New Tab&quot; mode for reliable access — BAU Suite still tracks your session history and notes</li>
-              <li>Save frequently used panels for quick relaunch</li>
+              {isTauriApp ? (
+                <>
+                  <li><strong>Auto mode</strong> proxies through the desktop app, bypassing self-signed certificate issues automatically</li>
+                  <li>Interactive pages (forms, login) may work better in <strong>New Tab</strong> mode</li>
+                  <li>The proxy only works for private network addresses (10.x, 172.x, 192.168.x)</li>
+                </>
+              ) : (
+                <>
+                  <li>Self-signed certs block iframe embedding — use <strong>New Tab</strong> for reliable access</li>
+                  <li>For the <strong>desktop app</strong>, embedded view bypasses cert issues automatically</li>
+                  <li>BAU Suite tracks your session history and saved endpoints regardless of open mode</li>
+                </>
+              )}
+            </ul>
+          </div>
+          {/* Common issues */}
+          <div className="space-y-1">
+            <p className="font-medium text-foreground">Common Issues:</p>
+            <ul className="list-disc list-inside space-y-0.5 pl-1">
+              <li><strong>No connection</strong> — Verify laptop is on the correct subnet (check IP settings)</li>
+              <li><strong>Cert warning</strong> — Normal for BAS controllers. Accept once, then embedded view works</li>
+              <li><strong>Wrong port</strong> — LAN ports ≠ WAN tool port. They have different IPs/subnets</li>
+              <li><strong>SVC vs LAN</strong> — WLAN SVC and WAN Eth2 are for service only, not BACnet networking</li>
             </ul>
           </div>
         </div>
@@ -216,6 +241,36 @@ function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
                   className="h-8 text-xs"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Controller Family</Label>
+                <Select value={form.controllerFamily || '_none'} onValueChange={v => v && setForm(f => ({ ...f, controllerFamily: (v === '_none' ? '' : v) as ControllerFamily }))}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">Not specified</SelectItem>
+                    <SelectItem value="siemens-pxc">Siemens PXC</SelectItem>
+                    <SelectItem value="tridium">Tridium / Niagara</SelectItem>
+                    <SelectItem value="honeywell">Honeywell</SelectItem>
+                    <SelectItem value="schneider">Schneider Electric</SelectItem>
+                    <SelectItem value="johnson-controls">Johnson Controls</SelectItem>
+                    <SelectItem value="distech">Distech Controls</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Access Method</Label>
+                <Select value={form.accessMethod || '_none'} onValueChange={v => v && setForm(f => ({ ...f, accessMethod: (v === '_none' ? '' : v) as AccessMethod }))}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Select..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="_none">Not specified</SelectItem>
+                    <SelectItem value="wlan-svc">WLAN / SVC Port</SelectItem>
+                    <SelectItem value="wan-tool-port">WAN / Tool Port</SelectItem>
+                    <SelectItem value="building-lan">Building LAN</SelectItem>
+                    <SelectItem value="vpn-remote">VPN / Remote</SelectItem>
+                    <SelectItem value="direct-connect">Direct Connect</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1.5 sm:col-span-2">
                 <Label className="text-xs">Project</Label>
                 <Select value={form.projectId || '_none'} onValueChange={v => v && setForm(f => ({ ...f, projectId: v === '_none' ? '' : v }))}>
@@ -274,6 +329,9 @@ function createBlankEndpoint(): WebEndpoint {
     projectId: '',
     panelName: '',
     systemName: '',
+    controllerFamily: '',
+    accessMethod: '',
+    accessMethodNote: '',
     notes: '',
     tags: [],
     createdAt: '',
@@ -484,7 +542,10 @@ function EmbeddedWorkspace() {
                 </div>
               </div>
               <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
-                This is common for BAS controllers (Siemens, Tridium, Honeywell) on private networks. The certificate is self-signed, not a security threat on your local network.
+                Self-signed certs are standard on BAS controllers (Siemens PXC, Tridium, Honeywell). This is not a security threat on your local network. If using the desktop app, embedded view handles certificates automatically.
+              </p>
+              <p className="text-[10px] text-muted-foreground/60 leading-relaxed">
+                <strong>No response?</strong> Verify your laptop is on the correct subnet — WLAN SVC uses 192.168.252.x, WAN tool port uses 192.168.250.x.
               </p>
             </div>
           </div>
@@ -695,6 +756,42 @@ export default function WebInterfacePage() {
       <div className="flex flex-col lg:flex-row" style={{ height: 'calc(100vh - 3.5rem)' }}>
         {/* Left panel — launch form + endpoints + recent */}
         <div className="w-full lg:w-96 shrink-0 border-r border-border overflow-y-auto max-h-[50vh] lg:max-h-[calc(100vh-3.5rem)]">
+          {/* Siemens Quick Connect */}
+          <div className="p-4 pb-3 border-b border-border">
+            <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+              <Zap className="h-3 w-3" /> Quick Connect — Siemens PXC
+            </h2>
+            <div className="grid gap-2">
+              {SIEMENS_PRESETS.map(preset => (
+                <button
+                  key={preset.host}
+                  onClick={() => {
+                    setHost(preset.host);
+                    setProtocol(preset.protocol);
+                    setPort('');
+                    setPath('');
+                  }}
+                  className={cn(
+                    'flex items-start gap-2.5 w-full rounded-lg border border-border px-3 py-2.5 text-left transition-all',
+                    'hover:border-primary/40 hover:bg-primary/5',
+                    host === preset.host && 'border-primary/60 bg-primary/10',
+                  )}
+                >
+                  {preset.accessMethod === 'wlan-svc' ? (
+                    <Wifi className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
+                  ) : (
+                    <Plug className="h-4 w-4 text-emerald-400 mt-0.5 shrink-0" />
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium">{preset.label}</div>
+                    <div className="text-[10px] text-muted-foreground font-mono">{preset.host}</div>
+                    <div className="text-[10px] text-muted-foreground/70 mt-0.5 leading-tight">{preset.description}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Launch Form */}
           <div className="p-4 space-y-3 border-b border-border">
             <h2 className="text-sm font-semibold flex items-center gap-2">
