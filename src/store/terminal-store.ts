@@ -147,7 +147,7 @@ function makeSession(opts?: { connectionMode?: ConnectionMode; host?: string; po
     baudRate: opts?.baudRate || 115200,
     lineEnding: opts?.lineEnding || 'crlf',
     localEcho: false,
-    lineMode: true,
+    lineMode: false,
     connectionState: 'disconnected',
     errorMessage: '',
     buffer: [],
@@ -311,7 +311,7 @@ export const useTerminalStore = create<TerminalStore>()(
             flowControl: s.flowControl ?? ('none' as FlowControl),
             lineEnding: s.lineEnding ?? ('crlf' as LineEnding),
             localEcho: s.localEcho ?? false,
-            lineMode: s.lineMode ?? true,
+            lineMode: s.lineMode ?? false,
             sessionNotes: s.sessionNotes ?? '',
           })),
         };

@@ -413,6 +413,27 @@ async fn telnet_send(
 
 #[tauri::command]
 #[allow(non_snake_case)]
+async fn telnet_send_raw(
+    state: tauri::State<'_, TelnetState>,
+    sessionId: String,
+    data: String,
+) -> Result<(), String> {
+    let writer = {
+        let connections = state.0.lock().await;
+        match connections.get(&sessionId) {
+            Some(conn) => conn.writer.clone(),
+            None => return Err("Not connected".to_string()),
+        }
+    };
+    let mut w = writer.lock().await;
+    w.write_all(data.as_bytes())
+        .await
+        .map_err(|e| format!("Send failed: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
 async fn telnet_disconnect(
     state: tauri::State<'_, TelnetState>,
     sessionId: String,
@@ -594,6 +615,29 @@ async fn serial_send(
     tokio::task::spawn_blocking(move || {
         let mut port = port.lock().unwrap();
         port.write_all(payload.as_bytes())
+            .map_err(|e| format!("Send failed: {}", e))
+    })
+    .await
+    .map_err(|e| format!("Send task failed: {}", e))?
+}
+
+#[tauri::command]
+#[allow(non_snake_case)]
+async fn serial_send_raw(
+    state: tauri::State<'_, SerialState>,
+    sessionId: String,
+    data: String,
+) -> Result<(), String> {
+    let port = {
+        let connections = state.0.lock().await;
+        match connections.get(&sessionId) {
+            Some(conn) => conn.port.clone(),
+            None => return Err("Not connected".to_string()),
+        }
+    };
+    tokio::task::spawn_blocking(move || {
+        let mut port = port.lock().unwrap();
+        port.write_all(data.as_bytes())
             .map_err(|e| format!("Send failed: {}", e))
     })
     .await
@@ -828,10 +872,12 @@ pub fn run() {
             resolve_spa_route,
             telnet_connect,
             telnet_send,
+            telnet_send_raw,
             telnet_disconnect,
             serial_list_ports,
             serial_connect,
             serial_send,
+            serial_send_raw,
             serial_disconnect,
             proxy_fetch,
         ])

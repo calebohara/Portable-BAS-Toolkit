@@ -114,6 +114,14 @@ export async function nativeTelnetSend(
   await invoke('telnet_send', { sessionId, data, lineEnding: lineEnding ?? 'crlf' });
 }
 
+export async function nativeTelnetSendRaw(
+  sessionId: string,
+  data: string,
+): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke('telnet_send_raw', { sessionId, data });
+}
+
 export async function nativeTelnetDisconnect(
   sessionId: string,
 ): Promise<void> {
@@ -205,6 +213,14 @@ export async function nativeSerialSend(
 ): Promise<void> {
   const invoke = await getInvoke();
   await invoke('serial_send', { sessionId, data, lineEnding: lineEnding ?? 'crlf' });
+}
+
+export async function nativeSerialSendRaw(
+  sessionId: string,
+  data: string,
+): Promise<void> {
+  const invoke = await getInvoke();
+  await invoke('serial_send_raw', { sessionId, data });
 }
 
 export async function nativeSerialDisconnect(

@@ -54,6 +54,8 @@ import {
   onSerialData,
   onSerialClosed,
   onSerialError,
+  nativeTelnetSendRaw,
+  nativeSerialSendRaw,
   type NativeSerialPortInfo,
 } from '@/lib/tauri-bridge';
 import { parseAnsiLine, processCarriageReturns, containsClearScreen } from '@/lib/hmi/ansi-parser';
@@ -252,7 +254,7 @@ function ProfilesSidebar({ session, onApplyProfile }: {
 }
 
 // ─── Terminal Output ─────────────────────────────────────────
-function TerminalView({ session, fontSize }: { session: TerminalSession; fontSize: number }) {
+function TerminalView({ session, fontSize, onRawSend }: { session: TerminalSession; fontSize: number; onRawSend?: (data: string) => void }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -261,6 +263,35 @@ function TerminalView({ session, fontSize }: { session: TerminalSession; fontSiz
       bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [session.buffer.length, session.paused]);
+
+  const handleTerminalKeyDown = useCallback((e: React.KeyboardEvent) => {
+    // Only intercept when connected in character mode (not line mode)
+    if (session.connectionState !== 'connected' || session.lineMode || !onRawSend) return;
+
+    e.preventDefault();
+
+    if (e.key === 'Enter') {
+      const ending = session.lineEnding === 'cr' ? '\r' : session.lineEnding === 'lf' ? '\n' : '\r\n';
+      onRawSend(ending);
+    } else if (e.key === 'Backspace') {
+      onRawSend('\x08');
+    } else if (e.key === 'Delete') {
+      onRawSend('\x7f');
+    } else if (e.key === 'Escape') {
+      onRawSend('\x1b');
+    } else if (e.key === 'Tab') {
+      onRawSend('\t');
+    } else if (e.ctrlKey && e.key.length === 1) {
+      // Ctrl+A through Ctrl+Z → send control character
+      const code = e.key.toUpperCase().charCodeAt(0) - 64;
+      if (code >= 1 && code <= 26) {
+        onRawSend(String.fromCharCode(code));
+      }
+    } else if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      // Regular printable character
+      onRawSend(e.key);
+    }
+  }, [session.connectionState, session.lineMode, session.lineEnding, onRawSend]);
 
   const lineColor = (type: TerminalLine['type']) => {
     switch (type) {
@@ -274,7 +305,9 @@ function TerminalView({ session, fontSize }: { session: TerminalSession; fontSiz
   return (
     <div
       ref={containerRef}
-      className="flex-1 overflow-y-auto bg-[#0d1117] p-3 font-mono leading-relaxed"
+      tabIndex={0}
+      onKeyDown={handleTerminalKeyDown}
+      className="flex-1 overflow-y-auto bg-[#0d1117] p-3 font-mono leading-relaxed outline-none"
       style={{ fontSize: `${fontSize}px` }}
     >
       {session.buffer.length === 0 && (
@@ -303,6 +336,12 @@ function TerminalView({ session, fontSize }: { session: TerminalSession; fontSiz
       ))}
       {session.paused && (
         <div className="text-yellow-600 mt-1 select-none">--- Output paused ---</div>
+      )}
+      {/* Inline cursor for character mode */}
+      {session.connectionState === 'connected' && !session.lineMode && (
+        <div className="whitespace-pre-wrap break-all">
+          <span className="animate-pulse text-green-400">_</span>
+        </div>
       )}
       <div ref={bottomRef} />
     </div>
@@ -1244,6 +1283,25 @@ export default function TelnetPage() {
     }
   }, [session.id, session.connectionMode, session.lineEnding, isDesktop, appendLine]);
 
+  // ─── Raw send (character mode) ──────────────────────────
+  const handleRawSend = useCallback(async (data: string) => {
+    if (!isDesktop) return;
+    try {
+      if (session.connectionMode === 'serial') {
+        await nativeSerialSendRaw(session.id, data);
+      } else {
+        await nativeTelnetSendRaw(session.id, data);
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      appendLine(session.id, {
+        text: `Send failed: ${msg}`,
+        timestamp: new Date().toISOString(),
+        type: 'error',
+      });
+    }
+  }, [session.id, session.connectionMode, isDesktop, appendLine]);
+
   // ─── Export ──────────────────────────────────────────────
   const handleExport = useCallback(() => {
     const content = generateExportText(session);
@@ -1569,7 +1627,7 @@ export default function TelnetPage() {
                     onCheckedChange={c => updateSession(session.id, { lineMode: !!c })}
                     size="sm"
                   />
-                  Line
+                  Line Mode
                 </label>
                 <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer h-7">
                   <Switch
@@ -1726,10 +1784,12 @@ export default function TelnetPage() {
         </div>
 
         {/* Terminal View */}
-        <TerminalView session={session} fontSize={settings.fontSize ?? 12} />
+        <TerminalView session={session} fontSize={settings.fontSize ?? 12} onRawSend={handleRawSend} />
 
-        {/* Command Input */}
-        <CommandInput session={session} insertedCmd={insertedCmd} onClearInserted={() => setInsertedCmd('')} onSend={handleSendCommand} />
+        {/* Command Input — hidden in character mode (Line OFF + connected) */}
+        {(session.lineMode || session.connectionState !== 'connected') && (
+          <CommandInput session={session} insertedCmd={insertedCmd} onClearInserted={() => setInsertedCmd('')} onSend={handleSendCommand} />
+        )}
 
         {/* Status Bar */}
         <div className="shrink-0 flex items-center justify-between px-3 py-1 border-t border-border bg-muted/30 text-[10px] text-muted-foreground">
@@ -1795,7 +1855,7 @@ export default function TelnetPage() {
               <h4 className="font-semibold text-xs uppercase text-muted-foreground mb-2.5">Toggles</h4>
               <dl className="space-y-2.5 text-xs">
                 <div><dt className="font-medium inline">Echo</dt> — <dd className="inline text-muted-foreground">Show your typed commands in the terminal output (local echo).</dd></div>
-                <div><dt className="font-medium inline">Line</dt> — <dd className="inline text-muted-foreground">Line mode buffers input until Enter. When off, each keystroke is sent immediately.</dd></div>
+                <div><dt className="font-medium inline">Line Mode</dt> — <dd className="inline text-muted-foreground"><strong>Character mode</strong> (Line OFF): Keystrokes are sent directly to the device as you type, like Tera Term. Click the terminal area to start typing. <strong>Line mode</strong> (Line ON): Type a full command in the input box and press Enter to send.</dd></div>
                 <div><dt className="font-medium inline">Log</dt> — <dd className="inline text-muted-foreground">Enable session logging. Logged sessions can be exported or attached to a project.</dd></div>
               </dl>
             </div>
