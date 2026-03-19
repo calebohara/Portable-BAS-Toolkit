@@ -22,6 +22,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   projectNotepadEntries: 'project_notepad_entries',
   notepadDocuments: 'notepad_documents',
   bugReports: 'bug_reports',
+  fieldPanels: 'field_panels',
 };
 
 // Fields to strip from local entities before pushing to Supabase.
@@ -216,6 +217,28 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  fieldPanels: {
+    controllerFamily: 'controller_family',
+    ipAddress: 'ip_address',
+    subnetMask: 'subnet_mask',
+    bacnetInstance: 'bacnet_instance',
+    macAddress: 'mac_address',
+    networkType: 'network_type',
+    firmwareVersion: 'firmware_version',
+    applicationVersion: 'application_version',
+    panelStatus: 'panel_status',
+    webUiUrl: 'web_ui_url',
+    secureWebUiUrl: 'secure_web_ui_url',
+    lastSeenAt: 'last_seen_at',
+    lastBackupAt: 'last_backup_at',
+    lastCommissionedAt: 'last_commissioned_at',
+    assignedTechnician: 'assigned_technician',
+    linkedFiles: 'linked_files',
+    relatedTools: 'related_tools',
+    projectId: 'project_id',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
 };
 
 /**
@@ -360,4 +383,5 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'projectNotepadEntries',
   'notepadDocuments',
   'bugReports',
+  'fieldPanels',
 ];

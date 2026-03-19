@@ -1,6 +1,6 @@
 [package]
 name = "bau-suite"
-version = "4.7.3"
+version = "4.8.0"
 description = "BAU Suite — Portable Project Toolkit for Building Automation"
 authors = ["Caleb Ohara"]
 license = "MIT"

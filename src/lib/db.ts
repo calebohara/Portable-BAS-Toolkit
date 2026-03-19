@@ -4,6 +4,7 @@ import type {
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
   ConnectionProfile, SavedCalculation, PidTuningSession, ProjectNotepadEntry, NotepadDocument, BugReport,
+  FieldPanel,
   SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
@@ -115,6 +116,16 @@ interface BasToolkitDB extends DBSchema {
     value: BugReport;
     indexes: { 'by-status': string; 'by-severity': string };
   };
+  fieldPanels: {
+    key: string;
+    value: FieldPanel;
+    indexes: {
+      'by-updated': string;
+      'by-status': string;
+      'by-site': string;
+      'by-project': string;
+    };
+  };
   syncQueue: {
     key: string;
     value: SyncQueueItem;
@@ -131,7 +142,7 @@ let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 12, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 13, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
       },
@@ -250,6 +261,15 @@ function getDB() {
           const notepadDocStore = db.createObjectStore('notepadDocuments', { keyPath: 'id' });
           notepadDocStore.createIndex('by-updated', 'updatedAt');
           notepadDocStore.createIndex('by-language', 'language');
+        }
+
+        if (oldVersion < 13) {
+          // Field Panels
+          const panelStore = db.createObjectStore('fieldPanels', { keyPath: 'id' });
+          panelStore.createIndex('by-updated', 'updatedAt');
+          panelStore.createIndex('by-status', 'panelStatus');
+          panelStore.createIndex('by-site', 'site');
+          panelStore.createIndex('by-project', 'projectId');
         }
       },
     }).catch((err) => {
@@ -894,6 +914,30 @@ export async function deleteBugReport(id: string): Promise<void> {
   notifySync('delete', 'bugReports', id, null);
 }
 
+// ─── Field Panels ──────────────────────────────────────────
+export async function getAllFieldPanels(): Promise<FieldPanel[]> {
+  const db = await getDB();
+  const panels = await db.getAll('fieldPanels');
+  return panels.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getFieldPanel(id: string): Promise<FieldPanel | undefined> {
+  const db = await getDB();
+  return db.get('fieldPanels', id);
+}
+
+export async function saveFieldPanel(panel: FieldPanel): Promise<void> {
+  const db = await getDB();
+  await db.put('fieldPanels', panel);
+  notifySync('update', 'fieldPanels', panel.id, panel);
+}
+
+export async function deleteFieldPanel(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('fieldPanels', id);
+  notifySync('delete', 'fieldPanels', id, null);
+}
+
 // Global search across all projects
 export async function searchGlobal(query: string): Promise<{
   projects: Project[];
@@ -1201,7 +1245,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'projectNotepadEntries', 'notepadDocuments', 'bugReports', 'syncQueue', 'syncConflicts',
+    'pidTuningSessions', 'projectNotepadEntries', 'notepadDocuments', 'bugReports', 'fieldPanels', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');
