@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import {
   Monitor, Wifi, WifiOff, TerminalSquare, Activity,
-  Shield, ArrowLeft, ArrowRight, Clock,
+  Shield, ArrowLeft, ArrowRight,
 } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useDeviceClass } from '@/hooks/use-device-class';
@@ -202,26 +202,36 @@ export default function DesktopAppPage() {
               />
 
               <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-xl bg-primary/10 border border-primary/15 mb-5">
-                <Clock className="h-6 w-6 text-primary" />
+                <Monitor className="h-6 w-6 text-primary" />
               </div>
 
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight mb-3">
-                Coming soon
+                Download for Windows
               </h2>
 
               <p className="text-sm text-muted-foreground leading-relaxed max-w-md mx-auto mb-6">
-                We&apos;re preparing the desktop distribution experience and finalizing the Windows installer.
-                The download will be available here once the build pipeline is ready.
+                Get the full desktop experience with native ICMP ping, serial port access,
+                telnet connectivity, and offline-first local storage.
               </p>
 
-              {/* Disabled future CTA — clearly inactive */}
-              <Button
-                size="lg"
-                disabled
-                className="gap-2 opacity-50 cursor-not-allowed"
-              >
-                <Monitor className="h-4 w-4" /> Download for Windows
-              </Button>
+              <div className="flex flex-col gap-3 items-center">
+                <Button
+                  size="lg"
+                  className="gap-2"
+                  onClick={() => window.open('/api/download?format=msi', '_blank', 'noopener,noreferrer')}
+                >
+                  <Monitor className="h-4 w-4" /> Download Installer (.msi)
+                </Button>
+
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => window.open('/api/download?format=exe', '_blank', 'noopener,noreferrer')}
+                >
+                  <Monitor className="h-4 w-4" /> Download Setup (.exe)
+                </Button>
+              </div>
 
               <p className="mt-4 text-xs text-muted-foreground">
                 Signed installer with automatic updates

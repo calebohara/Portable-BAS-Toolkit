@@ -719,7 +719,7 @@ export default function HomePage() {
 
                     <Button
                       size="lg"
-                      onClick={() => window.open('https://github.com/calebohara/Portable-BAS-Toolkit/releases/latest', '_blank', 'noopener,noreferrer')}
+                      onClick={() => window.open('/api/download', '_blank', 'noopener,noreferrer')}
                       className="mt-6 gap-2 bg-white/15 text-white border-white/20 hover:bg-white/25 backdrop-blur-sm"
                       variant="outline"
                     >

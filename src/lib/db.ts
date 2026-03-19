@@ -142,7 +142,7 @@ let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 13, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 14, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
       },
@@ -265,11 +265,24 @@ function getDB() {
 
         if (oldVersion < 13) {
           // Field Panels
-          const panelStore = db.createObjectStore('fieldPanels', { keyPath: 'id' });
-          panelStore.createIndex('by-updated', 'updatedAt');
-          panelStore.createIndex('by-status', 'panelStatus');
-          panelStore.createIndex('by-site', 'site');
-          panelStore.createIndex('by-project', 'projectId');
+          if (!db.objectStoreNames.contains('fieldPanels')) {
+            const panelStore = db.createObjectStore('fieldPanels', { keyPath: 'id' });
+            panelStore.createIndex('by-updated', 'updatedAt');
+            panelStore.createIndex('by-status', 'panelStatus');
+            panelStore.createIndex('by-site', 'site');
+            panelStore.createIndex('by-project', 'projectId');
+          }
+        }
+
+        if (oldVersion < 14) {
+          // Ensure fieldPanels exists (fix for DBs that hit v13 before the store was added)
+          if (!db.objectStoreNames.contains('fieldPanels')) {
+            const panelStore = db.createObjectStore('fieldPanels', { keyPath: 'id' });
+            panelStore.createIndex('by-updated', 'updatedAt');
+            panelStore.createIndex('by-status', 'panelStatus');
+            panelStore.createIndex('by-site', 'site');
+            panelStore.createIndex('by-project', 'projectId');
+          }
         }
       },
     }).catch((err) => {
