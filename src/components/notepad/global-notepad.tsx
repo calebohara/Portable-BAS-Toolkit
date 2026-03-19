@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   StickyNote, X, Minus, Plus, Trash2, Copy,
-  RotateCcw, FolderKanban, Link2,
+  RotateCcw, FolderKanban, Link2, Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNotepadStore, type NotepadTab } from '@/store/notepad-store';
@@ -302,7 +302,7 @@ function TabBar() {
             <div
               key={tab.id}
               className={cn(
-                'group flex items-center gap-1 shrink-0 border-r border-border px-2.5 py-1.5 text-xs font-medium cursor-pointer transition-colors',
+                'group flex items-center gap-0.5 shrink-0 border-r border-border px-2 py-1.5 text-xs font-medium cursor-pointer transition-colors',
                 'hover:bg-muted/50',
                 tab.id === activeTabId
                   ? 'bg-background text-foreground border-b-2 border-b-primary -mb-px'
@@ -310,7 +310,6 @@ function TabBar() {
               )}
               onClick={() => setActiveTab(tab.id)}
               onDoubleClick={() => startRename(tab)}
-              title="Double-click to rename"
             >
               {editingId === tab.id ? (
                 <input
@@ -326,18 +325,39 @@ function TabBar() {
                   autoFocus
                 />
               ) : (
-                <span className="truncate max-w-24">
+                <span className="truncate max-w-20">
                   {tab.projectId && <Link2 className="inline h-2.5 w-2.5 mr-0.5 opacity-50" />}
                   {tab.name}
                 </span>
               )}
+              {/* Rename button — always visible on active tab, hover on others */}
+              <button
+                onClick={(e) => { e.stopPropagation(); startRename(tab); }}
+                className={cn(
+                  'p-0.5 rounded hover:bg-muted hover:text-foreground transition-all',
+                  tab.id === activeTabId
+                    ? 'text-muted-foreground/70'
+                    : 'opacity-0 group-hover:opacity-100 text-muted-foreground/50',
+                )}
+                aria-label={`Rename ${tab.name}`}
+                title="Rename"
+              >
+                <Pencil className="h-2.5 w-2.5" />
+              </button>
+              {/* Delete button — always visible on active tab, hover on others */}
               {tabs.length > 1 && (
                 <button
                   onClick={(e) => handleTabClose(e, tab)}
-                  className="ml-0.5 opacity-0 group-hover:opacity-100 hover:text-destructive transition-opacity p-0.5 rounded"
+                  className={cn(
+                    'p-0.5 rounded hover:bg-destructive/10 hover:text-destructive transition-all',
+                    tab.id === activeTabId
+                      ? 'text-muted-foreground/70'
+                      : 'opacity-0 group-hover:opacity-100 text-muted-foreground/50',
+                  )}
                   aria-label={`Close ${tab.name}`}
+                  title="Delete"
                 >
-                  <X className="h-3 w-3" />
+                  <X className="h-2.5 w-2.5" />
                 </button>
               )}
             </div>
