@@ -63,11 +63,18 @@ export default function NotepadPage() {
   const isFullscreen = useNotepadEditorStore(s => s.isFullscreen);
   const setFullscreen = useNotepadEditorStore(s => s.setFullscreen);
 
-  // On mobile, always start with file panel closed to prevent fixed overlay blocking the UI
+  // Track whether the viewport is mobile-sized (below md breakpoint)
+  const [isMobileViewport, setIsMobileViewport] = useState(false);
+
   useEffect(() => {
-    if (typeof window !== 'undefined' && window.innerWidth < 768) {
-      setShowFilePanel(false);
-    }
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    setIsMobileViewport(mq.matches);
+    // On mobile, always start with file panel closed to prevent fixed overlay blocking the UI
+    if (mq.matches) setShowFilePanel(false);
+    const handler = (e: MediaQueryListEvent) => setIsMobileViewport(e.matches);
+    mq.addEventListener('change', handler);
+    return () => mq.removeEventListener('change', handler);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [cursor, setCursor] = useState<CursorPosition>({ line: 1, col: 1, selectionLength: 0 });
@@ -246,7 +253,7 @@ export default function NotepadPage() {
         'flex flex-col',
         isFullscreen ? 'fixed inset-0 z-50 bg-background' : 'flex-1',
       )}
-      style={!isFullscreen ? { height: 'calc(100dvh - 3.5rem)' } : undefined}
+      style={!isFullscreen ? { height: 'calc(100vh - 3.5rem)' } : undefined}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -289,25 +296,28 @@ export default function NotepadPage() {
           </div>
         )}
 
+        {/* Mobile backdrop — JS-gated to prevent Safari from keeping a
+            fixed overlay in the hit-test tree on desktop viewports */}
+        {showFilePanel && isMobileViewport && (
+          <div
+            className="fixed inset-0 bg-black/40 z-30"
+            onClick={() => setShowFilePanel(false)}
+            aria-hidden="true"
+          />
+        )}
+
         {/* File panel — sidebar on desktop, slide-over drawer on mobile */}
         {showFilePanel && (
-          <>
-            {/* Mobile backdrop */}
-            <div
-              className="fixed inset-0 bg-black/40 z-30 md:hidden"
-              onClick={() => setShowFilePanel(false)}
+          <div className="shrink-0 z-30 max-md:fixed max-md:left-0 max-md:top-0 max-md:bottom-0">
+            <NotepadFilePanel
+              documents={documents}
+              onNewDocument={handleNewDocument}
+              onDeleteDocument={handleDeleteDocument}
+              onRenameDocument={handleRenameDocument}
+              onImportFile={handleImportFile}
+              onExportDocument={handleExportDocument}
             />
-            <div className="shrink-0 z-30 max-md:fixed max-md:left-0 max-md:top-0 max-md:bottom-0">
-              <NotepadFilePanel
-                documents={documents}
-                onNewDocument={handleNewDocument}
-                onDeleteDocument={handleDeleteDocument}
-                onRenameDocument={handleRenameDocument}
-                onImportFile={handleImportFile}
-                onExportDocument={handleExportDocument}
-              />
-            </div>
-          </>
+          </div>
         )}
 
         {/* Editor area */}

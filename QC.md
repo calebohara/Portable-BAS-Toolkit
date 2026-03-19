@@ -144,6 +144,79 @@ Cloud sync, direct messaging, Global Projects, and Knowledge Base are gated behi
 
 ---
 
+## Feature: Notepad
+
+### Overview
+Full-featured code editor built with CodeMirror 6. Supports multiple documents with tabbed editing, syntax highlighting (JS, Python, CSS, HTML, Markdown, JSON), line numbers, bracket matching, and auto-save. Documents stored in IndexedDB and synced to Supabase. Includes a file panel for document management with search, create, rename, and delete.
+
+### Data Layer Checks
+- [ ] `NotepadDocument` type exists in `src/types/index.ts`
+- [ ] `notepadDocuments` added to `SyncEntityType` union
+- [ ] IndexedDB store `notepadDocuments` created in db.ts
+- [ ] `by-language` index exists on the store
+- [ ] CRUD functions: `getAllNotepadDocuments`, `getNotepadDocument`, `saveNotepadDocument`, `deleteNotepadDocument`
+- [ ] Each write function calls `notifySync()`
+- [ ] `field-map.ts` has `notepadDocuments: 'notepad_documents'` table mapping
+- [ ] `FIELD_OVERRIDES` includes all camelCase → snake_case mappings
+- [ ] `notepadDocuments` is in `SYNC_ORDER`
+- [ ] `notepadDocuments` is NOT in `REQUIRES_PROJECT_ID`
+
+### UI Checks — Editor
+- [ ] CodeMirror 6 editor renders correctly
+- [ ] Line numbers visible
+- [ ] Syntax highlighting works for JS, Python, CSS, HTML, Markdown, JSON
+- [ ] Bracket matching works
+- [ ] Dark theme applied (oneDark)
+- [ ] Content auto-saves after typing stops (debounced)
+- [ ] Cursor position (line:col) shown in status bar
+- [ ] Selection length shown when text selected
+
+### UI Checks — Tab System
+- [ ] New documents open in a tab
+- [ ] Multiple tabs can be open simultaneously
+- [ ] Clicking a tab switches to that document
+- [ ] Close button on tabs works
+- [ ] Active tab visually distinct
+- [ ] "+" button creates a new document
+
+### UI Checks — File Panel
+- [ ] File panel toggles open/close via sidebar button
+- [ ] Search field filters documents by name
+- [ ] Create new document button works
+- [ ] Rename document works (inline edit)
+- [ ] Delete document works with confirmation
+- [ ] File list shows document name and language icon
+- [ ] Clicking a file opens it in the editor
+
+### Mobile / PWA Checks (CRITICAL — recent fix)
+- [ ] File panel auto-closes on mobile viewport (<768px) on page mount
+- [ ] File panel does NOT block entire UI with fixed overlay on mobile
+- [ ] Sidebar navigation remains clickable when on Notepad page (mobile)
+- [ ] TopBar buttons remain clickable when on Notepad page (mobile)
+- [ ] File panel can be manually opened/closed via toggle button on mobile
+- [ ] Tapping backdrop area dismisses file panel on mobile
+- [ ] Editor is usable on mobile (touch input works)
+
+### Sync Checks
+- [ ] Documents save to IndexedDB offline
+- [ ] Documents sync to Supabase when online
+- [ ] Documents pull correctly from Supabase on fresh login
+- [ ] Soft-delete propagates correctly
+- [ ] No sync retry storm (defensive try/catch in sync operations)
+
+### Accessibility
+- [ ] Editor is keyboard navigable
+- [ ] File panel close button has aria-label
+- [ ] Document list items are focusable
+- [ ] Language selector is keyboard accessible
+
+### Dependencies
+- [ ] `@codemirror/lang-css` installed in package.json
+- [ ] All CodeMirror language packages resolve correctly in build
+- [ ] Static export builds without missing module errors
+
+---
+
 ## Adding New Features to QC
 
 When adding a new feature, create a new section following this template:

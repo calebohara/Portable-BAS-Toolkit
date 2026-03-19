@@ -152,7 +152,7 @@ export function NotepadEditorComponent({
         history: true,
         searchKeymap: false, // we add our own
       }}
-      style={{ height: '100%', overflow: 'auto' }}
+      style={{ height: '100%', maxHeight: '100%', overflow: 'auto' }}
       className="notepad-cm-editor"
     />
   );
