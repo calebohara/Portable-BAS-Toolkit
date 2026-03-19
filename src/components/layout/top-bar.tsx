@@ -56,7 +56,6 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
           <Menu className="h-5 w-5" />
         </Button>
 
-        {title && <h1 className="text-base sm:text-lg font-semibold truncate min-w-0">{title}</h1>}
         {children}
 
         <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">

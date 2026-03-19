@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useCallback } from 'react';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
-  ChevronLeft, ChevronRight, X, FolderOpen, HelpCircle, ClipboardList, TerminalSquare, Globe,
+  ChevronLeft, ChevronRight, ChevronDown, X, FolderOpen, HelpCircle, ClipboardList, TerminalSquare, Globe,
   Network, Activity, Calculator, Users2, BookOpen, Gauge, FileCode2, Server,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -71,6 +72,23 @@ export function Sidebar() {
   const { profile } = useAuth();
   const showOnlineUsers = hasSyncAccess(profile?.subscriptionTier);
 
+  // Collapsible group state — initialize from localStorage
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    if (typeof window === 'undefined') return {};
+    try {
+      const saved = localStorage.getItem('bau-suite-collapsed-groups');
+      return saved ? JSON.parse(saved) : {};
+    } catch { return {}; }
+  });
+
+  const toggleGroup = useCallback((label: string) => {
+    setCollapsedGroups(prev => {
+      const next = { ...prev, [label]: !prev[label] };
+      try { localStorage.setItem('bau-suite-collapsed-groups', JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, []);
+
   return (
     <aside
       className={cn(
@@ -104,16 +122,24 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-        {navGroups.map((group, gi) => (
+        {navGroups.map((group, gi) => {
+          const isCollapsed = !!(group.label && collapsedGroups[group.label]);
+          return (
           <div key={gi}>
             {group.label && sidebarOpen && (
-              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hidden md:block">
-                {group.label}
-              </p>
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.label!)}
+                className="mb-1 px-3 w-full flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+              >
+                <span>{group.label}</span>
+                <ChevronDown className={cn('h-3 w-3 transition-transform duration-200', isCollapsed && '-rotate-90')} />
+              </button>
             )}
             {!sidebarOpen && group.label && (
               <div className="mx-auto mb-1 h-px w-6 bg-sidebar-border hidden md:block" />
             )}
+            {!isCollapsed && (
             <div className="space-y-0.5">
               {group.items.map(({ href, icon: Icon, label, tourId }) => {
                 // Normalize pathname for trailing slash, index.html, and catch-all fallback patterns.
@@ -166,8 +192,10 @@ export function Sidebar() {
                 return linkEl;
               })}
             </div>
+            )}
           </div>
-        ))}
+          );
+        })}
       </nav>
 
       {/* Footer: sync status, offline warning, version & collapse */}

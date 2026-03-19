@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "BAU Suite",
-  "version": "4.8.3",
+  "version": "4.8.4",
   "identifier": "com.bau-suite.app",
   "build": {
     "frontendDist": "../out",
