@@ -38,8 +38,8 @@ RULES:
     ALL files — a fix that patches one file when five have the same bug is incomplete.
 -->
 
-**Version**: 4.5.0
-**Last updated**: 2026-03-16 18:00
+**Version**: 4.8.4
+**Last updated**: 2026-03-19 07:00
 **Sweep 1**: 47 issues | 44 fixed | 3 skipped
 **Sweep 2**: 47 issues | 32 fixed | 15 skipped
 **Sweep 3**: 18 issues | 15 fixed | 3 skipped
@@ -47,6 +47,7 @@ RULES:
 **Sweep 5**: 22 issues | 22 fixed | 0 skipped
 **Sweep 6**: 15 issues | 15 fixed | 0 skipped
 **Sweep 7**: 8 issues | 0 fixed | 8 skipped
+**Sweep 8**: 27 issues | 27 fixed | 0 skipped
 
 ---
 
@@ -500,3 +501,68 @@ None.
 | I-10 | Known SKIPPED items carried forward: S2-7/8/9 (React Compiler), S2-23 (upload memoization), S2-35/36 (unused imports, img), S2-37 (Tauri CSP), S4-18 (dashboard empty state) |
 
 **Build gate (all 8 fixed)**: tsc --noEmit PASS (2026-03-16 17:55)
+
+---
+
+## Sweep 8 (2026-03-19, v4.8.4)
+
+9 agents, post-v4.8.0 feature additions (Field Panels, Notepad overhaul, Web Interface store).
+
+### CRITICAL (1 issue)
+
+| # | File | Issue | Found | Status | Fixed |
+|---|------|-------|-------|--------|-------|
+| S8-1 | `supabase/schema.sql` | `field_panels` table missing — sync fails with PostgREST error | 2026-03-19 | FIXED | 2026-03-19 |
+
+### HIGH (2 issues)
+
+| # | File | Issue | Found | Status | Fixed |
+|---|------|-------|-------|--------|-------|
+| S8-2 | `src/app/knowledge-base/page.tsx:70-79` | Rules of Hooks violation — hooks called after conditional return | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-3 | `README.md:9,21,233` | Version stale at 4.5.0, should be 4.8.4 | 2026-03-19 | FIXED | 2026-03-19 |
+
+### MEDIUM (10 issues)
+
+| # | File | Issue | Found | Status | Fixed |
+|---|------|-------|-------|--------|-------|
+| S8-4 | `src/lib/db.ts:317` | `deleteProject` omits `fieldPanels` — orphaned panels | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-5 | `supabase/schema.sql:504` | `notepad_documents` missing `sync_version` column | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-6 | `src/app/dashboard/page.tsx:127` | Desktop banner says "Coming Soon" — app is released (regression of S4-1) | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-7 | `src/app/field-panels/page.tsx:502` | Add Panel dialog doesn't reset form on cancel | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-8 | `src/app/notepad/page.tsx:186-188` | `revokeObjectURL` immediate + unsanitized filename | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-9 | `src/app/field-panels/page.tsx:869` | `window.open` bypasses protocol validation — `javascript:` URL risk | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-10 | `src/app/field-panels/_/client-page.tsx:163` + `notepad-file-panel.tsx:163` | Hover-only copy/menu buttons invisible on touch devices | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-11 | `src/components/layout/sidebar.tsx:130` | Collapsible group toggle button ~20px touch target | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-12 | `src/lib/sync/sync-manager.ts:549` | `purgeOrphans` queries `project_id` on tables without it (noisy errors) | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-13 | `src/app/field-panels/page.tsx:224` | `copyToClipboard` fire-and-forget — no error handling | 2026-03-19 | FIXED | 2026-03-19 |
+
+### LOW (14 issues)
+
+| # | File | Issue | Found | Status | Fixed |
+|---|------|-------|-------|--------|-------|
+| S8-14 | `src/lib/db.ts:1169` | `purgeOrphanedRecords` omits `fieldPanels` from childStores | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-15 | `src/app/page.tsx` | Field Panels missing from landing page `toolGroups` | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-16 | `src/app/page.tsx:273,364,387` | Tool count stale at "21+" (should be "22+") | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-17 | `README.md` | Field Panels missing from feature list | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-18 | `README.md:117` | "HMI Terminal" should be "Telnet HMI" to match sidebar | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-19 | `src/lib/routes.ts:22` | `ROUTES.DASHBOARD` points to `/` instead of `/dashboard` | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-20 | `src/lib/routes.ts` | Missing route constants for `/notepad` and `/field-panels` | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-21 | `src/app/notepad/page.tsx:238-246` | Loading spinner missing `role="status"` and `aria-live` | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-22 | `src/app/notepad/page.tsx:384,393` | Icon-only buttons missing `aria-label` (only have `title`) | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-23 | `src/components/notepad/notepad-file-panel.tsx:99-119` | File panel icon buttons missing `aria-label` | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-24 | `src/components/notepad/notepad-tab-bar.tsx:66-78` | Tab bar items are `<div>` without `role="tab"`, `tabIndex`, keyboard handler | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-25 | `src/app/field-panels/page.tsx:791,809` | Copy buttons have ~12px touch target (no padding) | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-26 | `src/app/field-panels/_/client-page.tsx:815` | Add Note grid `grid-cols-2` not responsive on narrow viewports | 2026-03-19 | FIXED | 2026-03-19 |
+| S8-27 | `src/app/field-panels/page.tsx:511-696` | Dialog uses raw `<label>` instead of `Label` component | 2026-03-19 | FIXED | 2026-03-19 |
+
+### Notes
+
+| # | Note |
+|---|------|
+| I-1 | 0 regressions from previous sweeps — all prior FIXED items verified intact |
+| I-2 | S8-6 is a regression of S4-1 — landing page was fixed but dashboard banner was missed |
+| I-3 | S8-1 is the same pattern as S3-3 (pidTuningSessions missing table) — now caught for fieldPanels |
+| I-4 | S8-8 is the same pattern as S4-8/S4-9 — revokeObjectURL in newer Notepad feature |
+| I-5 | Global projects spinner a11y (Agent 1 #7) also fixed |
+
+**Build gate**: tsc --noEmit PASS, npm run build PASS (2026-03-19)

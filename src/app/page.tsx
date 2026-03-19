@@ -7,7 +7,7 @@ import {
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
   Wrench, Shield, WifiOff, ArrowRight, UserPlus, MessageSquare,
   Zap, Layers, Monitor, ChevronRight, Wifi, Heart, Code,
-  Gauge, BookOpen, Download, Cloud, Users, Check, Mail,
+  Gauge, BookOpen, Download, Cloud, Users, Check, Mail, Server,
 } from 'lucide-react';
 import { isPaywallEnabled } from '@/lib/paywall';
 import { useAuth } from '@/providers/auth-provider';
@@ -65,6 +65,7 @@ const toolGroups = [
       { icon: TerminalSquare, name: 'Telnet HMI', desc: 'Browser-based terminal with session tabs and logging' },
       { icon: Wrench, name: 'Command Snippets', desc: 'Reusable commands for BACnet, Modbus, Niagara, and more' },
       { icon: StickyNote, name: 'Sticky Notepad', desc: 'Floating scratchpad with tabbed notes and offline persistence' },
+      { icon: Server, name: 'Field Panels', desc: 'Track BAS controllers with IP, BACnet, firmware, and web UI access' },
     ],
   },
 ];
@@ -270,7 +271,7 @@ export default function HomePage() {
                 style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.65s', opacity: 0 }}
               >
                 {[
-                  { value: '21+', label: 'Tools' },
+                  { value: '22+', label: 'Tools' },
                   { value: '100%', label: 'Offline' },
                   { value: 'NEW', label: 'Global Projects' },
                 ].map(({ value, label }) => (
@@ -361,7 +362,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Wrench className="h-4 w-4 text-primary" />
-                    <span>21+ field tools</span>
+                    <span>22+ field tools</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Shield className="h-4 w-4 text-primary" />
@@ -384,7 +385,7 @@ export default function HomePage() {
                         <p className="text-xl font-bold">$0</p>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> 21+ tools</span>
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> 22+ tools</span>
                         <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Offline-first</span>
                         <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Desktop app</span>
                       </div>

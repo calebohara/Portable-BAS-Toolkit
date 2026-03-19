@@ -9,6 +9,7 @@ create table if not exists notepad_documents (
   content text not null default '',
   language text not null default 'plaintext',
   deleted_at timestamptz,
+  sync_version int not null default 1,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );

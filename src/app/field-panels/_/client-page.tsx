@@ -162,7 +162,7 @@ function CopyField({ label, value, mono = false }: { label: string; value: strin
       {value && (
         <button
           onClick={handleCopy}
-          className="mt-3 shrink-0 rounded p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-muted hover:text-foreground group-hover:opacity-100"
+          className="mt-3 shrink-0 rounded p-1 text-muted-foreground opacity-100 md:opacity-0 transition-opacity hover:bg-muted hover:text-foreground md:group-hover:opacity-100"
           title={`Copy ${label}`}
         >
           <Copy className="h-3.5 w-3.5" />
@@ -812,7 +812,7 @@ export function FieldPanelDetailPage({ panelId }: { panelId: string }) {
                 rows={4}
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Category</Label>
                 <Select value={noteCategory} onValueChange={(val) => val && setNoteCategory(val as PanelNote['category'])}>

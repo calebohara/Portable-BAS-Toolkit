@@ -19,7 +19,7 @@ import { isTauri } from './tauri-bridge';
 
 // ─── Static route constants ─────────────────────────────────
 export const ROUTES = {
-  DASHBOARD: '/',
+  DASHBOARD: '/dashboard',
   PROJECTS: '/projects',
   REPORTS: '/reports',
   REPORT_NEW: '/reports/new',
@@ -36,6 +36,8 @@ export const ROUTES = {
   PID_TUNING: '/pid-tuning',
   KNOWLEDGE_BASE: '/knowledge-base',
   REGISTER_TOOL: '/register-tool',
+  NOTEPAD: '/notepad',
+  FIELD_PANELS: '/field-panels',
 } as const;
 
 // ─── Dynamic route helpers ──────────────────────────────────

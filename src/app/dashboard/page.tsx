@@ -124,7 +124,7 @@ export default function DashboardPage() {
                   <Monitor className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-white">Desktop App for Windows — Coming Soon</p>
+                  <p className="text-sm font-semibold text-white">Desktop App for Windows — Available Now</p>
                   <p className="text-xs text-white/70">Native ICMP ping, full network access, and a focused workspace built with Tauri.</p>
                 </div>
               </div>

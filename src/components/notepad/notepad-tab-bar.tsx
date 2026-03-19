@@ -58,13 +58,16 @@ export function NotepadTabBar({
       </button>
 
       {/* Tab strip */}
-      <div ref={scrollRef} className="flex flex-1 overflow-x-auto scrollbar-none">
+      <div ref={scrollRef} className="flex flex-1 overflow-x-auto scrollbar-none" role="tablist">
         {openDocs.map(doc => {
           const isActive = doc.id === activeTabId;
           const isDirty = dirtyIds?.has(doc.id);
           return (
             <div
               key={doc.id}
+              role="tab"
+              tabIndex={0}
+              aria-selected={isActive}
               className={cn(
                 'group flex items-center gap-1.5 shrink-0 border-r border-border',
                 'px-3 py-2.5 md:py-1.5 text-xs font-medium cursor-pointer transition-colors',
@@ -74,6 +77,7 @@ export function NotepadTabBar({
                   : 'text-muted-foreground',
               )}
               onClick={() => setActiveTab(doc.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveTab(doc.id); } }}
               onMouseDown={e => handleMiddleClick(e, doc.id)}
               title={doc.name}
             >

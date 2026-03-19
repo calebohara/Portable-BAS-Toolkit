@@ -11,7 +11,7 @@ import { useNotepadDocuments } from '@/hooks/use-notepad-documents';
 import { useNotepadEditorStore } from '@/store/notepad-editor-store';
 import { useAppStore } from '@/store/app-store';
 import type { NotepadDocument, NotepadLanguage } from '@/types';
-import { cn } from '@/lib/utils';
+import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   Maximize2, Minimize2, Search, Download, Upload, FileCode2,
@@ -183,9 +183,9 @@ export default function NotepadPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = name;
+    a.download = sanitizeFilename(name);
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
     toast.success(`Downloaded "${name}"`);
   }, []);
 
@@ -239,8 +239,8 @@ export default function NotepadPage() {
     return (
       <>
         <TopBar title="Notepad" />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <div className="flex-1 flex items-center justify-center" role="status" aria-live="polite">
+          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" />
         </div>
       </>
     );
@@ -383,6 +383,7 @@ export default function NotepadPage() {
             onClick={handleOpenFind}
             className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
             title="Find & Replace (Ctrl+F)"
+            aria-label="Find & Replace"
             disabled={!activeDoc}
           >
             <Search className="h-4 w-4" />
@@ -393,6 +394,7 @@ export default function NotepadPage() {
             onClick={() => setFullscreen(true)}
             className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground hidden sm:flex"
             title="Fullscreen (F11)"
+            aria-label="Fullscreen"
           >
             <Maximize2 className="h-4 w-4" />
           </Button>

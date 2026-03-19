@@ -100,6 +100,7 @@ export function NotepadFilePanel({
               onClick={() => setSortMode(sortMode === 'updated' ? 'name' : 'updated')}
               className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title={`Sort by ${sortMode === 'updated' ? 'name' : 'date'}`}
+              aria-label={`Sort by ${sortMode === 'updated' ? 'name' : 'date'}`}
             >
               {sortMode === 'updated' ? <Clock className="h-3 w-3" /> : <ArrowDownAZ className="h-3 w-3" />}
             </button>
@@ -107,6 +108,7 @@ export function NotepadFilePanel({
               onClick={() => fileInputRef.current?.click()}
               className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title="Import file"
+              aria-label="Import file"
             >
               <Upload className="h-3 w-3" />
             </button>
@@ -114,6 +116,7 @@ export function NotepadFilePanel({
               onClick={onNewDocument}
               className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title="New document"
+              aria-label="New document"
             >
               <Plus className="h-3 w-3" />
             </button>
@@ -160,7 +163,7 @@ export function NotepadFilePanel({
               <div className="shrink-0 relative">
                 <button
                   onClick={(e) => { e.stopPropagation(); setContextDocId(contextDocId === doc.id ? null : doc.id); }}
-                  className="p-0.5 rounded opacity-0 group-hover:opacity-100 hover:bg-muted-foreground/10 transition-opacity"
+                  className="p-0.5 rounded opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:bg-muted-foreground/10 transition-opacity"
                   aria-label="Document options"
                 >
                   <MoreVertical className="h-3 w-3" />

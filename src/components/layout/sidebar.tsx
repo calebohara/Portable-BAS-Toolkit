@@ -130,7 +130,7 @@ export function Sidebar() {
               <button
                 type="button"
                 onClick={() => toggleGroup(group.label!)}
-                className="mb-1 px-3 w-full flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
+                className="mb-1 px-3 py-2 w-full flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
               >
                 <span>{group.label}</span>
                 <ChevronDown className={cn('h-3 w-3 transition-transform duration-200', isCollapsed && '-rotate-90')} />

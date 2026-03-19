@@ -314,7 +314,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions', 'projectNotepadEntries'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions', 'projectNotepadEntries', 'fieldPanels'], 'readwrite');
 
   try {
     // Delete associated data
@@ -369,6 +369,9 @@ export async function deleteProject(id: string): Promise<void> {
     const notepadEntries = await tx.objectStore('projectNotepadEntries').index('by-project').getAll(id);
     for (const ne of notepadEntries) await tx.objectStore('projectNotepadEntries').delete(ne.id);
 
+    const panels = await tx.objectStore('fieldPanels').index('by-project').getAll(id);
+    for (const fp of panels) await tx.objectStore('fieldPanels').delete(fp.id);
+
     await tx.objectStore('projects').delete(id);
     await tx.done;
 
@@ -386,6 +389,7 @@ export async function deleteProject(id: string): Promise<void> {
     for (const rc of regCalcs) notifySync('delete', 'registerCalculations', rc.id, null);
     for (const ps of pidSessions) notifySync('delete', 'pidTuningSessions', ps.id, null);
     for (const ne of notepadEntries) notifySync('delete', 'projectNotepadEntries', ne.id, null);
+    for (const fp of panels) notifySync('delete', 'fieldPanels', fp.id, null);
 
     notifySync('delete', 'projects', id, null);
   } catch (e) {
@@ -1170,7 +1174,7 @@ export async function purgeOrphanedRecords(): Promise<number> {
     'files', 'notes', 'devices', 'ipPlan', 'activityLog',
     'dailyReports', 'networkDiagrams', 'pingSessions',
     'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions',
-    'projectNotepadEntries',
+    'projectNotepadEntries', 'fieldPanels',
   ] as const;
 
   let totalDeleted = 0;

@@ -17,8 +17,9 @@ import {
 import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { copyToClipboard } from '@/lib/utils';
-import { isTauri } from '@/lib/tauri-bridge';
+import { isTauri, openUrl } from '@/lib/tauri-bridge';
 import { useFieldPanels } from '@/hooks/use-field-panels';
 import type { FieldPanel, PanelStatus, PanelNetworkType } from '@/types';
 
@@ -221,9 +222,13 @@ export default function FieldPanelsPage() {
   }, [router]);
 
   // Copy helpers
-  const handleCopy = useCallback((text: string, label: string) => {
-    copyToClipboard(text);
-    toast.success(`${label} copied to clipboard`);
+  const handleCopy = useCallback(async (text: string, label: string) => {
+    try {
+      await copyToClipboard(text);
+      toast.success(`${label} copied to clipboard`);
+    } catch {
+      toast.error('Clipboard access denied');
+    }
   }, []);
 
   // Form change handler
@@ -499,7 +504,7 @@ export default function FieldPanelsPage() {
       </div>
 
       {/* Add Panel Dialog */}
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+      <Dialog open={addDialogOpen} onOpenChange={(open) => { if (!open) setForm(INITIAL_FORM); setAddDialogOpen(open); }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Add Field Panel</DialogTitle>
@@ -508,7 +513,7 @@ export default function FieldPanelsPage() {
             {/* Name + Site (required) */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Name *</label>
+                <Label className="text-xs">Name *</Label>
                 <Input
                   placeholder="AHU-1 Panel"
                   value={form.name}
@@ -516,7 +521,7 @@ export default function FieldPanelsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Site *</label>
+                <Label className="text-xs">Site *</Label>
                 <Input
                   placeholder="Main Campus"
                   value={form.site}
@@ -528,7 +533,7 @@ export default function FieldPanelsPage() {
             {/* Building + Floor */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Building</label>
+                <Label className="text-xs">Building</Label>
                 <Input
                   placeholder="Building A"
                   value={form.building}
@@ -536,7 +541,7 @@ export default function FieldPanelsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Floor</label>
+                <Label className="text-xs">Floor</Label>
                 <Input
                   placeholder="1st Floor"
                   value={form.floor}
@@ -548,7 +553,7 @@ export default function FieldPanelsPage() {
             {/* System + Equipment */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">System</label>
+                <Label className="text-xs">System</Label>
                 <Input
                   placeholder="HVAC"
                   value={form.system}
@@ -556,7 +561,7 @@ export default function FieldPanelsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Equipment</label>
+                <Label className="text-xs">Equipment</Label>
                 <Input
                   placeholder="AHU-1"
                   value={form.equipment}
@@ -568,7 +573,7 @@ export default function FieldPanelsPage() {
             {/* Controller Family + Model */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Controller Family</label>
+                <Label className="text-xs">Controller Family</Label>
                 <Select
                   value={form.controllerFamily || undefined}
                   onValueChange={(v) => { if (v) updateForm('controllerFamily', v); }}
@@ -584,7 +589,7 @@ export default function FieldPanelsPage() {
                 </Select>
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Model</label>
+                <Label className="text-xs">Model</Label>
                 <Input
                   placeholder="PXC36-E.D"
                   value={form.model}
@@ -596,7 +601,7 @@ export default function FieldPanelsPage() {
             {/* IP Address + Subnet + Gateway */}
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">IP Address</label>
+                <Label className="text-xs">IP Address</Label>
                 <Input
                   placeholder="192.168.1.100"
                   value={form.ipAddress}
@@ -604,7 +609,7 @@ export default function FieldPanelsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Subnet Mask</label>
+                <Label className="text-xs">Subnet Mask</Label>
                 <Input
                   placeholder="255.255.255.0"
                   value={form.subnetMask}
@@ -612,7 +617,7 @@ export default function FieldPanelsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Gateway</label>
+                <Label className="text-xs">Gateway</Label>
                 <Input
                   placeholder="192.168.1.1"
                   value={form.gateway}
@@ -624,7 +629,7 @@ export default function FieldPanelsPage() {
             {/* BACnet + MAC + Network Type */}
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">BACnet Instance</label>
+                <Label className="text-xs">BACnet Instance</Label>
                 <Input
                   placeholder="100"
                   value={form.bacnetInstance}
@@ -632,7 +637,7 @@ export default function FieldPanelsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">MAC Address</label>
+                <Label className="text-xs">MAC Address</Label>
                 <Input
                   placeholder="00:1A:2B:3C:4D:5E"
                   value={form.macAddress}
@@ -640,7 +645,7 @@ export default function FieldPanelsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Network Type</label>
+                <Label className="text-xs">Network Type</Label>
                 <Select
                   value={form.networkType}
                   onValueChange={(v) => { if (v) updateForm('networkType', v); }}
@@ -660,7 +665,7 @@ export default function FieldPanelsPage() {
             {/* Web UI URLs */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Web UI URL</label>
+                <Label className="text-xs">Web UI URL</Label>
                 <Input
                   placeholder="http://192.168.1.100"
                   value={form.webUiUrl}
@@ -668,7 +673,7 @@ export default function FieldPanelsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Secure Web UI URL</label>
+                <Label className="text-xs">Secure Web UI URL</Label>
                 <Input
                   placeholder="https://192.168.1.100"
                   value={form.secureWebUiUrl}
@@ -680,7 +685,7 @@ export default function FieldPanelsPage() {
             {/* Technician + Tags */}
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Assigned Technician</label>
+                <Label className="text-xs">Assigned Technician</Label>
                 <Input
                   placeholder="John Smith"
                   value={form.assignedTechnician}
@@ -688,7 +693,7 @@ export default function FieldPanelsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-muted-foreground">Tags (comma separated)</label>
+                <Label className="text-xs">Tags (comma separated)</Label>
                 <Input
                   placeholder="hvac, ahu, floor-1"
                   value={form.tags}
@@ -793,7 +798,7 @@ function PanelCard({
                   e.stopPropagation();
                   onCopy(panel.ipAddress, 'IP address');
                 }}
-                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                className="shrink-0 p-1.5 -m-1 text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Copy IP address"
               >
                 <Copy className="h-3 w-3" />
@@ -810,7 +815,7 @@ function PanelCard({
                   e.stopPropagation();
                   onCopy(bacnetStr, 'BACnet instance');
                 }}
-                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                className="shrink-0 p-1.5 -m-1 text-muted-foreground hover:text-foreground transition-colors"
                 aria-label="Copy BACnet instance"
               >
                 <Copy className="h-3 w-3" />
@@ -866,7 +871,7 @@ function PanelCard({
               className="h-7 text-xs gap-1 flex-1"
               onClick={(e) => {
                 e.stopPropagation();
-                window.open(panel.webUiUrl, '_blank', 'noopener,noreferrer');
+                openUrl(panel.webUiUrl);
               }}
             >
               <ExternalLink className="h-3 w-3" />

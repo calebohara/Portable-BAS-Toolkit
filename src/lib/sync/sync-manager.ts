@@ -546,7 +546,7 @@ export class SyncManager implements SyncManagerInterface {
         console.info(`${LOG_PREFIX} Found ${deadIds.length} soft-deleted project(s) — purging children first…`);
 
         // Delete all child records referencing these projects (order: children before parents)
-        const childTables = SYNC_ORDER.filter((t) => t !== 'projects' && t !== 'commandSnippets');
+        const childTables = SYNC_ORDER.filter((t) => t !== 'projects' && t !== 'commandSnippets' && t !== 'notepadDocuments' && t !== 'bugReports');
         for (const entityType of childTables) {
           try {
             const table = entityTypeToTable[entityType];

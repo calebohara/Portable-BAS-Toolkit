@@ -30,7 +30,7 @@ export default function GlobalProjectsPage() {
     return <UpgradeRequiredPage feature="Global Projects" requiredTier="team" />;
   }
   return (
-    <Suspense fallback={<><TopBar title="Global Projects" /><div className="flex items-center justify-center p-16"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div></>}>
+    <Suspense fallback={<><TopBar title="Global Projects" /><div className="flex items-center justify-center p-16" role="status" aria-live="polite"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" /></div></>}>
       <GlobalProjectsPageInner />
     </Suspense>
   );

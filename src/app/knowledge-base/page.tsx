@@ -68,15 +68,19 @@ function renderMarkdown(text: string): string {
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function KnowledgeBasePage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+
   if (isPaywallEnabled() && !hasCollabAccess(profile?.subscriptionTier)) {
     return <UpgradeRequiredPage feature="Knowledge Base" requiredTier="team" />;
   }
 
+  return <KnowledgeBasePageInner user={user} />;
+}
+
+function KnowledgeBasePageInner({ user }: { user: ReturnType<typeof useAuth>['user'] }) {
   const router = useRouter();
   const { categories } = useKbCategories();
   const { articles, loading, removeArticle, replyToArticle, removeReply } = useKbArticles();
-  const { user } = useAuth();
 
   // Filter & search
   const [filterCategoryId, setFilterCategoryId] = useState('');

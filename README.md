@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.5.0-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.8.4-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -18,7 +18,7 @@
 
 ---
 
-## What's New in v4.5.0
+## What's New in v4.8.4
 
 - **PID Tuning Tool** — Interactive PID loop tuning calculator with support for multiple loop types, output types, control modes, and session save/load.
 - **Dashboard Enhancements** — Activity feed, project health cards, and stats widgets for at-a-glance project status.
@@ -111,10 +111,11 @@
 - **Network Diagram Builder** — drag-and-drop topology mapping with PNG/SVG export
 - **Register Tool** — hex/decimal/binary, IEEE 754, byte order, Modbus addressing, bitmask tool
 - **PID Tuning** — interactive PID loop tuning calculator with multiple loop types and session management
+- **Field Panels** — track BAS controllers with IP, BACnet, firmware, and web UI access
 
 ### Access & Diagnostics
 - **Web Interface** — access BAS controller web panels with saved endpoints and security handling
-- **HMI Terminal** — browser-based Telnet terminal with session tabs, logging, and command history
+- **Telnet HMI** — browser-based Telnet terminal with session tabs, logging, and command history
 - **Command Snippets** — reusable commands for BACnet, Modbus, Niagara, Siemens, and more
 
 ### Cloud Sync & Offline
@@ -230,7 +231,7 @@ Installable Progressive Web App:
 
 ## Versioning
 
-**Current: v4.5.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.8.4** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 
