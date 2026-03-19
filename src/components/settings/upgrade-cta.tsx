@@ -128,7 +128,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
                 disabled={!!loading}
               >
                 {loading === 'pro-month' && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                $8/month
+                $8/month — 30 days free
               </Button>
             </div>
           </CardContent>
@@ -180,7 +180,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
                 disabled={!!loading}
               >
                 {loading === 'team-month' && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                $15/month
+                $15/month — 30 days free
               </Button>
             </div>
           </CardContent>

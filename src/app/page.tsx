@@ -403,7 +403,7 @@ export default function HomePage() {
                         </div>
                         <div className="text-right">
                           <p className="text-xl font-bold">$8<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-                          <p className="text-[10px] text-muted-foreground">or $79/year</p>
+                          <p className="text-[10px] text-primary font-medium">30-day free trial</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -425,7 +425,7 @@ export default function HomePage() {
                         </div>
                         <div className="text-right">
                           <p className="text-xl font-bold">$15<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-                          <p className="text-[10px] text-muted-foreground">or $149/year</p>
+                          <p className="text-[10px] text-primary font-medium">30-day free trial</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">

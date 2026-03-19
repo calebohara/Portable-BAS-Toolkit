@@ -151,7 +151,7 @@ export default function DashboardPage() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold">Unlock Cloud Sync & Collaboration</p>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    Sync projects across devices, automatic cloud backup, direct messaging, and team collaboration. Plans start at $8/month.
+                    Sync projects across devices, automatic cloud backup, direct messaging, and team collaboration. Start with a 30-day free trial.
                   </p>
                 </div>
                 <Button

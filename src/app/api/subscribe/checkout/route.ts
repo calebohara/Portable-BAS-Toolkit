@@ -67,6 +67,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Create Checkout Session in subscription mode
+    // Monthly plans get a 30-day free trial. Annual plans are already discounted.
+    const isMonthly = interval === 'month';
+
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
@@ -76,6 +79,11 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
+      ...(isMonthly && {
+        subscription_data: {
+          trial_period_days: 30,
+        },
+      }),
       success_url: `${APP_BASE_URL}/settings?subscription=success`,
       cancel_url: `${APP_BASE_URL}/settings?subscription=cancelled`,
       metadata: {
