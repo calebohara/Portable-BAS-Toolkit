@@ -40,7 +40,29 @@
       "Bash(grep -c 'NotebookPen\\\\|useNotepadStore\\\\|useProjectNotepad' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
       "Bash(grep -n 'Link2\\\\|RefreshCw' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
       "Bash(grep -n 'Textarea' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
-      "Bash(ls /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/supabase/migrations/*notepad* /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/supabase/migrations/*field_panel*)"
+      "Bash(ls /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/supabase/migrations/*notepad* /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/supabase/migrations/*field_panel*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:tcfoverseer.cc.vt.edu)",
+      "WebFetch(domain:www.quia.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:sid.siemens.com)",
+      "WebFetch(domain:www.hvac-talk.com)",
+      "WebFetch(domain:control.com)",
+      "WebFetch(domain:mall.industry.siemens.com)",
+      "WebFetch(domain:legacy.pvamu.edu)",
+      "WebFetch(domain:purpleswift.com)",
+      "Bash(brew install:*)",
+      "WebFetch(domain:manualsdump.com)",
+      "Bash(pip3 install:*)",
+      "WebFetch(domain:mybuilding.siemens.com)",
+      "Bash(python3:*)",
+      "WebFetch(domain:www.scribd.com)",
+      "WebFetch(domain:www.manualslib.com)",
+      "WebFetch(domain:mybuilding-test.bt.siemens.cloud)",
+      "WebFetch(domain:fdocuments.us)",
+      "WebFetch(domain:www.wel.uk.com)",
+      "WebFetch(domain:packagecontrol.io)"
     ]
   }
 }
