@@ -80,116 +80,6 @@ export interface FieldNote {
   tags: string[];
 }
 
-// ─── Notepad Documents (full editor tool) ───────────────────
-export type NotepadLanguage =
-  | 'plaintext' | 'json' | 'xml' | 'javascript' | 'python'
-  | 'css' | 'html' | 'markdown';
-
-export const NOTEPAD_LANGUAGE_LABELS: Record<NotepadLanguage, string> = {
-  plaintext: 'Plain Text',
-  json: 'JSON',
-  xml: 'XML',
-  javascript: 'JavaScript',
-  python: 'Python',
-  css: 'CSS',
-  html: 'HTML',
-  markdown: 'Markdown',
-};
-
-export interface NotepadDocument {
-  id: string;
-  name: string;
-  content: string;
-  language: NotepadLanguage;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface ProjectNotepadEntry {
-  id: string;
-  projectId: string;
-  name: string;
-  content: string;
-  linkedTabId?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// ─── Field Panel Web UI ─────────────────────────────────────
-
-export type PanelStatus = 'online' | 'offline' | 'warning' | 'error' | 'unknown' | 'commissioning';
-export type PanelNetworkType = 'IP' | 'MSTP' | 'LON' | 'Modbus' | 'Other';
-export type PanelActivityType = 'note' | 'status-change' | 'backup' | 'firmware-update' | 'commissioning' | 'maintenance' | 'alarm' | 'config-change';
-
-export interface PanelNote {
-  id: string;
-  content: string;
-  author: string;
-  category: 'general' | 'issue' | 'fix' | 'commissioning' | 'maintenance';
-  createdAt: string;
-}
-
-export interface PanelActivity {
-  id: string;
-  type: PanelActivityType;
-  description: string;
-  author: string;
-  timestamp: string;
-  metadata?: Record<string, string>;
-}
-
-export interface PanelLinkedFile {
-  id: string;
-  name: string;
-  fileType: string;
-  category: 'database' | 'wiring' | 'sequence' | 'point-list' | 'startup' | 'report' | 'other';
-  fileId?: string; // reference to ProjectFile if linked
-  url?: string;
-  addedAt: string;
-}
-
-export interface PanelRelatedTool {
-  id: string;
-  name: string;
-  route: string;
-  icon: string;
-  description: string;
-}
-
-export interface FieldPanel {
-  id: string;
-  name: string;
-  site: string;
-  building: string;
-  floor: string;
-  system: string;
-  equipment: string;
-  controllerFamily: string;
-  model: string;
-  ipAddress: string;
-  subnetMask: string;
-  gateway: string;
-  bacnetInstance: number | null;
-  macAddress: string;
-  networkType: PanelNetworkType;
-  firmwareVersion: string;
-  applicationVersion: string;
-  panelStatus: PanelStatus;
-  webUiUrl: string;
-  secureWebUiUrl: string;
-  lastSeenAt: string | null;
-  lastBackupAt: string | null;
-  lastCommissionedAt: string | null;
-  assignedTechnician: string;
-  tags: string[];
-  notes: PanelNote[];
-  activities: PanelActivity[];
-  linkedFiles: PanelLinkedFile[];
-  relatedTools: PanelRelatedTool[];
-  projectId?: string;
-  createdAt: string;
-  updatedAt: string;
-}
 
 export type BugReportSeverity = 'low' | 'medium' | 'high' | 'critical';
 export type BugReportStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
@@ -312,7 +202,7 @@ export type SyncEntityType =
   | 'dailyReports' | 'activityLog' | 'networkDiagrams'
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
   | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
-  | 'projectNotepadEntries' | 'notepadDocuments' | 'bugReports' | 'fieldPanels';
+  | 'bugReports';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 

@@ -3,8 +3,7 @@ import type {
   Project, ProjectFile, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
-  ConnectionProfile, SavedCalculation, PidTuningSession, ProjectNotepadEntry, NotepadDocument, BugReport,
-  FieldPanel,
+  ConnectionProfile, SavedCalculation, PidTuningSession, BugReport,
   SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
@@ -101,30 +100,10 @@ interface BasToolkitDB extends DBSchema {
     value: PidTuningSession;
     indexes: { 'by-project': string };
   };
-  projectNotepadEntries: {
-    key: string;
-    value: ProjectNotepadEntry;
-    indexes: { 'by-project': string };
-  };
-  notepadDocuments: {
-    key: string;
-    value: NotepadDocument;
-    indexes: { 'by-updated': string; 'by-language': string };
-  };
   bugReports: {
     key: string;
     value: BugReport;
     indexes: { 'by-status': string; 'by-severity': string };
-  };
-  fieldPanels: {
-    key: string;
-    value: FieldPanel;
-    indexes: {
-      'by-updated': string;
-      'by-status': string;
-      'by-site': string;
-      'by-project': string;
-    };
   };
   syncQueue: {
     key: string;
@@ -244,8 +223,9 @@ function getDB() {
         }
 
         if (oldVersion < 10) {
-          // Project Notepad Entries
-          const notepadStore = db.createObjectStore('projectNotepadEntries', { keyPath: 'id' });
+          // Project Notepad Entries (legacy — store kept for migration compat)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const notepadStore = (db as any).createObjectStore('projectNotepadEntries', { keyPath: 'id' });
           notepadStore.createIndex('by-project', 'projectId');
         }
 
@@ -257,16 +237,19 @@ function getDB() {
         }
 
         if (oldVersion < 12) {
-          // Notepad Documents (full editor tool)
-          const notepadDocStore = db.createObjectStore('notepadDocuments', { keyPath: 'id' });
+          // Notepad Documents (legacy — store kept for migration compat)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const notepadDocStore = (db as any).createObjectStore('notepadDocuments', { keyPath: 'id' });
           notepadDocStore.createIndex('by-updated', 'updatedAt');
           notepadDocStore.createIndex('by-language', 'language');
         }
 
         if (oldVersion < 13) {
-          // Field Panels
-          if (!db.objectStoreNames.contains('fieldPanels')) {
-            const panelStore = db.createObjectStore('fieldPanels', { keyPath: 'id' });
+          // Field Panels (legacy — store kept for migration compat)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (!(db as any).objectStoreNames.contains('fieldPanels')) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const panelStore = (db as any).createObjectStore('fieldPanels', { keyPath: 'id' });
             panelStore.createIndex('by-updated', 'updatedAt');
             panelStore.createIndex('by-status', 'panelStatus');
             panelStore.createIndex('by-site', 'site');
@@ -275,9 +258,11 @@ function getDB() {
         }
 
         if (oldVersion < 14) {
-          // Ensure fieldPanels exists (fix for DBs that hit v13 before the store was added)
-          if (!db.objectStoreNames.contains('fieldPanels')) {
-            const panelStore = db.createObjectStore('fieldPanels', { keyPath: 'id' });
+          // Ensure fieldPanels exists (legacy — store kept for migration compat)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          if (!(db as any).objectStoreNames.contains('fieldPanels')) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const panelStore = (db as any).createObjectStore('fieldPanels', { keyPath: 'id' });
             panelStore.createIndex('by-updated', 'updatedAt');
             panelStore.createIndex('by-status', 'panelStatus');
             panelStore.createIndex('by-site', 'site');
@@ -314,7 +299,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions', 'projectNotepadEntries', 'fieldPanels'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions'], 'readwrite');
 
   try {
     // Delete associated data
@@ -366,12 +351,6 @@ export async function deleteProject(id: string): Promise<void> {
     const pidSessions = await tx.objectStore('pidTuningSessions').index('by-project').getAll(id);
     for (const ps of pidSessions) await tx.objectStore('pidTuningSessions').delete(ps.id);
 
-    const notepadEntries = await tx.objectStore('projectNotepadEntries').index('by-project').getAll(id);
-    for (const ne of notepadEntries) await tx.objectStore('projectNotepadEntries').delete(ne.id);
-
-    const panels = await tx.objectStore('fieldPanels').index('by-project').getAll(id);
-    for (const fp of panels) await tx.objectStore('fieldPanels').delete(fp.id);
-
     await tx.objectStore('projects').delete(id);
     await tx.done;
 
@@ -388,9 +367,6 @@ export async function deleteProject(id: string): Promise<void> {
     for (const cp of connProfiles) notifySync('delete', 'connectionProfiles', cp.id, null);
     for (const rc of regCalcs) notifySync('delete', 'registerCalculations', rc.id, null);
     for (const ps of pidSessions) notifySync('delete', 'pidTuningSessions', ps.id, null);
-    for (const ne of notepadEntries) notifySync('delete', 'projectNotepadEntries', ne.id, null);
-    for (const fp of panels) notifySync('delete', 'fieldPanels', fp.id, null);
-
     notifySync('delete', 'projects', id, null);
   } catch (e) {
     tx.abort();
@@ -864,49 +840,6 @@ export async function deletePidTuningSession(id: string): Promise<void> {
   notifySync('delete', 'pidTuningSessions', id, null);
 }
 
-// ─── Project Notepad Entries ──────────────────────────────────
-export async function getProjectNotepadEntries(projectId: string): Promise<ProjectNotepadEntry[]> {
-  const db = await getDB();
-  const entries = await db.getAllFromIndex('projectNotepadEntries', 'by-project', projectId);
-  return entries.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function saveProjectNotepadEntry(entry: ProjectNotepadEntry): Promise<void> {
-  const db = await getDB();
-  await db.put('projectNotepadEntries', entry);
-  notifySync('update', 'projectNotepadEntries', entry.id, entry);
-}
-
-export async function deleteProjectNotepadEntry(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('projectNotepadEntries', id);
-  notifySync('delete', 'projectNotepadEntries', id, null);
-}
-
-// ─── Notepad Documents (full editor tool) ─────────────────────
-export async function getAllNotepadDocuments(): Promise<NotepadDocument[]> {
-  const db = await getDB();
-  const docs = await db.getAll('notepadDocuments');
-  return docs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function getNotepadDocument(id: string): Promise<NotepadDocument | undefined> {
-  const db = await getDB();
-  return db.get('notepadDocuments', id);
-}
-
-export async function saveNotepadDocument(doc: NotepadDocument): Promise<void> {
-  const db = await getDB();
-  await db.put('notepadDocuments', doc);
-  notifySync('update', 'notepadDocuments', doc.id, doc);
-}
-
-export async function deleteNotepadDocument(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('notepadDocuments', id);
-  notifySync('delete', 'notepadDocuments', id, null);
-}
-
 // ─── Bug Reports ──────────────────────────────────────────────
 export async function getAllBugReports(): Promise<BugReport[]> {
   const db = await getDB();
@@ -929,30 +862,6 @@ export async function deleteBugReport(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('bugReports', id);
   notifySync('delete', 'bugReports', id, null);
-}
-
-// ─── Field Panels ──────────────────────────────────────────
-export async function getAllFieldPanels(): Promise<FieldPanel[]> {
-  const db = await getDB();
-  const panels = await db.getAll('fieldPanels');
-  return panels.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function getFieldPanel(id: string): Promise<FieldPanel | undefined> {
-  const db = await getDB();
-  return db.get('fieldPanels', id);
-}
-
-export async function saveFieldPanel(panel: FieldPanel): Promise<void> {
-  const db = await getDB();
-  await db.put('fieldPanels', panel);
-  notifySync('update', 'fieldPanels', panel.id, panel);
-}
-
-export async function deleteFieldPanel(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('fieldPanels', id);
-  notifySync('delete', 'fieldPanels', id, null);
 }
 
 // Global search across all projects
@@ -1174,7 +1083,6 @@ export async function purgeOrphanedRecords(): Promise<number> {
     'files', 'notes', 'devices', 'ipPlan', 'activityLog',
     'dailyReports', 'networkDiagrams', 'pingSessions',
     'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions',
-    'projectNotepadEntries', 'fieldPanels',
   ] as const;
 
   let totalDeleted = 0;
@@ -1262,7 +1170,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'projectNotepadEntries', 'notepadDocuments', 'bugReports', 'fieldPanels', 'syncQueue', 'syncConflicts',
+    'pidTuningSessions', 'bugReports', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');

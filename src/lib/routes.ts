@@ -36,8 +36,6 @@ export const ROUTES = {
   PID_TUNING: '/pid-tuning',
   KNOWLEDGE_BASE: '/knowledge-base',
   REGISTER_TOOL: '/register-tool',
-  NOTEPAD: '/notepad',
-  FIELD_PANELS: '/field-panels',
 } as const;
 
 // ─── Dynamic route helpers ──────────────────────────────────

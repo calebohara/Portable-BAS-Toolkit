@@ -7,7 +7,7 @@ import {
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
   Wrench, Shield, WifiOff, ArrowRight, UserPlus, MessageSquare,
   Zap, Layers, Monitor, ChevronRight, Wifi, Heart, Code,
-  Gauge, BookOpen, Download, Cloud, Users, Check, Mail, Server,
+  Gauge, BookOpen, Download, Cloud, Users, Check, Mail,
 } from 'lucide-react';
 import { isPaywallEnabled } from '@/lib/paywall';
 import { useAuth } from '@/providers/auth-provider';
@@ -65,7 +65,6 @@ const toolGroups = [
       { icon: TerminalSquare, name: 'Telnet HMI', desc: 'Browser-based terminal with session tabs and logging' },
       { icon: Wrench, name: 'Command Snippets', desc: 'Reusable commands for BACnet, Modbus, Niagara, and more' },
       { icon: StickyNote, name: 'Sticky Notepad', desc: 'Floating scratchpad with tabbed notes and offline persistence' },
-      { icon: Server, name: 'Field Panels', desc: 'Track BAS controllers with IP, BACnet, firmware, and web UI access' },
     ],
   },
 ];

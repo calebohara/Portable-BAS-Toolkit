@@ -19,10 +19,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   connectionProfiles: 'connection_profiles',
   registerCalculations: 'register_calculations',
   pidTuningSessions: 'pid_tuning_sessions',
-  projectNotepadEntries: 'project_notepad_entries',
-  notepadDocuments: 'notepad_documents',
   bugReports: 'bug_reports',
-  fieldPanels: 'field_panels',
 };
 
 // Fields to strip from local entities before pushing to Supabase.
@@ -197,16 +194,6 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
-  projectNotepadEntries: {
-    projectId: 'project_id',
-    linkedTabId: 'linked_tab_id',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-  },
-  notepadDocuments: {
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-  },
   bugReports: {
     stepsToReproduce: 'steps_to_reproduce',
     appVersion: 'app_version',
@@ -214,28 +201,6 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     desktopOS: 'desktop_os',
     currentPage: 'current_page',
     syncStatus: 'sync_status',
-    createdAt: 'created_at',
-    updatedAt: 'updated_at',
-  },
-  fieldPanels: {
-    controllerFamily: 'controller_family',
-    ipAddress: 'ip_address',
-    subnetMask: 'subnet_mask',
-    bacnetInstance: 'bacnet_instance',
-    macAddress: 'mac_address',
-    networkType: 'network_type',
-    firmwareVersion: 'firmware_version',
-    applicationVersion: 'application_version',
-    panelStatus: 'panel_status',
-    webUiUrl: 'web_ui_url',
-    secureWebUiUrl: 'secure_web_ui_url',
-    lastSeenAt: 'last_seen_at',
-    lastBackupAt: 'last_backup_at',
-    lastCommissionedAt: 'last_commissioned_at',
-    assignedTechnician: 'assigned_technician',
-    linkedFiles: 'linked_files',
-    relatedTools: 'related_tools',
-    projectId: 'project_id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
@@ -291,7 +256,6 @@ export const REQUIRES_PROJECT_ID: Set<SyncEntityType> = new Set([
   'activityLog',   // activity_log.project_id NOT NULL
   'networkDiagrams', // network_diagrams.project_id NOT NULL
   'pidTuningSessions', // pid_tuning_sessions.project_id NOT NULL
-  'projectNotepadEntries', // project_notepad_entries.project_id NOT NULL
 ]);
 // These tables have project_id nullable: files, commandSnippets,
 // pingSessions, terminalLogs, connectionProfiles, registerCalculations
@@ -380,8 +344,5 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'connectionProfiles',
   'registerCalculations',
   'pidTuningSessions',
-  'projectNotepadEntries',
-  'notepadDocuments',
   'bugReports',
-  'fieldPanels',
 ];

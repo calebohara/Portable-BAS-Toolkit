@@ -24,7 +24,23 @@
       "Bash(ls -lat \"C:/Users/Caleb/AppData/Local/Temp/claude/D--Github-Repositories-Portable-BAS-Toolkit/1fbe8ea8-7eb9-48a3-832d-0ac3ae2c5aa8/tasks/\"b*.output)",
       "Bash(find D:Github_RepositoriesPortable-BAS-Toolkitsrc -maxdepth 1 -name .env* -o -name *.config.*)",
       "Bash(grep -r \"process.env\\\\|NEXT_PUBLIC\" D:Github_RepositoriesPortable-BAS-Toolkitsrclib --include=*.ts --include=*.tsx)",
-      "Bash(find D:Github_RepositoriesPortable-BAS-Toolkitsrc -name *config* -type f)"
+      "Bash(find D:Github_RepositoriesPortable-BAS-Toolkitsrc -name *config* -type f)",
+      "Bash(git pull:*)",
+      "Bash(git status:*)",
+      "Bash(node -p \"require\\(''./package.json''\\).version\")",
+      "Bash(git tag:*)",
+      "Bash(sed -i '' 's/\"\"version\"\": \"\"4.8.3\"\"/\"\"version\"\": \"\"4.8.4\"\"/' package.json src-tauri/tauri.conf.json)",
+      "Bash(sed -i '' 's/^version = \"\"4.8.3\"\"/version = \"\"4.8.4\"\"/' src-tauri/Cargo.toml)",
+      "Bash(sed -i '' 's/\"\"version\"\": \"\"4.8.4\"\"/\"\"version\"\": \"\"4.8.5\"\"/' package.json src-tauri/tauri.conf.json)",
+      "Bash(sed -i '' 's/^version = \"\"4.8.4\"\"/version = \"\"4.8.5\"\"/' src-tauri/Cargo.toml)",
+      "Bash(git rm:*)",
+      "Bash(git checkout:*)",
+      "Bash(grep -n 'useProjectNotepad\\\\|projectNotepad\\\\|notepad' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
+      "Bash(grep -n 'NotepadView\\\\|Notepad View' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
+      "Bash(grep -c 'NotebookPen\\\\|useNotepadStore\\\\|useProjectNotepad' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
+      "Bash(grep -n 'Link2\\\\|RefreshCw' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
+      "Bash(grep -n 'Textarea' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
+      "Bash(ls /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/supabase/migrations/*notepad* /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/supabase/migrations/*field_panel*)"
     ]
   }
 }
