@@ -7,13 +7,14 @@ import {
   ArrowLeft, Database, FileText, Network, Server, HardDrive,
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
-  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe,
+  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
   useProjectDevices, useProjectIpPlan, useProjectActivity,
   useTerminalLogs, useDailyReports,
 } from '@/hooks/use-projects';
+import { usePpclDocuments } from '@/hooks/use-ppcl-documents';
 import { TopBar } from '@/components/layout/top-bar';
 import { ProjectStatusBadge, FileStatusBadge } from '@/components/shared/status-badge';
 import { FileIcon, formatFileSize } from '@/components/shared/file-icon';
@@ -49,6 +50,7 @@ const sections = [
   { id: 'backups', label: 'Backups', icon: HardDrive },
   { id: 'general-documents', label: 'General Docs', icon: FolderOpen },
   { id: 'notes', label: 'Notes', icon: StickyNote },
+  { id: 'ppcl-programs', label: 'PPCL', icon: FileCode },
   { id: 'terminal-logs', label: 'Terminal Logs', icon: Terminal },
   { id: 'history', label: 'History', icon: History },
 ] as const;
@@ -68,6 +70,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { activity } = useProjectActivity(id);
   const { logs: terminalLogs, removeLog: removeTerminalLog } = useTerminalLogs(id);
   const { reports } = useDailyReports(id);
+  const { documents: ppclDocs, addDocument: addPpclDoc, removeDocument: removePpclDoc } = usePpclDocuments(id);
   const getInitialTab = () => {
     if (typeof window === 'undefined') return 'overview';
     const params = new URLSearchParams(window.location.search);
@@ -203,6 +206,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               const count = sectionId === 'device-list' ? devices.length
                 : sectionId === 'ip-plan' ? ipEntries.length
                 : sectionId === 'notes' ? notes.length
+                : sectionId === 'ppcl-programs' ? ppclDocs.length
                 : sectionId !== 'overview' && sectionId !== 'history' ? fileCounts[sectionId] || 0
                 : 0;
               return (
@@ -284,6 +288,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onUpdateNote={updateNote}
               onDeleteNote={removeNote}
             />
+          )}
+
+          {activeTab === 'ppcl-programs' && (
+            <PpclProgramsView projectId={id} documents={ppclDocs} onAdd={addPpclDoc} onDelete={removePpclDoc} />
           )}
 
           {activeTab === 'terminal-logs' && (
@@ -746,6 +754,89 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Hash; label: strin
         <p className="text-[11px] text-muted-foreground uppercase tracking-wider">{label}</p>
         <p className="text-sm">{value}</p>
       </div>
+    </div>
+  );
+}
+
+// ─── PPCL Programs View ──────────────────────────────────────
+function PpclProgramsView({ projectId, documents, onAdd, onDelete }: {
+  projectId: string;
+  documents: import('@/types').PpclDocument[];
+  onAdd: (name: string, content?: string, firmware?: import('@/types').PpclFirmwareTarget, projectId?: string) => Promise<import('@/types').PpclDocument | undefined>;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const router = useRouter();
+
+  const handleNew = async () => {
+    const doc = await onAdd('Untitled.pcl', '', 'pxc-tc', projectId);
+    if (doc) {
+      toast.success('PPCL program created');
+    }
+  };
+
+  const handleOpen = (docId: string) => {
+    router.push(`/ppcl-editor?docId=${docId}`);
+  };
+
+  const handleDelete = async (id: string, name: string) => {
+    await onDelete(id);
+    toast.success(`Deleted "${name}"`);
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <FileCode className="h-5 w-5" /> PPCL Programs
+        </h2>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={handleNew}>
+          <Plus className="h-3.5 w-3.5" /> New Program
+        </Button>
+      </div>
+
+      {documents.length === 0 ? (
+        <EmptyState
+          icon={FileCode}
+          title="No PPCL Programs"
+          description="Create a new PPCL program or open the PPCL Editor to upload .pcl files."
+        />
+      ) : (
+        <div className="space-y-2">
+          {documents.map(doc => (
+            <Card key={doc.id}>
+              <CardContent className="p-3 flex items-center gap-3">
+                <FileCode className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{doc.name}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {format(new Date(doc.updatedAt), 'MMM d, h:mm a')}
+                    <span className="ml-2 uppercase">{doc.firmware}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => handleOpen(doc.id)}
+                  >
+                    <ExternalLink className="h-3 w-3" /> Open
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleDelete(doc.id, doc.name)}
+                    title="Delete program"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

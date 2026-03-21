@@ -3,7 +3,7 @@ import type {
   Project, ProjectFile, FieldNote,
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
-  ConnectionProfile, SavedCalculation, PidTuningSession, BugReport,
+  ConnectionProfile, SavedCalculation, PidTuningSession, PpclDocument, BugReport,
   SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
@@ -100,6 +100,11 @@ interface BasToolkitDB extends DBSchema {
     value: PidTuningSession;
     indexes: { 'by-project': string };
   };
+  ppclDocuments: {
+    key: string;
+    value: PpclDocument;
+    indexes: { 'by-updated': string; 'by-project': string };
+  };
   bugReports: {
     key: string;
     value: BugReport;
@@ -121,7 +126,7 @@ let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 14, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 15, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
       },
@@ -269,6 +274,13 @@ function getDB() {
             panelStore.createIndex('by-project', 'projectId');
           }
         }
+
+        if (oldVersion < 15) {
+          // PPCL Documents
+          const ppclStore = db.createObjectStore('ppclDocuments', { keyPath: 'id' });
+          ppclStore.createIndex('by-updated', 'updatedAt');
+          ppclStore.createIndex('by-project', 'projectId');
+        }
       },
     }).catch((err) => {
       // Reset so next call retries instead of returning cached failure
@@ -299,7 +311,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions', 'ppclDocuments'], 'readwrite');
 
   try {
     // Delete associated data
@@ -351,6 +363,9 @@ export async function deleteProject(id: string): Promise<void> {
     const pidSessions = await tx.objectStore('pidTuningSessions').index('by-project').getAll(id);
     for (const ps of pidSessions) await tx.objectStore('pidTuningSessions').delete(ps.id);
 
+    const ppclDocs = await tx.objectStore('ppclDocuments').index('by-project').getAll(id);
+    for (const pd of ppclDocs) await tx.objectStore('ppclDocuments').delete(pd.id);
+
     await tx.objectStore('projects').delete(id);
     await tx.done;
 
@@ -367,6 +382,7 @@ export async function deleteProject(id: string): Promise<void> {
     for (const cp of connProfiles) notifySync('delete', 'connectionProfiles', cp.id, null);
     for (const rc of regCalcs) notifySync('delete', 'registerCalculations', rc.id, null);
     for (const ps of pidSessions) notifySync('delete', 'pidTuningSessions', ps.id, null);
+    for (const pd of ppclDocs) notifySync('delete', 'ppclDocuments', pd.id, null);
     notifySync('delete', 'projects', id, null);
   } catch (e) {
     tx.abort();
@@ -840,6 +856,36 @@ export async function deletePidTuningSession(id: string): Promise<void> {
   notifySync('delete', 'pidTuningSessions', id, null);
 }
 
+// ─── PPCL Documents ──────────────────────────────────────────
+export async function getAllPpclDocuments(): Promise<PpclDocument[]> {
+  const db = await getDB();
+  const docs = await db.getAll('ppclDocuments');
+  return docs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getProjectPpclDocuments(projectId: string): Promise<PpclDocument[]> {
+  const db = await getDB();
+  const docs = await db.getAllFromIndex('ppclDocuments', 'by-project', projectId);
+  return docs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getPpclDocument(id: string): Promise<PpclDocument | undefined> {
+  const db = await getDB();
+  return db.get('ppclDocuments', id);
+}
+
+export async function savePpclDocument(doc: PpclDocument): Promise<void> {
+  const db = await getDB();
+  await db.put('ppclDocuments', doc);
+  notifySync('update', 'ppclDocuments', doc.id, doc);
+}
+
+export async function deletePpclDocument(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('ppclDocuments', id);
+  notifySync('delete', 'ppclDocuments', id, null);
+}
+
 // ─── Bug Reports ──────────────────────────────────────────────
 export async function getAllBugReports(): Promise<BugReport[]> {
   const db = await getDB();
@@ -1083,6 +1129,7 @@ export async function purgeOrphanedRecords(): Promise<number> {
     'files', 'notes', 'devices', 'ipPlan', 'activityLog',
     'dailyReports', 'networkDiagrams', 'pingSessions',
     'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions',
+    'ppclDocuments',
   ] as const;
 
   let totalDeleted = 0;
@@ -1170,7 +1217,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'bugReports', 'syncQueue', 'syncConflicts',
+    'pidTuningSessions', 'ppclDocuments', 'bugReports', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');

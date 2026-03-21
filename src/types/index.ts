@@ -81,6 +81,19 @@ export interface FieldNote {
 }
 
 
+// ─── PPCL Documents ─────────────────────────────────────────
+export type PpclFirmwareTarget = 'pxc-tc' | 'ptec';
+
+export interface PpclDocument {
+  id: string;
+  name: string;
+  content: string;
+  projectId: string; // '' for unassigned
+  firmware: PpclFirmwareTarget;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export type BugReportSeverity = 'low' | 'medium' | 'high' | 'critical';
 export type BugReportStatus = 'open' | 'in_progress' | 'resolved' | 'closed';
 
@@ -202,7 +215,7 @@ export type SyncEntityType =
   | 'dailyReports' | 'activityLog' | 'networkDiagrams'
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
   | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
-  | 'bugReports';
+  | 'ppclDocuments' | 'bugReports';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 

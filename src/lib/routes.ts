@@ -36,6 +36,7 @@ export const ROUTES = {
   PID_TUNING: '/pid-tuning',
   KNOWLEDGE_BASE: '/knowledge-base',
   REGISTER_TOOL: '/register-tool',
+  PPCL_EDITOR: '/ppcl-editor',
 } as const;
 
 // ─── Dynamic route helpers ──────────────────────────────────
