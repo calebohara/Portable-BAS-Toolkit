@@ -5,6 +5,11 @@
 import { StreamLanguage, type StreamParser } from '@codemirror/language';
 import { LanguageSupport } from '@codemirror/language';
 import { autocompletion, type CompletionContext, type Completion } from '@codemirror/autocomplete';
+import {
+  ViewPlugin, type ViewUpdate, Decoration, type DecorationSet, EditorView,
+  type PluginValue,
+} from '@codemirror/view';
+import { type Extension, RangeSetBuilder, Facet } from '@codemirror/state';
 
 // ─── Token word sets ──────────────────────────────────────────
 
@@ -364,4 +369,170 @@ export function ppclLanguage(): LanguageSupport {
   return new LanguageSupport(ppclStreamLanguage, [
     autocompletion({ override: [ppclCompletions] }),
   ]);
+}
+
+// ─── Line Length Enforcement Extension ──────────────────────
+// Highlights lines that exceed the firmware's character-per-line limit.
+
+const ppclCharLimitFacet = Facet.define<number, number>({
+  combine: (values) => values.length ? values[values.length - 1] : 198,
+});
+
+const overLengthMark = Decoration.mark({ class: 'cm-ppcl-overlong' });
+
+const lineLengthPlugin = ViewPlugin.fromClass(
+  class implements PluginValue {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = this.buildDecos(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = this.buildDecos(update.view);
+      }
+    }
+    buildDecos(view: EditorView): DecorationSet {
+      const limit = view.state.facet(ppclCharLimitFacet);
+      const builder = new RangeSetBuilder<Decoration>();
+      const { from, to } = view.viewport;
+      for (let pos = from; pos <= to; ) {
+        const line = view.state.doc.lineAt(pos);
+        if (line.length > limit) {
+          builder.add(line.from + limit, line.to, overLengthMark);
+        }
+        pos = line.to + 1;
+      }
+      return builder.finish();
+    }
+  },
+  { decorations: (v) => v.decorations }
+);
+
+const lineLengthTheme = EditorView.baseTheme({
+  '.cm-ppcl-overlong': {
+    backgroundColor: 'rgba(239, 68, 68, 0.2)',
+    borderBottom: '2px wavy rgba(239, 68, 68, 0.7)',
+  },
+});
+
+/**
+ * Extension that visually highlights characters beyond the PPCL line length limit.
+ * @param charLimit - Max characters per line (198 for PXC/TC, 80 for PTEC)
+ */
+export function ppclLineLengthEnforcement(charLimit: number): Extension {
+  return [
+    ppclCharLimitFacet.of(charLimit),
+    lineLengthPlugin,
+    lineLengthTheme,
+  ];
+}
+
+// ─── GOTO / GOSUB Click-to-Jump Extension ───────────────────
+// Makes GOTO(n) and GOSUB(n,...) references clickable — clicking jumps to the target PPCL line.
+
+const gotoPattern = /\b(GOTO|GOSUB)\s*\(\s*(\d+)/gi;
+
+const gotoLinkMark = Decoration.mark({ class: 'cm-ppcl-goto-link' });
+
+const gotoPlugin = ViewPlugin.fromClass(
+  class implements PluginValue {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = this.buildDecos(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = this.buildDecos(update.view);
+      }
+    }
+    buildDecos(view: EditorView): DecorationSet {
+      const builder = new RangeSetBuilder<Decoration>();
+      const { from, to } = view.viewport;
+      for (let pos = from; pos <= to; ) {
+        const line = view.state.doc.lineAt(pos);
+        const text = line.text;
+        gotoPattern.lastIndex = 0;
+        let match;
+        while ((match = gotoPattern.exec(text)) !== null) {
+          // Underline the entire GOTO(n) or GOSUB(n portion
+          const start = line.from + match.index;
+          const end = line.from + match.index + match[0].length;
+          builder.add(start, end, gotoLinkMark);
+        }
+        pos = line.to + 1;
+      }
+      return builder.finish();
+    }
+  },
+  { decorations: (v) => v.decorations }
+);
+
+/**
+ * Find the document position of a PPCL line number.
+ * Scans from the beginning of the document for a line starting with the target number.
+ */
+function findPpclLine(view: EditorView, targetLineNum: number): number | null {
+  const doc = view.state.doc;
+  for (let i = 1; i <= doc.lines; i++) {
+    const line = doc.line(i);
+    const match = line.text.match(/^\s*(\d+)/);
+    if (match && parseInt(match[1], 10) === targetLineNum) {
+      return line.from;
+    }
+  }
+  return null;
+}
+
+const gotoClickHandler = EditorView.domEventHandlers({
+  click(event, view) {
+    // Only handle Ctrl/Cmd + Click or plain click on the decorated span
+    const target = event.target as HTMLElement;
+    if (!target.closest('.cm-ppcl-goto-link')) return false;
+
+    const pos = view.posAtCoords({ x: event.clientX, y: event.clientY });
+    if (pos === null) return false;
+
+    const line = view.state.doc.lineAt(pos);
+    gotoPattern.lastIndex = 0;
+    let match;
+    while ((match = gotoPattern.exec(line.text)) !== null) {
+      const matchStart = line.from + match.index;
+      const matchEnd = line.from + match.index + match[0].length;
+      if (pos >= matchStart && pos <= matchEnd) {
+        const targetNum = parseInt(match[2], 10);
+        const targetPos = findPpclLine(view, targetNum);
+        if (targetPos !== null) {
+          view.dispatch({
+            selection: { anchor: targetPos },
+            effects: EditorView.scrollIntoView(targetPos, { y: 'center' }),
+          });
+          event.preventDefault();
+          return true;
+        }
+        break;
+      }
+    }
+    return false;
+  },
+});
+
+const gotoTheme = EditorView.baseTheme({
+  '.cm-ppcl-goto-link': {
+    textDecoration: 'underline',
+    textDecorationStyle: 'dotted',
+    textUnderlineOffset: '3px',
+    cursor: 'pointer',
+    borderRadius: '2px',
+  },
+  '.cm-ppcl-goto-link:hover': {
+    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+    textDecorationStyle: 'solid',
+  },
+});
+
+/**
+ * Extension that makes GOTO(n) and GOSUB(n,...) clickable — clicking jumps to the target PPCL line.
+ */
+export function ppclGotoNavigation(): Extension {
+  return [gotoPlugin, gotoClickHandler, gotoTheme];
 }

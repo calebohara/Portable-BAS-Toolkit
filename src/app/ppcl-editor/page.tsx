@@ -125,7 +125,7 @@ export default function PpclEditorPage() {
   const handleCreateDocument = useCallback(async () => {
     const name = newName.trim() || 'Untitled';
     const fileName = name.endsWith('.pcl') ? name : name + '.pcl';
-    const doc = await addDocument(fileName, '', 'pxc-tc', newProjectId || '');
+    const doc = await addDocument(fileName, '100 ', 'pxc-tc', newProjectId || '');
     if (doc) openTab(doc.id);
     setShowNewDialog(false);
     toast.success(`Created "${fileName}"`);
@@ -278,6 +278,7 @@ export default function PpclEditorPage() {
                 onCursorChange={setCursor}
                 onSave={handleSave}
                 onEditorView={(view) => { editorViewRef.current = view; }}
+                charLimit={activeDoc.firmware === 'ptec' ? 80 : 198}
               />
             </div>
           ) : (

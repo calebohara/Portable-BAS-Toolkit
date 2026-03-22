@@ -9,7 +9,7 @@ import { EditorView, type ViewUpdate } from '@codemirror/view';
 import { search, searchKeymap, openSearchPanel } from '@codemirror/search';
 import { keymap } from '@codemirror/view';
 import { Prec } from '@codemirror/state';
-import { ppclLanguage } from '@/lib/ppcl-language';
+import { ppclLanguage, ppclLineLengthEnforcement, ppclGotoNavigation } from '@/lib/ppcl-language';
 
 export interface CursorPosition {
   line: number;
@@ -22,6 +22,8 @@ interface PpclEditorComponentProps {
   onCursorChange?: (pos: CursorPosition) => void;
   onSave?: () => void;
   onEditorView?: (view: EditorView) => void;
+  /** Max characters per line for the active firmware target (198 for PXC/TC, 80 for PTEC) */
+  charLimit?: number;
 }
 
 /**
@@ -39,6 +41,7 @@ export function PpclEditorComponent({
   onCursorChange,
   onSave,
   onEditorView,
+  charLimit = 198,
 }: PpclEditorComponentProps) {
   const wordWrap = usePpclEditorStore(s => s.wordWrap);
   const fontSize = usePpclEditorStore(s => s.fontSize);
@@ -120,10 +123,12 @@ export function PpclEditorComponent({
           run: (view) => { openSearchPanel(view); return true; },
         },
       ]),
+      ppclLineLengthEnforcement(charLimit),
+      ppclGotoNavigation(),
     ];
     if (wordWrap) exts.push(EditorView.lineWrapping);
     return exts;
-  }, [wordWrap]);
+  }, [wordWrap, charLimit]);
 
   return (
     <CodeMirror
