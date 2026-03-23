@@ -62,7 +62,23 @@
       "WebFetch(domain:mybuilding-test.bt.siemens.cloud)",
       "WebFetch(domain:fdocuments.us)",
       "WebFetch(domain:www.wel.uk.com)",
-      "WebFetch(domain:packagecontrol.io)"
+      "WebFetch(domain:packagecontrol.io)",
+      "Bash(node ./node_modules/.bin/tsc --noEmit --pretty)",
+      "Read(//c/Program Files/**)",
+      "Bash(where.exe node:*)",
+      "Bash(cmd.exe /c \"where node\")",
+      "Bash(cmd.exe /c 'where node 2>nul')",
+      "Read(//c/Users/z004jdke/Documents/GitHub/Portable-BAS-Toolkit/$LOCALAPPDATA/fnm_multishells/*/**)",
+      "Read(//c/Users/z004jdke/Documents/GitHub/Portable-BAS-Toolkit/$APPDATA/nvm/*/**)",
+      "Read(//c/Users/z004jdke/Documents/GitHub/Portable-BAS-Toolkit/$HOME/.nvm/*/**)",
+      "Read(//c/Users/z004jdke/**)",
+      "Bash(powershell.exe -NoProfile -Command \"Get-Command node -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source\")",
+      "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem -Path ''C:\\\\Users\\\\z004jdke'' -Recurse -Filter ''node.exe'' -Depth 5 -ErrorAction SilentlyContinue | Select-Object -First 3 -ExpandProperty FullName\")",
+      "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem -Path ''C:\\\\'' -Filter ''node.exe'' -Recurse -Depth 4 -ErrorAction SilentlyContinue | Select-Object -First 3 -ExpandProperty FullName\")",
+      "Read(//c/Users/z004jdke/Documents/GitHub/Portable-BAS-Toolkit/$LOCALAPPDATA/**)",
+      "Read(//c/Users/z004jdke/Documents/GitHub/Portable-BAS-Toolkit/$APPDATA/**)",
+      "Bash(echo $PATH)",
+      "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem -Path ''C:\\\\Program Files'',''C:\\\\Program Files \\(x86\\)'' -Filter node.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue | Select -First 3 -ExpandProperty FullName\")"
     ]
   }
 }

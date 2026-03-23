@@ -205,7 +205,7 @@ const PPCL_COMPLETIONS: Completion[] = [
   { label: 'DISABL', type: 'keyword', detail: 'Disable lines', info: 'DISABL(line1, line2, ..., line16)\nDisables specified PPCL lines.' },
   { label: 'GOSUB', type: 'keyword', detail: 'Call subroutine', info: 'GOSUB(line, arg1, arg2, ...)\nCalls subroutine at line#. Args accessible as $ARG1–$ARG15.\nCannot be used inside IF/THEN/ELSE.' },
   { label: 'RETURN', type: 'keyword', detail: 'Return from subroutine', info: 'RETURN\nReturns control from a GOSUB subroutine.' },
-  { label: 'GOTO', type: 'keyword', detail: 'Jump to line', info: 'GOTO(line)\nJumps to specified line number.\nMust jump forward (higher line#) except the last GOTO in the program.' },
+  { label: 'GOTO', type: 'keyword', detail: 'Jump to line', info: 'GOTO line\nJumps to specified line number.\nMust jump forward (higher line#) except the last GOTO in the program.' },
   { label: 'ONPWRT', type: 'keyword', detail: 'Power-up entry point', info: 'ONPWRT(line#)\nSets the first line executed after power failure.\nShould be the first command in the program.' },
   { label: 'SAMPLE', type: 'keyword', detail: 'Timed execution', info: 'SAMPLE(time, cmd)\nExecutes cmd once per time interval (seconds).\nMust be evaluated every pass. Cannot nest TOD/LOOP/SSTO inside.' },
   { label: 'IF', type: 'keyword', detail: 'Conditional', info: 'IF (condition) THEN cmd [ELSE cmd]\nSingle-statement conditional. One statement per branch only.' },
@@ -428,9 +428,9 @@ export function ppclLineLengthEnforcement(charLimit: number): Extension {
 }
 
 // ─── GOTO / GOSUB Click-to-Jump Extension ───────────────────
-// Makes GOTO(n) and GOSUB(n,...) references clickable — clicking jumps to the target PPCL line.
+// Makes GOTO n and GOSUB(n,...) references clickable — clicking jumps to the target PPCL line.
 
-const gotoPattern = /\b(GOTO|GOSUB)\s*\(\s*(\d+)/gi;
+const gotoPattern = /\b(GOTO)\s+(\d+)|\b(GOSUB)\s*\(\s*(\d+)/gi;
 
 const gotoLinkMark = Decoration.mark({ class: 'cm-ppcl-goto-link' });
 
@@ -454,7 +454,7 @@ const gotoPlugin = ViewPlugin.fromClass(
         gotoPattern.lastIndex = 0;
         let match;
         while ((match = gotoPattern.exec(text)) !== null) {
-          // Underline the entire GOTO(n) or GOSUB(n portion
+          // Underline the entire GOTO n or GOSUB(n portion
           const start = line.from + match.index;
           const end = line.from + match.index + match[0].length;
           builder.add(start, end, gotoLinkMark);
@@ -499,7 +499,7 @@ const gotoClickHandler = EditorView.domEventHandlers({
       const matchStart = line.from + match.index;
       const matchEnd = line.from + match.index + match[0].length;
       if (pos >= matchStart && pos <= matchEnd) {
-        const targetNum = parseInt(match[2], 10);
+        const targetNum = parseInt(match[2] || match[4], 10);
         const targetPos = findPpclLine(view, targetNum);
         if (targetPos !== null) {
           view.dispatch({
@@ -531,7 +531,7 @@ const gotoTheme = EditorView.baseTheme({
 });
 
 /**
- * Extension that makes GOTO(n) and GOSUB(n,...) clickable — clicking jumps to the target PPCL line.
+ * Extension that makes GOTO n and GOSUB(n,...) clickable — clicking jumps to the target PPCL line.
  */
 export function ppclGotoNavigation(): Extension {
   return [gotoPlugin, gotoClickHandler, gotoTheme];

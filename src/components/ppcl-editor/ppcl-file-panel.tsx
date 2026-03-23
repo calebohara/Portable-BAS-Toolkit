@@ -6,19 +6,22 @@ import { usePpclEditorStore } from '@/store/ppcl-editor-store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import type { PpclDocument } from '@/types';
+import type { PpclDocument, Project } from '@/types';
 import { format } from 'date-fns';
+import { FolderOpen } from 'lucide-react';
 
 interface PpclFilePanelProps {
   documents: PpclDocument[];
+  projects: Project[];
   onNewDocument: () => void;
   onDeleteDocument: (id: string) => Promise<void>;
   onRenameDocument: (id: string, name: string) => Promise<void>;
   onImportFile: (file: File) => Promise<void>;
+  onUpdateProject: (id: string, projectId: string) => Promise<void>;
   onFindReplace: () => void;
 }
 
-export function PpclFilePanel({ documents, onNewDocument, onDeleteDocument, onRenameDocument, onImportFile, onFindReplace }: PpclFilePanelProps) {
+export function PpclFilePanel({ documents, projects, onNewDocument, onDeleteDocument, onRenameDocument, onImportFile, onUpdateProject, onFindReplace }: PpclFilePanelProps) {
   const openTab = usePpclEditorStore(s => s.openTab);
   const activeTabId = usePpclEditorStore(s => s.activeTabId);
   const [filter, setFilter] = useState('');
@@ -159,6 +162,22 @@ export function PpclFilePanel({ documents, onNewDocument, onDeleteDocument, onRe
                       {format(new Date(doc.updatedAt), 'MMM d, h:mm a')}
                       <span className="ml-1 uppercase text-[9px]">{doc.firmware}</span>
                     </p>
+                    <div className="flex items-center gap-1 mt-0.5" onClick={e => e.stopPropagation()}>
+                      <FolderOpen className="h-2.5 w-2.5 text-muted-foreground shrink-0" />
+                      <select
+                        value={doc.projectId || '_none'}
+                        onChange={e => onUpdateProject(doc.id, e.target.value === '_none' ? '' : e.target.value)}
+                        className="h-4 bg-transparent border-none text-[9px] text-muted-foreground hover:text-foreground cursor-pointer outline-none p-0 -ml-0.5 max-w-[140px] truncate"
+                        title="Assign to project"
+                      >
+                        <option value="_none">No project</option>
+                        {projects.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}{p.projectNumber ? ` (${p.projectNumber})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                   </>
                 )}
               </div>

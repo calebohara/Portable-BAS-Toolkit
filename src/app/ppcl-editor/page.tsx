@@ -153,6 +153,12 @@ export default function PpclEditorPage() {
     toast.success(`Renamed to "${name}"`);
   }, [updateDocument]);
 
+  const handleUpdateProject = useCallback(async (id: string, projectId: string) => {
+    await updateDocument(id, { projectId });
+    const projectName = projects.find(p => p.id === projectId)?.name;
+    toast.success(projectName ? `Assigned to "${projectName}"` : 'Removed from project');
+  }, [updateDocument, projects]);
+
   // Import .pcl file
   const handleImportFile = useCallback(async (file: File) => {
     try {
@@ -260,10 +266,12 @@ export default function PpclEditorPage() {
           <div className="shrink-0 z-30 max-md:fixed max-md:left-0 max-md:top-0 max-md:bottom-0">
             <PpclFilePanel
               documents={documents}
+              projects={projects}
               onNewDocument={handleOpenNewDialog}
               onDeleteDocument={handleDeleteDocument}
               onRenameDocument={handleRenameDocument}
               onImportFile={handleImportFile}
+              onUpdateProject={handleUpdateProject}
               onFindReplace={handleFindReplace}
             />
           </div>
