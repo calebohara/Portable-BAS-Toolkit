@@ -3,7 +3,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { useAuth } from '@/providers/auth-provider';
-import type { RealtimeChannel } from '@supabase/supabase-js';
 
 export interface OnlineUser {
   userId: string;
@@ -19,7 +18,6 @@ export interface OnlineUser {
 export function useOnlineUsers() {
   const { mode, user, profile } = useAuth();
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
-  const [channel, setChannel] = useState<RealtimeChannel | null>(null);
 
   const parsePresenceState = useCallback((state: Record<string, unknown[]>) => {
     const users: OnlineUser[] = [];
@@ -77,12 +75,9 @@ export function useOnlineUsers() {
       }
     });
 
-    setChannel(ch);
-
     return () => {
       ch.untrack();
       client.removeChannel(ch);
-      setChannel(null);
     };
   }, [mode, user, profile?.displayName, profile?.firstName, profile?.lastName, profile?.avatarUrl, parsePresenceState]);
 

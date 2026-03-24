@@ -31,7 +31,6 @@ const PpclEditorComponent = dynamic(
 
 export default function PpclEditorPage() {
   const { documents, loading, addDocument, updateDocument, removeDocument } = usePpclDocuments();
-  const openTabIds = usePpclEditorStore(s => s.openTabIds);
   const activeTabId = usePpclEditorStore(s => s.activeTabId);
   const openTab = usePpclEditorStore(s => s.openTab);
   const closeTab = usePpclEditorStore(s => s.closeTab);

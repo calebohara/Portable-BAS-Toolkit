@@ -820,7 +820,7 @@ export default function NetworkDiagramPage() {
             {connectFrom && (
               <div className="flex items-center justify-center gap-2 px-3 py-1.5 bg-field-info/10 text-xs text-field-info">
                 <LinkIcon className="h-3 w-3" /> Tap target node to connect
-                <button onClick={() => setConnectFrom(null)} className="ml-1"><X className="h-3 w-3" /></button>
+                <button onClick={() => setConnectFrom(null)} className="ml-1 p-2 rounded-lg hover:bg-muted"><X className="h-3 w-3" /></button>
               </div>
             )}
             {/* Bottom tabs */}
@@ -955,7 +955,7 @@ export default function NetworkDiagramPage() {
               {mobilePanel === 'nodes' && (
                 <div className="px-4 pb-6 overflow-y-auto" style={{ maxHeight: 'calc(60vh - 2rem)' }}>
                   <h3 className="text-sm font-semibold mb-3">Add Node</h3>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {nodeTypes.map(type => {
                       const Icon = NODE_ICONS[type];
                       const color = NODE_COLORS[type];

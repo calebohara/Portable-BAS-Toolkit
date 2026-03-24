@@ -27,12 +27,10 @@ export function ChangePasswordDialog({ open, onOpenChange, updatePassword }: Cha
   const handleOpenChange = useCallback((next: boolean) => {
     if (phase === 'saving') return;
     if (!next) {
-      setTimeout(() => {
-        setPhase('form');
-        setNewPassword('');
-        setConfirmPassword('');
-        setError('');
-      }, 200);
+      setPhase('form');
+      setNewPassword('');
+      setConfirmPassword('');
+      setError('');
     }
     onOpenChange(next);
   }, [phase, onOpenChange]);
@@ -70,7 +68,7 @@ export function ChangePasswordDialog({ open, onOpenChange, updatePassword }: Cha
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent showCloseButton={phase !== 'saving'} className="sm:max-w-md">
+      <DialogContent showCloseButton={phase === 'form'} className="sm:max-w-md">
         {/* ── Form ── */}
         {phase === 'form' && (
           <>

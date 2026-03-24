@@ -8,7 +8,6 @@ import type {
   GlobalDailyReport,
   GlobalProjectFile,
   GlobalActivityLogEntry,
-  GlobalNetworkDiagram,
   GlobalMessage,
 } from '@/types/global-projects';
 

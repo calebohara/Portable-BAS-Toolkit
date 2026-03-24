@@ -3,6 +3,8 @@
  * native command wrappers with automatic browser fallback.
  */
 
+import type { Event } from '@tauri-apps/api/event';
+
 // ─── Runtime Detection ──────────────────────────────────────
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
@@ -130,8 +132,7 @@ export async function nativeTelnetDisconnect(
 }
 
 // ─── Tauri Event Listener ─────────────────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let listenCache: ((event: string, handler: (event: any) => void) => Promise<() => void>) | null = null;
+let listenCache: ((event: string, handler: (event: Event<string>) => void) => Promise<() => void>) | null = null;
 
 async function getListen() {
   if (listenCache) return listenCache;
@@ -145,8 +146,7 @@ export async function onTelnetData(
   handler: (data: string) => void,
 ): Promise<() => void> {
   const listen = await getListen();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return listen(`telnet-data-${sessionId}`, (event: any) => handler(event.payload as string));
+  return listen(`telnet-data-${sessionId}`, (event: Event<string>) => handler(event.payload as string));
 }
 
 export async function onTelnetClosed(
@@ -162,8 +162,7 @@ export async function onTelnetError(
   handler: (error: string) => void,
 ): Promise<() => void> {
   const listen = await getListen();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return listen(`telnet-error-${sessionId}`, (event: any) => handler(event.payload as string));
+  return listen(`telnet-error-${sessionId}`, (event: Event<string>) => handler(event.payload as string));
 }
 
 // ─── BAS Controller Proxy (cert bypass) ─────────────────────
@@ -235,8 +234,7 @@ export async function onSerialData(
   handler: (data: string) => void,
 ): Promise<() => void> {
   const listen = await getListen();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return listen(`serial-data-${sessionId}`, (event: any) => handler(event.payload as string));
+  return listen(`serial-data-${sessionId}`, (event: Event<string>) => handler(event.payload as string));
 }
 
 export async function onSerialClosed(
@@ -252,6 +250,5 @@ export async function onSerialError(
   handler: (error: string) => void,
 ): Promise<() => void> {
   const listen = await getListen();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return listen(`serial-error-${sessionId}`, (event: any) => handler(event.payload as string));
+  return listen(`serial-error-${sessionId}`, (event: Event<string>) => handler(event.payload as string));
 }

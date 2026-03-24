@@ -584,7 +584,7 @@ export default function PidTuningPage() {
                   </FieldGroup>
                 )}
 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <FieldGroup label="Output Min (%)">
                     <Input className="h-8 text-xs" type="number" value={currentValues.outputMin ?? ''} onChange={e => setCurrentValues(prev => ({ ...prev, outputMin: e.target.value === '' ? null : parseFloat(e.target.value) }))} />
                   </FieldGroup>

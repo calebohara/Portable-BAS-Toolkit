@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePpclEditorStore } from '@/store/ppcl-editor-store';
 import { useAppStore } from '@/store/app-store';
 
@@ -51,11 +51,14 @@ export function PpclEditorComponent({
   const [resolvedDark, setResolvedDark] = useState(false);
 
   const onCursorChangeRef = useRef(onCursorChange);
-  onCursorChangeRef.current = onCursorChange;
   const onSaveRef = useRef(onSave);
-  onSaveRef.current = onSave;
   const lineStepRef = useRef(lineStep);
-  lineStepRef.current = lineStep;
+
+  useLayoutEffect(() => {
+    onCursorChangeRef.current = onCursorChange;
+    onSaveRef.current = onSave;
+    lineStepRef.current = lineStep;
+  });
 
   useEffect(() => {
     if (appTheme === 'dark') {

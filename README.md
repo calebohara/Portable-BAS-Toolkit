@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.8.4-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.8.7-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -111,12 +111,12 @@
 - **Network Diagram Builder** — drag-and-drop topology mapping with PNG/SVG export
 - **Register Tool** — hex/decimal/binary, IEEE 754, byte order, Modbus addressing, bitmask tool
 - **PID Tuning** — interactive PID loop tuning calculator with multiple loop types and session management
-- **Field Panels** — track BAS controllers with IP, BACnet, firmware, and web UI access
 
 ### Access & Diagnostics
 - **Web Interface** — access BAS controller web panels with saved endpoints and security handling
 - **Telnet HMI** — browser-based Telnet terminal with session tabs, logging, and command history
 - **Command Snippets** — reusable commands for BACnet, Modbus, Niagara, Siemens, and more
+- **PPCL Editor** — syntax-highlighted editor for PPCL programs with line numbering, GOTO navigation, and cloud sync
 
 ### Cloud Sync & Offline
 - **Offline-first** — all data in IndexedDB, works without Wi-Fi
@@ -131,7 +131,6 @@
 - **Global search** — search across all projects, files, devices, IP entries, and notes
 - **Offline / Pinned** — pin content for guaranteed offline access with a dedicated management view
 - **Uploads Inbox** — central file upload area for organizing project documents
-- **Sticky notepad** — draggable floating scratchpad with tabbed notes
 - **Guided tour** — interactive onboarding walkthrough
 
 ---
@@ -231,7 +230,7 @@ Installable Progressive Web App:
 
 ## Versioning
 
-**Current: v4.8.4** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.8.7** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 

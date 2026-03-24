@@ -5,7 +5,7 @@ import {
   type IpPlanEntry, type ActivityLogEntry, type FileCategory,
 } from '@/types';
 import { formatFileSize } from '@/components/shared/file-icon';
-import type { ShareConfig, ShareContentSelection, ShareMetadata, DetailLevel } from './share-types';
+import type { ShareConfig, ShareContentSelection } from './share-types';
 
 // ─── Sensitive data masking ─────────────────────────────────
 function maskIp(ip: string): string {

@@ -4,15 +4,14 @@ import { useState } from 'react';
 import {
   HelpCircle, PlayCircle, FolderKanban, Upload, Search, Pin,
   Database, Network, StickyNote, FileText, Download, Settings,
-  ChevronDown, ChevronRight, Wifi, WifiOff, Palette, Share2,
-  Monitor, Smartphone, Shield, Activity, TerminalSquare, BookmarkPlus,
-  Users2, BookOpen, Cloud, MessageSquare, Calculator, RefreshCw, Gauge,
+  ChevronDown, ChevronRight, WifiOff, Palette, Share2,
+  Monitor, Smartphone, Shield, Activity, BookmarkPlus,
+  Users2, BookOpen, Cloud, Calculator, RefreshCw, Gauge,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useAppStore } from '@/store/app-store';
-import { cn } from '@/lib/utils';
 import { APP_VERSION } from '@/lib/version';
 
 // ─── Getting Started ───────────────────────────────────────────────────────────

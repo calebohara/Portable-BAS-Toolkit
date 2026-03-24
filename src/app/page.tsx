@@ -64,7 +64,7 @@ const toolGroups = [
       { icon: Globe, name: 'Web Interface', desc: 'Access BAS controller web panels with saved endpoints' },
       { icon: TerminalSquare, name: 'Telnet HMI', desc: 'Browser-based terminal with session tabs and logging' },
       { icon: Wrench, name: 'Command Snippets', desc: 'Reusable commands for BACnet, Modbus, Niagara, and more' },
-      { icon: StickyNote, name: 'Sticky Notepad', desc: 'Floating scratchpad with tabbed notes and offline persistence' },
+      { icon: Code, name: 'PPCL Editor', desc: 'Syntax-highlighted editor for PPCL programs with line numbering and GOTO navigation' },
     ],
   },
 ];
@@ -270,7 +270,7 @@ export default function HomePage() {
                 style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.65s', opacity: 0 }}
               >
                 {[
-                  { value: '22+', label: 'Tools' },
+                  { value: '21+', label: 'Tools' },
                   { value: '100%', label: 'Offline' },
                   { value: 'NEW', label: 'Global Projects' },
                 ].map(({ value, label }) => (
@@ -728,7 +728,7 @@ export default function HomePage() {
                   </div>
 
                   {/* Right: Feature highlights */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                     {[
                       { icon: Activity, title: 'Native ICMP ping', desc: 'True reachability testing' },
                       { icon: Wifi, title: 'Full network access', desc: 'VPN & internal subnets' },

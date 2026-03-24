@@ -1635,12 +1635,6 @@ function DocumentsTab({
     }
   };
 
-  const statusColors: Record<string, string> = {
-    current: 'bg-field-success/10 text-field-success',
-    superseded: 'bg-field-warning/10 text-field-warning',
-    archived: 'bg-muted text-muted-foreground',
-  };
-
   const canEdit = (file: GlobalProjectFile) => isAdmin || file.createdBy === currentUserId;
 
   return (
