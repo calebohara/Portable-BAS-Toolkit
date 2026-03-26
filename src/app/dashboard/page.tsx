@@ -54,7 +54,9 @@ export default function DashboardPage() {
   }, [projects]);
 
   useEffect(() => {
-    getStorageEstimate().then(setStorage).catch(() => {});
+    getStorageEstimate().then(setStorage).catch(() => {
+      setStorage({ used: -1, quota: -1 });
+    });
   }, []);
 
   if (loading || authGateLoading || !shouldShow) {
@@ -295,7 +297,7 @@ export default function DashboardPage() {
                   <HardDrive className="h-5 w-5 text-muted-foreground" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold">{formatFileSize(storage.used)}</p>
+                  <p className="text-2xl font-bold">{storage.used >= 0 ? formatFileSize(storage.used) : 'Unavailable'}</p>
                   <p className="text-xs text-muted-foreground">
                     Local Storage · {storage.quota > 0 ? `${((storage.used / storage.quota) * 100).toFixed(1)}% used` : '—'}
                   </p>

@@ -25,9 +25,11 @@ export function notifySync(
   payload: unknown,
 ): void {
   if (!syncManager) return;
-  // Fire and forget — never block the caller
+  // Fire and forget — never block the caller.
+  // Enqueue failures are logged as errors since the data won't sync until
+  // the next full sync or app restart.
   syncManager.enqueue(action, entityType, entityId, payload).catch((e) => {
-    console.warn('[sync] Failed to enqueue:', entityType, entityId, e);
+    console.error('[sync] Failed to enqueue (data will not sync until next full sync):', entityType, entityId, e);
   });
 }
 

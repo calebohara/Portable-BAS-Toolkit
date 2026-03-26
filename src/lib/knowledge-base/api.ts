@@ -3,6 +3,15 @@
 import { getSupabaseClient } from '@/lib/supabase/client';
 import type { KbCategory, KbArticle, KbReply, KbAttachment } from '@/types/knowledge-base';
 
+/** Shape returned by Supabase `select('*, kb_categories(name)')` join. */
+interface KbArticleRow {
+  [key: string]: unknown;
+  id: string;
+  created_by: string;
+  attachments?: unknown;
+  kb_categories?: { name: string } | null;
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function toCamelCase(str: string): string {
@@ -134,11 +143,11 @@ export async function fetchKbArticles(): Promise<Result<KbArticle[]>> {
     // Map articles
     const articles: KbArticle[] = (data || []).map((row) => {
       const article = camelCaseKeys<KbArticle>(row);
-      const profile = profileMap[row.created_by];
+      const typedRow = row as KbArticleRow;
+      const profile = profileMap[typedRow.created_by];
       article.authorName = profile?.display_name ?? null;
       article.authorAvatarUrl = profile?.avatar_url ?? null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      article.categoryName = (row as any).kb_categories?.name ?? 'Uncategorized';
+      article.categoryName = typedRow.kb_categories?.name ?? 'Uncategorized';
       article.replies = replyMap.get(article.id) || [];
       article.replyCount = article.replies.length;
       // Parse attachments from JSONB
@@ -177,12 +186,12 @@ export async function createKbArticle(
     if (error) return { data: null, error: error.message };
 
     const article = camelCaseKeys<KbArticle>(data);
+    const typedData = data as KbArticleRow;
     const profileMap = await fetchProfileMap([user.id]);
     const profile = profileMap[user.id];
     article.authorName = profile?.display_name ?? null;
     article.authorAvatarUrl = profile?.avatar_url ?? null;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    article.categoryName = (data as any).kb_categories?.name ?? 'Uncategorized';
+    article.categoryName = typedData.kb_categories?.name ?? 'Uncategorized';
     article.attachments = attachments;
     article.replies = [];
     article.replyCount = 0;

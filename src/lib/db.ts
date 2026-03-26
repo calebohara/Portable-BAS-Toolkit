@@ -122,6 +122,13 @@ interface BasToolkitDB extends DBSchema {
   };
 }
 
+/** Union of all object-store names in the schema — use instead of bare `string`. */
+export type BasToolkitStoreName =
+  | 'projects' | 'files' | 'fileBlobs' | 'notes' | 'devices' | 'ipPlan'
+  | 'activityLog' | 'dailyReports' | 'networkDiagrams' | 'commandSnippets'
+  | 'pingSessions' | 'terminalLogs' | 'connectionProfiles' | 'registerCalculations'
+  | 'pidTuningSessions' | 'ppclDocuments' | 'bugReports' | 'syncQueue' | 'syncConflicts';
+
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
@@ -1138,11 +1145,10 @@ export async function purgeOrphanedRecords(): Promise<number> {
   const orphanedBlobKeys: string[] = [];
 
   for (const storeName of childStores) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tx = db.transaction(storeName as any, 'readwrite');
+    const tx = db.transaction(storeName, 'readwrite');
     const allItems = await tx.store.getAll();
     for (const item of allItems) {
-      const rec = item as Record<string, unknown>;
+      const rec = item as unknown as Record<string, unknown>;
       const pid = rec.projectId as string | undefined;
       // Only purge if projectId is a valid UUID that doesn't match any existing project
       // Records with empty/missing/non-UUID projectId are unassigned, not orphaned
@@ -1180,8 +1186,9 @@ export async function purgeOrphanedRecords(): Promise<number> {
 }
 
 // Get all items from a store (for full sync)
-export async function getAllFromStore(storeName: string): Promise<unknown[]> {
+export async function getAllFromStore(storeName: BasToolkitStoreName): Promise<unknown[]> {
   const db = await getDB();
+  // Dynamic store access requires cast — caller provides the typed store name
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return db.getAll(storeName as any);
 }
@@ -1193,7 +1200,7 @@ export async function getAllFromStore(storeName: string): Promise<unknown[]> {
  * Used by pull sync so downloaded data isn't re-pushed to Supabase.
  */
 export async function bulkPutSilent(
-  storeName: string,
+  storeName: BasToolkitStoreName,
   items: Record<string, unknown>[],
 ): Promise<number> {
   if (items.length === 0) return 0;
@@ -1201,7 +1208,8 @@ export async function bulkPutSilent(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tx = db.transaction(storeName as any, 'readwrite');
   for (const item of items) {
-    await tx.store.put(item);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await tx.store.put(item as any);
   }
   await tx.done;
   return items.length;
@@ -1231,7 +1239,7 @@ export async function clearAllData(): Promise<void> {
  * Used by pull sync to apply soft-deletes from the cloud.
  */
 export async function bulkDeleteSilent(
-  storeName: string,
+  storeName: BasToolkitStoreName,
   ids: string[],
 ): Promise<number> {
   if (ids.length === 0) return 0;

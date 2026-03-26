@@ -4,8 +4,6 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   Network, Plus, Trash2, Download, Save, ZoomIn, ZoomOut, Move,
   MousePointer, Link as LinkIcon, Edit3, X, RotateCcw,
-  Server, Router, MonitorSmartphone, Cpu, Thermometer, Gauge,
-  LayoutGrid, Cloud, ArrowRightLeft, Settings2,
   FolderKanban,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
@@ -26,120 +24,11 @@ import { useNetworkDiagrams } from '@/hooks/use-projects';
 import { useProjects } from '@/hooks/use-projects';
 import type { NetworkDiagram, DiagramNode, DiagramConnection, DiagramNodeType, ConnectionStyle } from '@/types';
 import { DIAGRAM_NODE_LABELS } from '@/types';
-
-// ─── Node Icons ──────────────────────────────────────────────
-const NODE_ICONS: Record<DiagramNodeType, typeof Server> = {
-  controller: Cpu,
-  router: Router,
-  switch: ArrowRightLeft,
-  server: Server,
-  sensor: Thermometer,
-  actuator: Gauge,
-  panel: LayoutGrid,
-  workstation: MonitorSmartphone,
-  gateway: ArrowRightLeft,
-  cloud: Cloud,
-  generic: Settings2,
-};
-
-const NODE_COLORS: Record<DiagramNodeType, string> = {
-  controller: '#3b82f6',
-  router: '#f59e0b',
-  switch: '#10b981',
-  server: '#8b5cf6',
-  sensor: '#06b6d4',
-  actuator: '#ef4444',
-  panel: '#6366f1',
-  workstation: '#ec4899',
-  gateway: '#f97316',
-  cloud: '#64748b',
-  generic: '#71717a',
-};
+import { NODE_ICONS, NODE_COLORS } from '@/components/network-diagram/constants';
+import { CanvasNode } from '@/components/network-diagram/canvas-node';
+import { ConnectionLine } from '@/components/network-diagram/connection-line';
 
 type ToolMode = 'select' | 'pan' | 'connect';
-
-// ─── Canvas Node Component ──────────────────────────────────
-function CanvasNode({
-  node, selected, onSelect, onDragStart, onDoubleClick, zoom,
-}: {
-  node: DiagramNode; selected: boolean;
-  onSelect: () => void; onDragStart: (e: React.PointerEvent) => void;
-  onDoubleClick: () => void; zoom: number;
-}) {
-  const Icon = NODE_ICONS[node.type] || Settings2;
-  const color = node.color || NODE_COLORS[node.type];
-
-  return (
-    <g
-      transform={`translate(${node.x}, ${node.y})`}
-      onPointerDown={(e) => { onSelect(); onDragStart(e); }}
-      onDoubleClick={onDoubleClick}
-      style={{ cursor: 'grab' }}
-    >
-      {/* Selection ring */}
-      {selected && (
-        <rect x={-42} y={-42} width={84} height={84} rx={14}
-          fill="none" stroke="#3b82f6" strokeWidth={2 / zoom} strokeDasharray="4 2" />
-      )}
-      {/* Node body */}
-      <rect x={-36} y={-36} width={72} height={72} rx={12}
-        fill={color} fillOpacity={0.15} stroke={color} strokeWidth={1.5 / zoom} />
-      {/* Icon circle */}
-      <circle cx={0} cy={-6} r={16} fill={color} fillOpacity={0.2} />
-      {/* We render icon as a foreignObject */}
-      <foreignObject x={-12} y={-18} width={24} height={24}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 24, height: 24 }}>
-          <Icon style={{ width: 16, height: 16, color }} />
-        </div>
-      </foreignObject>
-      {/* Label */}
-      <text x={0} y={26} textAnchor="middle" fill="currentColor"
-        fontSize={Math.max(9, 11 / zoom)} fontWeight={500}
-        className="select-none">
-        {node.label.length > 10 ? node.label.slice(0, 10) + '...' : node.label}
-      </text>
-      {/* IP below */}
-      {node.ip && (
-        <text x={0} y={38} textAnchor="middle" fill="currentColor" fillOpacity={0.5}
-          fontSize={9} className="select-none font-mono">
-          {node.ip}
-        </text>
-      )}
-    </g>
-  );
-}
-
-// ─── Connection Line Component ──────────────────────────────
-function ConnectionLine({
-  conn, fromNode, toNode, selected, onSelect, zoom,
-}: {
-  conn: DiagramConnection; fromNode: DiagramNode; toNode: DiagramNode;
-  selected: boolean; onSelect: () => void; zoom: number;
-}) {
-  const dashArray = conn.style === 'dashed' ? '8 4' : conn.style === 'dotted' ? '2 4' : undefined;
-  const color = conn.color || '#64748b';
-  const midX = (fromNode.x + toNode.x) / 2;
-  const midY = (fromNode.y + toNode.y) / 2;
-
-  return (
-    <g onClick={onSelect} style={{ cursor: 'pointer' }}>
-      {/* Hit area (wider invisible line) */}
-      <line x1={fromNode.x} y1={fromNode.y} x2={toNode.x} y2={toNode.y}
-        stroke="transparent" strokeWidth={12 / zoom} />
-      {/* Visible line */}
-      <line x1={fromNode.x} y1={fromNode.y} x2={toNode.x} y2={toNode.y}
-        stroke={selected ? '#3b82f6' : color} strokeWidth={(selected ? 2.5 : 1.5) / zoom}
-        strokeDasharray={dashArray} />
-      {/* Label */}
-      {conn.label && (
-        <text x={midX} y={midY - 6} textAnchor="middle" fill="currentColor" fillOpacity={0.6}
-          fontSize={9} className="select-none pointer-events-none">
-          {conn.label}
-        </text>
-      )}
-    </g>
-  );
-}
 
 // ─── Mobile Bottom Panel ─────────────────────────────────────
 type MobilePanel = 'none' | 'project' | 'nodes';
@@ -348,14 +237,43 @@ export default function NetworkDiagramPage() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-        deleteSelected();
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        return; // Don't intercept when typing in form fields
       }
-      if (e.key === 'Escape') {
-        setConnectFrom(null);
-        setSelectedNodeId(null);
-        setSelectedConnId(null);
+      switch (e.key) {
+        case 'Delete':
+        case 'Backspace':
+          deleteSelected();
+          break;
+        case 'Escape':
+          setConnectFrom(null);
+          setSelectedNodeId(null);
+          setSelectedConnId(null);
+          break;
+        case 'v':
+        case 'V':
+          setTool('select');
+          break;
+        case 'h':
+        case 'H':
+          setTool('pan');
+          break;
+        case 'c':
+        case 'C':
+          setTool('connect');
+          setConnectFrom(null);
+          break;
+        case '=':
+        case '+':
+          setZoom(z => Math.min(3, z + 0.1));
+          break;
+        case '-':
+          setZoom(z => Math.max(0.2, z - 0.1));
+          break;
+        case '0':
+          setZoom(1);
+          break;
       }
     };
     window.addEventListener('keydown', handler);

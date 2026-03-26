@@ -106,7 +106,8 @@ async function migrateAttachmentsToStorage(
       const storagePath = buildStoragePath(globalProjectId, att.fileName, 'reports');
       await uploadBlobToStorage(blob, storagePath, att.mimeType);
       migrated.push({ id: uuid(), fileName: att.fileName, fileType: att.fileType, mimeType: att.mimeType, size: att.size, storagePath });
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] Attachment upload failed (best-effort):', e);
       // Best-effort — include metadata without storage path
       migrated.push({ id: uuid(), fileName: att.fileName, fileType: att.fileType, mimeType: att.mimeType, size: att.size, storagePath: null });
     }
@@ -133,7 +134,8 @@ async function migrateAttachmentsFromStorage(
       const blobKey = uuid();
       await saveFileBlob(blobKey, blob);
       migrated.push({ id: uuid(), fileName: att.fileName, fileType: att.fileType, mimeType: att.mimeType, size: att.size, blobKey });
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] Attachment download failed (best-effort):', e);
       // Best-effort — skip failed downloads
     }
   }
@@ -204,7 +206,8 @@ export async function migrateLocalToGlobal(
       });
       if (result.error) throw new Error(result.error);
       migrated.notes++;
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] Note migration failed:', e);
       failed.notes++;
     }
   }
@@ -230,7 +233,8 @@ export async function migrateLocalToGlobal(
       });
       if (result.error) throw new Error(result.error);
       migrated.devices++;
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] Device migration failed:', e);
       failed.devices++;
     }
   }
@@ -253,7 +257,8 @@ export async function migrateLocalToGlobal(
       });
       if (result.error) throw new Error(result.error);
       migrated.ipEntries++;
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] IP entry migration failed:', e);
       failed.ipEntries++;
     }
   }
@@ -285,7 +290,8 @@ export async function migrateLocalToGlobal(
       });
       if (result.error) throw new Error(result.error);
       migrated.reports++;
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] Report migration failed:', e);
       failed.reports++;
     }
   }
@@ -380,7 +386,8 @@ export async function migrateGlobalToLocal(
       };
       await saveNote(localNote);
       migrated.notes++;
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] Note migration failed:', e);
       failed.notes++;
     }
   }
@@ -410,7 +417,8 @@ export async function migrateGlobalToLocal(
       };
       await saveDevice(localDevice);
       migrated.devices++;
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] Device migration failed:', e);
       failed.devices++;
     }
   }
@@ -437,7 +445,8 @@ export async function migrateGlobalToLocal(
       };
       await saveIpEntry(localEntry);
       migrated.ipEntries++;
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] IP entry migration failed:', e);
       failed.ipEntries++;
     }
   }
@@ -474,7 +483,8 @@ export async function migrateGlobalToLocal(
       };
       await saveDailyReport(localReport);
       migrated.reports++;
-    } catch {
+    } catch (e) {
+      console.warn('[migrate] Report migration failed:', e);
       failed.reports++;
     }
   }
@@ -499,8 +509,9 @@ export async function migrateGlobalToLocal(
       'saved project to local',
       `Saved ${migrated.notes} notes, ${migrated.devices} devices, ${migrated.ipEntries} IP entries, ${migrated.reports} reports to local projects`,
     );
-  } catch {
+  } catch (e) {
     // Don't fail import if global activity logging fails
+    console.warn('[migrate] Global activity logging failed (non-critical):', e);
   }
 
   return {
