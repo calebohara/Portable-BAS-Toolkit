@@ -12,6 +12,8 @@ import { WebUpdateBanner } from './web-update-banner';
 import { MaintenancePage } from '@/components/maintenance/maintenance-page';
 import { isMaintenanceMode } from '@/lib/maintenance';
 import { cn } from '@/lib/utils';
+import { silently } from '@/lib/error-reporting';
+import { ErrorBoundary } from './error-boundary';
 
 // Routes that render their own full-page layout (no sidebar)
 const FULL_PAGE_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/donate', '/desktop', '/pending-approval'];
@@ -63,7 +65,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     const isTauri = '__TAURI_INTERNALS__' in window;
 
     if ('serviceWorker' in navigator && !isDev && !isTauri) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+      navigator.serviceWorker.register('/sw.js').catch(silently);
     } else if ('serviceWorker' in navigator && (isDev || isTauri)) {
       // Unregister any previously registered SW to prevent stale caches
       navigator.serviceWorker.getRegistrations().then((registrations) => {
@@ -140,7 +142,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           sidebarOpen ? 'md:ml-56' : 'md:ml-16'
         )}
       >
-        {children}
+        <ErrorBoundary section="Page">
+          {children}
+        </ErrorBoundary>
       </main>
       <GlobalNotepad />
       <InstallPrompt />

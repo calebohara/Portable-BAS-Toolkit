@@ -31,6 +31,7 @@ import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/providers/auth-provider';
 import { useSyncContext } from '@/providers/sync-provider';
 import { getStorageEstimate, clearFileCache, resetFailedSyncItems, getFirstSyncError } from '@/lib/db';
+import { reportError } from '@/lib/error-reporting';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { APP_VERSION } from '@/lib/version';
 import { useDeviceClass } from '@/hooks/use-device-class';
@@ -394,7 +395,7 @@ export default function SettingsPage() {
   }, [profile]);
 
   useEffect(() => {
-    getStorageEstimate().then(setStorage).catch(() => {});
+    getStorageEstimate().then(setStorage).catch((e) => reportError('load storage estimate', e, { silent: true }));
   }, []);
 
   const storagePercent = storage.quota > 0 ? (storage.used / storage.quota) * 100 : 0;
@@ -402,7 +403,7 @@ export default function SettingsPage() {
   const handleClearCache = async () => {
     const count = await clearFileCache();
     toast.success(`Cleared ${count} cached file(s)`);
-    getStorageEstimate().then(setStorage).catch(() => {});
+    getStorageEstimate().then(setStorage).catch((e) => reportError('load storage estimate', e, { silent: true }));
   };
 
   const handleSaveProfile = async () => {

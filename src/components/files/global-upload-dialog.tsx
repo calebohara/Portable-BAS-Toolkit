@@ -15,6 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import { saveFile, saveFileBlob, addActivity, getAllProjects } from '@/lib/db';
+import { reportError } from '@/lib/error-reporting';
 import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type FileVersion, type Project } from '@/types';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { FileIcon } from '@/components/shared/file-icon';
@@ -68,7 +69,7 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
   // Load projects when dialog opens
   useEffect(() => {
     if (open) {
-      getAllProjects().then(setProjects).catch(() => {});
+      getAllProjects().then(setProjects).catch((e) => reportError('load projects', e));
     }
   }, [open]);
 

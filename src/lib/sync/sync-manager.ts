@@ -664,11 +664,14 @@ export class SyncManager implements SyncManagerInterface {
 
           // Also remove these from the sync queue so they don't try to push
           for (const id of orphanIds) {
-            await deleteSyncItem(`${storeName}-${id}`).catch(() => {});
+            await deleteSyncItem(`${storeName}-${id}`).catch((e) => {
+              console.warn(`${LOG_PREFIX} Failed to remove orphan sync item ${storeName}-${id}:`, e);
+            });
           }
         }
-      } catch {
-        // Store may not exist or be empty — ignore
+      } catch (e) {
+        // Store may not exist or be empty — non-critical
+        console.warn(`${LOG_PREFIX} Local orphan scan skipped for ${storeName}:`, e);
       }
     }
 

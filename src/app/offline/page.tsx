@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useProjects } from '@/hooks/use-projects';
 import { getStorageEstimate, clearFileCache } from '@/lib/db';
+import { reportError } from '@/lib/error-reporting';
 import { TopBar } from '@/components/layout/top-bar';
 import { EmptyState } from '@/components/shared/empty-state';
 import { ProjectStatusBadge } from '@/components/shared/status-badge';
@@ -27,7 +28,7 @@ export default function OfflinePage() {
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   useEffect(() => {
-    getStorageEstimate().then(setStorage).catch(() => {});
+    getStorageEstimate().then(setStorage).catch((e) => reportError('load storage estimate', e, { silent: true }));
   }, []);
 
   const offlineProjects = projects.filter((p) => p.isOfflineAvailable);
@@ -39,7 +40,7 @@ export default function OfflinePage() {
   const handleClearCache = async () => {
     const count = await clearFileCache();
     toast.success(`Cleared ${count} cached files`);
-    getStorageEstimate().then(setStorage).catch(() => {});
+    getStorageEstimate().then(setStorage).catch((e) => reportError('load storage estimate', e, { silent: true }));
   };
 
   const togglePin = async (projectId: string) => {
