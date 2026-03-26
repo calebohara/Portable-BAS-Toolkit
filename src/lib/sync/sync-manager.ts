@@ -21,7 +21,7 @@ export class SyncManager implements SyncManagerInterface {
   private client: SupabaseClient;
   private userId: string;
   private intervalId: ReturnType<typeof setInterval> | null = null;
-  private processing = false;
+  private processingPromise: Promise<void> | null = null;
   private onStatusChange: StatusCallback | null = null;
   private onConflictCountChange: ConflictCallback | null = null;
   // Entity types whose Supabase tables don't exist — skip sync for these
@@ -107,10 +107,18 @@ export class SyncManager implements SyncManagerInterface {
   }
 
   async processQueue(): Promise<void> {
-    if (this.processing) return;
+    if (this.processingPromise) return;
     if (typeof navigator !== 'undefined' && !navigator.onLine) return;
 
-    this.processing = true;
+    this.processingPromise = this._processQueueInner();
+    try {
+      await this.processingPromise;
+    } finally {
+      this.processingPromise = null;
+    }
+  }
+
+  private async _processQueueInner(): Promise<void> {
     try {
       const items = await getPendingSyncItems(BATCH_SIZE);
       if (items.length === 0) {
@@ -145,8 +153,6 @@ export class SyncManager implements SyncManagerInterface {
     } catch (err) {
       console.error(`${LOG_PREFIX} Queue processing error:`, err);
       this.onStatusChange?.('error', 0);
-    } finally {
-      this.processing = false;
     }
   }
 

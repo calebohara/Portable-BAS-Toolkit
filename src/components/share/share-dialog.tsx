@@ -309,7 +309,7 @@ export function ShareDialog({ open, onOpenChange, project, files, notes, devices
     // Create a temporary print container in the current window
     const printContainer = document.createElement('div');
     printContainer.id = 'bau-print-container';
-    printContainer.innerHTML = content.innerHTML;
+    printContainer.appendChild(content.cloneNode(true));
 
     // Add print styles
     const style = document.createElement('style');

@@ -426,7 +426,7 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
     // Create a temporary print container in the current window
     const printContainer = document.createElement('div');
     printContainer.id = 'bau-print-container';
-    printContainer.innerHTML = content.innerHTML;
+    printContainer.appendChild(content.cloneNode(true));
 
     const style = document.createElement('style');
     style.id = 'bau-print-styles';

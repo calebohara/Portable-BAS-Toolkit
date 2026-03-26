@@ -3,6 +3,7 @@
 import { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
+import DOMPurify from 'dompurify';
 import {
   BookOpen, Send, Trash2, Reply, ChevronDown, ChevronUp,
   Filter, FileText, Download, Search, MessageSquare, PenLine,
@@ -62,7 +63,10 @@ function renderMarkdown(text: string): string {
     })
     // Line breaks
     .replace(/\n/g, '<br />');
-  return html;
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['strong', 'em', 'code', 'a', 'br', 'div', 'li'],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+  });
 }
 
 // ─── Page ────────────────────────────────────────────────────────────────────
