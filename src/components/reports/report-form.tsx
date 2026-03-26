@@ -145,14 +145,17 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
   };
 
   /** Attempt to push the report data to the selected global project (best-effort). */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const maybeLinkToGlobalProject = async (data: any) => {
+  const maybeLinkToGlobalProject = async (data: Pick<DailyReport,
+    'date' | 'technicianName' | 'status' | 'startTime' | 'endTime' | 'hoursOnSite' |
+    'location' | 'weather' | 'workCompleted' | 'issuesEncountered' | 'workPlannedNext' |
+    'coordinationNotes' | 'equipmentWorkedOn' | 'deviceIpChanges' | 'safetyNotes' | 'generalNotes'
+  >) => {
     if (!linkToGlobal || !selectedGlobalProjectId) return;
     try {
       const globalReportData = {
         date: data.date,
         technicianName: data.technicianName,
-        status: data.status as 'draft' | 'submitted' | 'finalized',
+        status: data.status,
         startTime: data.startTime,
         endTime: data.endTime,
         hoursOnSite: data.hoursOnSite,

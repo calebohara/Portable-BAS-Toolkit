@@ -237,14 +237,43 @@ export default function NetworkDiagramPage() {
   // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (document.activeElement?.tagName === 'INPUT' || document.activeElement?.tagName === 'TEXTAREA') return;
-        deleteSelected();
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        return; // Don't intercept when typing in form fields
       }
-      if (e.key === 'Escape') {
-        setConnectFrom(null);
-        setSelectedNodeId(null);
-        setSelectedConnId(null);
+      switch (e.key) {
+        case 'Delete':
+        case 'Backspace':
+          deleteSelected();
+          break;
+        case 'Escape':
+          setConnectFrom(null);
+          setSelectedNodeId(null);
+          setSelectedConnId(null);
+          break;
+        case 'v':
+        case 'V':
+          setTool('select');
+          break;
+        case 'h':
+        case 'H':
+          setTool('pan');
+          break;
+        case 'c':
+        case 'C':
+          setTool('connect');
+          setConnectFrom(null);
+          break;
+        case '=':
+        case '+':
+          setZoom(z => Math.min(3, z + 0.1));
+          break;
+        case '-':
+          setZoom(z => Math.max(0.2, z - 0.1));
+          break;
+        case '0':
+          setZoom(1);
+          break;
       }
     };
     window.addEventListener('keydown', handler);
