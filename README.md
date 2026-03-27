@@ -10,7 +10,6 @@
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
-[![PWA](https://img.shields.io/badge/PWA-Installable-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](#pwa)
 [![Tauri](https://img.shields.io/badge/Tauri-2-FFC131?style=flat-square&logo=tauri&logoColor=white)](#desktop-app)
 [![Deploy](https://img.shields.io/badge/Deploy-Vercel-black?style=flat-square&logo=vercel)](https://vercel.com)
 
@@ -18,11 +17,22 @@
 
 ---
 
-## What's New in v4.8.4
+## What's New in v4.8.7
+
+- **PPCL Editor** — Full-featured editor for PPCL programs with syntax highlighting, multi-tab support, line length enforcement, GOTO navigation, and cloud sync.
+- **Register Tool Expansion** — Quick converter, register interpreter, byte order tool, IEEE 754 float decoder, bitmask tool, scaling calculator, Modbus builder, calculation history, and inline help reference.
+- **Network Diagram Builder** — Canvas-based topology editor with color-coded node types (devices, controllers, gateways, sensors, actuators), connection lines, pan/zoom, and export.
+- **Component Decomposition** — Large page components broken into focused modules for maintainability.
+- **Error Handling Overhaul** — Error boundary, reporting utility, and silent catch fixes across the app.
+- **Test Infrastructure** — Vitest setup with tests for DB operations, sync manager, PID tuning, and register utilities.
+
+<details>
+<summary>v4.8.4</summary>
 
 - **PID Tuning Tool** — Interactive PID loop tuning calculator with support for multiple loop types, output types, control modes, and session save/load.
 - **Dashboard Enhancements** — Activity feed, project health cards, and stats widgets for at-a-glance project status.
 - **Offline / Pinned Content** — Pin projects and content for guaranteed offline access with dedicated management view.
+</details>
 
 <details>
 <summary>v4.3.0</summary>
@@ -41,15 +51,15 @@
 <summary>v4.2.0</summary>
 
 - **Message Board** — Cross-project message board with threaded replies, unread tracking, and read receipts for team-wide communication.
-- **Security Hardening** — Tightened CSP headers (frame-src, connect-src, form-action), cryptographic access code generation, input validation on all user-submitted content, ownership guards on delete operations, and comprehensive account deletion cleanup.
-- **RLS Policy Tightening** — Soft-deleted records excluded from SELECT policies, column-level write restrictions via database triggers on messages.
+- **Security Hardening** — Tightened CSP headers, cryptographic access code generation, input validation, ownership guards, and comprehensive account deletion cleanup.
+- **RLS Policy Tightening** — Soft-deleted records excluded from SELECT policies, column-level write restrictions via database triggers.
 </details>
 
 <details>
 <summary>v4.1.0</summary>
 
 - **Global Projects** — Multi-user collaborative project management with Supabase. Create shared projects, invite team members via access codes, and work together with full audit trails.
-- **Share Local → Global** — Migrate any local project to a Global Project with one click. Notes, devices, IP entries, and daily reports are transferred automatically.
+- **Share Local to Global** — Migrate any local project to a Global Project with one click. Notes, devices, IP entries, and daily reports are transferred automatically.
 - **Daily Report Linking** — Link daily reports from your profile directly to a Global Project via a toggle switch.
 - **Full Global CRUD** — Edit projects (admin), edit/delete reports (creator-only), documents tab, files, notes, devices, and IP entries — all with activity logging and RLS enforcement.
 </details>
@@ -82,11 +92,11 @@
 - Activity log with automatic audit trail
 - Share/export via Teams, Outlook, PDF, or JSON with audience presets
 
-### Global Projects (NEW)
+### Global Projects
 - **Multi-user collaboration** — shared projects powered by Supabase with Row Level Security
 - **Access codes** — invite team members with a generated code, no email exchange needed
 - **Full feature parity** — notes, devices, IP plan, daily reports, documents, and files
-- **Share local → global** — migrate an existing local project with all data in one click
+- **Share local to global** — migrate an existing local project with all data in one click
 - **Activity tracking** — every change logged with before/after diffs and creator attribution
 - **Role-based access** — admin and member roles with creator-only edit/delete on content
 - **Message board** — threaded discussions with replies, unread tracking, and read receipts
@@ -96,11 +106,10 @@
 - Forum-style article posting with full-page markdown editor and formatting toolbar
 - Categories, file attachments (25MB limit), threaded replies
 - Full-text search across all articles and replies
-- Confirmation dialogs on destructive actions
 
 ### Daily Reports
 - Structured field reports with work completed, issues, coordination notes, equipment, and attachments
-- Three-stage workflow: Draft → Submitted → Finalized
+- Three-stage workflow: Draft, Submitted, Finalized
 - Link reports to Global Projects via toggle switch
 - Export to Teams, Outlook, PDF, or JSON
 
@@ -108,15 +117,15 @@
 - **IP Plan** — full addressing table with VLAN, subnet, hostname, duplicate detection
 - **Device Inventory** — controllers, sensors, actuators with BACnet instance, IP, MAC, location
 - **Ping Tool** — HTTP and ICMP (desktop) reachability with port scanning
-- **Network Diagram Builder** — drag-and-drop topology mapping with PNG/SVG export
-- **Register Tool** — hex/decimal/binary, IEEE 754, byte order, Modbus addressing, bitmask tool
-- **PID Tuning** — interactive PID loop tuning calculator with multiple loop types and session management
+- **Network Diagram Builder** — canvas-based topology mapping with color-coded node types, connections, and PNG/SVG export
+- **Register Tool** — hex/decimal/binary converter, IEEE 754 float decoder, byte order tool, bitmask editor, scaling calculator, Modbus address builder, and calculation history
+- **PID Tuning** — interactive PID loop tuning calculator with multiple loop types, control modes, and session management
 
 ### Access & Diagnostics
 - **Web Interface** — access BAS controller web panels with saved endpoints and security handling
 - **Telnet HMI** — browser-based Telnet terminal with session tabs, logging, and command history
 - **Command Snippets** — reusable commands for BACnet, Modbus, Niagara, Siemens, and more
-- **PPCL Editor** — syntax-highlighted editor for PPCL programs with line numbering, GOTO navigation, and cloud sync
+- **PPCL Editor** — syntax-highlighted editor for PPCL programs with multi-tab support, line length enforcement, GOTO navigation, and cloud sync
 
 ### Cloud Sync & Offline
 - **Offline-first** — all data in IndexedDB, works without Wi-Fi
@@ -126,12 +135,11 @@
 - **Account approval** — admin gate for new user registrations
 
 ### Platform
-- **PWA installable** — add to home screen on any device
 - **Desktop app** — native Tauri app with real ICMP ping and full network access
 - **Global search** — search across all projects, files, devices, IP entries, and notes
 - **Offline / Pinned** — pin content for guaranteed offline access with a dedicated management view
 - **Uploads Inbox** — central file upload area for organizing project documents
-- **Guided tour** — interactive onboarding walkthrough
+- **Error boundary** — graceful error recovery with reporting
 
 ---
 
@@ -169,6 +177,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...your-anon-key
 | **Local Storage** | IndexedDB via `idb` |
 | **Auth & Cloud** | Supabase (optional) |
 | **Desktop** | Tauri 2 (Rust) |
+| **Testing** | Vitest |
 | **Deployment** | Vercel / GitHub Releases |
 
 ---
@@ -179,13 +188,13 @@ Native desktop app via [Tauri](https://v2.tauri.app/) with capabilities browsers
 
 | Feature | Browser | Desktop |
 |---------|:---:|:---:|
-| All BAU Suite tools | ✓ | ✓ |
-| Real ICMP ping | — | ✓ |
-| Direct TCP port checking | — | ✓ |
+| All BAU Suite tools | Yes | Yes |
+| Real ICMP ping | No | Yes |
+| Direct TCP port checking | No | Yes |
 | VPN network access | HTTP only | Full |
 | Install size | ~0 MB | ~15 MB |
 
-Download from [GitHub Releases](https://github.com/calebohara/Portable-BAS-Toolkit/releases) — Windows (.msi), macOS (.dmg).
+Download from [GitHub Releases](https://github.com/calebohara/Portable-BAS-Toolkit/releases) (Windows .msi).
 
 ```bash
 npm run tauri:dev      # Dev mode
@@ -200,14 +209,14 @@ Supabase-powered authentication is **optional**. Without it, the app runs fully 
 
 | Feature | Status |
 |---------|--------|
-| Email/password auth | ✓ Active |
-| Password reset | ✓ Active |
-| User profiles | ✓ Active |
-| Global Projects (multi-user) | ✓ Active |
-| Row Level Security | ✓ Active |
-| Cloud sync with conflict resolution | ✓ Active |
-| Online presence | ✓ Active |
-| Account approval gate | ✓ Active |
+| Email/password auth | Active |
+| Password reset | Active |
+| User profiles | Active |
+| Global Projects (multi-user) | Active |
+| Row Level Security | Active |
+| Cloud sync with conflict resolution | Active |
+| Online presence | Active |
+| Account approval gate | Active |
 
 ### Security
 
@@ -215,16 +224,6 @@ Supabase-powered authentication is **optional**. Without it, the app runs fully 
 - Browser security headers (CSP, HSTS, X-Frame-Options) configured
 - Input escaping, URL validation, file sanitization, window isolation
 - See [SECURITY.md](SECURITY.md) for full details
-
----
-
-## PWA
-
-Installable Progressive Web App:
-
-- **Desktop:** Click install icon in Chrome/Edge address bar
-- **iOS:** Share → Add to Home Screen
-- **Android:** Install banner or menu → Install App
 
 ---
 
@@ -250,12 +249,6 @@ git push origin feature/your-feature
 - Test on mobile viewport
 - Ensure offline compatibility
 - See [CLAUDE.md](CLAUDE.md) for detailed architecture, build system, and common pitfalls
-
----
-
-## License
-
-This project is licensed under the [MIT License](LICENSE).
 
 ---
 

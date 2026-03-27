@@ -78,7 +78,11 @@
       "Read(//c/Users/z004jdke/Documents/GitHub/Portable-BAS-Toolkit/$LOCALAPPDATA/**)",
       "Read(//c/Users/z004jdke/Documents/GitHub/Portable-BAS-Toolkit/$APPDATA/**)",
       "Bash(echo $PATH)",
-      "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem -Path ''C:\\\\Program Files'',''C:\\\\Program Files \\(x86\\)'' -Filter node.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue | Select -First 3 -ExpandProperty FullName\")"
+      "Bash(powershell.exe -NoProfile -Command \"Get-ChildItem -Path ''C:\\\\Program Files'',''C:\\\\Program Files \\(x86\\)'' -Filter node.exe -Recurse -Depth 3 -ErrorAction SilentlyContinue | Select -First 3 -ExpandProperty FullName\")",
+      "Bash(grep -n '// ─── Terminal Logs View' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
+      "Bash(sed -i '' 's/\"\"version\"\": \"\"4.8.6\"\"/\"\"version\"\": \"\"4.8.7\"\"/' package.json src-tauri/tauri.conf.json)",
+      "Bash(sed -i '' 's/^version = \"\"4.8.6\"\"/version = \"\"4.8.7\"\"/' src-tauri/Cargo.toml)",
+      "Bash(git stash:*)"
     ]
   }
 }
