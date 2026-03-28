@@ -213,8 +213,8 @@
 
 @keyframes hp-float-slow {
   0%, 100% { transform: translateY(0) rotate(0deg); }
-  33% { transform: translateY(-6px) rotate(0.5deg); }
-  66% { transform: translateY(2px) rotate(-0.3deg); }
+  33% { transform: translateY(-9px) rotate(0.6deg); }
+  66% { transform: translateY(3px) rotate(-0.4deg); }
 }
 
 @keyframes hp-glow-pulse {
@@ -260,11 +260,13 @@
 
 /* Stagger children */
 .hp-stagger > .hp-reveal:nth-child(1) { transition-delay: 0ms; }
-.hp-stagger > .hp-reveal:nth-child(2) { transition-delay: 80ms; }
-.hp-stagger > .hp-reveal:nth-child(3) { transition-delay: 160ms; }
-.hp-stagger > .hp-reveal:nth-child(4) { transition-delay: 240ms; }
-.hp-stagger > .hp-reveal:nth-child(5) { transition-delay: 320ms; }
-.hp-stagger > .hp-reveal:nth-child(6) { transition-delay: 400ms; }
+.hp-stagger > .hp-reveal:nth-child(2) { transition-delay: 70ms; }
+.hp-stagger > .hp-reveal:nth-child(3) { transition-delay: 140ms; }
+.hp-stagger > .hp-reveal:nth-child(4) { transition-delay: 210ms; }
+.hp-stagger > .hp-reveal:nth-child(5) { transition-delay: 280ms; }
+.hp-stagger > .hp-reveal:nth-child(6) { transition-delay: 350ms; }
+.hp-stagger > .hp-reveal:nth-child(7) { transition-delay: 420ms; }
+.hp-stagger > .hp-reveal:nth-child(8) { transition-delay: 490ms; }
 
 /* Premium card surface */
 .hp-card-surface {
@@ -282,32 +284,32 @@
 }
 
 :root .hp-card-surface {
-  box-shadow: 0 1px 3px oklch(0 0 0 / 4%),
-              0 4px 12px oklch(0 0 0 / 3%),
-              0 0 0 1px oklch(0 0 0 / 2%);
+  box-shadow: 0 2px 8px oklch(0 0 0 / 10%),
+              0 8px 24px oklch(0 0 0 / 7%),
+              0 0 0 1px oklch(0 0 0 / 4%);
 }
 
 :root .hp-card-surface:hover {
-  box-shadow: 0 4px 16px oklch(0 0 0 / 8%),
-              0 8px 32px oklch(0 0 0 / 5%),
-              0 0 0 1px var(--primary) / 20%;
+  box-shadow: 0 6px 20px oklch(0 0 0 / 14%),
+              0 12px 40px oklch(0 0 0 / 9%),
+              0 0 0 1px oklch(0.55 0.12 190 / 30%);
 }
 
 .dark .hp-card-surface {
-  box-shadow: 0 1px 3px oklch(0 0 0 / 20%),
-              0 4px 12px oklch(0 0 0 / 15%),
-              inset 0 1px 0 oklch(1 0 0 / 3%);
+  box-shadow: 0 2px 8px oklch(0 0 0 / 35%),
+              0 8px 24px oklch(0 0 0 / 25%),
+              inset 0 1px 0 oklch(1 0 0 / 4%);
 }
 
 .dark .hp-card-surface:hover {
-  box-shadow: 0 4px 16px oklch(0 0 0 / 30%),
-              0 8px 32px oklch(0 0 0 / 20%),
-              inset 0 1px 0 oklch(1 0 0 / 5%);
+  box-shadow: 0 6px 20px oklch(0 0 0 / 45%),
+              0 12px 40px oklch(0 0 0 / 30%),
+              inset 0 1px 0 oklch(1 0 0 / 6%);
 }
 
 /* Hero floating card */
 .hp-hero-card {
-  animation: hp-float-slow 6s ease-in-out infinite;
+  animation: hp-float-slow 4s ease-in-out infinite;
   border-radius: var(--radius-xl);
   border: 1px solid var(--border);
   backdrop-filter: blur(12px);
