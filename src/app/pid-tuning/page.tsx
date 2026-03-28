@@ -14,7 +14,7 @@ import {
   Gauge, Save, Trash2, FileDown, Copy, Printer, FileJson, ChevronDown,
   AlertTriangle, CheckCircle2, Info, ArrowRight, RotateCcw, Plus, FolderOpen,
   Wrench, BookOpen, Activity, Settings2, MessageSquare, Lightbulb, TrendingUp,
-  ArrowUpDown, HelpCircle,
+  ArrowUpDown, HelpCircle, FlaskConical,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn, copyToClipboard } from '@/lib/utils';
@@ -32,6 +32,8 @@ import {
   LOOP_TYPE_DEFAULTS, PID_SYMPTOMS, BAS_PID_REFERENCE, TYPICAL_RANGES,
   diagnoseSymptoms, generateRecommendation,
   gainToProportionalBand, proportionalBandToGain,
+  calculateZNUltimate, calculateZNStep, calculateCohenCoon,
+  type TuningMethodResult,
 } from '@/lib/pid-tuning-engine';
 
 // ─── Default values ──────────────────────────────────────────
@@ -123,6 +125,210 @@ function CompareRow({ label, before, after, unit }: {
       <span className={cn('text-xs text-center', delta !== null && delta > 0 && 'text-green-500', delta !== null && delta < 0 && 'text-amber-500')}>
         {delta !== null ? (delta > 0 ? `+${Math.round(delta * 100) / 100}` : `${Math.round(delta * 100) / 100}`) : '—'}
       </span>
+    </div>
+  );
+}
+
+// ─── Calculators Tab ────────────────────────────────────────
+type UseValuesFn = (kp: number, ti: number | null, td: number | null, mode: 'p' | 'pi' | 'pid') => void;
+
+function ResultsTable({ results, onUse }: { results: TuningMethodResult[]; onUse: UseValuesFn }) {
+  return (
+    <div className="mt-3 pt-3 border-t border-border">
+      <div className="grid grid-cols-6 gap-1 text-[10px] font-medium text-muted-foreground mb-1 px-1">
+        <span>Mode</span>
+        <span className="text-right">Gain (Kp)</span>
+        <span className="text-right">PB%</span>
+        <span className="text-right">Ti (s)</span>
+        <span className="text-right">Td (s)</span>
+        <span />
+      </div>
+      {results.map(r => (
+        <div key={r.mode} className="grid grid-cols-6 gap-1 items-center py-1.5 border-b border-border/40 last:border-0 px-1 hover:bg-muted/20 rounded">
+          <span className="text-xs font-mono font-semibold">{r.mode}</span>
+          <span className="text-xs font-mono text-right">{r.kp}</span>
+          <span className="text-xs font-mono text-right text-muted-foreground">{r.pb}%</span>
+          <span className="text-xs font-mono text-right">{r.ti ?? '—'}</span>
+          <span className="text-xs font-mono text-right">{r.td ?? '—'}</span>
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-6 text-[10px] px-2"
+              onClick={() => onUse(r.kp, r.ti, r.td, r.mode.toLowerCase() as 'p' | 'pi' | 'pid')}
+            >
+              Use
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CalculatorsTab({ onUseValues }: { onUseValues: UseValuesFn }) {
+  // ZN state
+  const [znMode, setZnMode] = useState<'ultimate' | 'step'>('ultimate');
+  const [znKu, setZnKu] = useState('');
+  const [znPu, setZnPu] = useState('');
+  const [znK, setZnK] = useState('');
+  const [znL, setZnL] = useState('');
+  const [znT, setZnT] = useState('');
+  // Cohen-Coon state
+  const [ccK, setCcK] = useState('');
+  const [ccL, setCcL] = useState('');
+  const [ccT, setCcT] = useState('');
+
+  const znResults = useMemo<TuningMethodResult[] | null>(() => {
+    if (znMode === 'ultimate') {
+      const ku = parseFloat(znKu), pu = parseFloat(znPu);
+      if (ku > 0 && pu > 0) return calculateZNUltimate(ku, pu);
+    } else {
+      const k = parseFloat(znK), l = parseFloat(znL), t = parseFloat(znT);
+      if (k > 0 && l > 0 && t > 0) return calculateZNStep(k, l, t);
+    }
+    return null;
+  }, [znMode, znKu, znPu, znK, znL, znT]);
+
+  const ccResults = useMemo<TuningMethodResult[] | null>(() => {
+    const k = parseFloat(ccK), l = parseFloat(ccL), t = parseFloat(ccT);
+    if (k > 0 && l > 0 && t > 0) return calculateCohenCoon(k, l, t);
+    return null;
+  }, [ccK, ccL, ccT]);
+
+  const ccRatio = useMemo(() => {
+    const l = parseFloat(ccL), t = parseFloat(ccT);
+    if (l > 0 && t > 0) return l / t;
+    return null;
+  }, [ccL, ccT]);
+
+  const inputCls = 'font-mono h-8 text-sm';
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      {/* ── Ziegler-Nichols ── */}
+      <SectionCard title="Ziegler-Nichols" icon={FlaskConical}>
+        {/* Mode toggle */}
+        <div className="flex rounded-lg border border-border overflow-hidden text-xs">
+          {(['ultimate', 'step'] as const).map(m => (
+            <button
+              key={m}
+              onClick={() => setZnMode(m)}
+              className={cn(
+                'flex-1 py-1.5 px-2 transition-colors',
+                znMode === m ? 'bg-primary text-primary-foreground font-medium' : 'text-muted-foreground hover:bg-muted',
+              )}
+            >
+              {m === 'ultimate' ? 'Ultimate Gain' : 'Step Response'}
+            </button>
+          ))}
+        </div>
+
+        {znMode === 'ultimate' ? (
+          <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Increase gain until the loop sustains steady oscillation (no growth, no decay). Record the gain at that point (K<sub>u</sub>) and the oscillation period (P<sub>u</sub>).
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <FieldGroup label="Ultimate Gain (Ku)" hint="Gain at which loop sustains steady oscillation">
+                <Input type="number" step="0.1" min="0" value={znKu} onChange={e => setZnKu(e.target.value)} className={inputCls} placeholder="e.g. 8.0" />
+              </FieldGroup>
+              <FieldGroup label="Oscillation Period Pu (s)" hint="Time in seconds for one full oscillation cycle">
+                <Input type="number" step="1" min="0" value={znPu} onChange={e => setZnPu(e.target.value)} className={inputCls} placeholder="e.g. 60" />
+              </FieldGroup>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              Apply a step change to the output in manual mode. Record the process gain, dead time, and time constant from the response curve.
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              <FieldGroup label="Process Gain (K)" hint="ΔPV% ÷ ΔOutput%. E.g. temp rises 10°F for a 20% output step → K = 0.5">
+                <Input type="number" step="0.01" min="0" value={znK} onChange={e => setZnK(e.target.value)} className={inputCls} placeholder="e.g. 0.5" />
+              </FieldGroup>
+              <FieldGroup label="Dead Time L (s)" hint="Seconds from output step until PV first starts moving">
+                <Input type="number" step="1" min="0" value={znL} onChange={e => setZnL(e.target.value)} className={inputCls} placeholder="e.g. 30" />
+              </FieldGroup>
+              <FieldGroup label="Time Constant T (s)" hint="Seconds from end of dead time until PV reaches 63.2% of final change">
+                <Input type="number" step="1" min="0" value={znT} onChange={e => setZnT(e.target.value)} className={inputCls} placeholder="e.g. 120" />
+              </FieldGroup>
+            </div>
+          </div>
+        )}
+
+        {znResults
+          ? <ResultsTable results={znResults} onUse={onUseValues} />
+          : <p className="text-[11px] text-muted-foreground pt-2">Enter valid inputs above to see calculated values.</p>
+        }
+
+        <p className="text-[10px] text-muted-foreground pt-1 border-t border-border/40">
+          ZN produces aggressive tuning — expect overshoot. Fine-tune after applying. Not ideal for processes with dead time &gt; 30% of time constant.
+        </p>
+      </SectionCard>
+
+      {/* ── Cohen-Coon ── */}
+      <SectionCard title="Cohen-Coon" icon={TrendingUp}>
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          Open-loop step test — same procedure as ZN Step Response. Produces more conservative, stable tuning for processes with significant dead time.
+        </p>
+
+        <div className="grid grid-cols-3 gap-3">
+          <FieldGroup label="Process Gain (K)" hint="ΔPV% ÷ ΔOutput%">
+            <Input type="number" step="0.01" min="0" value={ccK} onChange={e => setCcK(e.target.value)} className={inputCls} placeholder="e.g. 0.5" />
+          </FieldGroup>
+          <FieldGroup label="Dead Time L (s)" hint="Seconds until PV first starts moving">
+            <Input type="number" step="1" min="0" value={ccL} onChange={e => setCcL(e.target.value)} className={inputCls} placeholder="e.g. 30" />
+          </FieldGroup>
+          <FieldGroup label="Time Constant T (s)" hint="Seconds to reach 63.2% of final change">
+            <Input type="number" step="1" min="0" value={ccT} onChange={e => setCcT(e.target.value)} className={inputCls} placeholder="e.g. 120" />
+          </FieldGroup>
+        </div>
+
+        {/* θ/τ ratio badge */}
+        {ccRatio !== null && (
+          <div className={cn(
+            'flex items-center gap-2 rounded-lg px-3 py-2 text-xs',
+            ccRatio < 0.2 ? 'bg-green-500/10 text-green-600 dark:text-green-400' :
+            ccRatio < 0.5 ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400' :
+                            'bg-red-500/10 text-red-600 dark:text-red-400',
+          )}>
+            <Info className="h-3.5 w-3.5 shrink-0" />
+            <span>
+              <strong>θ/τ = {ccRatio.toFixed(2)}</strong>
+              {ccRatio < 0.2 && ' — Low dead time. ZN and Cohen-Coon will give similar results.'}
+              {ccRatio >= 0.2 && ccRatio < 0.5 && ' — Moderate dead time. Cohen-Coon is the better choice here.'}
+              {ccRatio >= 0.5 && ' — Delay-dominated process. Cohen-Coon is strongly recommended over ZN.'}
+            </span>
+          </div>
+        )}
+
+        {ccResults
+          ? <ResultsTable results={ccResults} onUse={onUseValues} />
+          : <p className="text-[11px] text-muted-foreground pt-2">Enter valid inputs above to see calculated values.</p>
+        }
+
+        <p className="text-[10px] text-muted-foreground pt-1 border-t border-border/40">
+          Designed for processes where dead time is 10–100% of the time constant — typical for VAV boxes, chilled water loops, and SAT control.
+        </p>
+      </SectionCard>
+
+      {/* How to run a step test */}
+      <div className="lg:col-span-2">
+        <SectionCard title="How to Run a Step Test" icon={Info}>
+          <ol className="list-decimal list-inside space-y-1.5 text-xs text-muted-foreground">
+            <li>Put the loop in <strong>manual mode</strong> and let the PV stabilize at a steady value.</li>
+            <li>Apply a <strong>step change to the output</strong> — typically 10–20%. Record the exact % change (this is your ΔOutput).</li>
+            <li>Watch the PV. Note when it <strong>first starts to move</strong> — the time from the step to this point is <strong>dead time (L)</strong>.</li>
+            <li>Let the PV settle to its new steady state. Record the <strong>total PV change (ΔPV)</strong>. Process Gain K = ΔPV% ÷ ΔOutput%.</li>
+            <li>From the end of the dead time, find when the PV reached <strong>63.2% of the total ΔPV</strong>. That elapsed time is the <strong>time constant (T)</strong>.</li>
+            <li>Return the output to the original value and switch back to <strong>automatic mode</strong>.</li>
+          </ol>
+          <p className="text-[10px] text-muted-foreground pt-2 border-t border-border/40 mt-2">
+            These calculated values are starting points — not final tuning. Apply them, observe the response, and adjust using the Diagnosis tab if needed.
+          </p>
+        </SectionCard>
+      </div>
     </div>
   );
 }
@@ -401,54 +607,75 @@ export default function PidTuningPage() {
   // ─── Render ─────────────────────────────────────────────
   return (
     <>
-      <TopBar title="PID Tuning Tool" />
-      <div className="p-4 md:p-6 space-y-4 max-w-5xl print:max-w-none">
-        {/* Header actions */}
-        <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={resetForm}>
-            <Plus className="h-3.5 w-3.5" /> New Session
+      <TopBar title="PID Tuning Tool">
+        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={resetForm}>
+          <Plus className="h-3 w-3" />
+          <span className="hidden sm:inline">New</span>
+        </Button>
+        <Button size="sm" className="h-7 text-xs gap-1" onClick={handleSave} disabled={saving}>
+          <Save className="h-3 w-3" /> {saving ? 'Saving…' : (activeSessionId ? 'Update' : 'Save')}
+        </Button>
+        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={loadDefaults}>
+          <RotateCcw className="h-3 w-3" />
+          <span className="hidden sm:inline">Defaults</span>
+        </Button>
+        <div className="relative">
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setExportOpen(!exportOpen)}>
+            <FileDown className="h-3 w-3" />
+            <span className="hidden sm:inline">Export</span>
+            <ChevronDown className="h-3 w-3" />
           </Button>
-          <Button size="sm" className="gap-1.5" onClick={handleSave} disabled={saving}>
-            <Save className="h-3.5 w-3.5" /> {saving ? 'Saving…' : (activeSessionId ? 'Update' : 'Save')}
-          </Button>
-          <Button size="sm" variant="outline" className="gap-1.5" onClick={loadDefaults}>
-            <RotateCcw className="h-3.5 w-3.5" /> Load Defaults
-          </Button>
-
-          {/* Export dropdown */}
-          <div className="relative ml-auto">
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setExportOpen(!exportOpen)}>
-              <FileDown className="h-3.5 w-3.5" /> Export <ChevronDown className="h-3 w-3" />
-            </Button>
-            {exportOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover p-1 shadow-lg min-w-[160px]">
-                  <button onClick={handleCopyClipboard} className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-xs hover:bg-muted transition-colors">
-                    <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
-                  </button>
-                  <button onClick={handlePrint} className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-xs hover:bg-muted transition-colors">
-                    <Printer className="h-3.5 w-3.5" /> Print / PDF
-                  </button>
-                  <button onClick={handleExportJson} className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-xs hover:bg-muted transition-colors">
-                    <FileJson className="h-3.5 w-3.5" /> Export JSON
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          {exportOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
+              <div className="absolute left-0 top-full mt-1 z-20 rounded-lg border border-border bg-popover p-1 shadow-lg min-w-[160px]">
+                <button onClick={handleCopyClipboard} className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-xs hover:bg-muted transition-colors">
+                  <Copy className="h-3.5 w-3.5" /> Copy to Clipboard
+                </button>
+                <button onClick={handlePrint} className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-xs hover:bg-muted transition-colors">
+                  <Printer className="h-3.5 w-3.5" /> Print / PDF
+                </button>
+                <button onClick={handleExportJson} className="flex items-center gap-2 w-full rounded-md px-3 py-2 text-xs hover:bg-muted transition-colors">
+                  <FileJson className="h-3.5 w-3.5" /> Export JSON
+                </button>
+              </div>
+            </>
+          )}
         </div>
+      </TopBar>
+      <div className="flex flex-col" style={{ height: 'calc(100vh - 3.5rem)' }}>
+        <Tabs defaultValue="setup" className="flex flex-col flex-1 min-h-0 gap-0">
+          <div className="shrink-0 border-b border-border bg-muted/20 px-4">
+            <TabsList variant="line" className="overflow-x-auto scrollbar-none">
+              <TabsTrigger value="setup" className="gap-1.5 px-3 py-2 text-xs">
+                <Settings2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Setup</span>
+              </TabsTrigger>
+              <TabsTrigger value="diagnosis" className="gap-1.5 px-3 py-2 text-xs">
+                <Activity className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Diagnosis</span>
+              </TabsTrigger>
+              <TabsTrigger value="recommendations" className="gap-1.5 px-3 py-2 text-xs">
+                <Lightbulb className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Recs</span>
+              </TabsTrigger>
+              <TabsTrigger value="sessions" className="gap-1.5 px-3 py-2 text-xs">
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Notes</span>
+              </TabsTrigger>
+              <TabsTrigger value="calculators" className="gap-1.5 px-3 py-2 text-xs">
+                <FlaskConical className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Calculators</span>
+              </TabsTrigger>
+              <TabsTrigger value="reference" className="gap-1.5 px-3 py-2 text-xs">
+                <BookOpen className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Reference</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
-        {/* Tabs */}
-        <Tabs defaultValue="setup" className="space-y-4">
-          <TabsList className="w-full justify-start overflow-x-auto">
-            <TabsTrigger value="setup" className="gap-1.5 text-xs"><Settings2 className="h-3.5 w-3.5" /> Setup</TabsTrigger>
-            <TabsTrigger value="diagnosis" className="gap-1.5 text-xs"><Activity className="h-3.5 w-3.5" /> Diagnosis</TabsTrigger>
-            <TabsTrigger value="recommendations" className="gap-1.5 text-xs"><Lightbulb className="h-3.5 w-3.5" /> Recommendations</TabsTrigger>
-            <TabsTrigger value="sessions" className="gap-1.5 text-xs"><MessageSquare className="h-3.5 w-3.5" /> Notes & Sessions</TabsTrigger>
-            <TabsTrigger value="reference" className="gap-1.5 text-xs"><BookOpen className="h-3.5 w-3.5" /> Reference</TabsTrigger>
-          </TabsList>
-
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 w-full max-w-5xl mx-auto">
+          <div className="space-y-4">
           {/* ═══ TAB 1: Setup ═══ */}
           <TabsContent value="setup" className="space-y-4">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -910,7 +1137,22 @@ export default function PidTuningPage() {
             </div>
           </TabsContent>
 
-          {/* ═══ TAB 5: Reference ═══ */}
+          {/* ═══ TAB 5: Calculators ═══ */}
+          <TabsContent value="calculators">
+            <CalculatorsTab onUseValues={(kp, ti, td, mode) => {
+              setCurrentValues(prev => ({
+                ...prev,
+                gain: kp,
+                proportionalBand: gainToProportionalBand(kp),
+                integralTime: ti,
+                derivativeTime: td,
+              }));
+              setControlMode(mode);
+              toast.success('Values loaded — check the Setup tab');
+            }} />
+          </TabsContent>
+
+          {/* ═══ TAB 6: Reference ═══ */}
           <TabsContent value="reference" className="space-y-4">
             {/* Reference articles */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -949,6 +1191,8 @@ export default function PidTuningPage() {
               </div>
             </SectionCard>
           </TabsContent>
+          </div>
+          </div>
         </Tabs>
       </div>
     </>

@@ -37,7 +37,13 @@ export default function RegisterToolPage() {
 
   return (
     <>
-      <TopBar title="Protocol Converter / Register Tool" />
+      <TopBar title="Protocol Converter / Register Tool">
+        {!['history', 'help'].includes(activeTab) && (
+          <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setShowSave(true)}>
+            <Save className="h-3 w-3" /> Save
+          </Button>
+        )}
+      </TopBar>
       <div className="flex flex-col" style={{ height: 'calc(100vh - 3.5rem)' }}>
         <Tabs value={activeTab} onValueChange={v => v && setActiveTab(v)}>
           <div className="shrink-0 border-b border-border bg-muted/20 px-4">
@@ -51,7 +57,7 @@ export default function RegisterToolPage() {
             </TabsList>
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 w-full max-w-5xl mx-auto">
             {/* Calculator modules rendered always with CSS hiding to preserve form state across tab switches */}
             <div className={activeTab === 'convert' ? '' : 'hidden'}><QuickConverter /></div>
             <div className={activeTab === 'register' ? '' : 'hidden'}><RegisterInterpreter /></div>
@@ -65,17 +71,6 @@ export default function RegisterToolPage() {
           </div>
         </Tabs>
 
-        {/* Floating save button (visible on calculation tabs) */}
-        {!['history', 'help'].includes(activeTab) && (
-          <div className="shrink-0 flex items-center justify-between px-4 py-2 border-t border-border bg-muted/30">
-            <span className="text-[10px] text-muted-foreground">
-              {TAB_ITEMS.find(t => t.value === activeTab)?.label} Module
-            </span>
-            <Button variant="outline" size="sm" className="h-7 text-xs gap-1" onClick={() => setShowSave(true)}>
-              <Save className="h-3 w-3" /> Save Calculation
-            </Button>
-          </div>
-        )}
       </div>
 
       <SaveDialog open={showSave} onOpenChange={setShowSave} activeModule={activeTab} />

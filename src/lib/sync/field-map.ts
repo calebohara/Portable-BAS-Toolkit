@@ -20,6 +20,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   registerCalculations: 'register_calculations',
   pidTuningSessions: 'pid_tuning_sessions',
   ppclDocuments: 'ppcl_documents',
+  psychSessions: 'psych_sessions',
   bugReports: 'bug_reports',
 };
 

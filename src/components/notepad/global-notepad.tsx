@@ -24,6 +24,10 @@ const MINIMIZED_HEIGHT = 40;
 const PANEL_WIDTH = 380;
 const PANEL_HEIGHT = 440;
 const PANEL_GAP = 12; // gap between launcher and panel
+const MIN_PANEL_WIDTH = 260;
+const MIN_PANEL_HEIGHT = 280;
+const MAX_PANEL_WIDTH = 900;
+const MAX_PANEL_HEIGHT = 900;
 
 // ─── Viewport clamping ─────────────────────────────────────
 function clampPosition(x: number, y: number, w: number, h: number) {
@@ -50,14 +54,14 @@ function snapToEdge(x: number, w: number): number {
 }
 
 /** Calculate panel position anchored to the launcher */
-function computePanelPos(launcherX: number, launcherY: number): { x: number; y: number } {
+function computePanelPos(launcherX: number, launcherY: number, panelW: number, panelH: number): { x: number; y: number } {
   const vw = window.innerWidth;
   const vh = window.innerHeight;
   let px: number, py: number;
 
   // Horizontal: prefer placing panel to the left of launcher if launcher is on right half
   if (launcherX + FAB_SIZE / 2 > vw / 2) {
-    px = launcherX - PANEL_WIDTH - PANEL_GAP;
+    px = launcherX - panelW - PANEL_GAP;
   } else {
     px = launcherX + FAB_SIZE + PANEL_GAP;
   }
@@ -66,8 +70,8 @@ function computePanelPos(launcherX: number, launcherY: number): { x: number; y: 
   py = launcherY;
 
   // Clamp to viewport
-  px = Math.max(EDGE_PADDING, Math.min(vw - PANEL_WIDTH - EDGE_PADDING, px));
-  py = Math.max(EDGE_PADDING, Math.min(vh - PANEL_HEIGHT - EDGE_PADDING, py));
+  px = Math.max(EDGE_PADDING, Math.min(vw - panelW - EDGE_PADDING, px));
+  py = Math.max(EDGE_PADDING, Math.min(vh - panelH - EDGE_PADDING, py));
 
   return { x: px, y: py };
 }
@@ -481,9 +485,66 @@ function NotepadPanel() {
   const tabs = useNotepadStore(s => s.tabs);
   const activeTabId = useNotepadStore(s => s.activeTabId);
   const launcherPos = useNotepadStore(s => s.launcherPos);
+  const storedSize = useNotepadStore(s => s.panelSize);
+  const setPanelSize = useNotepadStore(s => s.setPanelSize);
   const activeTab = tabs.find(t => t.id === activeTabId);
 
   const [attachOpen, setAttachOpen] = useState(false);
+
+  // Resize state
+  const [size, setSize] = useState({ w: storedSize?.w ?? PANEL_WIDTH, h: storedSize?.h ?? PANEL_HEIGHT });
+  const sizeRef = useRef(size);
+  useEffect(() => { sizeRef.current = size; }, [size]);
+
+  const resizeRef = useRef<{
+    edge: 'right' | 'bottom' | 'corner';
+    startX: number;
+    startY: number;
+    startW: number;
+    startH: number;
+  } | null>(null);
+
+  const handleResizeMouseDown = useCallback((e: React.MouseEvent, edge: 'right' | 'bottom' | 'corner') => {
+    e.preventDefault();
+    e.stopPropagation();
+    resizeRef.current = {
+      edge,
+      startX: e.clientX,
+      startY: e.clientY,
+      startW: sizeRef.current.w,
+      startH: sizeRef.current.h,
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      const r = resizeRef.current;
+      if (!r) return;
+      const dx = e.clientX - r.startX;
+      const dy = e.clientY - r.startY;
+      let newW = r.startW;
+      let newH = r.startH;
+      if (r.edge === 'right' || r.edge === 'corner') {
+        newW = Math.min(MAX_PANEL_WIDTH, Math.max(MIN_PANEL_WIDTH, r.startW + dx));
+      }
+      if (r.edge === 'bottom' || r.edge === 'corner') {
+        newH = Math.min(MAX_PANEL_HEIGHT, Math.max(MIN_PANEL_HEIGHT, r.startH + dy));
+      }
+      setSize({ w: newW, h: newH });
+    };
+    const handleMouseUp = () => {
+      if (resizeRef.current) {
+        resizeRef.current = null;
+        setPanelSize(sizeRef.current);
+      }
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [setPanelSize]);
 
   // Drag state for panel
   const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
@@ -494,11 +555,12 @@ function NotepadPanel() {
   // Compute initial position anchored to launcher
   const anchoredPos = useMemo(() => {
     if (typeof window === 'undefined') return { x: 0, y: 0 };
-    if (launcherPos) return computePanelPos(launcherPos.x, launcherPos.y);
+    if (launcherPos) return computePanelPos(launcherPos.x, launcherPos.y, size.w, size.h);
     return {
-      x: window.innerWidth - PANEL_WIDTH - 20,
-      y: window.innerHeight - PANEL_HEIGHT - 20,
+      x: window.innerWidth - size.w - 20,
+      y: window.innerHeight - size.h - 20,
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [launcherPos]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
@@ -557,6 +619,7 @@ function NotepadPanel() {
 
   const charCount = activeTab?.content.length || 0;
   const finalPos = dragPos || anchoredPos;
+  const isResizing = !!resizeRef.current;
 
   return (
     <>
@@ -567,11 +630,12 @@ function NotepadPanel() {
           'rounded-xl border border-border bg-background shadow-2xl',
           // Mobile: full-width bottom sheet
           'max-sm:!left-2 max-sm:!right-2 max-sm:!bottom-2 max-sm:!top-auto max-sm:w-[calc(100%-1rem)] max-sm:h-[60vh]',
-          dragging && 'cursor-grabbing select-none',
+          (dragging || isResizing) && 'select-none',
+          dragging && 'cursor-grabbing',
         )}
         style={{
-          width: PANEL_WIDTH,
-          height: PANEL_HEIGHT,
+          width: size.w,
+          height: size.h,
           left: finalPos.x,
           top: finalPos.y,
         }}
@@ -651,6 +715,27 @@ function NotepadPanel() {
         <div className="shrink-0 flex items-center justify-between px-3 py-1.5 border-t border-border text-[10px] text-muted-foreground bg-muted/20 rounded-b-xl">
           <span>{charCount.toLocaleString()} chars</span>
           <span>{tabs.length} {tabs.length === 1 ? 'tab' : 'tabs'}</span>
+        </div>
+
+        {/* Resize handles — hidden on mobile bottom sheet */}
+        {/* Right edge */}
+        <div
+          onMouseDown={(e) => handleResizeMouseDown(e, 'right')}
+          className="max-sm:hidden absolute top-3 bottom-3 right-0 w-1.5 cursor-ew-resize z-10 rounded-r-xl"
+        />
+        {/* Bottom edge */}
+        <div
+          onMouseDown={(e) => handleResizeMouseDown(e, 'bottom')}
+          className="max-sm:hidden absolute bottom-0 left-3 right-3 h-1.5 cursor-ns-resize z-10 rounded-b-xl"
+        />
+        {/* Bottom-right corner grip */}
+        <div
+          onMouseDown={(e) => handleResizeMouseDown(e, 'corner')}
+          className="max-sm:hidden absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize z-20 flex items-end justify-end p-0.5"
+        >
+          <svg width="8" height="8" viewBox="0 0 8 8" className="text-muted-foreground/40">
+            <path d="M1 7L7 1M4 7L7 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
         </div>
       </div>
 

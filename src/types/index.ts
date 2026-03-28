@@ -215,7 +215,7 @@ export type SyncEntityType =
   | 'dailyReports' | 'activityLog' | 'networkDiagrams'
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
   | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
-  | 'ppclDocuments' | 'bugReports';
+  | 'ppclDocuments' | 'bugReports' | 'psychSessions';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 
@@ -538,6 +538,90 @@ export interface PidTuningSession {
   symptoms: string[];
   responseData: PidResponseData;
   fieldNotes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Psychrometric Calculator ────────────────────────────────
+export type PsychUnitSystem = 'ip' | 'si';
+
+export type PsychInputMode =
+  | 'db-wb'      // Dry Bulb + Wet Bulb
+  | 'db-rh'      // Dry Bulb + Relative Humidity
+  | 'db-dp'      // Dry Bulb + Dew Point
+  | 'db-w'       // Dry Bulb + Humidity Ratio
+  | 'db-h';      // Dry Bulb + Enthalpy
+
+export const PSYCH_INPUT_MODE_LABELS: Record<PsychInputMode, string> = {
+  'db-wb': 'Dry Bulb + Wet Bulb',
+  'db-rh': 'Dry Bulb + Relative Humidity',
+  'db-dp': 'Dry Bulb + Dew Point',
+  'db-w': 'Dry Bulb + Humidity Ratio',
+  'db-h': 'Dry Bulb + Enthalpy',
+};
+
+export interface PsychState {
+  dryBulb: number;
+  wetBulb: number;
+  dewPoint: number;
+  relativeHumidity: number;
+  humidityRatio: number;
+  enthalpy: number;
+  specificVolume: number;
+  vaporPressure: number;
+  saturationPressure: number;
+  degreeOfSaturation: number;
+}
+
+export interface PsychComfortResult {
+  inComfortZone: boolean;
+  reason: string;
+}
+
+export interface AhuMixedAirInputs {
+  oaDryBulb: number;
+  oaHumidityRatio: number;
+  oaEnthalpy: number;
+  raDryBulb: number;
+  raHumidityRatio: number;
+  raEnthalpy: number;
+  oaFraction: number;
+}
+
+export interface AhuMixedAirResult {
+  mixedDryBulb: number;
+  mixedHumidityRatio: number;
+  mixedEnthalpy: number;
+  mixedState: PsychState;
+}
+
+export interface AhuCoilLoadInputs {
+  airflowCfm: number;
+  enteringState: PsychState;
+  leavingState: PsychState;
+}
+
+export interface AhuCoilLoadResult {
+  sensibleLoad: number;
+  latentLoad: number;
+  totalLoad: number;
+  sensibleHeatRatio: number;
+}
+
+export interface PsychSession {
+  id: string;
+  projectId: string;
+  label: string;
+  unitSystem: PsychUnitSystem;
+  altitude: number;
+  inputMode: PsychInputMode;
+  inputValues: Record<string, number>;
+  results: PsychState;
+  comfortResult: PsychComfortResult;
+  ahuMixedAir?: AhuMixedAirResult;
+  ahuCoilLoad?: AhuCoilLoadResult;
+  notes: string;
+  tags: string[];
   createdAt: string;
   updatedAt: string;
 }

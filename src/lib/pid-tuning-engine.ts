@@ -484,3 +484,69 @@ export const TYPICAL_RANGES: TypicalRange[] = [
   { loopType: 'VFD / Fan Speed', gain: '1.5\u20133', integralTime: '30\u201360s', derivative: 'None', notes: 'Match to VFD ramp time' },
   { loopType: 'Heat Exchanger', gain: '2\u20134', integralTime: '120\u2013300s', derivative: '0\u201315s', notes: 'D only if long dead time' },
 ];
+
+// ─── Tuning Method Calculators ──────────────────────────────
+
+export interface TuningMethodResult {
+  mode: 'P' | 'PI' | 'PID';
+  kp: number;
+  pb: number;        // proportional band %
+  ti: number | null; // integral time, seconds
+  td: number | null; // derivative time, seconds
+}
+
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
+/**
+ * Ziegler-Nichols Ultimate Gain (closed-loop) method.
+ * Drive loop to sustained oscillation, record Ku and Pu.
+ */
+export function calculateZNUltimate(ku: number, pu: number): TuningMethodResult[] {
+  const kpP   = round3(0.50 * ku);
+  const kpPI  = round3(0.45 * ku);
+  const kpPID = round3(0.60 * ku);
+  return [
+    { mode: 'P',   kp: kpP,   pb: round3(100 / kpP),   ti: null,             td: null },
+    { mode: 'PI',  kp: kpPI,  pb: round3(100 / kpPI),  ti: round3(pu / 1.2), td: null },
+    { mode: 'PID', kp: kpPID, pb: round3(100 / kpPID), ti: round3(pu / 2),   td: round3(pu / 8) },
+  ];
+}
+
+/**
+ * Ziegler-Nichols Step Response (open-loop reaction curve) method.
+ * K = process gain (ΔPV% / ΔOutput%), L = dead time (s), T = time constant (s)
+ */
+export function calculateZNStep(k: number, l: number, t: number): TuningMethodResult[] {
+  const base  = t / (k * l);
+  const kpP   = round3(base);
+  const kpPI  = round3(0.9 * base);
+  const kpPID = round3(1.2 * base);
+  return [
+    { mode: 'P',   kp: kpP,   pb: round3(100 / kpP),   ti: null,              td: null },
+    { mode: 'PI',  kp: kpPI,  pb: round3(100 / kpPI),  ti: round3(3.33 * l),  td: null },
+    { mode: 'PID', kp: kpPID, pb: round3(100 / kpPID), ti: round3(2 * l),     td: round3(0.5 * l) },
+  ];
+}
+
+/**
+ * Cohen-Coon method — better than ZN for high dead-time processes (L/T > 0.1),
+ * which covers most HVAC loops (VAV boxes, chilled water, SAT control).
+ * K = process gain (ΔPV% / ΔOutput%), L = dead time (s), T = time constant (s)
+ */
+export function calculateCohenCoon(k: number, l: number, t: number): TuningMethodResult[] {
+  const r     = l / t; // dead time ratio θ/τ
+  const base  = t / (k * l);
+  const kpP   = round3(base * (1 + r / 3));
+  const kpPI  = round3(base * (0.9 + r / 12));
+  const kpPID = round3(base * (4 / 3 + r / 4));
+  const tiPI  = round3(l * (30 + 3 * r) / (9 + 20 * r));
+  const tiPID = round3(l * (32 + 6 * r) / (13 + 8 * r));
+  const tdPID = round3(l * 4 / (11 + 2 * r));
+  return [
+    { mode: 'P',   kp: kpP,   pb: round3(100 / kpP),   ti: null,  td: null },
+    { mode: 'PI',  kp: kpPI,  pb: round3(100 / kpPI),  ti: tiPI,  td: null },
+    { mode: 'PID', kp: kpPID, pb: round3(100 / kpPID), ti: tiPID, td: tdPID },
+  ];
+}

@@ -20,6 +20,11 @@ export interface LauncherPosition {
   y: number;
 }
 
+export interface PanelSize {
+  w: number;
+  h: number;
+}
+
 interface NotepadState {
   _hydrated: boolean;
   _setHydrated: () => void;
@@ -33,6 +38,9 @@ interface NotepadState {
   launcherPos: LauncherPosition | null;
   setLauncherPos: (pos: LauncherPosition | null) => void;
   resetLauncherPos: () => void;
+
+  panelSize: PanelSize | null;
+  setPanelSize: (size: PanelSize) => void;
 
   tabs: NotepadTab[];
   activeTabId: string;
@@ -74,6 +82,9 @@ export const useNotepadStore = create<NotepadState>()(
         launcherPos: null,
         setLauncherPos: (pos) => set({ launcherPos: pos }),
         resetLauncherPos: () => set({ launcherPos: null }),
+
+        panelSize: null,
+        setPanelSize: (size) => set({ panelSize: size }),
 
         tabs: [defaultTab],
         activeTabId: defaultTab.id,
@@ -144,6 +155,7 @@ export const useNotepadStore = create<NotepadState>()(
       partialize: (state) => ({
         panelState: state.panelState,
         launcherPos: state.launcherPos,
+        panelSize: state.panelSize,
         tabs: state.tabs,
         activeTabId: state.activeTabId,
       }),

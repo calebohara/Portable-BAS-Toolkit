@@ -7,6 +7,7 @@ import {
   ChevronDown, ChevronRight, WifiOff, Palette, Share2,
   Monitor, Smartphone, Shield, Activity, BookmarkPlus,
   Users2, BookOpen, Cloud, Calculator, RefreshCw, Gauge,
+  ClipboardList, TerminalSquare, Globe, FileCode, Thermometer,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -61,6 +62,16 @@ const featureGuides = [
       'Add site contacts with role, company, phone, and email',
       'Use tags to categorize and quickly filter projects',
       'Edit panel roster and network summary inline on the Overview tab',
+    ],
+  },
+  {
+    icon: ClipboardList,
+    title: 'Daily Reports',
+    items: [
+      'Record structured daily field reports tied to a project',
+      'Track work completed, issues encountered, coordination notes, and equipment status',
+      'Export via Teams (markdown), Outlook (email), PDF, or as a share package',
+      'Reports are stored per project and provide a chronological field history',
     ],
   },
   {
@@ -132,15 +143,26 @@ const featureGuides = [
     ],
   },
   {
-    icon: BookmarkPlus,
-    title: 'Command Snippet Library',
+    icon: TerminalSquare,
+    title: 'Telnet HMI Tool',
     items: [
-      'Save frequently used terminal commands as reusable snippets',
+      'Connect to BAS controllers via a browser-based terminal (Telnet/HMI)',
+      'Character mode for accurate HMI interaction with controllers that expect raw input',
+      'Session logging with timestamps — export logs as .txt',
+      'Attach session logs to projects for documentation',
+      'Save frequently used commands as reusable snippets',
       'Categorize snippets: BACnet, LonWorks, Modbus, Niagara, Siemens, Johnson, Honeywell, and more',
-      'Search and filter snippets by category or keyword',
-      'Insert snippets directly into the terminal command line with one click',
-      'Track usage count and mark favorites for quick access',
-      'Copy commands to clipboard or delete old snippets',
+      'Insert snippets directly into the command line with one click',
+    ],
+  },
+  {
+    icon: Globe,
+    title: 'Web Interface',
+    items: [
+      'Access BAS controller web panels directly without leaving the app',
+      'Save controller endpoints and organize them by project',
+      'Launch panels embedded in the app or open in a new tab',
+      'Handles browser security restrictions (X-Frame-Options) honestly — opens in new tab when embedding is blocked',
     ],
   },
   {
@@ -160,9 +182,14 @@ const featureGuides = [
     icon: Calculator,
     title: 'Register Tool',
     items: [
-      'Calculate BACnet, Modbus, and LonWorks register values',
-      'Convert between decimal, hex, binary, and register formats',
-      'Useful for commissioning and troubleshooting field devices',
+      'Quick Converter: convert values between decimal, hex, binary, and octal instantly',
+      'Register Interpreter: decode 16-bit and 32-bit register values as signed/unsigned int or float',
+      'Byte Order Tool: visualize and swap byte/word order for Modbus and BACnet registers',
+      'Float Decoder: decode IEEE 754 single and double-precision floating point values',
+      'Bitmask Tool: AND, OR, XOR, NOT operations with visual bit-level display',
+      'Scaling Calculator: compute linear scaling between raw counts and engineering units',
+      'Modbus Builder: construct and decode Modbus RTU/TCP frames',
+      'Save calculations to history for later reference',
     ],
   },
   {
@@ -173,11 +200,39 @@ const featureGuides = [
       'Rule-based tuning recommendations with confidence levels and explanations',
       'Supports all common BAS loop types: SAT, DAT, static pressure, room temp, humidity, VFD, and more',
       'Gain / Proportional Band live conversion (PB% = 100/Kp)',
+      'Ziegler-Nichols calculator: ultimate gain method and open-loop step response method',
+      'Cohen-Coon calculator: better suited for high dead-time processes (VAV, chilled water, SAT) — shows θ/τ ratio',
       'Before vs After comparison with percentage deltas',
       'Flags non-tuning issues (mechanical sticking, sensor lag) honestly',
       'Save tuning sessions to projects for documentation',
       'BAS-specific PID reference guide with typical ranges by loop type',
       'Export as clipboard text, print/PDF, or JSON',
+    ],
+  },
+  {
+    icon: FileCode,
+    title: 'PPCL Editor',
+    items: [
+      'Code editor for Siemens PPCL (Powers Process Control Language)',
+      'Syntax highlighting for PPCL keywords, operators, and comments',
+      'Multi-tab support for working on multiple files simultaneously',
+      'Cloud sync to save editor content and associate files with projects',
+    ],
+  },
+  {
+    icon: Thermometer,
+    title: 'Psychrometric Calculator',
+    items: [
+      'Calculate all moist air properties from any two known values',
+      'Five input modes: DB + RH, DB + Wet Bulb, DB + Dew Point, DB + Humidity Ratio, DB + Enthalpy',
+      'Outputs: dry bulb, wet bulb, dew point, RH, humidity ratio, enthalpy, specific volume, vapor pressure',
+      'IP and SI unit systems with one-click toggle — values convert automatically',
+      'Altitude correction for accurate high-elevation results',
+      'ASHRAE 55 comfort zone indicator',
+      'AHU Mixed Air Calculator: compute mixed air conditions from OA and RA states at any OA fraction',
+      'Coil Load Calculator: sensible, latent, total load (BTU/hr or kW), and SHR from entering/leaving conditions and airflow',
+      'Save calculation sessions to projects with labels and notes',
+      'Reference guide with ASHRAE equations and BAS field applications',
     ],
   },
   {
