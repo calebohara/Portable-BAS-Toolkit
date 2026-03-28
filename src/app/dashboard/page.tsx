@@ -7,6 +7,8 @@ import {
   FolderPlus, Upload, StickyNote, Database, Network, Pin,
   Clock, Star, ChevronRight, HardDrive, FolderKanban, Monitor, ArrowRight,
   Cloud, FileText, Settings, AlertTriangle, CheckCircle, History, Zap,
+  ClipboardList, Users2, BookOpen, TerminalSquare, Globe, Activity,
+  Calculator, Gauge, FileCode, Thermometer, FolderOpen,
 } from 'lucide-react';
 import { useProjects, useRecentActivity, useProjectCounts, useRecentNotes } from '@/hooks/use-projects';
 import { useAppStore } from '@/store/app-store';
@@ -183,6 +185,43 @@ export default function DashboardPage() {
                   <Icon className="h-4 w-4 text-primary" />
                 </div>
                 <span className="text-xs font-medium">{label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Tools Grid */}
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">Tools</h2>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {[
+              { icon: FolderKanban, label: 'Projects', desc: 'Files, devices, IP plans & contacts', href: '/projects', color: 'text-primary bg-primary/10' },
+              { icon: ClipboardList, label: 'Daily Reports', desc: 'Structured field reports with PDF export', href: '/reports', color: 'text-field-info bg-field-info/10' },
+              { icon: Users2, label: 'Global Projects', desc: 'Team projects with real-time collaboration', href: '/global-projects', color: 'text-primary bg-primary/10' },
+              { icon: BookOpen, label: 'Knowledge Base', desc: 'Shared technical articles & guides', href: '/knowledge-base', color: 'text-field-success bg-field-success/10' },
+              { icon: Network, label: 'Network Diagrams', desc: 'Visual BAS topology maps', href: '/network-diagram', color: 'text-field-info bg-field-info/10' },
+              { icon: TerminalSquare, label: 'Telnet HMI', desc: 'Browser terminal for BAS controllers', href: '/terminal', color: 'text-field-warning bg-field-warning/10' },
+              { icon: Globe, label: 'Web Interface', desc: 'Embedded BAS controller web panels', href: '/web-interface', color: 'text-primary bg-primary/10' },
+              { icon: Activity, label: 'Ping Tool', desc: 'HTTP/TCP reachability testing', href: '/ping', color: 'text-field-success bg-field-success/10' },
+              { icon: Calculator, label: 'Register Tool', desc: 'BACnet, Modbus & LonWorks registers', href: '/register-tool', color: 'text-field-info bg-field-info/10' },
+              { icon: Gauge, label: 'PID Tuning', desc: 'Tune loops with ZN & Cohen-Coon', href: '/pid-tuning', color: 'text-field-warning bg-field-warning/10' },
+              { icon: FileCode, label: 'PPCL Editor', desc: 'Siemens PPCL with syntax highlighting', href: '/ppcl-editor', color: 'text-primary bg-primary/10' },
+              { icon: Thermometer, label: 'Psychrometric', desc: 'Moist air properties for HVAC', href: '/psychrometric', color: 'text-field-danger bg-field-danger/10' },
+              { icon: FolderOpen, label: 'Uploads Inbox', desc: 'Unassigned uploaded documents', href: '/documents', color: 'text-muted-foreground bg-muted' },
+              { icon: Pin, label: 'Offline / Pinned', desc: 'Projects available without Wi-Fi', href: '/offline', color: 'text-field-info bg-field-info/10' },
+            ].map(({ icon: Icon, label, desc, href, color }) => (
+              <button
+                key={label}
+                onClick={() => router.push(href)}
+                className="flex items-start gap-3 rounded-xl border border-border bg-card p-3 text-left transition-all hover:bg-accent hover:border-primary/20 hover:shadow-sm active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <div className={`rounded-lg p-2 shrink-0 ${color}`}>
+                  <Icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold truncate">{label}</p>
+                  <p className="text-[11px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">{desc}</p>
+                </div>
               </button>
             ))}
           </div>

@@ -7,7 +7,7 @@ import {
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
   Wrench, Shield, WifiOff, ArrowRight, UserPlus, MessageSquare,
   Zap, Layers, Monitor, ChevronRight, Wifi, Heart, Code,
-  Gauge, BookOpen, Download, Cloud, Users, Check, Mail,
+  Gauge, BookOpen, Download, Cloud, Users, Check, Mail, Thermometer,
 } from 'lucide-react';
 import { isPaywallEnabled } from '@/lib/paywall';
 import { useAuth } from '@/providers/auth-provider';
@@ -62,9 +62,9 @@ const toolGroups = [
     gradient: 'from-siemens-navy/10 to-siemens-navy/5',
     items: [
       { icon: Globe, name: 'Web Interface', desc: 'Access BAS controller web panels with saved endpoints' },
-      { icon: TerminalSquare, name: 'Telnet HMI', desc: 'Browser-based terminal with session tabs and logging' },
-      { icon: Wrench, name: 'Command Snippets', desc: 'Reusable commands for BACnet, Modbus, Niagara, and more' },
+      { icon: TerminalSquare, name: 'Telnet HMI', desc: 'Browser-based terminal with session tabs, command snippets, and session logging' },
       { icon: Code, name: 'PPCL Editor', desc: 'Syntax-highlighted editor for PPCL programs with line numbering and GOTO navigation' },
+      { icon: Thermometer, name: 'Psychrometric Calculator', desc: 'Moist air property calculator for AHU commissioning and HVAC troubleshooting' },
     ],
   },
 ];
@@ -710,7 +710,7 @@ export default function HomePage() {
                     </div>
 
                     <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-                      Desktop App for Windows &amp; macOS
+                      Desktop App for Windows
                     </h2>
                     <p className="mt-3 text-sm sm:text-base text-white/70 leading-relaxed max-w-lg">
                       A dedicated desktop experience built with Tauri. Full network access,
