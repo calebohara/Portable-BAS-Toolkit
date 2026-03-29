@@ -83,7 +83,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
           <Button
             variant="outline"
             size="sm"
-            className="hidden sm:flex h-8 gap-2 text-muted-foreground"
+            className="flex h-8 gap-2 text-muted-foreground"
             onClick={goToSearch}
             data-tour="search-button"
           >

@@ -1182,7 +1182,7 @@ export async function purgeOrphanedRecords(): Promise<number> {
     'files', 'notes', 'devices', 'ipPlan', 'activityLog',
     'dailyReports', 'networkDiagrams', 'pingSessions',
     'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions',
-    'ppclDocuments',
+    'ppclDocuments', 'psychSessions',
   ] as const;
 
   let totalDeleted = 0;
@@ -1271,7 +1271,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'ppclDocuments', 'bugReports', 'syncQueue', 'syncConflicts',
+    'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'bugReports', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');

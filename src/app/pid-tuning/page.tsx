@@ -134,7 +134,7 @@ type UseValuesFn = (kp: number, ti: number | null, td: number | null, mode: 'p' 
 
 function ResultsTable({ results, onUse }: { results: TuningMethodResult[]; onUse: UseValuesFn }) {
   return (
-    <div className="mt-3 pt-3 border-t border-border">
+    <div className="mt-3 pt-3 border-t border-border overflow-x-auto">
       <div className="grid grid-cols-6 gap-1 text-[10px] font-medium text-muted-foreground mb-1 px-1">
         <span>Mode</span>
         <span className="text-right">Gain (Kp)</span>

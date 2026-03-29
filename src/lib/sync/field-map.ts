@@ -201,6 +201,19 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  psychSessions: {
+    projectId: 'project_id',
+    unitSystem: 'unit_system',
+    inputMode: 'input_mode',
+    inputValues: 'input_values',
+    comfortResult: 'comfort_result',
+    ahuMixedAir: 'ahu_mixed_air',
+    ahuCoilLoad: 'ahu_coil_load',
+    syncVersion: 'sync_version',
+    deletedAt: 'deleted_at',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
   bugReports: {
     stepsToReproduce: 'steps_to_reproduce',
     appVersion: 'app_version',
@@ -263,6 +276,7 @@ export const REQUIRES_PROJECT_ID: Set<SyncEntityType> = new Set([
   'activityLog',   // activity_log.project_id NOT NULL
   'networkDiagrams', // network_diagrams.project_id NOT NULL
   'pidTuningSessions', // pid_tuning_sessions.project_id NOT NULL
+  'psychSessions',     // psych_sessions.project_id NOT NULL
 ]);
 // These tables have project_id nullable: files, commandSnippets,
 // pingSessions, terminalLogs, connectionProfiles, registerCalculations
@@ -352,5 +366,6 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'registerCalculations',
   'pidTuningSessions',
   'ppclDocuments',
+  'psychSessions',
   'bugReports',
 ];

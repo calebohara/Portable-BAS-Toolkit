@@ -227,11 +227,17 @@ export default function NetworkDiagramPage() {
     }
   }, [tool, pan]);
 
-  // Zoom with scroll
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.1 : 0.1;
-    setZoom(z => Math.max(0.2, Math.min(3, z + delta)));
+  // Zoom with scroll (passive: false to allow preventDefault in React 19)
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? -0.1 : 0.1;
+      setZoom(z => Math.max(0.2, Math.min(3, z + delta)));
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
   }, []);
 
   // Keyboard shortcuts
@@ -689,7 +695,6 @@ export default function NetworkDiagramPage() {
               onPointerDown={handleCanvasPointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
-              onWheel={handleWheel}
               className="touch-none"
             >
               <g transform={`translate(${pan.x}, ${pan.y}) scale(${zoom})`}>

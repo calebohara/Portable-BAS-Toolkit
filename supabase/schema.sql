@@ -267,6 +267,7 @@ create table if not exists activity_log (
   details text not null default '',
   file_id uuid,
   timestamp timestamptz not null default now(),
+  created_at timestamptz not null default now(),
   deleted_at timestamptz,
   sync_version int not null default 1,
   updated_at timestamptz not null default now()
@@ -627,6 +628,38 @@ create trigger ppcl_documents_updated_at
   before update on ppcl_documents
   for each row execute function set_updated_at();
 
+-- ─── Psych Sessions ─────────────────────────────────────────────────────────
+-- Psychrometric calculation sessions per user, linked to a project.
+-- Synced via the offline-first sync engine (IndexedDB ↔ Supabase).
+create table if not exists psych_sessions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  project_id uuid not null references projects(id) on delete cascade,
+  label text not null default '',
+  unit_system text not null default 'IP',
+  altitude real not null default 0,
+  input_mode text not null default 'dbwb',
+  input_values jsonb not null default '{}',
+  results jsonb not null default '{}',
+  comfort_result jsonb not null default '{}',
+  ahu_mixed_air jsonb,
+  ahu_coil_load jsonb,
+  notes text not null default '',
+  tags text[] not null default '{}',
+  deleted_at timestamptz,
+  sync_version int not null default 1,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table psych_sessions enable row level security;
+create policy "Users can manage their own psych sessions"
+  on psych_sessions for all using (auth.uid() = user_id);
+
+create trigger psych_sessions_updated_at
+  before update on psych_sessions
+  for each row execute function set_updated_at();
+
 -- ─── User Settings ──────────────────────────────────────────────────────────
 -- Per-user app preferences that may sync across devices in the future.
 -- Currently stored in Zustand/localStorage; this table is for future sync.
@@ -672,3 +705,8 @@ create index if not exists idx_notepad_documents_user on notepad_documents(user_
 create index if not exists idx_notepad_documents_updated on notepad_documents(updated_at);
 create index if not exists idx_field_panels_user on field_panels(user_id);
 create index if not exists idx_field_panels_project on field_panels(project_id);
+create index if not exists idx_bug_reports_user on bug_reports(user_id);
+create index if not exists idx_ppcl_documents_user on ppcl_documents(user_id);
+create index if not exists idx_ppcl_documents_project on ppcl_documents(project_id);
+create index if not exists idx_psych_sessions_user on psych_sessions(user_id);
+create index if not exists idx_psych_sessions_project on psych_sessions(project_id);

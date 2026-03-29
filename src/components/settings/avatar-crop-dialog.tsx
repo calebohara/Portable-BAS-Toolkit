@@ -122,13 +122,19 @@ export function AvatarCropDialog({
     setDragging(false);
   }, []);
 
-  // Wheel zoom
-  const handleWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault();
-    setZoom((z) => {
-      const delta = e.deltaY > 0 ? -0.1 : 0.1;
-      return Math.min(Math.max(z + delta, 0.5), 5);
-    });
+  // Wheel zoom (passive: false to allow preventDefault in React 19)
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const handleWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom((z) => {
+        const delta = e.deltaY > 0 ? -0.1 : 0.1;
+        return Math.min(Math.max(z + delta, 0.5), 5);
+      });
+    };
+    el.addEventListener('wheel', handleWheel, { passive: false });
+    return () => el.removeEventListener('wheel', handleWheel);
   }, []);
 
   // Crop the image to a square using canvas
@@ -290,7 +296,6 @@ export function AvatarCropDialog({
                   onPointerDown={handlePointerDown}
                   onPointerMove={handlePointerMove}
                   onPointerUp={handlePointerUp}
-                  onWheel={handleWheel}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img

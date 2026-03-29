@@ -612,7 +612,7 @@ function SettingsPanel() {
       <h3 className="text-sm font-semibold flex items-center gap-2">
         <Settings2 className="h-4 w-4" /> Terminal Settings
       </h3>
-      <div className="grid gap-3 sm:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <div className="space-y-1.5">
           <Label className="text-xs">Default Baud Rate</Label>
           <Select
@@ -1432,7 +1432,7 @@ export default function TelnetPage() {
             <div className="px-4 pb-2.5 space-y-2">
               {/* Row 1: Mode, Label, Port/Host fields — all inline */}
               <div className="flex flex-wrap items-end gap-2">
-                <div className="w-[100px]">
+                <div className="w-full sm:w-[100px]">
                   <Label className="text-[10px] text-muted-foreground mb-0.5 block">Mode</Label>
                   <Select
                     value={session.connectionMode ?? 'serial'}
@@ -1456,7 +1456,7 @@ export default function TelnetPage() {
 
                 {session.connectionMode === 'serial' ? (
                   <>
-                    <div className="min-w-[180px] flex-1 max-w-[280px]">
+                    <div className="w-full sm:min-w-[180px] sm:w-auto flex-1 max-w-[280px]">
                       <Label className="text-[10px] text-muted-foreground mb-0.5 block">Serial Port</Label>
                       <div className="flex gap-1">
                         <Select
@@ -1478,7 +1478,7 @@ export default function TelnetPage() {
                         </Button>
                       </div>
                     </div>
-                    <div className="w-[110px]">
+                    <div className="w-full sm:w-[110px]">
                       <Label className="text-[10px] text-muted-foreground mb-0.5 block">Baud Rate</Label>
                       <Select
                         value={String(session.baudRate)}
@@ -1502,7 +1502,7 @@ export default function TelnetPage() {
                         className="h-7 text-xs font-mono"
                       />
                     </div>
-                    <div className="w-[70px]">
+                    <div className="w-full sm:w-[70px]">
                       <Label className="text-[10px] text-muted-foreground mb-0.5 block">Port</Label>
                       <Input
                         type="number"
@@ -1582,7 +1582,7 @@ export default function TelnetPage() {
                   </>
                 ) : (
                   <>
-                    <div className="w-[110px]">
+                    <div className="w-full sm:w-[110px]">
                       <Label className="text-[10px] text-muted-foreground mb-0.5 block">Baud Rate</Label>
                       <Select
                         value={String(session.baudRate)}

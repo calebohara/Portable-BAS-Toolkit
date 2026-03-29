@@ -452,7 +452,7 @@ export class SyncManager implements SyncManagerInterface {
             .eq('user_id', this.userId);
 
           // Incremental: only fetch rows updated since last pull
-          if (lastPulledAt && entityType !== 'terminalLogs') {
+          if (lastPulledAt) {
             const timestampCol =
               entityType === 'activityLog' ? 'timestamp' :
               'updated_at';

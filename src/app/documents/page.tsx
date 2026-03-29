@@ -6,7 +6,7 @@ import { format } from 'date-fns';
 import {
   Search, Download, Eye, Trash2, FolderOpen,
   MoreHorizontal,
-  ArrowRight, Upload,
+  Upload,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
@@ -211,10 +211,6 @@ export default function DocumentsPage() {
                           </DropdownMenuItem>
                           <DropdownMenuItem onClick={() => handleDownload(selectedFile)}>
                             <Download className="mr-2 h-4 w-4" /> Download
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => setAssigningFile(selectedFile)}>
-                            <ArrowRight className="mr-2 h-4 w-4" /> Assign to Project
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTarget(selectedFile)}>

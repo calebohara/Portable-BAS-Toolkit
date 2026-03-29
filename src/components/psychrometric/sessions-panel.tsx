@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { sanitizeFilename } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -107,7 +108,7 @@ export function SessionsPanel({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `psych_${session.label.replace(/\s+/g, '_')}_${format(new Date(), 'yyyy-MM-dd')}.json`;
+    a.download = sanitizeFilename(`psych_${session.label}_${format(new Date(), 'yyyy-MM-dd')}.json`);
     a.click();
     URL.revokeObjectURL(url);
     toast.success('JSON exported');

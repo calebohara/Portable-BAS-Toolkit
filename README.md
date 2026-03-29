@@ -25,6 +25,7 @@
 - **Component Decomposition** — Large page components broken into focused modules for maintainability.
 - **Error Handling Overhaul** — Error boundary, reporting utility, and silent catch fixes across the app.
 - **Test Infrastructure** — Vitest setup with tests for DB operations, sync manager, PID tuning, and register utilities.
+- **Psychrometric Calculator** — HVAC air property calculations with session save/load, AHU process modeling, comfort analysis, and reference tables.
 
 <details>
 <summary>v4.8.4</summary>
@@ -120,6 +121,7 @@
 - **Network Diagram Builder** — canvas-based topology mapping with color-coded node types, connections, and PNG/SVG export
 - **Register Tool** — hex/decimal/binary converter, IEEE 754 float decoder, byte order tool, bitmask editor, scaling calculator, Modbus address builder, and calculation history
 - **PID Tuning** — interactive PID loop tuning calculator with multiple loop types, control modes, and session management
+- **Psychrometric Calculator** — HVAC air property calculations with session save/load, AHU process modeling, comfort analysis, and reference tables
 
 ### Access & Diagnostics
 - **Web Interface** — access BAS controller web panels with saved endpoints and security handling
