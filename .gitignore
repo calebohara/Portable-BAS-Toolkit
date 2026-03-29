@@ -53,4 +53,5 @@ PPCLM.md
 # markdown docs (kept local only)
 *.md
 !README.md
+!SECURITY.md
 docs/**/*.md
