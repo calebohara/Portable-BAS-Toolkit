@@ -113,6 +113,17 @@ export interface BugReport {
   updatedAt: string;
 }
 
+export interface UserReview {
+  id: string;
+  rating: number;
+  comment: string;
+  displayName: string;
+  appVersion: string;
+  deviceClass: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface DeviceEntry {
   id: string;
   projectId: string;
@@ -215,7 +226,7 @@ export type SyncEntityType =
   | 'dailyReports' | 'activityLog' | 'networkDiagrams'
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
   | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
-  | 'ppclDocuments' | 'bugReports' | 'psychSessions';
+  | 'ppclDocuments' | 'bugReports' | 'psychSessions' | 'reviews';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 

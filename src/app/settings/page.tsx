@@ -19,6 +19,7 @@ import { ChangeEmailDialog } from '@/components/settings/change-email-dialog';
 import { DeleteAccountDialog } from '@/components/settings/delete-account-dialog';
 import { AvatarCropDialog } from '@/components/settings/avatar-crop-dialog';
 import { BugReportsPanel } from '@/components/settings/bug-reports-panel';
+import { ReviewsPanel } from '@/components/settings/reviews-panel';
 import { UpgradeCTA } from '@/components/settings/upgrade-cta';
 import { ActionCard } from '@/components/settings/section-heading';
 import { AdminApprovalPanel } from '@/components/settings/admin-approval-panel';
@@ -719,6 +720,11 @@ export default function SettingsPage() {
                   <Card>
                     <CardContent className="p-5">
                       <BugReportsPanel />
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-5">
+                      <ReviewsPanel />
                     </CardContent>
                   </Card>
                 </TabsContent>

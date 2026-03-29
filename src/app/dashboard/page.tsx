@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { format, formatDistanceToNow } from 'date-fns';
 import {
-  FolderPlus, Upload, StickyNote, Database, Network, Pin,
-  Clock, Star, ChevronRight, HardDrive, FolderKanban, Monitor, ArrowRight,
+  FolderPlus, Upload, StickyNote, Database, Network, Pin, Star,
+  Clock, ChevronRight, HardDrive, FolderKanban, Monitor, ArrowRight,
   Cloud, FileText, Settings, AlertTriangle, CheckCircle, History, Zap,
   ClipboardList, Users2, BookOpen, TerminalSquare, Globe, Activity,
   Calculator, Gauge, FileCode, Thermometer, FolderOpen,
@@ -24,6 +24,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { isPaywallEnabled, hasSyncAccess } from '@/lib/paywall';
 import { useAuthGate } from '@/hooks/use-auth-gate';
 import { actionIcons } from '@/components/projects/activity-timeline';
+import { ReviewDialog } from '@/components/shared/review-dialog';
 import type { Project } from '@/types';
 
 export default function DashboardPage() {
@@ -35,6 +36,7 @@ export default function DashboardPage() {
   const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
   const syncConflictCount = useAppStore((s) => s.syncConflictCount);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
+  const [reviewOpen, setReviewOpen] = useState(false);
   const { isWindowsDesktopWeb } = useDeviceClass();
   const { mode, profile } = useAuth();
   const { loading: authGateLoading, shouldShow } = useAuthGate();
@@ -89,6 +91,7 @@ export default function DashboardPage() {
     { icon: Database, label: 'Latest Backup', onClick: () => router.push('/search?q=backup&category=backups') },
     { icon: Network, label: 'IP Plan', onClick: () => router.push('/search?category=ip-plan') },
     { icon: Pin, label: 'Offline Files', onClick: () => router.push('/offline') },
+    { icon: Star, label: 'Leave Review', onClick: () => setReviewOpen(true) },
   ];
 
   // Sync status display
@@ -486,6 +489,7 @@ export default function DashboardPage() {
           </section>
         )}
       </div>
+      <ReviewDialog open={reviewOpen} onOpenChange={setReviewOpen} />
     </>
   );
 }

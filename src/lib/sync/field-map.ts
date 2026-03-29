@@ -22,6 +22,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   ppclDocuments: 'ppcl_documents',
   psychSessions: 'psych_sessions',
   bugReports: 'bug_reports',
+  reviews: 'user_reviews',
 };
 
 // Fields to strip from local entities before pushing to Supabase.
@@ -224,6 +225,13 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  reviews: {
+    displayName: 'display_name',
+    appVersion: 'app_version',
+    deviceClass: 'device_class',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
 };
 
 /**
@@ -368,4 +376,5 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'ppclDocuments',
   'psychSessions',
   'bugReports',
+  'reviews',
 ];

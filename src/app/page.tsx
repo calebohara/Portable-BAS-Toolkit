@@ -7,7 +7,7 @@ import {
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
   Wrench, WifiOff, ArrowRight, UserPlus, MessageSquare,
   Zap, Layers, ChevronRight, Wifi, Heart, Code,
-  Gauge, BookOpen, Download, Cloud, Users, Check, Thermometer, Shield,
+  Gauge, BookOpen, Download, Cloud, Users, Check, Thermometer, Shield, Star,
 } from 'lucide-react';
 import { isPaywallEnabled } from '@/lib/paywall';
 import { useAuth } from '@/providers/auth-provider';
@@ -81,23 +81,6 @@ const fieldBenefits = [
   { icon: Database, title: 'Your data, your control', desc: 'Local-first means device configs and project data stay private by default. Cloud sync is opt-in, never forced.' },
 ];
 
-const testimonials = [
-  {
-    quote: 'BAU Suite replaced our SharePoint folder, Notepad, and PuTTY in one shot. We carry one tab into the field now.',
-    name: 'M. Torres',
-    role: 'Senior Controls Technician',
-  },
-  {
-    quote: 'The offline-first design is exactly what we needed. No more scrambling for a hotspot in an equipment room.',
-    name: 'R. Patel',
-    role: 'BAS Commissioning Engineer',
-  },
-  {
-    quote: "Daily reports used to take 30 minutes to format and send. Now it's under 5. The Teams export is seamless.",
-    name: 'J. Kim',
-    role: 'Field Service Engineer',
-  },
-];
 
 // ─── Page Component ──────────────────────────────────────────────────────────
 
@@ -306,22 +289,26 @@ export default function HomePage() {
 
       {/* ── Social Proof ─────────────────────────────────────────────── */}
       <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <p className="hp-reveal text-center text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-10">
-            What field engineers are saying
-          </p>
-          <div className="hp-stagger grid gap-4 sm:grid-cols-3">
-            {testimonials.map(({ quote, name, role }) => (
-              <div key={name} className="hp-reveal hp-card-surface p-5 flex flex-col gap-3">
-                <span className="text-3xl font-bold text-primary/20 leading-none select-none">&ldquo;</span>
-                <p className="text-sm text-muted-foreground leading-relaxed flex-1">{quote}</p>
-                <div className="border-t border-border/50 pt-3">
-                  <p className="text-xs font-semibold">{name}</p>
-                  <p className="text-[11px] text-muted-foreground">{role}</p>
-                </div>
-              </div>
-            ))}
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 text-center">
+          <div className="hp-reveal mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 mb-5">
+            <Star className="h-7 w-7 text-primary" />
           </div>
+          <h2 className="hp-reveal text-2xl sm:text-3xl font-bold tracking-tight mb-3">
+            User Reviews Coming Soon
+          </h2>
+          <p className="hp-reveal text-sm text-muted-foreground max-w-md mx-auto mb-6">
+            We&apos;re collecting feedback from field engineers. Your review will appear here.
+          </p>
+          {isAuthed && (
+            <Button
+              variant="outline"
+              className="hp-reveal gap-2"
+              onClick={() => router.push('/dashboard')}
+            >
+              <Star className="h-4 w-4" />
+              Leave a Review
+            </Button>
+          )}
         </div>
       </section>
 

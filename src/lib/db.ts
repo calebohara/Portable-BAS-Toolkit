@@ -4,7 +4,7 @@ import type {
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
   ConnectionProfile, SavedCalculation, PidTuningSession, PpclDocument, BugReport,
-  PsychSession,
+  PsychSession, UserReview,
   SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
@@ -116,6 +116,11 @@ interface BasToolkitDB extends DBSchema {
     value: BugReport;
     indexes: { 'by-status': string; 'by-severity': string };
   };
+  reviews: {
+    key: string;
+    value: UserReview;
+    indexes: { 'by-rating': number };
+  };
   syncQueue: {
     key: string;
     value: SyncQueueItem;
@@ -133,13 +138,13 @@ export type BasToolkitStoreName =
   | 'projects' | 'files' | 'fileBlobs' | 'notes' | 'devices' | 'ipPlan'
   | 'activityLog' | 'dailyReports' | 'networkDiagrams' | 'commandSnippets'
   | 'pingSessions' | 'terminalLogs' | 'connectionProfiles' | 'registerCalculations'
-  | 'pidTuningSessions' | 'ppclDocuments' | 'psychSessions' | 'bugReports' | 'syncQueue' | 'syncConflicts';
+  | 'pidTuningSessions' | 'ppclDocuments' | 'psychSessions' | 'bugReports' | 'reviews' | 'syncQueue' | 'syncConflicts';
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 16, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 17, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
       },
@@ -299,6 +304,12 @@ function getDB() {
           // Psychrometric Calculator Sessions
           const psychStore = db.createObjectStore('psychSessions', { keyPath: 'id' });
           psychStore.createIndex('by-project', 'projectId');
+        }
+
+        if (oldVersion < 17) {
+          // User Reviews
+          const reviewStore = db.createObjectStore('reviews', { keyPath: 'id' });
+          reviewStore.createIndex('by-rating', 'rating');
         }
       },
     }).catch((err) => {
@@ -963,6 +974,25 @@ export async function deleteBugReport(id: string): Promise<void> {
   notifySync('delete', 'bugReports', id, null);
 }
 
+// ─── User Reviews ────────────────────────────────────────────────
+export async function getAllReviews(): Promise<UserReview[]> {
+  const db = await getDB();
+  const reviews = await db.getAll('reviews');
+  return reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function saveReview(review: UserReview): Promise<void> {
+  const db = await getDB();
+  await db.put('reviews', review);
+  notifySync('update', 'reviews', review.id, review);
+}
+
+export async function deleteReview(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('reviews', id);
+  notifySync('delete', 'reviews', id, null);
+}
+
 // Global search across all projects
 export async function searchGlobal(query: string): Promise<{
   projects: Project[];
@@ -1271,7 +1301,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'bugReports', 'syncQueue', 'syncConflicts',
+    'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'bugReports', 'reviews', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');
