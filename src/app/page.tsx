@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
@@ -14,6 +14,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { Button } from '@/components/ui/button';
 import { APP_VERSION } from '@/lib/version';
 import { useScrollReveal } from '@/hooks/use-scroll-reveal';
+import { getSupabaseClient } from '@/lib/supabase/client';
 
 // ─── Data ────────────────────────────────────────────────────────────────────
 
@@ -91,12 +92,27 @@ export default function HomePage() {
   const scrollRef = useScrollReveal();
 
   const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+  const [reviews, setReviews] = useState<{ display_name: string; rating: number; comment: string; created_at: string }[]>([]);
 
   useEffect(() => {
     if (isTauri && !authLoading && !isAuthed) {
       window.location.replace('/login');
     }
   }, [isTauri, authLoading, isAuthed]);
+
+  // Fetch published reviews from Supabase
+  useEffect(() => {
+    const sb = getSupabaseClient();
+    if (!sb) return;
+    sb.from('user_reviews')
+      .select('display_name, rating, comment, created_at')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(6)
+      .then(({ data }) => {
+        if (data?.length) setReviews(data);
+      });
+  }, []);
 
   const goApp = () => router.push('/dashboard');
   const goSignup = () => isTauri ? window.location.assign('/login?tab=signup') : router.push('/login?tab=signup');
@@ -289,25 +305,65 @@ export default function HomePage() {
 
       {/* ── Social Proof ─────────────────────────────────────────────── */}
       <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 text-center">
-          <div className="hp-reveal mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 mb-5">
-            <Star className="h-7 w-7 text-primary" />
-          </div>
-          <h2 className="hp-reveal text-2xl sm:text-3xl font-bold tracking-tight mb-3">
-            User Reviews Coming Soon
-          </h2>
-          <p className="hp-reveal text-sm text-muted-foreground max-w-md mx-auto mb-6">
-            We&apos;re collecting feedback from field engineers. Your review will appear here.
-          </p>
-          {isAuthed && (
-            <Button
-              variant="outline"
-              className="hp-reveal gap-2"
-              onClick={() => router.push('/dashboard')}
-            >
-              <Star className="h-4 w-4" />
-              Leave a Review
-            </Button>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          {reviews.length > 0 ? (
+            <>
+              <p className="hp-reveal text-center text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-10">
+                What field engineers are saying
+              </p>
+              <div className="hp-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {reviews.map((r) => (
+                  <div key={r.created_at} className="hp-reveal hp-card-surface p-5 flex flex-col gap-3">
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((s) => (
+                        <Star
+                          key={s}
+                          className={`h-4 w-4 ${s <= r.rating ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/20'}`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-sm text-muted-foreground leading-relaxed flex-1">{r.comment}</p>
+                    <div className="border-t border-border/50 pt-3">
+                      <p className="text-xs font-semibold">{r.display_name || 'Anonymous'}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {isAuthed && (
+                <div className="text-center mt-8">
+                  <Button
+                    variant="outline"
+                    className="hp-reveal gap-2"
+                    onClick={() => router.push('/dashboard')}
+                  >
+                    <Star className="h-4 w-4" />
+                    Leave a Review
+                  </Button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="text-center">
+              <div className="hp-reveal mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 mb-5">
+                <Star className="h-7 w-7 text-primary" />
+              </div>
+              <h2 className="hp-reveal text-2xl sm:text-3xl font-bold tracking-tight mb-3">
+                User Reviews Coming Soon
+              </h2>
+              <p className="hp-reveal text-sm text-muted-foreground max-w-md mx-auto mb-6">
+                We&apos;re collecting feedback from field engineers. Your review will appear here.
+              </p>
+              {isAuthed && (
+                <Button
+                  variant="outline"
+                  className="hp-reveal gap-2"
+                  onClick={() => router.push('/dashboard')}
+                >
+                  <Star className="h-4 w-4" />
+                  Leave a Review
+                </Button>
+              )}
+            </div>
           )}
         </div>
       </section>
