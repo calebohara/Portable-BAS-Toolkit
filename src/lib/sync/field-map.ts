@@ -23,6 +23,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   psychSessions: 'psych_sessions',
   bugReports: 'bug_reports',
   reviews: 'user_reviews',
+  trendSessions: 'trend_sessions',
 };
 
 // Fields to strip from local entities before pushing to Supabase.
@@ -232,6 +233,13 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  trendSessions: {
+    projectId: 'project_id',
+    sourceSystem: 'source_system',
+    anomalyConfig: 'anomaly_config',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
 };
 
 /**
@@ -377,4 +385,5 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'psychSessions',
   'bugReports',
   'reviews',
+  'trendSessions',
 ];

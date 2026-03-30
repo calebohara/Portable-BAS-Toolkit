@@ -7,7 +7,7 @@ import {
   Network, Database, Activity, Globe, TerminalSquare, Calculator,
   Wrench, WifiOff, ArrowRight, UserPlus, MessageSquare,
   Zap, Layers, ChevronRight, Wifi, Heart, Code,
-  Gauge, BookOpen, Download, Cloud, Users, Check, Thermometer, Shield, Star,
+  Gauge, BookOpen, Download, Cloud, Users, Check, Thermometer, Shield, Star, TrendingUp,
 } from 'lucide-react';
 import { isPaywallEnabled } from '@/lib/paywall';
 import { useAuth } from '@/providers/auth-provider';
@@ -43,6 +43,7 @@ const toolGroups = [
       { icon: Calculator, name: 'Register Tool', desc: 'Decode any BACnet, Modbus, or LonWorks value — hex, IEEE 754, byte order, and addressing' },
       { icon: Gauge, name: 'PID Tuning', desc: 'Stop guessing on loop parameters. Ziegler-Nichols and Cohen-Coon calculators with symptom diagnosis' },
       { icon: Thermometer, name: 'Psychrometric', desc: 'Calculate moist air properties for AHU commissioning — mixed air, coil loads, and comfort zones' },
+      { icon: TrendingUp, name: 'Trend Viewer', desc: 'Upload BAS trend CSVs from any platform, overlay multi-series data, detect stuck sensors and anomalies, and export clean reports' },
     ],
   },
   {

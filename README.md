@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.8.7-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.9.0-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -17,7 +17,17 @@
 
 ---
 
-## What's New in v4.8.7
+## What's New in v4.9.0
+
+- **Trend Data Visualizer** — Upload BAS trend CSVs from any platform (Niagara N4, Desigo CC, Metasys, EcoStruxure, WebCTRL, generic) and get clean interactive charts with multi-series overlay, dual Y-axis, and brush zoom. Includes:
+  - Auto-detection of delimiter, header row, timestamp format, and units across all major BAS export styles
+  - Anomaly detection engine: stuck sensor, spikes (rolling Z-score), oscillation/hunting, short-cycling, out-of-range, and data gaps — all with configurable thresholds
+  - Per-series statistics: min/max/mean/median/std dev, gap count, and runtime hours for binary signals
+  - Export: clean CSV, high-DPI PNG chart, print-ready HTML report, and clipboard copy for Excel
+  - Session save/load with IndexedDB persistence and optional project association
+
+<details>
+<summary>v4.8.7</summary>
 
 - **PPCL Editor** — Full-featured editor for PPCL programs with syntax highlighting, multi-tab support, line length enforcement, GOTO navigation, and cloud sync.
 - **Register Tool Expansion** — Quick converter, register interpreter, byte order tool, IEEE 754 float decoder, bitmask tool, scaling calculator, Modbus builder, calculation history, and inline help reference.
@@ -26,6 +36,7 @@
 - **Error Handling Overhaul** — Error boundary, reporting utility, and silent catch fixes across the app.
 - **Test Infrastructure** — Vitest setup with tests for DB operations, sync manager, PID tuning, and register utilities.
 - **Psychrometric Calculator** — HVAC air property calculations with session save/load, AHU process modeling, comfort analysis, and reference tables.
+</details>
 
 <details>
 <summary>v4.8.4</summary>

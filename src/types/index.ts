@@ -226,7 +226,8 @@ export type SyncEntityType =
   | 'dailyReports' | 'activityLog' | 'networkDiagrams'
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
   | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
-  | 'ppclDocuments' | 'bugReports' | 'psychSessions' | 'reviews';
+  | 'ppclDocuments' | 'bugReports' | 'psychSessions' | 'reviews'
+  | 'trendSessions';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 
@@ -633,6 +634,105 @@ export interface PsychSession {
   ahuCoilLoad?: AhuCoilLoadResult;
   notes: string;
   tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Trend Viewer ──────────────────────────────────────────
+
+export type TrendSourceSystem =
+  | 'niagara' | 'desigo' | 'metasys' | 'honeywell-ebi'
+  | 'ecostruxure' | 'webctrl' | 'generic';
+
+export const TREND_SOURCE_SYSTEM_LABELS: Record<TrendSourceSystem, string> = {
+  niagara: 'Tridium Niagara',
+  desigo: 'Siemens Desigo CC',
+  metasys: 'Johnson Controls Metasys',
+  'honeywell-ebi': 'Honeywell EBI',
+  ecostruxure: 'Schneider EcoStruxure',
+  webctrl: 'Automated Logic WebCTRL',
+  generic: 'Generic CSV',
+};
+
+export type TrendAnomalyType =
+  | 'stuck-sensor' | 'spike' | 'out-of-range'
+  | 'oscillation' | 'short-cycling' | 'gap';
+
+export const TREND_ANOMALY_LABELS: Record<TrendAnomalyType, string> = {
+  'stuck-sensor': 'Stuck Sensor',
+  spike: 'Spike',
+  'out-of-range': 'Out of Range',
+  oscillation: 'Oscillation / Hunting',
+  'short-cycling': 'Short Cycling',
+  gap: 'Data Gap',
+};
+
+export interface TrendDataPoint {
+  timestamp: number; // Unix ms (normalized)
+  values: Record<string, number | null>; // seriesId -> value
+}
+
+export interface TrendSeries {
+  id: string;
+  name: string;
+  unit: string;
+  color: string;
+  visible: boolean;
+  yAxisSide: 'left' | 'right';
+  valueType: 'numeric' | 'binary' | 'enum';
+  sourceFile: string;
+}
+
+export interface TrendAnomaly {
+  id: string;
+  seriesId: string;
+  type: TrendAnomalyType;
+  startTimestamp: number;
+  endTimestamp: number;
+  severity: 'info' | 'warning' | 'critical';
+  description: string;
+  value?: number;
+}
+
+export interface TrendSeriesStats {
+  seriesId: string;
+  min: number;
+  max: number;
+  mean: number;
+  median: number;
+  stdDev: number;
+  sampleCount: number;
+  gapCount: number;
+  runtimeHours: number | null;
+  firstTimestamp: number;
+  lastTimestamp: number;
+}
+
+export interface AnomalyConfig {
+  stuckThresholdMinutes: number;
+  stuckTolerance: number;
+  spikeStdDevMultiplier: number;
+  spikeRollingWindowSize: number;
+  outOfRangeMin: number | null;
+  outOfRangeMax: number | null;
+  oscillationWindowMinutes: number;
+  oscillationMinReversals: number;
+  shortCycleWindowMinutes: number;
+  shortCycleMinTransitions: number;
+  gapThresholdMultiplier: number;
+}
+
+export interface TrendSession {
+  id: string;
+  projectId: string;
+  name: string;
+  description: string;
+  sourceSystem: TrendSourceSystem;
+  series: TrendSeries[];
+  data: TrendDataPoint[];
+  anomalies: TrendAnomaly[];
+  anomalyConfig: AnomalyConfig;
+  stats: TrendSeriesStats[];
   createdAt: string;
   updatedAt: string;
 }

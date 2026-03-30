@@ -4,7 +4,7 @@ import type {
   DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport,
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
   ConnectionProfile, SavedCalculation, PidTuningSession, PpclDocument, BugReport,
-  PsychSession, UserReview,
+  PsychSession, UserReview, TrendSession,
   SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
@@ -111,6 +111,11 @@ interface BasToolkitDB extends DBSchema {
     value: PsychSession;
     indexes: { 'by-project': string };
   };
+  trendSessions: {
+    key: string;
+    value: TrendSession;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
   bugReports: {
     key: string;
     value: BugReport;
@@ -138,13 +143,13 @@ export type BasToolkitStoreName =
   | 'projects' | 'files' | 'fileBlobs' | 'notes' | 'devices' | 'ipPlan'
   | 'activityLog' | 'dailyReports' | 'networkDiagrams' | 'commandSnippets'
   | 'pingSessions' | 'terminalLogs' | 'connectionProfiles' | 'registerCalculations'
-  | 'pidTuningSessions' | 'ppclDocuments' | 'psychSessions' | 'bugReports' | 'reviews' | 'syncQueue' | 'syncConflicts';
+  | 'pidTuningSessions' | 'ppclDocuments' | 'psychSessions' | 'trendSessions' | 'bugReports' | 'reviews' | 'syncQueue' | 'syncConflicts';
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 17, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 18, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
       },
@@ -311,6 +316,13 @@ function getDB() {
           const reviewStore = db.createObjectStore('reviews', { keyPath: 'id' });
           reviewStore.createIndex('by-rating', 'rating');
         }
+
+        if (oldVersion < 18) {
+          // Trend Viewer Sessions
+          const trendStore = db.createObjectStore('trendSessions', { keyPath: 'id' });
+          trendStore.createIndex('by-project', 'projectId');
+          trendStore.createIndex('by-updated', 'updatedAt');
+        }
       },
     }).catch((err) => {
       // Reset so next call retries instead of returning cached failure
@@ -341,7 +353,7 @@ export async function saveProject(project: Project): Promise<void> {
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions', 'ppclDocuments', 'psychSessions'], 'readwrite');
+  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions'], 'readwrite');
 
   try {
     // Delete associated data
@@ -399,6 +411,9 @@ export async function deleteProject(id: string): Promise<void> {
     const psychSessions = await tx.objectStore('psychSessions').index('by-project').getAll(id);
     for (const ps2 of psychSessions) await tx.objectStore('psychSessions').delete(ps2.id);
 
+    const trendSessions = await tx.objectStore('trendSessions').index('by-project').getAll(id);
+    for (const ts of trendSessions) await tx.objectStore('trendSessions').delete(ts.id);
+
     await tx.objectStore('projects').delete(id);
     await tx.done;
 
@@ -417,6 +432,7 @@ export async function deleteProject(id: string): Promise<void> {
     for (const ps of pidSessions) notifySync('delete', 'pidTuningSessions', ps.id, null);
     for (const pd of ppclDocs) notifySync('delete', 'ppclDocuments', pd.id, null);
     for (const ps2 of psychSessions) notifySync('delete', 'psychSessions', ps2.id, null);
+    for (const ts of trendSessions) notifySync('delete', 'trendSessions', ts.id, null);
     notifySync('delete', 'projects', id, null);
   } catch (e) {
     tx.abort();
@@ -950,6 +966,36 @@ export async function deletePpclDocument(id: string): Promise<void> {
   notifySync('delete', 'ppclDocuments', id, null);
 }
 
+// ─── Trend Sessions ─────────────────────────────────────────
+export async function getAllTrendSessions(): Promise<TrendSession[]> {
+  const db = await getDB();
+  const sessions = await db.getAll('trendSessions');
+  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getProjectTrendSessions(projectId: string): Promise<TrendSession[]> {
+  const db = await getDB();
+  const sessions = await db.getAllFromIndex('trendSessions', 'by-project', projectId);
+  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getTrendSession(id: string): Promise<TrendSession | undefined> {
+  const db = await getDB();
+  return db.get('trendSessions', id);
+}
+
+export async function saveTrendSession(session: TrendSession): Promise<void> {
+  const db = await getDB();
+  await db.put('trendSessions', session);
+  notifySync('update', 'trendSessions', session.id, session);
+}
+
+export async function deleteTrendSession(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('trendSessions', id);
+  notifySync('delete', 'trendSessions', id, null);
+}
+
 // ─── Bug Reports ──────────────────────────────────────────────
 export async function getAllBugReports(): Promise<BugReport[]> {
   const db = await getDB();
@@ -1212,7 +1258,7 @@ export async function purgeOrphanedRecords(): Promise<number> {
     'files', 'notes', 'devices', 'ipPlan', 'activityLog',
     'dailyReports', 'networkDiagrams', 'pingSessions',
     'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions',
-    'ppclDocuments', 'psychSessions',
+    'ppclDocuments', 'psychSessions', 'trendSessions',
   ] as const;
 
   let totalDeleted = 0;
@@ -1301,7 +1347,7 @@ export async function clearAllData(): Promise<void> {
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'bugReports', 'reviews', 'syncQueue', 'syncConflicts',
+    'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions', 'bugReports', 'reviews', 'syncQueue', 'syncConflicts',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');

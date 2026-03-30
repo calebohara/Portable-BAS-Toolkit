@@ -6,7 +6,7 @@ import { useState, useCallback } from 'react';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
   ChevronLeft, ChevronRight, ChevronDown, X, FolderOpen, HelpCircle, ClipboardList, TerminalSquare, Globe,
-  Network, Activity, Calculator, Users2, BookOpen, Gauge, FileCode, Thermometer,
+  Network, Activity, Calculator, Users2, BookOpen, Gauge, FileCode, Thermometer, TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore } from '@/store/app-store';
@@ -45,6 +45,7 @@ const navGroups = [
       { href: '/pid-tuning', icon: Gauge, label: 'PID Tuning', tourId: 'nav-pid-tuning' },
       { href: '/ppcl-editor', icon: FileCode, label: 'PPCL Editor', tourId: 'nav-ppcl-editor' },
       { href: '/psychrometric', icon: Thermometer, label: 'Psychrometric', tourId: 'nav-psychrometric' },
+      { href: '/trend-viewer', icon: TrendingUp, label: 'Trend Viewer', tourId: 'nav-trend-viewer' },
     ],
   },
   {
