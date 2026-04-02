@@ -145,11 +145,14 @@ export type BasToolkitStoreName =
   | 'pingSessions' | 'terminalLogs' | 'connectionProfiles' | 'registerCalculations'
   | 'pidTuningSessions' | 'ppclDocuments' | 'psychSessions' | 'trendSessions' | 'bugReports' | 'reviews' | 'syncQueue' | 'syncConflicts';
 
+/** Current schema version — bump this and add a new `if (oldVersion < N)` block when changing the schema. */
+export const DB_VERSION = 18;
+
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 18, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', DB_VERSION, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
       },
@@ -272,21 +275,9 @@ function getDB() {
           notepadDocStore.createIndex('by-language', 'language');
         }
 
-        if (oldVersion < 13) {
-          // Field Panels (legacy — store kept for migration compat)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (!(db as any).objectStoreNames.contains('fieldPanels')) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const panelStore = (db as any).createObjectStore('fieldPanels', { keyPath: 'id' });
-            panelStore.createIndex('by-updated', 'updatedAt');
-            panelStore.createIndex('by-status', 'panelStatus');
-            panelStore.createIndex('by-site', 'site');
-            panelStore.createIndex('by-project', 'projectId');
-          }
-        }
-
         if (oldVersion < 14) {
-          // Ensure fieldPanels exists (legacy — store kept for migration compat)
+          // Field Panels (legacy — store kept for migration compat)
+          // v13 and v14 were identical; consolidated into a single guard.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (!(db as any).objectStoreNames.contains('fieldPanels')) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1099,6 +1090,49 @@ export async function clearAllData(): Promise<void> {
     await tx.store.clear();
     await tx.done;
   }
+}
+
+/**
+ * Export all data from every store as a JSON-serializable snapshot.
+ * Used for pre-migration backup and data portability.
+ * Note: fileBlobs are excluded (binary data can't be JSON-serialized).
+ */
+export async function exportAllData(): Promise<Record<string, unknown[]>> {
+  const db = await getDB();
+  const exportableStores = [
+    'projects', 'files', 'notes', 'devices', 'ipPlan',
+    'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
+    'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
+    'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions',
+    'bugReports', 'reviews',
+  ] as const;
+  const snapshot: Record<string, unknown[]> = { _dbVersion: [DB_VERSION], _exportedAt: [new Date().toISOString()] };
+  for (const name of exportableStores) {
+    snapshot[name] = await db.getAll(name);
+  }
+  return snapshot;
+}
+
+/**
+ * Import data from a snapshot created by exportAllData.
+ * Merges into existing data (put semantics — overwrites by ID).
+ */
+export async function importSnapshot(snapshot: Record<string, unknown[]>): Promise<number> {
+  const db = await getDB();
+  let total = 0;
+  for (const [storeName, items] of Object.entries(snapshot)) {
+    if (storeName.startsWith('_') || !Array.isArray(items) || items.length === 0) continue;
+    if (!db.objectStoreNames.contains(storeName)) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tx = db.transaction(storeName as any, 'readwrite');
+    for (const item of items) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await tx.store.put(item as any);
+      total++;
+    }
+    await tx.done;
+  }
+  return total;
 }
 
 /**

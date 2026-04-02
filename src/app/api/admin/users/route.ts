@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rate-limit';
 
 /**
  * GET /api/admin/users
@@ -43,6 +44,10 @@ async function verifyAdmin(request: Request) {
 }
 
 export async function GET(request: Request) {
+  // Rate limit: 30 requests per minute per IP
+  const rl = checkRateLimit(getRateLimitKey(request), { maxRequests: 30, windowSeconds: 60 });
+  if (!rl.allowed) return rl.response!;
+
   const auth = await verifyAdmin(request);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized — admin access required' }, { status: 403 });

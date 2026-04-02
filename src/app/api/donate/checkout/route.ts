@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { isStripeConfigured, APP_BASE_URL } from '@/lib/stripe-config';
 import type { DonationMode } from '@/lib/stripe-config';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rate-limit';
 
 /**
  * POST /api/donate/checkout
@@ -12,6 +13,10 @@ import type { DonationMode } from '@/lib/stripe-config';
  * Returns: { url: string } — the Stripe Checkout URL to redirect to
  */
 export async function POST(request: NextRequest) {
+  // Rate limit: 10 checkout sessions per minute per IP
+  const { allowed, response } = checkRateLimit(getRateLimitKey(request), { maxRequests: 10, windowSeconds: 60 });
+  if (!allowed) return response!;
+
   // Guard: Stripe not configured yet
   if (!isStripeConfigured()) {
     return NextResponse.json(

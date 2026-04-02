@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -22,12 +23,20 @@ import { exportCleanCSV, downloadCSV, exportChartAsPng, printReport } from '@/li
 import { useTrendSessions } from '@/hooks/use-trend-sessions';
 
 import { CsvUploadPanel } from '@/components/trend-viewer/csv-upload-panel';
-import { TrendChart, type TrendChartHandle } from '@/components/trend-viewer/trend-chart';
 import { SeriesPanel } from '@/components/trend-viewer/series-panel';
 import { AnomalyPanel } from '@/components/trend-viewer/anomaly-panel';
 import { StatisticsPanel } from '@/components/trend-viewer/statistics-panel';
 import { DataTablePanel } from '@/components/trend-viewer/data-table-panel';
 import { SessionSaveDialog, SessionLoadDialog } from '@/components/trend-viewer/session-dialogs';
+
+import type { TrendChartHandle } from '@/components/trend-viewer/trend-chart';
+
+// Lazy-load TrendChart (pulls in recharts ~200KB) — only needed when data is loaded.
+// Wraps forwardRef component so next/dynamic can handle it.
+const TrendChart = dynamic(
+  () => import('@/components/trend-viewer/trend-chart').then(m => ({ default: m.TrendChart })),
+  { ssr: false, loading: () => <div className="h-[400px] flex items-center justify-center text-muted-foreground text-sm">Loading chart...</div> }
+);
 
 import {
   DropdownMenu,
