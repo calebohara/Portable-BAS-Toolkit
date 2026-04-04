@@ -82,7 +82,11 @@
       "Bash(grep -n '// ─── Terminal Logs View' /Users/calebohara/Documents/GitHub/Portable-BAS-Toolkit/src/app/projects/[...slug]/client-page.tsx)",
       "Bash(sed -i '' 's/\"\"version\"\": \"\"4.8.6\"\"/\"\"version\"\": \"\"4.8.7\"\"/' package.json src-tauri/tauri.conf.json)",
       "Bash(sed -i '' 's/^version = \"\"4.8.6\"\"/version = \"\"4.8.7\"\"/' src-tauri/Cargo.toml)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(sed -i '' 's/\"\"version\"\": \"\"4.8.7\"\"/\"\"version\"\": \"\"4.9.0\"\"/' package.json)",
+      "Bash(grep '\"\"version\"\"' package.json)",
+      "Bash(sed -i '' 's/\"\"version\"\": \"\"4.8.7\"\"/\"\"version\"\": \"\"4.9.0\"\"/' src-tauri/tauri.conf.json)",
+      "Bash(grep '\"\"version\"\"' src-tauri/tauri.conf.json)"
     ]
   }
 }
