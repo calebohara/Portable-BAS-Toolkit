@@ -147,9 +147,18 @@
 - **Online presence** — real-time indicator of active users in the sidebar
 - **Account approval** — admin gate for new user registrations
 
+### Donations & Subscriptions
+- **Stripe integration** — one-time donations and monthly subscriptions to support the project
+- **Customer portal** — manage subscription and billing via Stripe portal
+- **Graceful fallback** — shows "Coming Soon" when Stripe keys are not configured
+
 ### Platform
 - **Desktop app** — native Tauri app with real ICMP ping and full network access
 - **Global search** — search across all projects, files, devices, IP entries, and notes
+- **Global notepad** — floating scratch pad with tabs, project linking, and persistent state
+- **Command palette** — quick-access command menu for fast navigation
+- **Help center** — in-app help documentation and guidance
+- **Bug reports & reviews** — built-in bug reporting and user feedback/review system
 - **Offline / Pinned** — pin content for guaranteed offline access with a dedicated management view
 - **Uploads Inbox** — central file upload area for organizing project documents
 - **Error boundary** — graceful error recovery with reporting
@@ -172,8 +181,15 @@ Open [http://localhost:3000](http://localhost:3000). The app auto-seeds demo dat
 Create `.env.local` (optional — app works fully without these):
 
 ```env
+# Supabase (cloud sync, auth, global projects)
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...your-anon-key
+
+# Stripe (donations & subscriptions — shows "Coming Soon" without these)
+STRIPE_SECRET_KEY=sk_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 ---
@@ -242,7 +258,7 @@ Supabase-powered authentication is **optional**. Without it, the app runs fully 
 
 ## Versioning
 
-**Current: v4.8.7** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.9.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 
