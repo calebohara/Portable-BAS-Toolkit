@@ -440,11 +440,13 @@ export async function deleteProject(id: string): Promise<void> {
 
     // Cascade-delete all child stores
     for (const store of PROJECT_CHILD_STORES) {
-      const items = await tx.objectStore(store).index('by-project').getAll(id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const items = await (tx as any).objectStore(store).index('by-project').getAll(id);
       const ids: string[] = [];
       for (const item of items) {
         const rec = item as unknown as { id: string };
-        await tx.objectStore(store).delete(rec.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (tx as any).objectStore(store).delete(rec.id);
         ids.push(rec.id);
       }
       deleted.set(store, ids);
