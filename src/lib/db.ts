@@ -145,11 +145,14 @@ export type BasToolkitStoreName =
   | 'pingSessions' | 'terminalLogs' | 'connectionProfiles' | 'registerCalculations'
   | 'pidTuningSessions' | 'ppclDocuments' | 'psychSessions' | 'trendSessions' | 'bugReports' | 'reviews' | 'syncQueue' | 'syncConflicts';
 
+/** Current schema version — bump this and add a new `if (oldVersion < N)` block when changing the schema. */
+export const DB_VERSION = 18;
+
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
 function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<BasToolkitDB>('bas-toolkit', 18, {
+    dbPromise = openDB<BasToolkitDB>('bas-toolkit', DB_VERSION, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
       },
@@ -272,21 +275,9 @@ function getDB() {
           notepadDocStore.createIndex('by-language', 'language');
         }
 
-        if (oldVersion < 13) {
-          // Field Panels (legacy — store kept for migration compat)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (!(db as any).objectStoreNames.contains('fieldPanels')) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const panelStore = (db as any).createObjectStore('fieldPanels', { keyPath: 'id' });
-            panelStore.createIndex('by-updated', 'updatedAt');
-            panelStore.createIndex('by-status', 'panelStatus');
-            panelStore.createIndex('by-site', 'site');
-            panelStore.createIndex('by-project', 'projectId');
-          }
-        }
-
         if (oldVersion < 14) {
-          // Ensure fieldPanels exists (legacy — store kept for migration compat)
+          // Field Panels (legacy — store kept for migration compat)
+          // v13 and v14 were identical; consolidated into a single guard.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (!(db as any).objectStoreNames.contains('fieldPanels')) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -333,106 +324,138 @@ function getDB() {
   return dbPromise;
 }
 
-// Projects
-export async function getAllProjects(): Promise<Project[]> {
-  const db = await getDB();
-  const projects = await db.getAll('projects');
-  return projects.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+// ─── Generic Repository ─────────────────────────────────────
+// Eliminates per-entity CRUD boilerplate. Each repository provides getAll,
+// getByProject, get, save, and delete — all wired to notifySync.
+
+type AnyRecord = Record<string, unknown>;
+
+function sortDesc<T>(items: T[], field: string): T[] {
+  return items.sort((a, b) =>
+    String((b as AnyRecord)[field]).localeCompare(String((a as AnyRecord)[field]))
+  );
 }
 
-export async function getProject(id: string): Promise<Project | undefined> {
-  const db = await getDB();
-  return db.get('projects', id);
+interface Repository<T> {
+  getAll(): Promise<T[]>;
+  getByProject(projectId: string): Promise<T[]>;
+  get(id: string): Promise<T | undefined>;
+  save(item: T): Promise<void>;
+  delete(id: string): Promise<void>;
 }
 
-export async function saveProject(project: Project): Promise<void> {
-  const db = await getDB();
-  await db.put('projects', project);
-  notifySync('update', 'projects', project.id, project);
+function createRepository<T extends { id: string }>(
+  storeName: BasToolkitStoreName,
+  sortField = 'updatedAt',
+): Repository<T> {
+  return {
+    async getAll(): Promise<T[]> {
+      const d = await getDB();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return sortDesc(await d.getAll(storeName as any), sortField);
+    },
+    async getByProject(projectId: string): Promise<T[]> {
+      const d = await getDB();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return sortDesc(await d.getAllFromIndex(storeName as any, 'by-project', projectId), sortField);
+    },
+    async get(id: string): Promise<T | undefined> {
+      const d = await getDB();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return d.get(storeName as any, id);
+    },
+    async save(item: T): Promise<void> {
+      const d = await getDB();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await d.put(storeName as any, item);
+      notifySync('update', storeName, item.id, item);
+    },
+    async delete(id: string): Promise<void> {
+      const d = await getDB();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await d.delete(storeName as any, id);
+      notifySync('delete', storeName, id, null);
+    },
+  };
 }
+
+// ─── Repository instances ───────────────────────────────────
+
+const projectRepo      = createRepository<Project>('projects');
+const diagramRepo      = createRepository<NetworkDiagram>('networkDiagrams');
+const connProfileRepo  = createRepository<ConnectionProfile>('connectionProfiles');
+const regCalcRepo      = createRepository<SavedCalculation>('registerCalculations');
+const pidRepo          = createRepository<PidTuningSession>('pidTuningSessions');
+const ppclRepo         = createRepository<PpclDocument>('ppclDocuments');
+const psychRepo        = createRepository<PsychSession>('psychSessions');
+const trendRepo        = createRepository<TrendSession>('trendSessions');
+const snippetRepo      = createRepository<CommandSnippet>('commandSnippets');
+const pingRepo         = createRepository<PingSession>('pingSessions', 'createdAt');
+const termLogRepo      = createRepository<TerminalSessionLog>('terminalLogs', 'createdAt');
+const bugReportRepo    = createRepository<BugReport>('bugReports', 'createdAt');
+const reviewRepo       = createRepository<UserReview>('reviews', 'createdAt');
+const noteRepo         = createRepository<FieldNote>('notes', 'createdAt');
+const deviceRepo       = createRepository<DeviceEntry>('devices');
+const ipPlanRepo       = createRepository<IpPlanEntry>('ipPlan');
+const activityRepo     = createRepository<ActivityLogEntry>('activityLog', 'timestamp');
+const dailyReportRepo  = createRepository<DailyReport>('dailyReports');
+const fileRepo         = createRepository<ProjectFile>('files');
+
+// ─── Projects ───────────────────────────────────────────────
+
+export const getAllProjects = projectRepo.getAll;
+export const getProject    = projectRepo.get;
+export const saveProject   = projectRepo.save;
+
+/** Stores whose children are cascade-deleted when a project is removed. */
+const PROJECT_CHILD_STORES = [
+  'files', 'notes', 'devices', 'ipPlan', 'activityLog',
+  'dailyReports', 'networkDiagrams', 'pingSessions',
+  'terminalLogs', 'connectionProfiles', 'registerCalculations',
+  'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions',
+] as const;
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan', 'activityLog', 'dailyReports', 'networkDiagrams', 'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions'], 'readwrite');
+  const tx = db.transaction(['projects', 'fileBlobs', ...PROJECT_CHILD_STORES], 'readwrite');
 
   try {
-    // Delete associated data
+    // Track deleted IDs per store for sync notifications after commit
+    const deleted = new Map<string, string[]>();
+
+    // Handle blob cleanup for files and daily reports
     const files = await tx.objectStore('files').index('by-project').getAll(id);
     for (const file of files) {
       for (const version of file.versions) {
-        if (version.blobKey) {
-          await tx.objectStore('fileBlobs').delete(version.blobKey);
-        }
+        if (version.blobKey) await tx.objectStore('fileBlobs').delete(version.blobKey);
       }
-      await tx.objectStore('files').delete(file.id);
     }
-
-    const notes = await tx.objectStore('notes').index('by-project').getAll(id);
-    for (const note of notes) await tx.objectStore('notes').delete(note.id);
-
-    const devices = await tx.objectStore('devices').index('by-project').getAll(id);
-    for (const dev of devices) await tx.objectStore('devices').delete(dev.id);
-
-    const ips = await tx.objectStore('ipPlan').index('by-project').getAll(id);
-    for (const ip of ips) await tx.objectStore('ipPlan').delete(ip.id);
-
-    const logs = await tx.objectStore('activityLog').index('by-project').getAll(id);
-    for (const log of logs) await tx.objectStore('activityLog').delete(log.id);
-
     const reports = await tx.objectStore('dailyReports').index('by-project').getAll(id);
     for (const report of reports) {
       for (const att of (report.attachments ?? [])) {
         if (att.blobKey) await tx.objectStore('fileBlobs').delete(att.blobKey);
       }
-      await tx.objectStore('dailyReports').delete(report.id);
     }
 
-    const diagrams = await tx.objectStore('networkDiagrams').index('by-project').getAll(id);
-    for (const d of diagrams) await tx.objectStore('networkDiagrams').delete(d.id);
-
-    const pings = await tx.objectStore('pingSessions').index('by-project').getAll(id);
-    for (const p of pings) await tx.objectStore('pingSessions').delete(p.id);
-
-    const termLogs = await tx.objectStore('terminalLogs').index('by-project').getAll(id);
-    for (const tl of termLogs) await tx.objectStore('terminalLogs').delete(tl.id);
-
-    const connProfiles = await tx.objectStore('connectionProfiles').index('by-project').getAll(id);
-    for (const cp of connProfiles) await tx.objectStore('connectionProfiles').delete(cp.id);
-
-    const regCalcs = await tx.objectStore('registerCalculations').index('by-project').getAll(id);
-    for (const rc of regCalcs) await tx.objectStore('registerCalculations').delete(rc.id);
-
-    const pidSessions = await tx.objectStore('pidTuningSessions').index('by-project').getAll(id);
-    for (const ps of pidSessions) await tx.objectStore('pidTuningSessions').delete(ps.id);
-
-    const ppclDocs = await tx.objectStore('ppclDocuments').index('by-project').getAll(id);
-    for (const pd of ppclDocs) await tx.objectStore('ppclDocuments').delete(pd.id);
-
-    const psychSessions = await tx.objectStore('psychSessions').index('by-project').getAll(id);
-    for (const ps2 of psychSessions) await tx.objectStore('psychSessions').delete(ps2.id);
-
-    const trendSessions = await tx.objectStore('trendSessions').index('by-project').getAll(id);
-    for (const ts of trendSessions) await tx.objectStore('trendSessions').delete(ts.id);
+    // Cascade-delete all child stores
+    for (const store of PROJECT_CHILD_STORES) {
+      const items = await tx.objectStore(store).index('by-project').getAll(id);
+      const ids: string[] = [];
+      for (const item of items) {
+        const rec = item as unknown as { id: string };
+        await tx.objectStore(store).delete(rec.id);
+        ids.push(rec.id);
+      }
+      deleted.set(store, ids);
+    }
 
     await tx.objectStore('projects').delete(id);
     await tx.done;
 
     // Notify sync bridge about cascade-deleted children
-    for (const log of logs) notifySync('delete', 'activityLog', log.id, null);
-    for (const file of files) notifySync('delete', 'files', file.id, null);
-    for (const note of notes) notifySync('delete', 'notes', note.id, null);
-    for (const dev of devices) notifySync('delete', 'devices', dev.id, null);
-    for (const ip of ips) notifySync('delete', 'ipPlan', ip.id, null);
-    for (const report of reports) notifySync('delete', 'dailyReports', report.id, null);
-    for (const d of diagrams) notifySync('delete', 'networkDiagrams', d.id, null);
-    for (const p of pings) notifySync('delete', 'pingSessions', p.id, null);
-    for (const tl of termLogs) notifySync('delete', 'terminalLogs', tl.id, null);
-    for (const cp of connProfiles) notifySync('delete', 'connectionProfiles', cp.id, null);
-    for (const rc of regCalcs) notifySync('delete', 'registerCalculations', rc.id, null);
-    for (const ps of pidSessions) notifySync('delete', 'pidTuningSessions', ps.id, null);
-    for (const pd of ppclDocs) notifySync('delete', 'ppclDocuments', pd.id, null);
-    for (const ps2 of psychSessions) notifySync('delete', 'psychSessions', ps2.id, null);
-    for (const ts of trendSessions) notifySync('delete', 'trendSessions', ts.id, null);
+    for (const [store, ids] of deleted) {
+      for (const childId of ids) notifySync('delete', store, childId, null);
+    }
     notifySync('delete', 'projects', id, null);
   } catch (e) {
     tx.abort();
@@ -440,17 +463,16 @@ export async function deleteProject(id: string): Promise<void> {
   }
 }
 
-// Files
-export async function getAllFiles(): Promise<ProjectFile[]> {
-  const db = await getDB();
-  const files = await db.getAll('files');
-  return files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
+// ─── Files ──────────────────────────────────────────────────
+
+export const getAllFiles    = fileRepo.getAll;
+export const getFile       = fileRepo.get;
+export const saveFile      = fileRepo.save;
 
 export async function getUnassignedFiles(): Promise<ProjectFile[]> {
   const db = await getDB();
   const files = await db.getAllFromIndex('files', 'by-project', '');
-  return files.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  return sortDesc(files, 'updatedAt');
 }
 
 export async function getProjectFiles(projectId: string): Promise<ProjectFile[]> {
@@ -461,17 +483,6 @@ export async function getProjectFiles(projectId: string): Promise<ProjectFile[]>
 export async function getFilesByCategory(projectId: string, category: string): Promise<ProjectFile[]> {
   const db = await getDB();
   return db.getAllFromIndex('files', 'by-category', [projectId, category]);
-}
-
-export async function getFile(id: string): Promise<ProjectFile | undefined> {
-  const db = await getDB();
-  return db.get('files', id);
-}
-
-export async function saveFile(file: ProjectFile): Promise<void> {
-  const db = await getDB();
-  await db.put('files', file);
-  notifySync('update', 'files', file.id, file);
 }
 
 export async function deleteFile(id: string): Promise<void> {
@@ -492,7 +503,8 @@ export async function deleteFile(id: string): Promise<void> {
   notifySync('delete', 'files', id, null);
 }
 
-// File Blobs
+// ─── File Blobs ─────────────────────────────────────────────
+
 export async function saveFileBlob(id: string, blob: Blob): Promise<void> {
   const db = await getDB();
   await db.put('fileBlobs', { id, blob, cachedAt: new Date().toISOString() });
@@ -509,128 +521,72 @@ export async function deleteFileBlob(id: string): Promise<void> {
   await db.delete('fileBlobs', id);
 }
 
-// Notes
-export async function getProjectNotes(projectId: string): Promise<FieldNote[]> {
-  const db = await getDB();
-  const notes = await db.getAllFromIndex('notes', 'by-project', projectId);
-  return notes.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
+// ─── Notes ──────────────────────────────────────────────────
+
+export const getProjectNotes = noteRepo.getByProject;
+export const saveNote        = noteRepo.save;
+export const deleteNote      = noteRepo.delete;
 
 export async function getFileNotes(fileId: string): Promise<FieldNote[]> {
   const db = await getDB();
   return db.getAllFromIndex('notes', 'by-file', fileId);
 }
 
-export async function saveNote(note: FieldNote): Promise<void> {
-  const db = await getDB();
-  await db.put('notes', note);
-  notifySync('update', 'notes', note.id, note);
-}
+// ─── Devices ────────────────────────────────────────────────
 
-export async function deleteNote(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('notes', id);
-  notifySync('delete', 'notes', id, null);
-}
-
-// Devices
-export async function getProjectDevices(projectId: string): Promise<DeviceEntry[]> {
-  const db = await getDB();
-  return db.getAllFromIndex('devices', 'by-project', projectId);
-}
-
-export async function saveDevice(device: DeviceEntry): Promise<void> {
-  const db = await getDB();
-  await db.put('devices', device);
-  notifySync('update', 'devices', device.id, device);
-}
-
-export async function deleteDevice(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('devices', id);
-  notifySync('delete', 'devices', id, null);
-}
+export const getProjectDevices = deviceRepo.getByProject;
+export const saveDevice        = deviceRepo.save;
+export const deleteDevice      = deviceRepo.delete;
 
 export async function saveDevices(devices: DeviceEntry[]): Promise<void> {
   const db = await getDB();
   const tx = db.transaction('devices', 'readwrite');
-  for (const device of devices) {
-    await tx.store.put(device);
-  }
+  for (const device of devices) await tx.store.put(device);
   await tx.done;
   for (const device of devices) notifySync('update', 'devices', device.id, device);
 }
 
-// IP Plan
-export async function getProjectIpPlan(projectId: string): Promise<IpPlanEntry[]> {
-  const db = await getDB();
-  return db.getAllFromIndex('ipPlan', 'by-project', projectId);
-}
+// ─── IP Plan ────────────────────────────────────────────────
 
-export async function saveIpEntry(entry: IpPlanEntry): Promise<void> {
-  const db = await getDB();
-  await db.put('ipPlan', entry);
-  notifySync('update', 'ipPlan', entry.id, entry);
-}
-
-export async function deleteIpEntry(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('ipPlan', id);
-  notifySync('delete', 'ipPlan', id, null);
-}
+export const getProjectIpPlan = ipPlanRepo.getByProject;
+export const saveIpEntry      = ipPlanRepo.save;
+export const deleteIpEntry    = ipPlanRepo.delete;
 
 export async function saveIpEntries(entries: IpPlanEntry[]): Promise<void> {
   const db = await getDB();
   const tx = db.transaction('ipPlan', 'readwrite');
-  for (const entry of entries) {
-    await tx.store.put(entry);
-  }
+  for (const entry of entries) await tx.store.put(entry);
   await tx.done;
   for (const entry of entries) notifySync('update', 'ipPlan', entry.id, entry);
 }
 
-// Activity Log
-export async function getProjectActivity(projectId: string): Promise<ActivityLogEntry[]> {
-  const db = await getDB();
-  const logs = await db.getAllFromIndex('activityLog', 'by-project', projectId);
-  return logs.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-}
+// ─── Activity Log ───────────────────────────────────────────
 
-export async function addActivity(entry: ActivityLogEntry): Promise<void> {
-  const db = await getDB();
-  await db.put('activityLog', entry);
-  notifySync('update', 'activityLog', entry.id, entry);
-}
+export const getProjectActivity = activityRepo.getByProject;
+export const addActivity        = activityRepo.save;
 
-// Daily Reports
+// ─── Daily Reports ──────────────────────────────────────────
+
+const dailyReportSort = (items: DailyReport[]) =>
+  items.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+
 export async function getAllDailyReports(): Promise<DailyReport[]> {
   const db = await getDB();
-  const reports = await db.getAll('dailyReports');
-  return reports.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  return dailyReportSort(await db.getAll('dailyReports'));
 }
 
 export async function getProjectDailyReports(projectId: string): Promise<DailyReport[]> {
   const db = await getDB();
-  const reports = await db.getAllFromIndex('dailyReports', 'by-project', projectId);
-  return reports.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
+  return dailyReportSort(await db.getAllFromIndex('dailyReports', 'by-project', projectId));
 }
 
-export async function getDailyReport(id: string): Promise<DailyReport | undefined> {
-  const db = await getDB();
-  return db.get('dailyReports', id);
-}
-
-export async function saveDailyReport(report: DailyReport): Promise<void> {
-  const db = await getDB();
-  await db.put('dailyReports', report);
-  notifySync('update', 'dailyReports', report.id, report);
-}
+export const getDailyReport  = dailyReportRepo.get;
+export const saveDailyReport = dailyReportRepo.save;
 
 export async function deleteDailyReport(id: string): Promise<void> {
   const db = await getDB();
   const report = await db.get('dailyReports', id);
   if (report) {
-    // Delete attachment blobs
     for (const att of (report.attachments ?? [])) {
       if (att.blobKey) await db.delete('fileBlobs', att.blobKey);
     }
@@ -645,7 +601,8 @@ export async function getNextReportNumber(projectId: string): Promise<number> {
   return Math.max(...reports.map(r => r.reportNumber)) + 1;
 }
 
-// Storage info
+// ─── Storage & Cache ────────────────────────────────────────
+
 export async function getStorageEstimate(): Promise<{ used: number; quota: number }> {
   if ('storage' in navigator && 'estimate' in navigator.storage) {
     const estimate = await navigator.storage.estimate();
@@ -654,10 +611,8 @@ export async function getStorageEstimate(): Promise<{ used: number; quota: numbe
   return { used: 0, quota: 0 };
 }
 
-// Clear cached file blobs (preserves report attachment blobs)
 export async function clearFileCache(): Promise<number> {
   const d = await getDB();
-  // Collect blob keys used by report attachments so we don't delete them
   const reports = await d.getAll('dailyReports');
   const attachmentKeys = new Set<string>();
   for (const r of reports) {
@@ -679,7 +634,8 @@ export async function clearFileCache(): Promise<number> {
   return count;
 }
 
-// Search across everything in a project
+// ─── Search ─────────────────────────────────────────────────
+
 export async function searchProject(projectId: string, query: string): Promise<{
   files: ProjectFile[];
   notes: FieldNote[];
@@ -729,315 +685,95 @@ export async function searchProject(projectId: string, query: string): Promise<{
 }
 
 // ─── Network Diagrams ───────────────────────────────────────
-export async function getProjectDiagrams(projectId: string): Promise<NetworkDiagram[]> {
-  const db = await getDB();
-  const diagrams = await db.getAllFromIndex('networkDiagrams', 'by-project', projectId);
-  return diagrams.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
 
-export async function getAllDiagrams(): Promise<NetworkDiagram[]> {
-  const db = await getDB();
-  const diagrams = await db.getAll('networkDiagrams');
-  return diagrams.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function getDiagram(id: string): Promise<NetworkDiagram | undefined> {
-  const db = await getDB();
-  return db.get('networkDiagrams', id);
-}
-
-export async function saveDiagram(diagram: NetworkDiagram): Promise<void> {
-  const db = await getDB();
-  await db.put('networkDiagrams', diagram);
-  notifySync('update', 'networkDiagrams', diagram.id, diagram);
-}
-
-export async function deleteDiagram(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('networkDiagrams', id);
-  notifySync('delete', 'networkDiagrams', id, null);
-}
+export const getProjectDiagrams = diagramRepo.getByProject;
+export const getAllDiagrams     = diagramRepo.getAll;
+export const getDiagram         = diagramRepo.get;
+export const saveDiagram        = diagramRepo.save;
+export const deleteDiagram      = diagramRepo.delete;
 
 // ─── Command Snippets ───────────────────────────────────────
-export async function getAllSnippets(): Promise<CommandSnippet[]> {
-  const db = await getDB();
-  const snippets = await db.getAll('commandSnippets');
-  return snippets.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
+
+export const getAllSnippets = snippetRepo.getAll;
+export const saveSnippet   = snippetRepo.save;
+export const deleteSnippet = snippetRepo.delete;
 
 export async function getSnippetsByCategory(category: string): Promise<CommandSnippet[]> {
   const db = await getDB();
   return db.getAllFromIndex('commandSnippets', 'by-category', category);
 }
 
-export async function saveSnippet(snippet: CommandSnippet): Promise<void> {
-  const db = await getDB();
-  await db.put('commandSnippets', snippet);
-  notifySync('update', 'commandSnippets', snippet.id, snippet);
-}
-
-export async function deleteSnippet(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('commandSnippets', id);
-  notifySync('delete', 'commandSnippets', id, null);
-}
-
 // ─── Ping Sessions ──────────────────────────────────────────
-export async function getProjectPingSessions(projectId: string): Promise<PingSession[]> {
-  const db = await getDB();
-  const sessions = await db.getAllFromIndex('pingSessions', 'by-project', projectId);
-  return sessions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
 
-export async function getAllPingSessions(): Promise<PingSession[]> {
-  const db = await getDB();
-  const sessions = await db.getAll('pingSessions');
-  return sessions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
+export const getProjectPingSessions = pingRepo.getByProject;
+export const getAllPingSessions     = pingRepo.getAll;
+export const savePingSession        = pingRepo.save;
+export const deletePingSession      = pingRepo.delete;
 
-export async function savePingSession(session: PingSession): Promise<void> {
-  const db = await getDB();
-  await db.put('pingSessions', session);
-  notifySync('update', 'pingSessions', session.id, session);
-}
+// ─── Terminal Session Logs ──────────────────────────────────
 
-export async function deletePingSession(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('pingSessions', id);
-  notifySync('delete', 'pingSessions', id, null);
-}
+export const getProjectTerminalLogs = termLogRepo.getByProject;
+export const saveTerminalLog        = termLogRepo.save;
+export const deleteTerminalLog      = termLogRepo.delete;
 
-// ─── Terminal Session Logs ────────────────────────────────────
-export async function getProjectTerminalLogs(projectId: string): Promise<TerminalSessionLog[]> {
-  const db = await getDB();
-  const logs = await db.getAllFromIndex('terminalLogs', 'by-project', projectId);
-  return logs.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
+// ─── Connection Profiles ────────────────────────────────────
 
-export async function saveTerminalLog(log: TerminalSessionLog): Promise<void> {
-  const db = await getDB();
-  await db.put('terminalLogs', log);
-  notifySync('update', 'terminalLogs', log.id, log);
-}
+export const getAllConnectionProfiles    = connProfileRepo.getAll;
+export const getProjectConnectionProfiles = connProfileRepo.getByProject;
+export const saveConnectionProfile       = connProfileRepo.save;
+export const deleteConnectionProfile     = connProfileRepo.delete;
 
-export async function deleteTerminalLog(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('terminalLogs', id);
-  notifySync('delete', 'terminalLogs', id, null);
-}
+// ─── Register Calculations ──────────────────────────────────
 
-// ─── Connection Profiles ─────────────────────────────────────
-export async function getAllConnectionProfiles(): Promise<ConnectionProfile[]> {
-  const db = await getDB();
-  const profiles = await db.getAll('connectionProfiles');
-  return profiles.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
+export const getAllRegisterCalculations    = regCalcRepo.getAll;
+export const getProjectRegisterCalculations = regCalcRepo.getByProject;
+export const saveRegisterCalculation       = regCalcRepo.save;
+export const deleteRegisterCalculation     = regCalcRepo.delete;
 
-export async function getProjectConnectionProfiles(projectId: string): Promise<ConnectionProfile[]> {
-  const db = await getDB();
-  const profiles = await db.getAllFromIndex('connectionProfiles', 'by-project', projectId);
-  return profiles.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
+// ─── PID Tuning Sessions ────────────────────────────────────
 
-export async function saveConnectionProfile(profile: ConnectionProfile): Promise<void> {
-  const db = await getDB();
-  await db.put('connectionProfiles', profile);
-  notifySync('update', 'connectionProfiles', profile.id, profile);
-}
+export const getAllPidTuningSessions    = pidRepo.getAll;
+export const getProjectPidTuningSessions = pidRepo.getByProject;
+export const getPidTuningSession        = pidRepo.get;
+export const savePidTuningSession       = pidRepo.save;
+export const deletePidTuningSession     = pidRepo.delete;
 
-export async function deleteConnectionProfile(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('connectionProfiles', id);
-  notifySync('delete', 'connectionProfiles', id, null);
-}
+// ─── Psychrometric Sessions ─────────────────────────────────
 
-// ─── Register Calculations ───────────────────────────────────
-export async function getAllRegisterCalculations(): Promise<SavedCalculation[]> {
-  const db = await getDB();
-  const calcs = await db.getAll('registerCalculations');
-  return calcs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
+export const getAllPsychSessions    = psychRepo.getAll;
+export const getProjectPsychSessions = psychRepo.getByProject;
+export const getPsychSession        = psychRepo.get;
+export const savePsychSession       = psychRepo.save;
+export const deletePsychSession     = psychRepo.delete;
 
-export async function getProjectRegisterCalculations(projectId: string): Promise<SavedCalculation[]> {
-  const db = await getDB();
-  const calcs = await db.getAllFromIndex('registerCalculations', 'by-project', projectId);
-  return calcs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
+// ─── PPCL Documents ─────────────────────────────────────────
 
-export async function saveRegisterCalculation(calc: SavedCalculation): Promise<void> {
-  const db = await getDB();
-  await db.put('registerCalculations', calc);
-  notifySync('update', 'registerCalculations', calc.id, calc);
-}
-
-export async function deleteRegisterCalculation(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('registerCalculations', id);
-  notifySync('delete', 'registerCalculations', id, null);
-}
-
-// ─── PID Tuning Sessions ─────────────────────────────────────
-export async function getAllPidTuningSessions(): Promise<PidTuningSession[]> {
-  const db = await getDB();
-  const sessions = await db.getAll('pidTuningSessions');
-  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function getProjectPidTuningSessions(projectId: string): Promise<PidTuningSession[]> {
-  const db = await getDB();
-  const sessions = await db.getAllFromIndex('pidTuningSessions', 'by-project', projectId);
-  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function getPidTuningSession(id: string): Promise<PidTuningSession | undefined> {
-  const db = await getDB();
-  return db.get('pidTuningSessions', id);
-}
-
-export async function savePidTuningSession(session: PidTuningSession): Promise<void> {
-  const db = await getDB();
-  await db.put('pidTuningSessions', session);
-  notifySync('update', 'pidTuningSessions', session.id, session);
-}
-
-export async function deletePidTuningSession(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('pidTuningSessions', id);
-  notifySync('delete', 'pidTuningSessions', id, null);
-}
-
-// ─── Psychrometric Sessions ──────────────────────────────────
-export async function getAllPsychSessions(): Promise<PsychSession[]> {
-  const db = await getDB();
-  const sessions = await db.getAll('psychSessions');
-  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function getProjectPsychSessions(projectId: string): Promise<PsychSession[]> {
-  const db = await getDB();
-  const sessions = await db.getAllFromIndex('psychSessions', 'by-project', projectId);
-  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function getPsychSession(id: string): Promise<PsychSession | undefined> {
-  const db = await getDB();
-  return db.get('psychSessions', id);
-}
-
-export async function savePsychSession(session: PsychSession): Promise<void> {
-  const db = await getDB();
-  await db.put('psychSessions', session);
-  notifySync('update', 'psychSessions', session.id, session);
-}
-
-export async function deletePsychSession(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('psychSessions', id);
-  notifySync('delete', 'psychSessions', id, null);
-}
-
-// ─── PPCL Documents ──────────────────────────────────────────
-export async function getAllPpclDocuments(): Promise<PpclDocument[]> {
-  const db = await getDB();
-  const docs = await db.getAll('ppclDocuments');
-  return docs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function getProjectPpclDocuments(projectId: string): Promise<PpclDocument[]> {
-  const db = await getDB();
-  const docs = await db.getAllFromIndex('ppclDocuments', 'by-project', projectId);
-  return docs.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
-
-export async function getPpclDocument(id: string): Promise<PpclDocument | undefined> {
-  const db = await getDB();
-  return db.get('ppclDocuments', id);
-}
-
-export async function savePpclDocument(doc: PpclDocument): Promise<void> {
-  const db = await getDB();
-  await db.put('ppclDocuments', doc);
-  notifySync('update', 'ppclDocuments', doc.id, doc);
-}
-
-export async function deletePpclDocument(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('ppclDocuments', id);
-  notifySync('delete', 'ppclDocuments', id, null);
-}
+export const getAllPpclDocuments    = ppclRepo.getAll;
+export const getProjectPpclDocuments = ppclRepo.getByProject;
+export const getPpclDocument        = ppclRepo.get;
+export const savePpclDocument       = ppclRepo.save;
+export const deletePpclDocument     = ppclRepo.delete;
 
 // ─── Trend Sessions ─────────────────────────────────────────
-export async function getAllTrendSessions(): Promise<TrendSession[]> {
-  const db = await getDB();
-  const sessions = await db.getAll('trendSessions');
-  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
 
-export async function getProjectTrendSessions(projectId: string): Promise<TrendSession[]> {
-  const db = await getDB();
-  const sessions = await db.getAllFromIndex('trendSessions', 'by-project', projectId);
-  return sessions.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-}
+export const getAllTrendSessions    = trendRepo.getAll;
+export const getProjectTrendSessions = trendRepo.getByProject;
+export const getTrendSession        = trendRepo.get;
+export const saveTrendSession       = trendRepo.save;
+export const deleteTrendSession     = trendRepo.delete;
 
-export async function getTrendSession(id: string): Promise<TrendSession | undefined> {
-  const db = await getDB();
-  return db.get('trendSessions', id);
-}
+// ─── Bug Reports ────────────────────────────────────────────
 
-export async function saveTrendSession(session: TrendSession): Promise<void> {
-  const db = await getDB();
-  await db.put('trendSessions', session);
-  notifySync('update', 'trendSessions', session.id, session);
-}
+export const getAllBugReports = bugReportRepo.getAll;
+export const getBugReport     = bugReportRepo.get;
+export const saveBugReport    = bugReportRepo.save;
+export const deleteBugReport  = bugReportRepo.delete;
 
-export async function deleteTrendSession(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('trendSessions', id);
-  notifySync('delete', 'trendSessions', id, null);
-}
+// ─── User Reviews ───────────────────────────────────────────
 
-// ─── Bug Reports ──────────────────────────────────────────────
-export async function getAllBugReports(): Promise<BugReport[]> {
-  const db = await getDB();
-  const reports = await db.getAll('bugReports');
-  return reports.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
-
-export async function getBugReport(id: string): Promise<BugReport | undefined> {
-  const db = await getDB();
-  return db.get('bugReports', id);
-}
-
-export async function saveBugReport(report: BugReport): Promise<void> {
-  const db = await getDB();
-  await db.put('bugReports', report);
-  notifySync('update', 'bugReports', report.id, report);
-}
-
-export async function deleteBugReport(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('bugReports', id);
-  notifySync('delete', 'bugReports', id, null);
-}
-
-// ─── User Reviews ────────────────────────────────────────────────
-export async function getAllReviews(): Promise<UserReview[]> {
-  const db = await getDB();
-  const reviews = await db.getAll('reviews');
-  return reviews.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
-
-export async function saveReview(review: UserReview): Promise<void> {
-  const db = await getDB();
-  await db.put('reviews', review);
-  notifySync('update', 'reviews', review.id, review);
-}
-
-export async function deleteReview(id: string): Promise<void> {
-  const db = await getDB();
-  await db.delete('reviews', id);
-  notifySync('delete', 'reviews', id, null);
-}
+export const getAllReviews = reviewRepo.getAll;
+export const saveReview    = reviewRepo.save;
+export const deleteReview  = reviewRepo.delete;
 
 // Global search across all projects
 export async function searchGlobal(query: string): Promise<{
@@ -1354,6 +1090,49 @@ export async function clearAllData(): Promise<void> {
     await tx.store.clear();
     await tx.done;
   }
+}
+
+/**
+ * Export all data from every store as a JSON-serializable snapshot.
+ * Used for pre-migration backup and data portability.
+ * Note: fileBlobs are excluded (binary data can't be JSON-serialized).
+ */
+export async function exportAllData(): Promise<Record<string, unknown[]>> {
+  const db = await getDB();
+  const exportableStores = [
+    'projects', 'files', 'notes', 'devices', 'ipPlan',
+    'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
+    'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
+    'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions',
+    'bugReports', 'reviews',
+  ] as const;
+  const snapshot: Record<string, unknown[]> = { _dbVersion: [DB_VERSION], _exportedAt: [new Date().toISOString()] };
+  for (const name of exportableStores) {
+    snapshot[name] = await db.getAll(name);
+  }
+  return snapshot;
+}
+
+/**
+ * Import data from a snapshot created by exportAllData.
+ * Merges into existing data (put semantics — overwrites by ID).
+ */
+export async function importSnapshot(snapshot: Record<string, unknown[]>): Promise<number> {
+  const db = await getDB();
+  let total = 0;
+  for (const [storeName, items] of Object.entries(snapshot)) {
+    if (storeName.startsWith('_') || !Array.isArray(items) || items.length === 0) continue;
+    if (!db.objectStoreNames.contains(storeName)) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tx = db.transaction(storeName as any, 'readwrite');
+    for (const item of items) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await tx.store.put(item as any);
+      total++;
+    }
+    await tx.done;
+  }
+  return total;
 }
 
 /**

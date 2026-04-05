@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { APP_BASE_URL } from '@/lib/stripe-config';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rate-limit';
 
 /**
  * POST /api/subscribe/checkout
@@ -29,6 +30,10 @@ function getPriceId(tier: Tier, interval: Interval): string | undefined {
 }
 
 export async function POST(request: NextRequest) {
+  // Rate limit: 10 checkout sessions per minute per IP
+  const { allowed, response } = checkRateLimit(getRateLimitKey(request), { maxRequests: 10, windowSeconds: 60 });
+  if (!allowed) return response!;
+
   const secretKey = process.env.STRIPE_SECRET_KEY;
   if (!secretKey) {
     return NextResponse.json(

@@ -18,6 +18,11 @@ function toCamelCase(str: string): string {
   return str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
 }
 
+/** Convert a camelCase key to snake_case */
+function toSnakeCase(str: string): string {
+  return str.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
+}
+
 /** Recursively convert all snake_case keys in an object/array to camelCase */
 function camelCaseKeys<T>(obj: unknown): T {
   if (Array.isArray(obj)) {
@@ -26,7 +31,7 @@ function camelCaseKeys<T>(obj: unknown): T {
   if (obj !== null && typeof obj === 'object' && !(obj instanceof Date)) {
     const converted: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
-      converted[toCamelCase(key)] = value;
+      converted[toCamelCase(key)] = camelCaseKeys(value);
     }
     return converted as T;
   }
@@ -55,6 +60,60 @@ function ok<T>(data: T): ApiResult<T> {
 
 function fail<T>(message: string): ApiResult<T> {
   return { data: null, error: message };
+}
+
+// ─── Generic CRUD Helpers ──────────────────────────────────────────────────
+// These eliminate per-entity boilerplate for fetch, update, and soft-delete.
+
+/** Fetch all rows for a project from a soft-deletable table. */
+async function fetchProjectEntities<T>(
+  table: string, projectId: string, orderCol: string, ascending: boolean,
+): Promise<ApiResult<T[]>> {
+  try {
+    const supabase = getClient();
+    const { data, error } = await supabase
+      .from(table).select('*')
+      .eq('global_project_id', projectId)
+      .is('deleted_at', null)
+      .order(orderCol, { ascending });
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<T[]>(data || []));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+/** Update a row, auto-converting camelCase data keys to snake_case columns. */
+async function updateEntity<T>(
+  table: string, id: string, data: Record<string, unknown>,
+): Promise<ApiResult<T>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const update: Record<string, unknown> = { updated_by: userId };
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) update[toSnakeCase(key)] = value;
+    }
+    const { data: row, error } = await supabase
+      .from(table).update(update).eq('id', id).select().single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<T>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+/** Soft-delete a row by setting deleted_at. */
+async function softDelete(table: string, id: string): Promise<ApiResult<void>> {
+  try {
+    const supabase = getClient();
+    const { error } = await supabase
+      .from(table).update({ deleted_at: new Date().toISOString() }).eq('id', id);
+    if (error) return fail(error.message);
+    return ok(undefined);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
 }
 
 // ─── Projects ───────────────────────────────────────────────────────────────
@@ -397,22 +456,8 @@ export async function regenerateAccessCode(projectId: string): Promise<ApiResult
 
 // ─── Field Notes ────────────────────────────────────────────────────────────
 
-export async function fetchGlobalNotes(projectId: string): Promise<ApiResult<GlobalFieldNote[]>> {
-  try {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from('global_field_notes')
-      .select('*')
-      .eq('global_project_id', projectId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalFieldNote[]>(data || []));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function fetchGlobalNotes(projectId: string): Promise<ApiResult<GlobalFieldNote[]>> {
+  return fetchProjectEntities<GlobalFieldNote>('global_field_notes', projectId, 'created_at', false);
 }
 
 export async function addGlobalNote(
@@ -444,69 +489,21 @@ export async function addGlobalNote(
   }
 }
 
-export async function updateGlobalNote(
+export function updateGlobalNote(
   id: string,
   data: Partial<Pick<GlobalFieldNote, 'content' | 'category' | 'isPinned' | 'tags' | 'fileId'>>
 ): Promise<ApiResult<GlobalFieldNote>> {
-  try {
-    const supabase = getClient();
-    const userId = await getCurrentUserId();
-
-    const update: Record<string, unknown> = { updated_by: userId };
-    if (data.content !== undefined) update.content = data.content;
-    if (data.category !== undefined) update.category = data.category;
-    if (data.isPinned !== undefined) update.is_pinned = data.isPinned;
-    if (data.tags !== undefined) update.tags = data.tags;
-    if (data.fileId !== undefined) update.file_id = data.fileId;
-
-    const { data: note, error } = await supabase
-      .from('global_field_notes')
-      .update(update)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalFieldNote>(note));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+  return updateEntity<GlobalFieldNote>('global_field_notes', id, data as Record<string, unknown>);
 }
 
-export async function deleteGlobalNote(id: string): Promise<ApiResult<void>> {
-  try {
-    const supabase = getClient();
-
-    const { error } = await supabase
-      .from('global_field_notes')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) return fail(error.message);
-    return ok(undefined);
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function deleteGlobalNote(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_field_notes', id);
 }
 
 // ─── Devices ────────────────────────────────────────────────────────────────
 
-export async function fetchGlobalDevices(projectId: string): Promise<ApiResult<GlobalDevice[]>> {
-  try {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from('global_devices')
-      .select('*')
-      .eq('global_project_id', projectId)
-      .is('deleted_at', null)
-      .order('device_name', { ascending: true });
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalDevice[]>(data || []));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function fetchGlobalDevices(projectId: string): Promise<ApiResult<GlobalDevice[]>> {
+  return fetchProjectEntities<GlobalDevice>('global_devices', projectId, 'device_name', true);
 }
 
 export async function addGlobalDevice(
@@ -545,76 +542,21 @@ export async function addGlobalDevice(
   }
 }
 
-export async function updateGlobalDevice(
+export function updateGlobalDevice(
   id: string,
   data: Partial<Pick<GlobalDevice, 'deviceName' | 'description' | 'system' | 'panel' | 'controllerType' | 'macAddress' | 'instanceNumber' | 'ipAddress' | 'floor' | 'area' | 'status' | 'notes'>>
 ): Promise<ApiResult<GlobalDevice>> {
-  try {
-    const supabase = getClient();
-    const userId = await getCurrentUserId();
-
-    const update: Record<string, unknown> = { updated_by: userId };
-    if (data.deviceName !== undefined) update.device_name = data.deviceName;
-    if (data.description !== undefined) update.description = data.description;
-    if (data.system !== undefined) update.system = data.system;
-    if (data.panel !== undefined) update.panel = data.panel;
-    if (data.controllerType !== undefined) update.controller_type = data.controllerType;
-    if (data.macAddress !== undefined) update.mac_address = data.macAddress;
-    if (data.instanceNumber !== undefined) update.instance_number = data.instanceNumber;
-    if (data.ipAddress !== undefined) update.ip_address = data.ipAddress;
-    if (data.floor !== undefined) update.floor = data.floor;
-    if (data.area !== undefined) update.area = data.area;
-    if (data.status !== undefined) update.status = data.status;
-    if (data.notes !== undefined) update.notes = data.notes;
-
-    const { data: device, error } = await supabase
-      .from('global_devices')
-      .update(update)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalDevice>(device));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+  return updateEntity<GlobalDevice>('global_devices', id, data as Record<string, unknown>);
 }
 
-export async function deleteGlobalDevice(id: string): Promise<ApiResult<void>> {
-  try {
-    const supabase = getClient();
-
-    const { error } = await supabase
-      .from('global_devices')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) return fail(error.message);
-    return ok(undefined);
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function deleteGlobalDevice(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_devices', id);
 }
 
 // ─── IP Plan ────────────────────────────────────────────────────────────────
 
-export async function fetchGlobalIpPlan(projectId: string): Promise<ApiResult<GlobalIpPlanEntry[]>> {
-  try {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from('global_ip_plan')
-      .select('*')
-      .eq('global_project_id', projectId)
-      .is('deleted_at', null)
-      .order('ip_address', { ascending: true });
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalIpPlanEntry[]>(data || []));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function fetchGlobalIpPlan(projectId: string): Promise<ApiResult<GlobalIpPlanEntry[]>> {
+  return fetchProjectEntities<GlobalIpPlanEntry>('global_ip_plan', projectId, 'ip_address', true);
 }
 
 export async function addGlobalIpEntry(
@@ -650,73 +592,21 @@ export async function addGlobalIpEntry(
   }
 }
 
-export async function updateGlobalIpEntry(
+export function updateGlobalIpEntry(
   id: string,
   data: Partial<Pick<GlobalIpPlanEntry, 'ipAddress' | 'hostname' | 'panel' | 'vlan' | 'subnet' | 'deviceRole' | 'macAddress' | 'notes' | 'status'>>
 ): Promise<ApiResult<GlobalIpPlanEntry>> {
-  try {
-    const supabase = getClient();
-    const userId = await getCurrentUserId();
-
-    const update: Record<string, unknown> = { updated_by: userId };
-    if (data.ipAddress !== undefined) update.ip_address = data.ipAddress;
-    if (data.hostname !== undefined) update.hostname = data.hostname;
-    if (data.panel !== undefined) update.panel = data.panel;
-    if (data.vlan !== undefined) update.vlan = data.vlan;
-    if (data.subnet !== undefined) update.subnet = data.subnet;
-    if (data.deviceRole !== undefined) update.device_role = data.deviceRole;
-    if (data.macAddress !== undefined) update.mac_address = data.macAddress;
-    if (data.notes !== undefined) update.notes = data.notes;
-    if (data.status !== undefined) update.status = data.status;
-
-    const { data: entry, error } = await supabase
-      .from('global_ip_plan')
-      .update(update)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalIpPlanEntry>(entry));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+  return updateEntity<GlobalIpPlanEntry>('global_ip_plan', id, data as Record<string, unknown>);
 }
 
-export async function deleteGlobalIpEntry(id: string): Promise<ApiResult<void>> {
-  try {
-    const supabase = getClient();
-
-    const { error } = await supabase
-      .from('global_ip_plan')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) return fail(error.message);
-    return ok(undefined);
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function deleteGlobalIpEntry(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_ip_plan', id);
 }
 
 // ─── Daily Reports ──────────────────────────────────────────────────────────
 
-export async function fetchGlobalReports(projectId: string): Promise<ApiResult<GlobalDailyReport[]>> {
-  try {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from('global_daily_reports')
-      .select('*')
-      .eq('global_project_id', projectId)
-      .is('deleted_at', null)
-      .order('date', { ascending: false });
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalDailyReport[]>(data || []));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function fetchGlobalReports(projectId: string): Promise<ApiResult<GlobalDailyReport[]>> {
+  return fetchProjectEntities<GlobalDailyReport>('global_daily_reports', projectId, 'date', false);
 }
 
 export async function addGlobalReport(
@@ -761,82 +651,21 @@ export async function addGlobalReport(
   }
 }
 
-export async function updateGlobalReport(
+export function updateGlobalReport(
   id: string,
   data: Partial<Omit<GlobalDailyReport, 'id' | 'globalProjectId' | 'createdBy' | 'createdAt' | 'updatedAt' | 'deletedAt'>>
 ): Promise<ApiResult<GlobalDailyReport>> {
-  try {
-    const supabase = getClient();
-    const userId = await getCurrentUserId();
-
-    const update: Record<string, unknown> = { updated_by: userId };
-    if (data.date !== undefined) update.date = data.date;
-    if (data.reportNumber !== undefined) update.report_number = data.reportNumber;
-    if (data.technicianName !== undefined) update.technician_name = data.technicianName;
-    if (data.status !== undefined) update.status = data.status;
-    if (data.startTime !== undefined) update.start_time = data.startTime;
-    if (data.endTime !== undefined) update.end_time = data.endTime;
-    if (data.hoursOnSite !== undefined) update.hours_on_site = data.hoursOnSite;
-    if (data.location !== undefined) update.location = data.location;
-    if (data.weather !== undefined) update.weather = data.weather;
-    if (data.workCompleted !== undefined) update.work_completed = data.workCompleted;
-    if (data.issuesEncountered !== undefined) update.issues_encountered = data.issuesEncountered;
-    if (data.workPlannedNext !== undefined) update.work_planned_next = data.workPlannedNext;
-    if (data.coordinationNotes !== undefined) update.coordination_notes = data.coordinationNotes;
-    if (data.equipmentWorkedOn !== undefined) update.equipment_worked_on = data.equipmentWorkedOn;
-    if (data.deviceIpChanges !== undefined) update.device_ip_changes = data.deviceIpChanges;
-    if (data.safetyNotes !== undefined) update.safety_notes = data.safetyNotes;
-    if (data.generalNotes !== undefined) update.general_notes = data.generalNotes;
-    if (data.attachments !== undefined) update.attachments = data.attachments;
-
-    const { data: report, error } = await supabase
-      .from('global_daily_reports')
-      .update(update)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalDailyReport>(report));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+  return updateEntity<GlobalDailyReport>('global_daily_reports', id, data as Record<string, unknown>);
 }
 
-export async function deleteGlobalReport(id: string): Promise<ApiResult<void>> {
-  try {
-    const supabase = getClient();
-
-    const { error } = await supabase
-      .from('global_daily_reports')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) return fail(error.message);
-    return ok(undefined);
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function deleteGlobalReport(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_daily_reports', id);
 }
 
 // ─── Project Files ───────────────────────────────────────────────────────────
 
-export async function fetchGlobalFiles(projectId: string): Promise<ApiResult<GlobalProjectFile[]>> {
-  try {
-    const supabase = getClient();
-
-    const { data, error } = await supabase
-      .from('global_project_files')
-      .select('*')
-      .eq('global_project_id', projectId)
-      .is('deleted_at', null)
-      .order('created_at', { ascending: false });
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalProjectFile[]>(data || []));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function fetchGlobalFiles(projectId: string): Promise<ApiResult<GlobalProjectFile[]>> {
+  return fetchProjectEntities<GlobalProjectFile>('global_project_files', projectId, 'created_at', false);
 }
 
 export async function addGlobalFile(
@@ -877,53 +706,15 @@ export async function addGlobalFile(
   }
 }
 
-export async function updateGlobalFile(
+export function updateGlobalFile(
   id: string,
   data: Partial<Pick<GlobalProjectFile, 'title' | 'category' | 'panelSystem' | 'revisionNumber' | 'revisionDate' | 'notes' | 'tags' | 'status' | 'isPinned'>>
 ): Promise<ApiResult<GlobalProjectFile>> {
-  try {
-    const supabase = getClient();
-    const userId = await getCurrentUserId();
-
-    const update: Record<string, unknown> = { updated_by: userId };
-    if (data.title !== undefined) update.title = data.title;
-    if (data.category !== undefined) update.category = data.category;
-    if (data.panelSystem !== undefined) update.panel_system = data.panelSystem;
-    if (data.revisionNumber !== undefined) update.revision_number = data.revisionNumber;
-    if (data.revisionDate !== undefined) update.revision_date = data.revisionDate;
-    if (data.notes !== undefined) update.notes = data.notes;
-    if (data.tags !== undefined) update.tags = data.tags;
-    if (data.status !== undefined) update.status = data.status;
-    if (data.isPinned !== undefined) update.is_pinned = data.isPinned;
-
-    const { data: file, error } = await supabase
-      .from('global_project_files')
-      .update(update)
-      .eq('id', id)
-      .select()
-      .single();
-
-    if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalProjectFile>(file));
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+  return updateEntity<GlobalProjectFile>('global_project_files', id, data as Record<string, unknown>);
 }
 
-export async function deleteGlobalFile(id: string): Promise<ApiResult<void>> {
-  try {
-    const supabase = getClient();
-
-    const { error } = await supabase
-      .from('global_project_files')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id);
-
-    if (error) return fail(error.message);
-    return ok(undefined);
-  } catch (err) {
-    return fail((err as Error).message);
-  }
+export function deleteGlobalFile(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_project_files', id);
 }
 
 // ─── Activity Log ───────────────────────────────────────────────────────────

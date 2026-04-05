@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getSupabaseAdmin } from '@/lib/supabase/server';
+import { checkRateLimit, getRateLimitKey } from '@/lib/rate-limit';
 
 /**
  * POST /api/account/delete
@@ -10,6 +11,10 @@ import { getSupabaseAdmin } from '@/lib/supabase/server';
  * Uses the service role key server-side to perform admin deletion.
  */
 export async function POST(request: Request) {
+  // Rate limit: 3 delete attempts per minute per IP
+  const { allowed, response } = checkRateLimit(getRateLimitKey(request), { maxRequests: 3, windowSeconds: 60 });
+  if (!allowed) return response!;
+
   // 1. Verify the caller is authenticated
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
