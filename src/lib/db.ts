@@ -8,6 +8,7 @@ import type {
   SyncQueueItem, SyncConflict,
 } from '@/types';
 import { notifySync } from '@/lib/sync/sync-bridge';
+import type { SyncEntityType } from '@/types';
 
 interface BasToolkitDB extends DBSchema {
   projects: {
@@ -345,7 +346,7 @@ interface Repository<T> {
 }
 
 function createRepository<T extends { id: string }>(
-  storeName: BasToolkitStoreName,
+  storeName: BasToolkitStoreName & SyncEntityType,
   sortField = 'updatedAt',
 ): Repository<T> {
   return {
@@ -408,12 +409,12 @@ export const getProject    = projectRepo.get;
 export const saveProject   = projectRepo.save;
 
 /** Stores whose children are cascade-deleted when a project is removed. */
-const PROJECT_CHILD_STORES = [
+const PROJECT_CHILD_STORES: readonly SyncEntityType[] = [
   'files', 'notes', 'devices', 'ipPlan', 'activityLog',
   'dailyReports', 'networkDiagrams', 'pingSessions',
   'terminalLogs', 'connectionProfiles', 'registerCalculations',
   'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions',
-] as const;
+];
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
@@ -421,7 +422,7 @@ export async function deleteProject(id: string): Promise<void> {
 
   try {
     // Track deleted IDs per store for sync notifications after commit
-    const deleted = new Map<string, string[]>();
+    const deleted = new Map<SyncEntityType, string[]>();
 
     // Handle blob cleanup for files and daily reports
     const files = await tx.objectStore('files').index('by-project').getAll(id);
@@ -439,11 +440,13 @@ export async function deleteProject(id: string): Promise<void> {
 
     // Cascade-delete all child stores
     for (const store of PROJECT_CHILD_STORES) {
-      const items = await tx.objectStore(store).index('by-project').getAll(id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const items = await (tx as any).objectStore(store).index('by-project').getAll(id);
       const ids: string[] = [];
       for (const item of items) {
         const rec = item as unknown as { id: string };
-        await tx.objectStore(store).delete(rec.id);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (tx as any).objectStore(store).delete(rec.id);
         ids.push(rec.id);
       }
       deleted.set(store, ids);
