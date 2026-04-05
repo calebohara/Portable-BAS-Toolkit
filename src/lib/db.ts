@@ -357,7 +357,7 @@ function createRepository<T extends { id: string }>(
     async getByProject(projectId: string): Promise<T[]> {
       const d = await getDB();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      return sortDesc(await d.getAllFromIndex(storeName as any, 'by-project', projectId), sortField);
+      return sortDesc(await (d as any).getAllFromIndex(storeName, 'by-project', projectId), sortField);
     },
     async get(id: string): Promise<T | undefined> {
       const d = await getDB();
