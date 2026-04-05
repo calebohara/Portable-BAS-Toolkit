@@ -418,7 +418,8 @@ const PROJECT_CHILD_STORES: readonly SyncEntityType[] = [
 
 export async function deleteProject(id: string): Promise<void> {
   const db = await getDB();
-  const tx = db.transaction(['projects', 'fileBlobs', ...PROJECT_CHILD_STORES], 'readwrite');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tx = (db as any).transaction(['projects', 'fileBlobs', ...PROJECT_CHILD_STORES], 'readwrite');
 
   try {
     // Track deleted IDs per store for sync notifications after commit
@@ -1125,7 +1126,8 @@ export async function importSnapshot(snapshot: Record<string, unknown[]>): Promi
   let total = 0;
   for (const [storeName, items] of Object.entries(snapshot)) {
     if (storeName.startsWith('_') || !Array.isArray(items) || items.length === 0) continue;
-    if (!db.objectStoreNames.contains(storeName)) continue;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (!(db as any).objectStoreNames.contains(storeName)) continue;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tx = db.transaction(storeName as any, 'readwrite');
     for (const item of items) {
