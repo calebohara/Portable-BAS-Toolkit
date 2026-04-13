@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   FolderKanban, FileText, StickyNote, ClipboardList, Share2,
-  Network, Database, Activity, Globe, TerminalSquare, Calculator,
-  Wrench, WifiOff, ArrowRight, UserPlus, MessageSquare,
+  Network, Database, Activity, Globe, TerminalSquare, Calculator, FileCode,
+  Wrench, WifiOff, ArrowRight, UserPlus,
   Zap, Layers, ChevronRight, Wifi, Heart, Code,
   Gauge, BookOpen, Download, Cloud, Users, Check, Thermometer, Shield, Star, TrendingUp,
 } from 'lucide-react';
@@ -47,13 +47,22 @@ const toolGroups = [
     ],
   },
   {
+    title: 'Access & Program',
+    accent: { icon: 'text-field-warning', bg: 'bg-field-warning/10', border: 'border-field-warning/15' },
+    desc: 'Connect directly to controllers and program from the field.',
+    items: [
+      { icon: TerminalSquare, name: 'Telnet HMI', desc: 'Direct terminal access to BAS controllers — session logging, multi-profile management, and ANSI rendering' },
+      { icon: Globe, name: 'Web Interface', desc: 'Launch and manage controller web panels in embedded tabs — no browser switching required' },
+      { icon: FileCode, name: 'PPCL Editor', desc: 'Write, edit, and validate Carrier PPCL logic with syntax highlighting and project file management' },
+    ],
+  },
+  {
     title: 'Collaborate',
     accent: { icon: 'text-field-success', bg: 'bg-field-success/10', border: 'border-field-success/15' },
     desc: 'Share projects and knowledge across your team in real time.',
     items: [
       { icon: Globe, name: 'Global Projects', desc: 'Multi-user shared projects with access codes, role-based permissions, and real-time activity tracking' },
       { icon: BookOpen, name: 'Knowledge Base', desc: 'A shared library of technical guides with markdown editing, threaded replies, and full-text search' },
-      { icon: MessageSquare, name: 'Message Board', desc: 'Cross-project messaging with threaded replies, unread tracking, and file attachments' },
       { icon: Share2, name: 'Activity Tracking', desc: 'Every change logged with before/after diffs, timestamps, and creator attribution' },
     ],
   },
@@ -226,7 +235,7 @@ export default function HomePage() {
                 style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.65s', opacity: 0 }}
               >
                 {[
-                  { value: '16+', label: 'Integrated tools' },
+                  { value: '19+', label: 'Integrated tools' },
                   { value: '100%', label: 'Offline-capable' },
                   { value: 'Free', label: 'To get started' },
                 ].map(({ value, label }) => (
@@ -578,7 +587,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Wrench className="h-4 w-4 text-primary" />
-                    <span>16+ field tools</span>
+                    <span>19+ field tools</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <WifiOff className="h-4 w-4 text-primary" />
@@ -601,7 +610,7 @@ export default function HomePage() {
                         <p className="text-xl font-bold">$0</p>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> 16+ tools</span>
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> 19+ tools</span>
                         <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Offline-first</span>
                         <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Desktop app</span>
                       </div>
