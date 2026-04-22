@@ -10,6 +10,10 @@ import { checkRateLimit, getRateLimitKey } from '@/lib/rate-limit';
  * Requires the user's access token in the Authorization header.
  * Uses the service role key server-side to perform admin deletion.
  */
+// Server-side defense-in-depth: body must carry this exact string so a stolen
+// bearer token cannot trigger irreversible deletion without going through the UI.
+const CONFIRMATION_TOKEN = 'DELETE';
+
 export async function POST(request: Request) {
   // Rate limit: 3 delete attempts per minute per IP
   const { allowed, response } = checkRateLimit(getRateLimitKey(request), { maxRequests: 3, windowSeconds: 60 });
@@ -19,6 +23,22 @@ export async function POST(request: Request) {
   const authHeader = request.headers.get('Authorization');
   if (!authHeader?.startsWith('Bearer ')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Require the typed confirmation in the body. The UI enforces this client-side;
+  // enforcing it again server-side prevents bypasses via direct API calls with a stolen token.
+  let body: unknown = null;
+  try {
+    body = await request.json();
+  } catch {
+    // No body — fall through to confirmation check which will fail
+  }
+  const confirmation = (body as { confirmation?: unknown } | null)?.confirmation;
+  if (confirmation !== CONFIRMATION_TOKEN) {
+    return NextResponse.json(
+      { error: `Confirmation required: body must include { "confirmation": "${CONFIRMATION_TOKEN}" }` },
+      { status: 400 },
+    );
   }
 
   const token = authHeader.slice(7);

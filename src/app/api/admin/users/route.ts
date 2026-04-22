@@ -66,6 +66,10 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  // Rate limit: 20 admin mutations per minute per IP
+  const rl = checkRateLimit(getRateLimitKey(request), { maxRequests: 20, windowSeconds: 60 });
+  if (!rl.allowed) return rl.response!;
+
   const auth = await verifyAdmin(request);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized — admin access required' }, { status: 403 });
@@ -91,6 +95,10 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
+  // Rate limit: 10 admin deletes per minute per IP
+  const rl = checkRateLimit(getRateLimitKey(request), { maxRequests: 10, windowSeconds: 60 });
+  if (!rl.allowed) return rl.response!;
+
   const auth = await verifyAdmin(request);
   if (!auth) {
     return NextResponse.json({ error: 'Unauthorized — admin access required' }, { status: 403 });

@@ -51,3 +51,20 @@ export function sanitizeFilename(name: string): string {
     .substring(0, 200)
     || 'unnamed';
 }
+
+/**
+ * Trigger a browser download for a Blob.
+ * Sanitizes the filename and delays revoke so the browser has time to kick off
+ * the download (revoking immediately can cancel it on some browsers).
+ */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = sanitizeFilename(filename);
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+}

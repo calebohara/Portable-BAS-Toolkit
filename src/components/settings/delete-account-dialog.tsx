@@ -56,6 +56,7 @@ export function DeleteAccountDialog({
           'Content-Type': 'application/json',
           ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
         },
+        body: JSON.stringify({ confirmation: CONFIRM_TEXT }),
       });
 
       const data = await res.json();

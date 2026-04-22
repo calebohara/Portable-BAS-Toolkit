@@ -1,7 +1,7 @@
 import { Copy, Check } from 'lucide-react';
 import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 
 export function SectionCard({ title, icon: Icon, children, className }: {
   title: string;
@@ -29,7 +29,7 @@ export function PropertyCard({ label, value, unit, icon: Icon }: {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(`${value} ${unit}`).then(() => {
+    copyToClipboard(`${value} ${unit}`).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     }).catch(() => toast.error('Copy failed'));
