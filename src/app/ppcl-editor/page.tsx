@@ -29,6 +29,21 @@ const PpclEditorComponent = dynamic(
   { ssr: false, loading: () => <div className="flex-1 flex items-center justify-center text-muted-foreground text-sm">Loading editor...</div> }
 );
 
+/** Find duplicate PPCL line numbers (lines starting with `<number> `). */
+function findDuplicatePpclLineNumbers(content: string): number[] {
+  const seen = new Set<number>();
+  const dupes: number[] = [];
+  for (const line of content.split('\n')) {
+    const m = line.match(/^\s*(\d+)\s/);
+    if (m) {
+      const n = parseInt(m[1], 10);
+      if (seen.has(n)) dupes.push(n);
+      else seen.add(n);
+    }
+  }
+  return dupes;
+}
+
 export default function PpclEditorPage() {
   const { documents, loading, addDocument, updateDocument, removeDocument } = usePpclDocuments();
   const activeTabId = usePpclEditorStore(s => s.activeTabId);
@@ -105,6 +120,10 @@ export default function PpclEditorPage() {
     updateDocument(activeTabId, { content: localContent }).then(() => {
       setDirtyIds(prev => { const next = new Set(prev); next.delete(activeTabId); return next; });
       toast.success('Saved');
+      const dupes = findDuplicatePpclLineNumbers(localContent);
+      if (dupes.length > 0) {
+        toast.warning(`Duplicate line numbers: ${dupes.join(', ')}`);
+      }
     });
   }, [activeTabId, localContent, updateDocument]);
 

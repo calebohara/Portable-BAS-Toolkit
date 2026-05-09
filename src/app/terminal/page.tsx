@@ -1057,47 +1057,66 @@ export default function TelnetPage() {
           cleanupListenersMapRef.current.delete(sid);
         }
 
-        if (isSerial) {
-          // ─── Serial Port via Tauri ──────────────────────
-          const unData = await onSerialData(sid, (data) => {
-            processIncomingData(sid, data);
-          });
-          const unClosed = await onSerialClosed(sid, () => {
-            flushLineBuffer(sid);
-            setConnectionState(sid, 'disconnected');
-            appendLine(sid, { text: 'Serial port closed.', timestamp: new Date().toISOString(), type: 'system' });
-            const fns = cleanupListenersMapRef.current.get(sid);
-            if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
-          });
-          const unError = await onSerialError(sid, (error) => {
-            setConnectionState(sid, 'error', `Serial error: ${error}`);
-            appendLine(sid, { text: `Serial error: ${error}`, timestamp: new Date().toISOString(), type: 'error' });
-          });
-          cleanupListenersMapRef.current.set(sid, [unData, unClosed, unError]);
+        // Track unsubscribers progressively so we can clean up any that
+        // got attached even if a later step (listener registration or the
+        // native connect call) throws. Avoids leaking listeners on retry.
+        const unsubscribers: Array<() => void> = [];
+        try {
+          if (isSerial) {
+            // ─── Serial Port via Tauri ──────────────────────
+            const unData = await onSerialData(sid, (data) => {
+              processIncomingData(sid, data);
+            });
+            unsubscribers.push(unData);
+            const unClosed = await onSerialClosed(sid, () => {
+              flushLineBuffer(sid);
+              setConnectionState(sid, 'disconnected');
+              appendLine(sid, { text: 'Serial port closed.', timestamp: new Date().toISOString(), type: 'system' });
+              const fns = cleanupListenersMapRef.current.get(sid);
+              if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
+            });
+            unsubscribers.push(unClosed);
+            const unError = await onSerialError(sid, (error) => {
+              setConnectionState(sid, 'error', `Serial error: ${error}`);
+              appendLine(sid, { text: `Serial error: ${error}`, timestamp: new Date().toISOString(), type: 'error' });
+            });
+            unsubscribers.push(unError);
 
-          await nativeSerialConnect(
-            sid, session.serialPort, session.baudRate,
-            session.dataBits, session.parity, session.stopBits,
-          );
-        } else {
-          // ─── TCP Telnet via Tauri ───────────────────────
-          const unData = await onTelnetData(sid, (data) => {
-            processIncomingData(sid, data);
-          });
-          const unClosed = await onTelnetClosed(sid, () => {
-            flushLineBuffer(sid);
-            setConnectionState(sid, 'disconnected');
-            appendLine(sid, { text: 'Connection closed by remote host.', timestamp: new Date().toISOString(), type: 'system' });
-            const fns = cleanupListenersMapRef.current.get(sid);
-            if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
-          });
-          const unError = await onTelnetError(sid, (error) => {
-            setConnectionState(sid, 'error', `Connection error: ${error}`);
-            appendLine(sid, { text: `Connection error: ${error}`, timestamp: new Date().toISOString(), type: 'error' });
-          });
-          cleanupListenersMapRef.current.set(sid, [unData, unClosed, unError]);
+            await nativeSerialConnect(
+              sid, session.serialPort, session.baudRate,
+              session.dataBits, session.parity, session.stopBits,
+            );
+          } else {
+            // ─── TCP Telnet via Tauri ───────────────────────
+            const unData = await onTelnetData(sid, (data) => {
+              processIncomingData(sid, data);
+            });
+            unsubscribers.push(unData);
+            const unClosed = await onTelnetClosed(sid, () => {
+              flushLineBuffer(sid);
+              setConnectionState(sid, 'disconnected');
+              appendLine(sid, { text: 'Connection closed by remote host.', timestamp: new Date().toISOString(), type: 'system' });
+              const fns = cleanupListenersMapRef.current.get(sid);
+              if (fns) { for (const fn of fns) fn(); cleanupListenersMapRef.current.delete(sid); }
+            });
+            unsubscribers.push(unClosed);
+            const unError = await onTelnetError(sid, (error) => {
+              setConnectionState(sid, 'error', `Connection error: ${error}`);
+              appendLine(sid, { text: `Connection error: ${error}`, timestamp: new Date().toISOString(), type: 'error' });
+            });
+            unsubscribers.push(unError);
 
-          await nativeTelnetConnect(sid, session.host, session.port);
+            await nativeTelnetConnect(sid, session.host, session.port);
+          }
+
+          // All listeners attached AND connect succeeded — register cleanup
+          cleanupListenersMapRef.current.set(sid, [...unsubscribers]);
+        } catch (innerErr) {
+          // Tear down any listeners that DID get attached before failure
+          for (const u of unsubscribers) {
+            try { u(); } catch { /* ignore */ }
+          }
+          throw innerErr;
         }
 
         setConnectionState(sid, 'connected');

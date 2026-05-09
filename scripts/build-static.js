@@ -36,12 +36,11 @@ try {
   });
 } catch (err) {
   exitCode = err.status || 1;
-}
-
-// Restore API routes
-if (fs.existsSync(TEMP_DIR)) {
-  fs.renameSync(TEMP_DIR, API_DIR);
-  console.log('[build:static] Restored src/app/api');
+} finally {
+  if (fs.existsSync(TEMP_DIR)) {
+    fs.renameSync(TEMP_DIR, API_DIR);
+    console.log('[build:static] Restored src/app/api');
+  }
 }
 
 process.exit(exitCode);

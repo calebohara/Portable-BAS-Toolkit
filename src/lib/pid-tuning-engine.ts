@@ -504,6 +504,7 @@ function round3(n: number): number {
  * Drive loop to sustained oscillation, record Ku and Pu.
  */
 export function calculateZNUltimate(ku: number, pu: number): TuningMethodResult[] {
+  if (ku <= 0 || pu <= 0) return [];
   const kpP   = round3(0.50 * ku);
   const kpPI  = round3(0.45 * ku);
   const kpPID = round3(0.60 * ku);
@@ -519,6 +520,7 @@ export function calculateZNUltimate(ku: number, pu: number): TuningMethodResult[
  * K = process gain (ΔPV% / ΔOutput%), L = dead time (s), T = time constant (s)
  */
 export function calculateZNStep(k: number, l: number, t: number): TuningMethodResult[] {
+  if (k <= 0 || l <= 0 || t <= 0) return [];
   const base  = t / (k * l);
   const kpP   = round3(base);
   const kpPI  = round3(0.9 * base);
@@ -536,6 +538,7 @@ export function calculateZNStep(k: number, l: number, t: number): TuningMethodRe
  * K = process gain (ΔPV% / ΔOutput%), L = dead time (s), T = time constant (s)
  */
 export function calculateCohenCoon(k: number, l: number, t: number): TuningMethodResult[] {
+  if (k <= 0 || l <= 0 || t <= 0) return [];
   const r     = l / t; // dead time ratio θ/τ
   const base  = t / (k * l);
   const kpP   = round3(base * (1 + r / 3));

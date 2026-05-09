@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.9.0-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.9.1-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -17,7 +17,21 @@
 
 ---
 
-## What's New in v4.9.0
+## What's New in v4.9.1
+
+- **macOS Desktop App** — BAU Suite is now available as a native macOS app (.dmg) via GitHub Releases, alongside the existing Windows installer. CI/CD pipeline updated with a full macOS aarch64 build matrix.
+- **ANSI 256-color & True-color Terminal** — Telnet HMI now renders full 256-color (ESC[38;5;N) and 24-bit true-color (ESC[38;2;R;G;B) sequences from BAS controllers instead of stripping them.
+- **Telnet Connect Timeout** — Unreachable hosts no longer hang the terminal indefinitely. Native telnet connect now times out at 10 seconds with a proper error state.
+- **Terminal Listener Leak Fixed** — Tauri event listeners are now guaranteed to clean up on failed or interrupted connect attempts, preventing accumulation over rapid reconnect cycles.
+- **Stripe Billing Portal Auth** — The subscription portal endpoint now verifies the caller's Bearer token and confirms the Stripe customer ID belongs to the authenticated user before creating a session.
+- **Engine Input Hardening** — PID tuning calculators (ZN Ultimate, ZN Step, Cohen-Coon) now validate inputs and return empty results instead of silent NaN/Infinity on zero or negative values. Psychrometric bisection solvers now guard against out-of-range humidity ratios.
+- **PPCL Duplicate Line Detection** — The PPCL editor warns on Cmd+S if the program contains duplicate line numbers (a common authoring error in PPCL that causes silent controller faults).
+- **Global Project Cascade Delete** — Soft-deleting a global project now cascades to all child records (notes, devices, IP entries, reports, files) to prevent orphan accumulation.
+- **IndexedDB Blob Cache LRU** — The local file blob store now checks storage quota before each write and evicts the oldest blobs when usage exceeds 80%, preventing unbounded storage growth.
+- **Build Script Hardened** — API route restoration after Tauri static export builds now runs in a `finally` block, guaranteeing cleanup even if the build process crashes.
+
+<details>
+<summary>v4.9.0</summary>
 
 - **Trend Data Visualizer** — Upload BAS trend CSVs from any platform (Niagara N4, Desigo CC, Metasys, EcoStruxure, WebCTRL, generic) and get clean interactive charts with multi-series overlay, dual Y-axis, and brush zoom. Includes:
   - Auto-detection of delimiter, header row, timestamp format, and units across all major BAS export styles
@@ -25,6 +39,7 @@
   - Per-series statistics: min/max/mean/median/std dev, gap count, and runtime hours for binary signals
   - Export: clean CSV, high-DPI PNG chart, print-ready HTML report, and clipboard copy for Excel
   - Session save/load with IndexedDB persistence and optional project association
+</details>
 
 <details>
 <summary>v4.8.7</summary>
@@ -220,10 +235,13 @@ Native desktop app via [Tauri](https://v2.tauri.app/) with capabilities browsers
 | All BAU Suite tools | Yes | Yes |
 | Real ICMP ping | No | Yes |
 | Direct TCP port checking | No | Yes |
+| Serial port / Telnet | No | Yes |
+| 256-color & true-color terminal | Yes | Yes |
 | VPN network access | HTTP only | Full |
+| Platform | — | Windows + macOS |
 | Install size | ~0 MB | ~15 MB |
 
-Download from [GitHub Releases](https://github.com/calebohara/Portable-BAS-Toolkit/releases) (Windows .msi).
+Download from [GitHub Releases](https://github.com/calebohara/Portable-BAS-Toolkit/releases) (Windows .msi / macOS .dmg).
 
 ```bash
 npm run tauri:dev      # Dev mode
@@ -258,7 +276,7 @@ Supabase-powered authentication is **optional**. Without it, the app runs fully 
 
 ## Versioning
 
-**Current: v4.9.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.9.1** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 

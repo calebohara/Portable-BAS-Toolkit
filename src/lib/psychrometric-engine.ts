@@ -62,8 +62,16 @@ export function saturationPressure(T_F: number): number {
 export function humidityRatioFromRH(T_db_F: number, rh: number, P_atm: number): number {
   const pws = saturationPressure(T_db_F);
   const pw = (rh / 100) * pws;
-  if (pw >= P_atm) return 0.03; // clamp at practical max
-  return 0.621945 * pw / (P_atm - pw);
+  if (pw >= P_atm) {
+    console.warn('[psychrometric] Humidity ratio clamped to 0.03 lb/lb (practical maximum) — vapor pressure exceeded atmospheric pressure at T_db=' + T_db_F.toFixed(1) + '°F, RH=' + rh.toFixed(1) + '%');
+    return 0.03; // clamp at practical max
+  }
+  const W = 0.621945 * pw / (P_atm - pw);
+  if (W > 0.03) {
+    console.warn('[psychrometric] Humidity ratio clamped from', W.toFixed(4), 'to 0.03 lb/lb (practical maximum)');
+    return 0.03;
+  }
+  return W;
 }
 
 /** Humidity ratio from wet bulb temperature (°F). Returns lb_w/lb_da. */
@@ -85,8 +93,16 @@ export function humidityRatioFromWetBulb(T_db_F: number, T_wb_F: number, P_atm: 
 /** Humidity ratio from dew point temperature (°F). Returns lb_w/lb_da. */
 export function humidityRatioFromDewPoint(T_dp_F: number, P_atm: number): number {
   const pws_dp = saturationPressure(T_dp_F);
-  if (pws_dp >= P_atm) return 0.03;
-  return 0.621945 * pws_dp / (P_atm - pws_dp);
+  if (pws_dp >= P_atm) {
+    console.warn('[psychrometric] Humidity ratio clamped to 0.03 lb/lb (practical maximum) — saturation pressure exceeded atmospheric pressure at T_dp=' + T_dp_F.toFixed(1) + '°F');
+    return 0.03;
+  }
+  const W = 0.621945 * pws_dp / (P_atm - pws_dp);
+  if (W > 0.03) {
+    console.warn('[psychrometric] Humidity ratio clamped from', W.toFixed(4), 'to 0.03 lb/lb (practical maximum)');
+    return 0.03;
+  }
+  return W;
 }
 
 /** Humidity ratio from enthalpy (BTU/lb_da) and dry bulb (°F). Returns lb_w/lb_da. */
@@ -139,6 +155,10 @@ export function dewPointFromW(W: number, P_atm: number): number {
   // Target: find T where pws(T) = pw = W * P_atm / (0.621945 + W)
   const pw = vaporPressureFromW(W, P_atm);
   if (pw <= 0) return -80;
+  // Cap pw to the maximum solvable value (saturation at 200°F)
+  // so bisection always has a valid bracket
+  const pwsMax = saturationPressure(200);
+  if (pw >= pwsMax) return 200; // saturated at upper bound
 
   let lo = -80;
   let hi = 200;
@@ -155,6 +175,9 @@ export function dewPointFromW(W: number, P_atm: number): number {
 /** Wet bulb temperature (°F) from humidity ratio using bisection. */
 export function wetBulbFromW(T_db_F: number, W: number, P_atm: number): number {
   // Find T_wb where humidityRatioFromWetBulb(T_db, T_wb, P) = W
+  // If W exceeds saturation W at T_db, wet bulb equals dry bulb (saturated)
+  const Ws_db = 0.621945 * saturationPressure(T_db_F) / (P_atm - saturationPressure(T_db_F));
+  if (W >= Ws_db) return T_db_F;
   let lo = -80;
   let hi = T_db_F;
   for (let i = 0; i < 100; i++) {

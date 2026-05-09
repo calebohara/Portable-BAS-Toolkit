@@ -11,7 +11,14 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    strategy:
+      matrix:
+        include:
+          - platform: windows-latest
+            args: ''
+          - platform: macos-latest
+            args: '--target aarch64-apple-darwin'
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,6 +30,10 @@ jobs:
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Add macOS aarch64 target
+        if: matrix.platform == 'macos-latest'
+        run: rustup target add aarch64-apple-darwin
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -52,10 +63,11 @@ jobs:
             | Platform | File |
             |----------|------|
             | Windows | `.msi` installer |
+            | macOS (Apple Silicon) | `.dmg` installer |
 
             ### What's new
             See [CHANGELOG](https://github.com/${{ github.repository }}/releases/tag/${{ github.ref_name }}) for details.
           includeUpdaterJson: true
           releaseDraft: false
           prerelease: false
-          args: ''
+          args: ${{ matrix.args }}

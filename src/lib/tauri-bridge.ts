@@ -102,9 +102,10 @@ export async function nativeTelnetConnect(
   sessionId: string,
   host: string,
   port: number,
+  timeoutMs: number = 10000,
 ): Promise<void> {
   const invoke = await getInvoke();
-  await invoke('telnet_connect', { sessionId, host, port });
+  await invoke('telnet_connect', { sessionId, host, port, timeoutMs });
 }
 
 export async function nativeTelnetSend(

@@ -49,9 +49,13 @@ audit-report.html
 PPCL_SKILL.md
 FPGO.md
 PPCLM.md
+REPLY.md
 
 # markdown docs (kept local only)
 *.md
 !README.md
 !SECURITY.md
+!CLAUDE.md
+!.claude/BASAgents.md
 docs/**/*.md
+!docs/BASAgents-fixes-*.md

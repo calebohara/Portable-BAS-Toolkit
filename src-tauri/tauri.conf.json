@@ -23,7 +23,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: asset: https://asset.localhost https://*.supabase.co; font-src 'self'; connect-src 'self' wss://*.supabase.co https://*.supabase.co; frame-src 'self' blob: http: https:; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'"
+      "csp": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: asset: https://asset.localhost https://*.supabase.co; font-src 'self'; connect-src 'self' wss://*.supabase.co https://*.supabase.co https://*.stripe.com https://api.stripe.com; frame-src 'self' blob: http: https: https://*.stripe.com https://checkout.stripe.com; object-src 'none'; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'"
     }
   },
   "plugins": {

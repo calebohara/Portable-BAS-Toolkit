@@ -509,8 +509,28 @@ export async function deleteFile(id: string): Promise<void> {
 
 // ─── File Blobs ─────────────────────────────────────────────
 
+/**
+ * Evict the oldest cached blobs (by `cachedAt`) when storage is >80% full.
+ * Uses the storage estimate API; no-ops on browsers that don't support it.
+ * The `fileBlobs` store has no `by-cached-at` index, so we sort in-memory.
+ */
+async function evictOldBlobsIfNeeded(db: IDBPDatabase<BasToolkitDB>): Promise<void> {
+  if (!navigator.storage?.estimate) return;
+  const { usage = 0, quota = 1 } = await navigator.storage.estimate();
+  if (quota === 0 || usage / quota < 0.8) return;
+  const blobs = await db.getAll('fileBlobs');
+  if (blobs.length === 0) return;
+  // Sort ascending by cachedAt (oldest first)
+  blobs.sort((a, b) => a.cachedAt.localeCompare(b.cachedAt));
+  const evictCount = Math.max(5, Math.floor(blobs.length * 0.1));
+  for (const entry of blobs.slice(0, evictCount)) {
+    await db.delete('fileBlobs', entry.id);
+  }
+}
+
 export async function saveFileBlob(id: string, blob: Blob): Promise<void> {
   const db = await getDB();
+  await evictOldBlobsIfNeeded(db);
   await db.put('fileBlobs', { id, blob, cachedAt: new Date().toISOString() });
 }
 

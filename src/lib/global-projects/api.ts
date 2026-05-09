@@ -309,6 +309,29 @@ export async function deleteGlobalProject(id: string): Promise<ApiResult<void>> 
       .eq('created_by', userId);
 
     if (error) return fail(error.message);
+
+    // Cascade soft-delete child entities so they don't linger after the
+    // parent project is removed. Failures here are logged but non-fatal —
+    // the project itself is already deleted at this point.
+    const now = new Date().toISOString();
+    const childTables = [
+      'global_field_notes',
+      'global_devices',
+      'global_ip_plan',
+      'global_daily_reports',
+      'global_project_files',
+    ];
+    for (const table of childTables) {
+      const { error: childErr } = await supabase
+        .from(table)
+        .update({ deleted_at: now })
+        .eq('global_project_id', id)
+        .is('deleted_at', null);
+      if (childErr) {
+        console.warn(`Failed to cascade soft-delete ${table} for project ${id}:`, childErr.message);
+      }
+    }
+
     return ok(undefined);
   } catch (err) {
     return fail((err as Error).message);

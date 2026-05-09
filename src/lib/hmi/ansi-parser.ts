@@ -93,6 +93,30 @@ function applySgrParam(state: StyleState, code: number): void {
   // All other codes are silently ignored.
 }
 
+/**
+ * Convert a 256-color palette index to a CSS color string.
+ *
+ * - 0-15:    Standard / bright ANSI colors (mapped via ANSI_COLORS)
+ * - 16-231:  6x6x6 RGB color cube
+ * - 232-255: 24-step grayscale ramp
+ */
+function color256ToCss(n: number): string {
+  if (n < 16) {
+    // 0-7 map to ANSI 30-37 (standard); 8-15 map to ANSI 90-97 (bright)
+    return ANSI_COLORS[n + 30] ?? ANSI_COLORS[n >= 8 ? 90 + (n - 8) : 30 + n] ?? '#ffffff';
+  }
+  if (n < 232) {
+    const idx = n - 16;
+    const b = idx % 6;
+    const g = Math.floor(idx / 6) % 6;
+    const r = Math.floor(idx / 36);
+    const toVal = (c: number) => (c === 0 ? 0 : 55 + c * 40);
+    return `rgb(${toVal(r)},${toVal(g)},${toVal(b)})`;
+  }
+  const v = 8 + (n - 232) * 10;
+  return `rgb(${v},${v},${v})`;
+}
+
 // ---------------------------------------------------------------------------
 // Regex that matches any CSI sequence: ESC [ <params> <final byte>
 // Final byte is in the range 0x40-0x7E (@ through ~).
@@ -171,11 +195,40 @@ export function parseAnsiLine(text: string): ParsedLine {
         // ESC[m is equivalent to ESC[0m (reset)
         applySgrParam(style, 0);
       } else {
-        for (const p of params.split(';')) {
-          const code = parseInt(p, 10);
-          if (!isNaN(code)) {
-            applySgrParam(style, code);
+        const parts = params.split(';').map((p) => parseInt(p, 10));
+        for (let i = 0; i < parts.length; i++) {
+          const code = parts[i];
+          if (isNaN(code)) continue;
+
+          // Extended foreground (38) / background (48) color sequences
+          if (code === 38 || code === 48) {
+            const mode = parts[i + 1];
+            if (mode === 5) {
+              // 256-color: 38;5;N or 48;5;N
+              const n = parts[i + 2];
+              if (!isNaN(n)) {
+                const css = color256ToCss(n);
+                if (code === 38) style.fgColor = css;
+                else style.bgColor = css;
+              }
+              i += 2;
+            } else if (mode === 2) {
+              // True color: 38;2;R;G;B or 48;2;R;G;B
+              const r = parts[i + 2];
+              const g = parts[i + 3];
+              const b = parts[i + 4];
+              if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+                const css = `rgb(${r},${g},${b})`;
+                if (code === 38) style.fgColor = css;
+                else style.bgColor = css;
+              }
+              i += 4;
+            }
+            // Unknown sub-mode: skip just this code
+            continue;
           }
+
+          applySgrParam(style, code);
         }
       }
     }
