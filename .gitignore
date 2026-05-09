@@ -57,5 +57,7 @@ REPLY.md
 !SECURITY.md
 !CLAUDE.md
 !.claude/BASAgents.md
+!.claude/DesignAgents.md
 docs/**/*.md
 !docs/BASAgents-fixes-*.md
+!docs/DesignAgents-fixes-*.md

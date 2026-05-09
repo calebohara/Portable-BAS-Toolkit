@@ -25,3 +25,22 @@ Use the current date at the time of the fix session. Create a new file each time
 
 - Agent team definition: `.claude/BASAgents.md`
 - Fix log archive: `docs/BASAgents-fixes-*.md`
+
+---
+
+## DesignAgents Fix Documentation Rule
+
+**Whenever DesignAgents run an audit and fixes are applied, create a new dated log file:**
+
+```
+docs/DesignAgents-fixes-YYYY-MM-DD.md
+```
+
+Use the current date at the time of the fix session. Create a new file each time — never overwrite an existing log. If multiple sessions occur on the same day, append a suffix: `DesignAgents-fixes-2026-05-09-2.md`.
+
+Same required sections as BASAgents fix logs: header block, audit phase, fixes by priority, housekeeping, verification.
+
+### Reference
+
+- Agent team definition: `.claude/DesignAgents.md`
+- Fix log archive: `docs/DesignAgents-fixes-*.md`
