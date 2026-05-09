@@ -33,9 +33,17 @@ export function UpdateNotifier() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const hasCheckedRef = useRef(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Prevent hydration mismatch: render nothing until mounted on client
   useEffect(() => { setMounted(true); }, []);
+
+  // Clear any pending timer on unmount
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const doCheck = useCallback(async (silent = false) => {
     if (!isTauri()) return;
@@ -72,7 +80,8 @@ export function UpdateNotifier() {
       setState('up-to-date');
       if (!silent) setDialogOpen(true);
       // Reset to idle after a few seconds if no update
-      setTimeout(() => setState('idle'), 3000);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setState('idle'), 3000);
     }
   }, []);
 
@@ -119,7 +128,7 @@ export function UpdateNotifier() {
       <ManualCheckButton state={state} onClick={() => doCheck(false)} />
 
       {/* Update dialog */}
-      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleDismiss(); else setDialogOpen(true); }}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleDismiss(); }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>

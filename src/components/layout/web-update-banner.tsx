@@ -96,10 +96,10 @@ export function WebUpdateBanner() {
             </p>
 
             <div className="mt-2.5 flex items-center gap-2">
-              <Button size="sm" onClick={handleViewRelease} className="h-7 px-2.5 text-xs gap-1">
+              <Button size="sm" onClick={handleViewRelease} className="h-9 px-3 text-sm gap-1">
                 View Release
               </Button>
-              <Button size="sm" variant="ghost" onClick={handleDismiss} className="h-7 px-2.5 text-xs text-muted-foreground">
+              <Button size="sm" variant="ghost" onClick={handleDismiss} className="h-9 px-3 text-sm text-muted-foreground">
                 Dismiss
               </Button>
             </div>

@@ -35,11 +35,20 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
 
   const [conflictsOpen, setConflictsOpen] = useState(false);
 
-  // Re-render every 30s to keep relative time fresh
+  // Re-render every 30s to keep relative time fresh — pause when tab is hidden
   const [, setTick] = useState(0);
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 30_000);
-    return () => clearInterval(id);
+    let id: ReturnType<typeof setInterval> | null = null;
+    const start = () => { id = setInterval(() => setTick((t) => t + 1), 30_000); };
+    const stop = () => { if (id !== null) { clearInterval(id); id = null; } };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') start(); else stop();
+    };
+
+    if (document.visibilityState === 'visible') start();
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => { stop(); document.removeEventListener('visibilitychange', onVisibility); };
   }, []);
 
   if (mode !== 'authenticated' || syncStatus === 'disabled') return null;

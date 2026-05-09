@@ -330,7 +330,7 @@ function TabBar() {
                 />
               ) : (
                 <span className="truncate max-w-20">
-                  {tab.projectId && <Link2 className="inline h-2.5 w-2.5 mr-0.5 opacity-50" />}
+                  {tab.projectId && <Link2 className="inline h-3.5 w-3.5 mr-0.5 opacity-50" />}
                   {tab.name}
                 </span>
               )}
@@ -346,7 +346,7 @@ function TabBar() {
                 aria-label={`Rename ${tab.name}`}
                 title="Rename"
               >
-                <Pencil className="h-2.5 w-2.5" />
+                <Pencil className="h-3.5 w-3.5" />
               </button>
               {/* Delete button — always visible on active tab, hover on others */}
               {tabs.length > 1 && (
@@ -361,7 +361,7 @@ function TabBar() {
                   aria-label={`Close ${tab.name}`}
                   title="Delete"
                 >
-                  <X className="h-2.5 w-2.5" />
+                  <X className="h-3.5 w-3.5" />
                 </button>
               )}
             </div>
@@ -490,6 +490,15 @@ function NotepadPanel() {
   const activeTab = tabs.find(t => t.id === activeTabId);
 
   const [attachOpen, setAttachOpen] = useState(false);
+
+  // Close on Escape — non-modal floater, but still expected for floating panels
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closePanel();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [closePanel]);
 
   // Resize state
   const [size, setSize] = useState({ w: storedSize?.w ?? PANEL_WIDTH, h: storedSize?.h ?? PANEL_HEIGHT });
@@ -625,6 +634,8 @@ function NotepadPanel() {
     <>
       <div
         ref={panelRef}
+        role="region"
+        aria-label="Sticky notepad"
         className={cn(
           'fixed z-50 flex flex-col',
           'rounded-xl border border-border bg-background shadow-2xl',

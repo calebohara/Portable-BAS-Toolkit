@@ -137,6 +137,14 @@ export const TOUR_STEPS: TourStep[] = [
     action: 'open-sidebar',
   },
   {
+    id: 'nav-trend-viewer',
+    target: '[data-tour="nav-trend-viewer"]',
+    title: 'Trend Viewer',
+    content: 'Upload BAS trend CSVs from any platform — Niagara, Metasys, Desigo CC, WebCTRL — and get interactive charts with multi-series overlay, anomaly detection, and export.',
+    placement: 'right',
+    action: 'open-sidebar',
+  },
+  {
     id: 'nav-inbox',
     target: '[data-tour="nav-documents"]',
     title: 'Uploads Inbox',

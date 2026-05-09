@@ -40,13 +40,15 @@ function StarRating({
   const display = hoveredValue || value;
   return (
     <div className="space-y-1.5">
-      <Label>Rating</Label>
-      <div className="flex items-center justify-center gap-1">
+      <Label id="rating-label">Rating</Label>
+      <div role="radiogroup" aria-labelledby="rating-label" className="flex items-center justify-center gap-1">
         {[1, 2, 3, 4, 5].map((star) => (
           <button
             key={star}
             type="button"
-            className="p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded"
+            role="radio"
+            aria-checked={star === value}
+            className="p-1 transition-transform hover:scale-110 focus:outline-none focus-visible:ring-3 focus-visible:ring-ring/50 rounded"
             onMouseEnter={() => onHover(star)}
             onMouseLeave={() => onHover(0)}
             onClick={() => onClick(star)}

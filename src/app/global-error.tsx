@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function GlobalError({
   error,
@@ -9,13 +9,18 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [retrying, setRetrying] = useState(false);
+
   useEffect(() => {
     console.error('Global error:', error);
   }, [error]);
 
   return (
     <html lang="en">
-      <body style={{ margin: 0, fontFamily: 'system-ui, -apple-system, sans-serif', background: '#0A1628', color: '#e2e8f0' }}>
+      <head>
+        <title>BAU Suite — Error</title>
+      </head>
+      <body style={{ margin: 0, fontFamily: 'system-ui, -apple-system, sans-serif', background: '#005f6a', color: '#e2e8f0' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', gap: '1.5rem', padding: '2rem', textAlign: 'center' }}>
           <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#ef4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -41,10 +46,11 @@ export default function GlobalError({
               Go to Dashboard
             </button>
             <button
-              onClick={reset}
-              style={{ padding: '0.5rem 1.25rem', borderRadius: 8, border: 'none', background: '#3b82f6', color: '#fff', cursor: 'pointer', fontSize: '0.875rem' }}
+              onClick={() => { setRetrying(true); reset(); }}
+              disabled={retrying}
+              style={{ padding: '0.5rem 1.25rem', borderRadius: 8, border: 'none', background: '#009999', color: '#fff', cursor: retrying ? 'not-allowed' : 'pointer', fontSize: '0.875rem', opacity: retrying ? 0.7 : 1 }}
             >
-              Try Again
+              {retrying ? 'Retrying…' : 'Try Again'}
             </button>
           </div>
         </div>

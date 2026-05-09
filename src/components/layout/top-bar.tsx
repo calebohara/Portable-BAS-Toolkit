@@ -116,7 +116,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             onClick={() => setShowBugReport(true)}
             aria-label="Report a bug"
           >
-            <Bug className="h-3.5 w-3.5 animate-bug-crawl" />
+            <Bug className="h-3.5 w-3.5 motion-safe:animate-bug-crawl" />
           </Button>
 
           {/* 6. Inbox / Mail — Pro+ only when paywall enabled */}
@@ -146,7 +146,15 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
             >
               <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden text-[10px] font-semibold text-primary">
                 {profile?.avatarUrl ? (
-                  <img src={profile.avatarUrl} alt="" className="h-6 w-6 rounded-full object-cover" />
+                  <img
+                    src={profile.avatarUrl}
+                    alt=""
+                    width={24}
+                    height={24}
+                    loading="lazy"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                    className="h-6 w-6 rounded-full object-cover"
+                  />
                 ) : (
                   (() => {
                     const f = profile?.firstName?.[0] ?? '';

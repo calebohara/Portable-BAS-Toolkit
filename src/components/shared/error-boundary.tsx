@@ -1,11 +1,14 @@
 'use client';
 
 import { Component, type ReactNode } from 'react';
+import * as React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 
 interface Props {
   children: ReactNode;
   fallback?: ReactNode;
+  onError?: (error: Error, info: React.ErrorInfo) => void;
 }
 
 interface State {
@@ -23,9 +26,16 @@ export class ErrorBoundary extends Component<Props, State> {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    console.error('[ErrorBoundary]', error, errorInfo.componentStack);
+    this.props.onError?.(error, errorInfo);
+  }
+
   render() {
     if (this.state.hasError) {
       if (this.props.fallback) return this.props.fallback;
+
+      const error = this.state.error;
 
       return (
         <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8 text-center">
@@ -37,22 +47,23 @@ export class ErrorBoundary extends Component<Props, State> {
             <p className="mt-1 text-sm text-muted-foreground max-w-md">
               An unexpected error occurred. Your data is safe — try refreshing the page.
             </p>
-            {this.state.error && (
-              <p className="mt-2 rounded-lg bg-muted p-2 text-xs font-mono text-muted-foreground max-w-md truncate">
-                {this.state.error.message}
-              </p>
+            {error && (
+              <details className="mt-2 text-left">
+                <summary className="cursor-pointer text-xs text-muted-foreground">{error.name}: {error.message}</summary>
+                <pre className="mt-1 max-h-32 overflow-auto text-xs text-muted-foreground whitespace-pre-wrap">{error.stack}</pre>
+              </details>
             )}
           </div>
-          <button
+          <Button
             onClick={() => {
               this.setState({ hasError: false, error: null });
               window.location.reload();
             }}
-            className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+            className="gap-2"
           >
             <RefreshCw className="h-4 w-4" />
             Reload App
-          </button>
+          </Button>
         </div>
       );
     }

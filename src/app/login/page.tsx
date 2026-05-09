@@ -11,8 +11,9 @@ import { AlertCircle, LogIn, UserPlus, Loader2, MailCheck } from 'lucide-react';
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen flex-col items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <p className="mt-2 text-xs text-muted-foreground">Loading sign-in…</p>
       </div>
     }>
       <LoginContent />
@@ -44,8 +45,9 @@ function LoginContent() {
 
   if (mode === 'authenticated') {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen flex-col items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        <p className="mt-2 text-xs text-muted-foreground">Loading sign-in…</p>
       </div>
     );
   }
@@ -127,8 +129,11 @@ function LoginContent() {
         </div>
 
         {/* Tabs */}
-        <div className="flex rounded-lg bg-muted p-1">
+        <div role="tablist" className="flex rounded-lg bg-muted p-1">
           <button
+            role="tab"
+            aria-selected={tab === 'signin'}
+            aria-controls="login-form"
             onClick={() => { setTab('signin'); setError(''); setMessage(''); }}
             className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
               tab === 'signin' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
@@ -137,6 +142,9 @@ function LoginContent() {
             Sign In
           </button>
           <button
+            role="tab"
+            aria-selected={tab === 'signup'}
+            aria-controls="login-form"
             onClick={() => { setTab('signup'); setError(''); setMessage(''); }}
             className={`flex-1 rounded-md py-2 text-sm font-medium transition-colors ${
               tab === 'signup' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground'
@@ -149,7 +157,7 @@ function LoginContent() {
         {/* Post-signup success state */}
         {message ? (
           <div className="space-y-6 text-center py-4">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10 animate-in zoom-in duration-300">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-green-500/10 motion-safe:animate-in motion-safe:zoom-in motion-safe:duration-300">
               <MailCheck className="h-7 w-7 text-green-600 dark:text-green-400" />
             </div>
             <div className="space-y-2">
@@ -174,7 +182,7 @@ function LoginContent() {
           </div>
         ) : (
           /* Form */
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form id="login-form" role="tabpanel" onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-xs">Email</Label>
               <Input
@@ -184,6 +192,10 @@ function LoginContent() {
                 onChange={e => setEmail(e.target.value)}
                 placeholder="you@company.com"
                 autoComplete="email"
+                autoFocus
+                required
+                aria-invalid={!!error}
+                aria-describedby="login-error"
                 className="h-9"
               />
             </div>
@@ -196,6 +208,9 @@ function LoginContent() {
                 onChange={e => setPassword(e.target.value)}
                 placeholder="Password"
                 autoComplete={tab === 'signin' ? 'current-password' : 'new-password'}
+                required
+                aria-invalid={!!error}
+                aria-describedby="login-error"
                 className="h-9"
               />
             </div>
@@ -209,13 +224,20 @@ function LoginContent() {
                   onChange={e => setConfirmPassword(e.target.value)}
                   placeholder="Confirm password"
                   autoComplete="new-password"
+                  required
+                  aria-invalid={!!error}
+                  aria-describedby="login-error"
                   className="h-9"
                 />
               </div>
             )}
 
             {error && (
-              <div className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive">
+              <div
+                id="login-error"
+                role="alert"
+                className="flex items-start gap-2 rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs text-destructive"
+              >
                 <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
                 <span>{error}</span>
               </div>

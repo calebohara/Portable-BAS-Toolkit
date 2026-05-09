@@ -86,7 +86,13 @@ export const useAppStore = create<AppState>()(
       hasCompletedTour: false,
       tourActive: false,
       tourStep: 0,
-      startTour: () => set({ tourActive: true, tourStep: 0, sidebarOpen: false }),
+      startTour: () => {
+        // Force-expand all sidebar nav groups so data-tour targets are visible
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('bau-suite-collapsed-groups', JSON.stringify({}));
+        }
+        set({ tourActive: true, tourStep: 0, sidebarOpen: false });
+      },
       endTour: () => set({ tourActive: false, tourStep: 0, hasCompletedTour: true }),
       nextTourStep: () => set((s) => ({ tourStep: s.tourStep + 1 })),
       prevTourStep: () => set((s) => ({ tourStep: Math.max(0, s.tourStep - 1) })),

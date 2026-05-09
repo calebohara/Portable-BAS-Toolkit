@@ -58,7 +58,7 @@ export function MaintenancePage() {
             <IconBox icon={Wrench} delay={0.25} />
           </div>
 
-          <p className="mb-2 font-mono text-[11px] font-semibold tracking-[0.18em] text-[oklch(0.65_0.12_185)] uppercase">
+          <p className="mb-2 font-mono text-[11px] font-semibold tracking-[0.18em] text-[var(--primary)] uppercase">
             BAU Suite
           </p>
           <h1 className="text-3xl font-bold tracking-tight text-[oklch(0.93_0.005_240)] sm:text-4xl">
@@ -86,7 +86,7 @@ export function MaintenancePage() {
         <div
           className="mt-animated mx-auto mb-10 h-[1px] w-full max-w-sm"
           style={{
-            background: 'linear-gradient(to right, transparent, oklch(0.65 0.12 185 / 25%), transparent)',
+            background: 'linear-gradient(to right, transparent, color-mix(in oklch, var(--primary) 25%, transparent), transparent)',
             ...stagger(1),
           }}
         />
@@ -102,7 +102,7 @@ export function MaintenancePage() {
 
         {/* ── 3. Activity bars (visual heartbeat) ──────────────── */}
         <div className="mt-animated mb-10 space-y-2 px-2" style={stagger(6)}>
-          <ActivityBar color="oklch(0.65 0.12 185)" duration="3s" delay="0s" />
+          <ActivityBar color="var(--primary)" duration="3s" delay="0s" />
           <ActivityBar color="oklch(0.55 0.10 210)" duration="2.4s" delay="0.8s" />
           <ActivityBar color="oklch(0.60 0.08 170)" duration="3.6s" delay="1.6s" />
         </div>
@@ -110,9 +110,9 @@ export function MaintenancePage() {
         {/* ── 4. Trust strip ───────────────────────────────────── */}
         <section aria-label="Service assurances" className="mt-animated mb-10" style={stagger(7)}>
           <div
-            className="rounded-xl border border-[oklch(0.65_0.12_185_/_10%)] px-5 py-4 sm:px-7 sm:py-5"
+            className="rounded-xl border border-[color-mix(in_oklch,var(--primary)_10%,transparent)] px-5 py-4 sm:px-7 sm:py-5"
             style={{
-              background: 'oklch(0.13 0.01 260 / 50%)',
+              background: 'color-mix(in oklch, var(--background) 50%, transparent)',
               backdropFilter: 'blur(12px)',
             }}
           >
@@ -140,7 +140,7 @@ export function MaintenancePage() {
         <div className="mt-animated mb-12 flex flex-col items-center gap-3 sm:flex-row sm:justify-center" style={stagger(8)}>
           <Button
             onClick={handleRefresh}
-            className="gap-2 rounded-lg border border-[oklch(0.65_0.12_185_/_30%)] bg-[oklch(0.65_0.12_185_/_12%)] px-6 py-2.5 text-sm font-medium text-[oklch(0.65_0.12_185)] hover:bg-[oklch(0.65_0.12_185_/_20%)] transition-colors"
+            className="gap-2 rounded-lg border border-[color-mix(in_oklch,var(--primary)_30%,transparent)] bg-[color-mix(in_oklch,var(--primary)_12%,transparent)] px-6 py-2.5 text-sm font-medium text-[var(--primary)] hover:bg-[color-mix(in_oklch,var(--primary)_20%,transparent)] transition-colors"
             aria-label="Refresh page to check if maintenance is complete"
           >
             <RefreshCw className="h-4 w-4" />
@@ -160,7 +160,7 @@ export function MaintenancePage() {
 
         {/* ── 6. Footer ────────────────────────────────────────── */}
         <footer className="mt-animated text-center" style={stagger(9)}>
-          <div className="mx-auto h-[1px] w-24 bg-[oklch(0.25_0.01_260)] mb-5" />
+          <div className="mx-auto h-[1px] w-24 bg-[var(--background)] mb-5" />
           <p className="font-mono text-[10px] tracking-[0.15em] text-[oklch(0.35_0.01_260)] uppercase">
             BAU Suite &middot; v{APP_VERSION}
           </p>
@@ -181,13 +181,13 @@ export function MaintenancePage() {
 function IconBox({ icon: Icon, delay }: { icon: React.ComponentType<{ className?: string }>; delay: number }) {
   return (
     <div
-      className="mt-animated flex h-14 w-14 items-center justify-center rounded-xl border border-[oklch(0.65_0.12_185_/_20%)] bg-[oklch(0.65_0.12_185_/_8%)] sm:h-16 sm:w-16"
+      className="mt-animated flex h-14 w-14 items-center justify-center rounded-xl border border-[color-mix(in_oklch,var(--primary)_20%,transparent)] bg-[color-mix(in_oklch,var(--primary)_8%,transparent)] sm:h-16 sm:w-16"
       style={{
-        boxShadow: '0 0 24px oklch(0.65 0.12 185 / 8%)',
+        boxShadow: '0 0 24px color-mix(in oklch, var(--primary) 8%, transparent)',
         animation: `mt-fade-in-up 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}s both`,
       }}
     >
-      <Icon className="h-7 w-7 text-[oklch(0.65_0.12_185)] sm:h-8 sm:w-8" />
+      <Icon className="h-7 w-7 text-[var(--primary)] sm:h-8 sm:w-8" />
     </div>
   );
 }
@@ -199,9 +199,9 @@ function StatusCard({ entry, index }: { entry: StatusEntry; index: number }) {
 
   return (
     <div
-      className="mt-animated rounded-xl border border-[oklch(0.25_0.01_260)] p-4"
+      className="mt-animated rounded-xl border border-[var(--background)] p-4"
       style={{
-        background: 'oklch(0.13 0.01 260 / 50%)',
+        background: 'color-mix(in oklch, var(--background) 50%, transparent)',
         backdropFilter: 'blur(8px)',
         ...stagger(index + 2),
       }}
@@ -229,8 +229,8 @@ function TrustItem({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[oklch(0.65_0.12_185_/_8%)]">
-        <Icon className="h-4 w-4 text-[oklch(0.65_0.12_185)]" aria-hidden="true" />
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_oklch,var(--primary)_8%,transparent)]">
+        <Icon className="h-4 w-4 text-[var(--primary)]" aria-hidden="true" />
       </div>
       <div>
         <p className="text-xs font-semibold text-[oklch(0.75_0.005_240)]">{title}</p>
@@ -272,7 +272,7 @@ function AtmosphericBackground() {
         aria-hidden="true"
         style={{
           backgroundImage:
-            'linear-gradient(oklch(0.65 0.12 185 / 3%) 1px, transparent 1px), linear-gradient(90deg, oklch(0.65 0.12 185 / 3%) 1px, transparent 1px)',
+            'linear-gradient(color-mix(in oklch, var(--primary) 3%, transparent) 1px, transparent 1px), linear-gradient(90deg, color-mix(in oklch, var(--primary) 3%, transparent) 1px, transparent 1px)',
           backgroundSize: '64px 64px',
           animation: 'mt-grid-drift 60s ease-in-out infinite',
           maskImage: 'radial-gradient(ellipse 80% 70% at 50% 40%, black 30%, transparent 100%)',
@@ -285,7 +285,7 @@ function AtmosphericBackground() {
         className="mt-animated pointer-events-none absolute -left-40 -top-40 h-[500px] w-[500px] rounded-full"
         aria-hidden="true"
         style={{
-          background: 'radial-gradient(circle, oklch(0.65 0.12 185 / 10%) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, color-mix(in oklch, var(--primary) 10%, transparent) 0%, transparent 70%)',
           animation: 'mt-orb-drift-1 20s ease-in-out infinite, mt-pulse-glow 6s ease-in-out infinite',
         }}
       />

@@ -24,6 +24,16 @@ export default function PendingApprovalPage() {
     }
   }, [loading, user, router]);
 
+  // Auto-poll for approval status every 30s while page is open
+  useEffect(() => {
+    const id = setInterval(() => {
+      refreshProfile();
+    }, 30_000);
+    return () => clearInterval(id);
+    // refreshProfile is provided by the auth provider and assumed stable
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleRefresh = async () => {
     await refreshProfile();
   };
@@ -32,8 +42,8 @@ export default function PendingApprovalPage() {
     <div className="flex min-h-screen items-center justify-center bg-background p-4">
       <div className="w-full max-w-md text-center space-y-6">
         <div className="flex justify-center">
-          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10">
-            <Clock className="h-8 w-8 text-amber-500" />
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[var(--color-field-info)]/10 animate-pulse">
+            <Clock className="h-8 w-8 text-[var(--color-field-info)]" />
           </div>
         </div>
 

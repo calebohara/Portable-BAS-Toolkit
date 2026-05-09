@@ -58,10 +58,7 @@ function DialogContent({
         )}
         {...props}
       >
-        <div
-          className="flex flex-col overflow-hidden rounded-xl"
-          style={{ maxHeight: '85vh' }}
-        >
+        <div className="flex flex-col overflow-hidden rounded-xl max-h-[85vh]">
           {children}
         </div>
         {showCloseButton && (
@@ -102,8 +99,7 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="dialog-body"
-      className={cn("flex-1 overflow-y-auto", className)}
-      style={{ minHeight: 0 }}
+      className={cn("flex-1 overflow-y-auto min-h-0", className)}
       {...props}
     />
   )

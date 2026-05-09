@@ -46,15 +46,15 @@
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
   /* Siemens brand colors */
-  --color-siemens-teal: #009999;
-  --color-siemens-teal-dark: #007a7a;
-  --color-siemens-teal-light: #00b3b3;
-  --color-siemens-petrol: #005f6a;
-  --color-siemens-navy: #1b1534;
-  --color-field-success: #22c55e;
-  --color-field-warning: #f59e0b;
-  --color-field-danger: #ef4444;
-  --color-field-info: #3b82f6;
+  --color-siemens-teal: oklch(0.62 0.11 195);
+  --color-siemens-teal-dark: oklch(0.52 0.10 195);
+  --color-siemens-teal-light: oklch(0.72 0.10 195);
+  --color-siemens-petrol: oklch(0.42 0.07 210);
+  --color-siemens-navy: oklch(0.20 0.05 280);
+  --color-field-success: oklch(0.68 0.18 145);
+  --color-field-warning: oklch(0.78 0.16 75);
+  --color-field-danger: oklch(0.62 0.22 27);
+  --color-field-info: oklch(0.62 0.18 250);
 }
 
 /* Siemens-inspired Light Theme */
@@ -126,6 +126,10 @@
   --sidebar-accent-foreground: oklch(0.93 0.005 240);
   --sidebar-border: oklch(0.25 0.01 260);
   --sidebar-ring: oklch(0.65 0.12 185);
+  --color-field-success: oklch(0.74 0.17 145);
+  --color-field-warning: oklch(0.82 0.15 75);
+  --color-field-danger: oklch(0.70 0.20 27);
+  --color-field-info: oklch(0.70 0.16 250);
 }
 
 @layer base {
@@ -144,18 +148,18 @@
     height: 6px;
   }
   *::-webkit-scrollbar-thumb {
-    background: oklch(0.7 0 0 / 20%);
-    border-radius: 3px;
+    background: color-mix(in oklch, var(--foreground) 25%, transparent);
+    border-radius: 9999px;
   }
   *::-webkit-scrollbar-thumb:hover {
-    background: oklch(0.7 0 0 / 40%);
+    background: color-mix(in oklch, var(--foreground) 45%, transparent);
   }
   *::-webkit-scrollbar-track {
     background: transparent;
   }
   * {
     scrollbar-width: thin;
-    scrollbar-color: oklch(0.7 0 0 / 20%) transparent;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 25%, transparent) transparent;
   }
 }
 
@@ -227,22 +231,8 @@
   to { opacity: 0.03; }
 }
 
-.dark .hp-grid-bg {
+.hp-grid-bg {
   animation: hp-grid-fade 1.5s ease-out forwards;
-}
-
-:root .hp-grid-bg {
-  animation: hp-grid-fade 1.5s ease-out forwards;
-}
-
-@keyframes hp-line-draw {
-  from { stroke-dashoffset: 100; }
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes hp-shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
 }
 
 /* Scroll reveal base class */
@@ -355,6 +345,12 @@
   box-shadow: 0 1px 0 oklch(1 0 0 / 5%);
 }
 
+@supports not (backdrop-filter: blur(16px)) {
+  .hp-glass-nav {
+    background: var(--background);
+  }
+}
+
 /* Premium button glow */
 .hp-btn-glow {
   position: relative;
@@ -395,7 +391,7 @@
   top: 36px;
   bottom: -12px;
   width: 1px;
-  background: linear-gradient(to bottom, var(--primary) / 30%, transparent);
+  background: linear-gradient(to bottom, color-mix(in oklch, var(--primary) 30%, transparent), transparent);
 }
 
 .hp-connector:last-child::before {
@@ -426,7 +422,7 @@
     to right,
     transparent,
     var(--border),
-    var(--primary) / 30%,
+    color-mix(in oklch, var(--primary) 30%, transparent),
     var(--border),
     transparent
   );
@@ -448,6 +444,11 @@
   .hp-card-surface:hover {
     transform: none;
   }
+  .hp-grid-bg { animation: none !important; }
+  .hp-tool-icon:hover { transform: none !important; }
+  .hp-btn-glow::after { transition: none !important; }
+  .hp-glass-nav { transition: none !important; }
+  .hp-card-surface { transition: none !important; }
 }
 
 /* ─── Maintenance Page Animations ────────────────────────────────────────── */
@@ -481,14 +482,9 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes mt-shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
 @keyframes mt-status-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 oklch(0.65 0.12 185 / 40%); }
-  50% { box-shadow: 0 0 0 6px oklch(0.65 0.12 185 / 0%); }
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklch, var(--primary) 40%, transparent); }
+  50% { box-shadow: 0 0 0 6px color-mix(in oklch, var(--primary) 0%, transparent); }
 }
 
 @keyframes mt-orb-drift-1 {

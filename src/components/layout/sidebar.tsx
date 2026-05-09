@@ -93,7 +93,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        'fixed left-0 top-0 z-40 flex h-full flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200',
+        'fixed left-0 top-0 z-50 flex h-full flex-col border-r border-sidebar-border bg-sidebar transition-all duration-200',
         // On mobile: slide off-screen when closed
         sidebarOpen ? 'translate-x-0 w-56' : '-translate-x-full w-56 md:translate-x-0 md:w-16'
       )}
@@ -101,7 +101,7 @@ export function Sidebar() {
       {/* Logo area */}
       <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-3" data-tour="sidebar-logo">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg overflow-hidden">
-          <img src="/icons/icon-small.svg" alt="BAU Suite" className="h-8 w-8" />
+          <img src="/icons/icon-small.svg" alt="BAU Suite" width={32} height={32} className="h-8 w-8" />
         </div>
         {sidebarOpen && (
           <div className="flex flex-col overflow-hidden">
@@ -131,6 +131,8 @@ export function Sidebar() {
               <button
                 type="button"
                 onClick={() => toggleGroup(group.label!)}
+                aria-expanded={!isCollapsed}
+                aria-controls={`nav-group-${gi}`}
                 className="mb-1 px-3 py-2 w-full flex items-center justify-between text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 hover:text-muted-foreground transition-colors"
               >
                 <span>{group.label}</span>
@@ -141,7 +143,7 @@ export function Sidebar() {
               <div className="mx-auto mb-1 h-px w-6 bg-sidebar-border hidden md:block" />
             )}
             {!isCollapsed && (
-            <div className="space-y-0.5">
+            <div id={`nav-group-${gi}`} className="space-y-0.5">
               {group.items.map(({ href, icon: Icon, label, tourId }) => {
                 // Normalize pathname for trailing slash, index.html, and catch-all fallback patterns.
                 // In Tauri static export, paths like /projects/_/ are used for dynamic routes.
@@ -217,7 +219,7 @@ export function Sidebar() {
 
         {/* Version + update notifier */}
         {sidebarOpen && (
-          <div className="hidden md:block space-y-1">
+          <div className="space-y-1">
             <div className="mb-0.5">
               <UpdateNotifier />
             </div>

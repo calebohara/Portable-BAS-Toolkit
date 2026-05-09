@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { X, ChevronLeft, ChevronRight, SkipForward } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useAppStore } from '@/store/app-store';
 import { TOUR_STEPS } from './tour-steps';
@@ -119,10 +120,21 @@ export function TourOverlay() {
       return () => clearTimeout(timer);
     }
 
-    // Small delay for DOM updates
-    const timer = setTimeout(positionTooltip, 150);
+    // Delay for DOM updates and sidebar slide animation (200ms) to settle
+    const timer = setTimeout(positionTooltip, 300);
     return () => clearTimeout(timer);
   }, [tourActive, tourStep, step, pathname, router, positionTooltip]);
+
+  // Focus the primary action button when tooltip appears or step changes
+  useEffect(() => {
+    if (visible) {
+      const t = setTimeout(() => {
+        const btn = tooltipRef.current?.querySelector<HTMLButtonElement>('[data-tour-primary]');
+        btn?.focus();
+      }, 50);
+      return () => clearTimeout(t);
+    }
+  }, [visible, tourStep]);
 
   // Reposition on resize/scroll
   useEffect(() => {
@@ -142,8 +154,12 @@ export function TourOverlay() {
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') endTour();
       if (e.key === 'ArrowRight' || e.key === 'Enter') {
-        if (isLast) endTour();
-        else nextTourStep();
+        if (isLast) {
+          endTour();
+          toast.success('Tour complete — you\'re ready to go!');
+        } else {
+          nextTourStep();
+        }
       }
       if (e.key === 'ArrowLeft' && !isFirst) prevTourStep();
     };
@@ -198,6 +214,10 @@ export function TourOverlay() {
       {/* Tooltip */}
       <div
         ref={tooltipRef}
+        role="dialog"
+        aria-modal="false"
+        aria-labelledby="tour-title"
+        aria-describedby="tour-content"
         className={cn(
           'absolute z-10 w-80 rounded-xl border border-border bg-popover p-4 shadow-xl transition-all duration-300',
           visible ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
@@ -219,8 +239,8 @@ export function TourOverlay() {
 
         {/* Content */}
         <div className="pr-6">
-          <h3 className="text-sm font-semibold text-foreground">{step.title}</h3>
-          <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{step.content}</p>
+          <h3 id="tour-title" className="text-sm font-semibold text-foreground">{step.title}</h3>
+          <p id="tour-content" className="mt-1 text-xs text-muted-foreground leading-relaxed">{step.content}</p>
         </div>
 
         {/* Footer */}
@@ -242,7 +262,15 @@ export function TourOverlay() {
             )}
             <Button
               size="sm"
-              onClick={() => { if (isLast) endTour(); else nextTourStep(); }}
+              data-tour-primary
+              onClick={() => {
+                if (isLast) {
+                  endTour();
+                  toast.success('Tour complete — you\'re ready to go!');
+                } else {
+                  nextTourStep();
+                }
+              }}
               className="h-7 px-3 text-xs gap-1"
             >
               {isLast ? 'Finish' : 'Next'}
@@ -252,7 +280,7 @@ export function TourOverlay() {
         </div>
 
         {/* Progress dots */}
-        <div className="mt-2 flex justify-center gap-1">
+        <div aria-hidden="true" className="mt-2 flex justify-center gap-1">
           {TOUR_STEPS.map((_, i) => (
             <div
               key={i}

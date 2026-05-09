@@ -24,6 +24,17 @@ export function ConfirmDialog({
   confirmLabel = 'Confirm', cancelLabel = 'Cancel',
   variant = 'default', onConfirm, loading,
 }: ConfirmDialogProps) {
+  const handleConfirm = async () => {
+    try {
+      await Promise.resolve(onConfirm());
+      onOpenChange(false);
+    } catch (err) {
+      console.error('Confirm action failed:', err);
+      toast.error('Action failed. Please try again.');
+      onOpenChange(false); // always close; parent can show error via toast
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
@@ -37,18 +48,9 @@ export function ConfirmDialog({
           </Button>
           <Button
             variant={variant === 'destructive' ? 'destructive' : 'default'}
-            onClick={() => {
-              const result = onConfirm();
-              if (result && typeof (result as Promise<unknown>).then === 'function') {
-                (result as Promise<unknown>).then(() => onOpenChange(false)).catch((err) => {
-                  console.error('Confirm action failed:', err);
-                  toast.error('Action failed. Please try again.');
-                });
-              } else {
-                onOpenChange(false);
-              }
-            }}
+            onClick={handleConfirm}
             disabled={loading}
+            aria-busy={loading}
           >
             {loading ? 'Processing...' : confirmLabel}
           </Button>

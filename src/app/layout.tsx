@@ -10,7 +10,7 @@ import { SyncProvider } from '@/providers/sync-provider';
 import './globals.css';
 
 const inter = Inter({ variable: '--font-sans', subsets: ['latin'], display: 'swap' });
-const jetbrainsMono = JetBrains_Mono({ variable: '--font-mono', subsets: ['latin'], display: 'swap' });
+const jetbrainsMono = JetBrains_Mono({ variable: '--font-mono', subsets: ['latin'], display: 'swap', preload: false });
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_URL || 'https://bau-suite.vercel.app'),
@@ -23,7 +23,6 @@ export const metadata: Metadata = {
       { url: '/favicons/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
       { url: '/favicons/favicon-48x48.png', sizes: '48x48', type: 'image/png' },
     ],
-    shortcut: '/favicon.ico',
     apple: [
       { url: '/icons/apple-touch-icon.png', sizes: '180x180' },
       { url: '/icons/apple-touch-icon-152.png', sizes: '152x152' },

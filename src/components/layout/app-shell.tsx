@@ -11,6 +11,7 @@ import { GlobalNotepad } from '@/components/notepad/global-notepad';
 import { WebUpdateBanner } from './web-update-banner';
 import { MaintenancePage } from '@/components/maintenance/maintenance-page';
 import { isMaintenanceMode } from '@/lib/maintenance';
+import { isTauri } from '@/lib/tauri-bridge';
 import { cn } from '@/lib/utils';
 import { silently } from '@/lib/error-reporting';
 import { ErrorBoundary } from './error-boundary';
@@ -62,11 +63,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Register service worker (skip in dev mode and Tauri)
   useEffect(() => {
     const isDev = process.env.NODE_ENV === 'development';
-    const isTauri = '__TAURI_INTERNALS__' in window;
+    const inTauri = isTauri();
 
-    if ('serviceWorker' in navigator && !isDev && !isTauri) {
+    if ('serviceWorker' in navigator && !isDev && !inTauri) {
       navigator.serviceWorker.register('/sw.js').catch(silently);
-    } else if ('serviceWorker' in navigator && (isDev || isTauri)) {
+    } else if ('serviceWorker' in navigator && (isDev || inTauri)) {
       // Unregister any previously registered SW to prevent stale caches
       navigator.serviceWorker.getRegistrations().then((registrations) => {
         for (const registration of registrations) {
@@ -100,8 +101,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => mq.removeEventListener('change', handler);
   }, [setSidebarOpen]);
 
-  // Maintenance gate: block all non-admin users when maintenance mode is active
-  if (isMaintenanceMode() && profile?.role !== 'admin') {
+  // Maintenance gate: block all non-admin users when maintenance mode is active.
+  // Wait for auth loading to complete and profile to resolve before locking out
+  // — otherwise admins can be briefly redirected during the auth bootstrap.
+  if (!authLoading && profile !== null && profile !== undefined && isMaintenanceMode() && profile.role !== 'admin') {
     return <MaintenancePage />;
   }
 
@@ -126,15 +129,30 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen">
+      {/* Skip-to-content link — WCAG 2.4.1 */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:ring-2 focus:ring-ring focus:ring-offset-2"
+      >
+        Skip to main content
+      </a>
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-30 bg-black/40 md:hidden"
+          className="fixed inset-0 z-40 bg-black/40 md:hidden"
           onClick={() => setSidebarOpen(false)}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ') setSidebarOpen(false);
+          }}
+          role="button"
+          aria-label="Close menu"
+          tabIndex={-1}
         />
       )}
       <Sidebar />
       <main
+        id="main-content"
+        tabIndex={-1}
         className={cn(
           'min-h-screen transition-all duration-200',
           // On mobile, no margin - sidebar overlays

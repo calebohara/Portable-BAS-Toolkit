@@ -63,6 +63,7 @@ export function BugReportDialog({ open, onOpenChange, pageTitle }: BugReportDial
     setSubmitting(true);
     try {
       const now = new Date().toISOString();
+      const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
       await saveBugReport({
         id: crypto.randomUUID(),
         title: title.trim(),
@@ -73,7 +74,7 @@ export function BugReportDialog({ open, onOpenChange, pageTitle }: BugReportDial
         appVersion: APP_VERSION,
         deviceClass,
         desktopOS,
-        currentPage: pageTitle ? `${pageTitle} (${window.location.pathname})` : window.location.pathname,
+        currentPage: pageTitle ? `${pageTitle} (${pathname})` : pathname,
         syncStatus,
         createdAt: now,
         updatedAt: now,
@@ -140,9 +141,9 @@ export function BugReportDialog({ open, onOpenChange, pageTitle }: BugReportDial
             </div>
 
             <div className="space-y-1.5">
-              <Label>Severity</Label>
+              <Label htmlFor="bug-severity">Severity</Label>
               <Select value={severity} onValueChange={(val) => setSeverity(val as BugReportSeverity)}>
-                <SelectTrigger className="w-full">
+                <SelectTrigger id="bug-severity" className="w-full">
                   <SelectValue placeholder="Select severity" />
                 </SelectTrigger>
                 <SelectContent>

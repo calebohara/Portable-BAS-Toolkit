@@ -1,23 +1,23 @@
 'use client';
 
-import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 import type { ProjectStatus, FileStatus } from '@/types';
 
-const projectStatusStyles: Record<ProjectStatus, string> = {
-  active: 'bg-field-success/10 text-field-success border-field-success/20',
-  'on-hold': 'bg-field-warning/10 text-field-warning border-field-warning/20',
-  completed: 'bg-primary/10 text-primary border-primary/20',
-  archived: 'bg-muted text-muted-foreground border-border',
+const projectStatusVariant: Record<ProjectStatus, 'success' | 'warning' | 'info' | 'outline'> = {
+  active: 'success',
+  'on-hold': 'warning',
+  completed: 'info',
+  archived: 'outline',
 };
 
-const fileStatusStyles: Record<FileStatus, string> = {
-  current: 'bg-field-success/10 text-field-success border-field-success/20',
-  previous: 'bg-muted text-muted-foreground border-border',
-  archived: 'bg-muted text-muted-foreground border-border',
-  'field-verified': 'bg-primary/10 text-primary border-primary/20',
-  superseded: 'bg-field-warning/10 text-field-warning border-field-warning/20',
-  'backup-snapshot': 'bg-field-info/10 text-field-info border-field-info/20',
-  obsolete: 'bg-field-danger/10 text-field-danger border-field-danger/20',
+const fileStatusVariant: Record<FileStatus, 'success' | 'warning' | 'info' | 'danger' | 'outline'> = {
+  current: 'success',
+  previous: 'outline',
+  archived: 'outline',
+  'field-verified': 'info',
+  superseded: 'warning',
+  'backup-snapshot': 'info',
+  obsolete: 'danger',
 };
 
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
@@ -25,9 +25,9 @@ export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
     active: 'Active', 'on-hold': 'On Hold', completed: 'Completed', archived: 'Archived',
   };
   return (
-    <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium', projectStatusStyles[status])}>
+    <Badge variant={projectStatusVariant[status]}>
       {labels[status]}
-    </span>
+    </Badge>
   );
 }
 
@@ -38,8 +38,8 @@ export function FileStatusBadge({ status }: { status: FileStatus }) {
     'backup-snapshot': 'Backup Snapshot', obsolete: 'Obsolete',
   };
   return (
-    <span className={cn('inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium', fileStatusStyles[status])}>
+    <Badge variant={fileStatusVariant[status]}>
       {labels[status]}
-    </span>
+    </Badge>
   );
 }

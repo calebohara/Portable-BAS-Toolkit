@@ -83,6 +83,13 @@ export default function ForgotPasswordPage() {
             <Button variant="outline" onClick={() => router.push('/login')} className="gap-2">
               <ArrowLeft className="h-4 w-4" /> Back to Sign In
             </Button>
+            <button
+              type="button"
+              className="text-xs text-muted-foreground underline-offset-4 hover:underline mt-1"
+              onClick={() => { setSent(false); setEmail(''); }}
+            >
+              Use a different email
+            </button>
           </div>
         </div>
       </div>

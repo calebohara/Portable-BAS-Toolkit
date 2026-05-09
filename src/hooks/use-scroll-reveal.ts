@@ -9,7 +9,7 @@ import { useEffect, useRef, useCallback } from 'react';
 export function useScrollReveal() {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const observe = useCallback(() => {
+  const observe = useCallback((): (() => void) | undefined => {
     const container = containerRef.current;
     if (!container) return;
 
@@ -42,8 +42,19 @@ export function useScrollReveal() {
   }, []);
 
   useEffect(() => {
-    const cleanup = observe();
-    return cleanup;
+    // First synchronous pass: try to set up the observer. If the ref isn't
+    // attached yet (children not rendered), retry on the next animation frame.
+    let cleanup = observe();
+    let raf: number | null = null;
+    if (!cleanup) {
+      raf = requestAnimationFrame(() => {
+        cleanup = observe();
+      });
+    }
+    return () => {
+      if (raf !== null) cancelAnimationFrame(raf);
+      if (cleanup) cleanup();
+    };
   }, [observe]);
 
   return containerRef;

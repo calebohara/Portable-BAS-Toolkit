@@ -95,10 +95,10 @@ export function InstallPrompt() {
 
             {/* Actions */}
             <div className="mt-3 flex items-center gap-2">
-              <Button size="sm" onClick={handleInstall} disabled={installing} className="h-8 px-3 text-xs">
+              <Button size="sm" onClick={handleInstall} disabled={installing} className="h-10 px-3 text-sm">
                 {installing ? 'Installing...' : 'Install'}
               </Button>
-              <Button size="sm" variant="ghost" onClick={handleDismiss} className="h-8 px-3 text-xs text-muted-foreground">
+              <Button size="sm" variant="ghost" onClick={handleDismiss} className="h-10 px-3 text-sm text-muted-foreground">
                 Not now
               </Button>
             </div>

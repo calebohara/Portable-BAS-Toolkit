@@ -189,7 +189,7 @@ export default function HomePage() {
                 style={{ animation: 'hp-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.1s', opacity: 0 }}
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                v{APP_VERSION}
+                BAS Field Toolkit · v{APP_VERSION}
               </div>
 
               <h1
@@ -253,7 +253,7 @@ export default function HomePage() {
               style={{ animation: 'hp-fade-in 1s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.4s', opacity: 0 }}
             >
               {/* Project card */}
-              <div className="hp-hero-card p-4" style={{ animationDelay: '0s' }}>
+              <div className="hp-hero-card will-change-transform p-4" style={{ animationDelay: '0s' }}>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active Project</span>
                   <span className="rounded-full bg-field-success/15 text-field-success text-[10px] font-bold px-2 py-0.5">Active</span>
@@ -269,7 +269,7 @@ export default function HomePage() {
 
               {/* IP Plan + Terminal row */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="hp-hero-card p-3.5" style={{ animationDelay: '1.3s' }}>
+                <div className="hp-hero-card will-change-transform p-3.5" style={{ animationDelay: '1.3s' }}>
                   <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">IP Plan</span>
                   <p className="font-mono text-sm font-bold mt-1 truncate">192.168.10.45</p>
                   <p className="text-[10px] text-muted-foreground">DDC-1 · VLAN 10</p>
@@ -279,7 +279,7 @@ export default function HomePage() {
                   </div>
                 </div>
                 <div
-                  className="hp-hero-card p-3.5 overflow-hidden"
+                  className="hp-hero-card will-change-transform p-3.5 overflow-hidden"
                   style={{ background: '#0d1117', borderColor: '#30363d', animationDelay: '0.7s' }}
                 >
                   <p className="font-mono text-[9px] text-green-500 mb-1.5">$ telnet 192.168.10.45</p>
@@ -290,7 +290,7 @@ export default function HomePage() {
               </div>
 
               {/* Ping results card */}
-              <div className="hp-hero-card p-4" style={{ animationDelay: '2s' }}>
+              <div className="hp-hero-card will-change-transform p-4" style={{ animationDelay: '2s' }}>
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Ping Results</span>
                 <div className="mt-2 space-y-1.5">
                   {[
@@ -321,7 +321,7 @@ export default function HomePage() {
               <p className="hp-reveal text-center text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-10">
                 What field engineers are saying
               </p>
-              <div className="hp-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div key={reviews.length} className="hp-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {reviews.map((r) => (
                   <div key={r.created_at} className="hp-reveal hp-card-surface p-5 flex flex-col gap-3">
                     <div className="flex items-center gap-1">
