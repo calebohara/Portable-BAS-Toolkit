@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { Suspense, useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { TopBar } from '@/components/layout/top-bar';
@@ -10,6 +10,7 @@ import { PpclStatusBar } from '@/components/ppcl-editor/ppcl-status-bar';
 import type { CursorPosition } from '@/components/ppcl-editor/ppcl-editor';
 import { usePpclDocuments } from '@/hooks/use-ppcl-documents';
 import { usePpclEditorStore } from '@/store/ppcl-editor-store';
+import { useAppStore } from '@/store/app-store';
 import { useProjects } from '@/hooks/use-projects';
 import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -45,6 +46,14 @@ function findDuplicatePpclLineNumbers(content: string): number[] {
 }
 
 export default function PpclEditorPage() {
+  return (
+    <Suspense fallback={<><TopBar title="PPCL Editor" /><div className="flex-1 flex items-center justify-center p-16" role="status" aria-live="polite"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" /></div></>}>
+      <PpclEditorPageInner />
+    </Suspense>
+  );
+}
+
+function PpclEditorPageInner() {
   const { documents, loading, addDocument, updateDocument, removeDocument } = usePpclDocuments();
   const activeTabId = usePpclEditorStore(s => s.activeTabId);
   const openTab = usePpclEditorStore(s => s.openTab);
@@ -53,6 +62,7 @@ export default function PpclEditorPage() {
   const setShowFilePanel = usePpclEditorStore(s => s.setShowFilePanel);
   const isFullscreen = usePpclEditorStore(s => s.isFullscreen);
   const setFullscreen = usePpclEditorStore(s => s.setFullscreen);
+  const sidebarOpen = useAppStore(s => s.sidebarOpen);
 
   const searchParams = useSearchParams();
 
@@ -209,7 +219,7 @@ export default function PpclEditorPage() {
     const handler = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key === 'n') { e.preventDefault(); handleOpenNewDialog(); }
-      if (mod && e.key === 'w') { e.preventDefault(); if (activeTabId) handleCloseTab(activeTabId); }
+      if (mod && e.key === 'w' && activeTabId) { e.preventDefault(); handleCloseTab(activeTabId); }
       if (e.key === 'Escape' && isFullscreen) setFullscreen(false);
       if (e.key === 'F11') { e.preventDefault(); setFullscreen(!isFullscreen); }
     };
@@ -241,7 +251,14 @@ export default function PpclEditorPage() {
     <div
       className={cn(
         'flex flex-col',
-        isFullscreen ? 'fixed inset-0 z-50 bg-background' : 'flex-1',
+        isFullscreen
+          // Fullscreen: cover the viewport but leave the sidebar visible on desktop so users can navigate away.
+          // z-30 keeps it below the sidebar (z-50), Dialog/Sheet (z-50), and TourOverlay (z-[9999]).
+          ? cn(
+              'fixed inset-0 z-30 bg-background',
+              sidebarOpen ? 'md:left-56' : 'md:left-16',
+            )
+          : 'flex-1',
       )}
       style={!isFullscreen ? { height: 'calc(100vh - 3.5rem)' } : undefined}
       onDrop={handleDrop}

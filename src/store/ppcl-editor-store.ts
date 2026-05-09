@@ -71,6 +71,7 @@ export const usePpclEditorStore = create<PpclEditorState>()(
     }),
     {
       name: 'bau-suite-ppcl-editor',
+      version: 2,
       partialize: (state) => ({
         openTabIds: state.openTabIds,
         activeTabId: state.activeTabId,
@@ -80,6 +81,26 @@ export const usePpclEditorStore = create<PpclEditorState>()(
         lineStep: state.lineStep,
         showFilePanel: state.showFilePanel,
       }),
+      // v2 migration: strip any legacy isFullscreen flag that may have been
+      // persisted by older builds. Leaving it in localStorage could cause the
+      // editor to mount in fullscreen mode, where its `fixed inset-0 z-50`
+      // overlay covers the sidebar and traps the user on the page.
+      migrate: (persistedState) => {
+        if (persistedState && typeof persistedState === 'object') {
+          const next = { ...(persistedState as Record<string, unknown>) };
+          delete next.isFullscreen;
+          return next as unknown as PpclEditorState;
+        }
+        return persistedState as PpclEditorState;
+      },
+      // Defensive merge: even if a future schema change re-introduces
+      // isFullscreen to localStorage, never honour a persisted `true` value
+      // on hydration — fullscreen must always be opted-in per session.
+      merge: (persistedState, currentState) => {
+        const merged = { ...currentState, ...(persistedState as Partial<PpclEditorState>) };
+        merged.isFullscreen = false;
+        return merged;
+      },
     }
   )
 );
