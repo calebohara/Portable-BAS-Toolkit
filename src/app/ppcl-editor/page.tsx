@@ -62,7 +62,20 @@ function PpclEditorPageInner() {
   const setShowFilePanel = usePpclEditorStore(s => s.setShowFilePanel);
   const isFullscreen = usePpclEditorStore(s => s.isFullscreen);
   const setFullscreen = usePpclEditorStore(s => s.setFullscreen);
+  const resetTransientUi = usePpclEditorStore(s => s.resetTransientUi);
   const sidebarOpen = useAppStore(s => s.sidebarOpen);
+
+  // Defense in depth: reset transient UI flags (isFullscreen) on unmount so
+  // navigating away from the PPCL editor can never strand the user in a
+  // state where the editor's fullscreen overlay or any other transient
+  // flag persists into the next page. The persist `merge` already strips
+  // `isFullscreen` on rehydrate; this covers the in-memory case where the
+  // store survives a route change without rehydrating.
+  useEffect(() => {
+    return () => {
+      resetTransientUi();
+    };
+  }, [resetTransientUi]);
 
   const searchParams = useSearchParams();
 
@@ -236,6 +249,27 @@ function PpclEditorPageInner() {
     if (file) handleImportFile(file);
   }, [handleImportFile]);
 
+  // Window-level safety net: if a drag is aborted, ends outside the editor,
+  // or is captured by the OS file dialog mid-flight, the local onDragLeave
+  // may never fire. Without this, `dragOver` stays `true` and the visual
+  // overlay (even with pointer-events-none) makes the editor look locked.
+  // Listen to global dragend/drop/Escape to guarantee the state self-recovers.
+  useEffect(() => {
+    if (!dragOver) return;
+    const reset = () => setDragOver(false);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setDragOver(false); };
+    window.addEventListener('dragend', reset);
+    window.addEventListener('drop', reset);
+    window.addEventListener('mouseup', reset);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('dragend', reset);
+      window.removeEventListener('drop', reset);
+      window.removeEventListener('mouseup', reset);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [dragOver]);
+
   if (loading) {
     return (
       <>
@@ -285,7 +319,11 @@ function PpclEditorPageInner() {
 
       <div className="flex flex-1 min-h-0 relative">
         {dragOver && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-lg">
+          // pointer-events-none: visual-only hint. If the dragOver flag ever gets
+          // stuck (drag aborted by system dialog, dropped outside viewport, etc.)
+          // this overlay must never block clicks on the editor or file panel.
+          // Drag events still reach the parent because they bubble.
+          <div className="absolute inset-0 z-20 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-lg pointer-events-none">
             <div className="text-center">
               <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
               <p className="text-sm font-medium text-primary">Drop .pcl file to import</p>

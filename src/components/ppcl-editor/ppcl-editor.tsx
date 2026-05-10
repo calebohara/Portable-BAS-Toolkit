@@ -126,6 +126,25 @@ export function PpclEditorComponent({
           run: (view) => { openSearchPanel(view); return true; },
         },
       ]),
+      // Escape blurs the editor so keyboard users can navigate away
+      // (Tab to sidebar, browser shortcuts, etc.). Without this, CodeMirror's
+      // contenteditable captures focus and there is no keyboard escape route —
+      // users feel "trapped" in the editor once they click into it.
+      // Prec.high so this runs before any extension that might consume Escape
+      // (e.g. autocomplete close), but autocomplete's Escape handler returns
+      // true and stops propagation only when a completion is open, so this is
+      // safe — Escape closes completions first, then a second Escape blurs.
+      Prec.high(keymap.of([
+        {
+          key: 'Escape',
+          run: (view) => {
+            // Only blur if no completion/search panel is consuming Escape
+            // (those return true from their own handlers and prevent us from running).
+            view.contentDOM.blur();
+            return true;
+          },
+        },
+      ])),
       ppclLineLengthEnforcement(charLimit),
       ppclGotoNavigation(),
     ];
