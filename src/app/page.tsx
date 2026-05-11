@@ -43,7 +43,7 @@ const toolGroups = [
       { icon: Calculator, name: 'Register Tool', desc: 'Decode any BACnet, Modbus, or LonWorks value — hex, IEEE 754, byte order, and addressing' },
       { icon: Gauge, name: 'PID Tuning', desc: 'Stop guessing on loop parameters. Ziegler-Nichols and Cohen-Coon calculators with symptom diagnosis' },
       { icon: Thermometer, name: 'Psychrometric', desc: 'Calculate moist air properties for AHU commissioning — mixed air, coil loads, and comfort zones' },
-      { icon: TrendingUp, name: 'Trend Viewer', desc: 'Upload BAS trend CSVs from any platform, overlay multi-series data, detect stuck sensors and anomalies, and export clean reports' },
+      { icon: TrendingUp, name: 'Trend Viewer', desc: 'Overlay BAS trend CSVs from any platform — detect stuck sensors and anomalies, then export clean reports' },
     ],
   },
   {
@@ -78,18 +78,18 @@ const workflowSteps = [
 ];
 
 const platformPillars = [
-  { icon: Layers, title: 'Unified workspace', desc: 'Projects, files, IP plans, device lists, notes, and diagnostics — all linked and searchable. Stop switching apps mid-job.' },
-  { icon: WifiOff, title: 'Offline-first, always', desc: 'Everything stored locally. Pin projects before heading to site. Works without Wi-Fi, VPN, or cellular — no excuses.' },
-  { icon: Wrench, title: 'Built-in diagnostics', desc: 'Terminal, web panel viewer, ping, register decoder, PID tuner, psychrometric calculator — no extra software needed.' },
+  { icon: Layers, title: 'Unified workspace', desc: 'Projects, files, IP plans, device lists, notes, and diagnostics — all linked and searchable in one place.' },
+  { icon: WifiOff, title: 'Offline-first', desc: 'Everything stored locally. Pin projects before heading to site, then work without Wi-Fi, VPN, or cellular.' },
+  { icon: Wrench, title: 'Built-in diagnostics', desc: 'Terminal, web panel viewer, ping, register decoder, PID tuner, and psychrometric calculator — no extra software needed.' },
   { icon: ClipboardList, title: 'Professional documentation', desc: 'Structured daily reports, versioned file uploads, and one-click export to Teams, Outlook, and PDF with full audit trails.' },
   { icon: Globe, title: 'Team collaboration', desc: 'Global Projects with access codes, role-based permissions, real-time activity tracking, and a shared knowledge base.' },
 ];
 
 const fieldBenefits = [
-  { icon: Layers, title: 'One platform, not ten apps', desc: 'Stop switching between spreadsheets, file shares, note apps, terminal emulators, and IP scanners.' },
-  { icon: WifiOff, title: 'Works offline in the field', desc: 'All data stored locally. Pin projects before heading to the job site. No Wi-Fi, VPN, or hotspot required.' },
-  { icon: Zap, title: 'Built for field speed', desc: 'Quick upload from any page, global Cmd+K search, keyboard shortcuts, and fast navigation across all project data.' },
-  { icon: Database, title: 'Your data, your control', desc: 'Local-first means device configs and project data stay private by default. Cloud sync is opt-in, never forced.' },
+  { icon: Layers, title: 'One workspace, not a stack of tools', desc: 'No more bouncing between spreadsheets, file shares, note apps, terminal emulators, and IP scanners.' },
+  { icon: WifiOff, title: 'Works without signal', desc: 'Data lives on your device. Pin projects before you leave — no Wi-Fi, VPN, or hotspot required on site.' },
+  { icon: Zap, title: 'Built for field speed', desc: 'Quick upload from any page, global Cmd+K search, and keyboard shortcuts across every project view.' },
+  { icon: Database, title: 'Your data, your control', desc: 'Device configs and project data stay local by default. Cloud sync is opt-in, never forced.' },
 ];
 
 
@@ -128,11 +128,18 @@ export default function HomePage() {
   const goSignup = () => isTauri ? window.location.assign('/login?tab=signup') : router.push('/login?tab=signup');
   const goLogin = () => isTauri ? window.location.assign('/login') : router.push('/login');
 
+  // Short-circuit on Tauri: this landing page is the web marketing surface only.
+  // Without this guard the desktop app paints ~800 lines of DOM, runs every
+  // hp-fade animation, and only then redirects to /login. Skip all of it.
+  if (isTauri) {
+    return null;
+  }
+
   return (
     <div ref={scrollRef} className="min-h-screen bg-background">
 
       {/* ── Glass Navigation ─────────────────────────────────────────── */}
-      <header className="hp-glass-nav sticky top-0 z-40 border-b border-border/50">
+      <header className="hp-glass-nav sticky top-0 z-40">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg overflow-hidden">
@@ -154,7 +161,7 @@ export default function HomePage() {
                   Sign In
                 </Button>
                 <Button size="sm" onClick={goSignup} className="gap-1.5 hp-btn-glow">
-                  Get Started <ArrowRight className="h-3.5 w-3.5" />
+                  Get Started Free <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               </>
             )}
@@ -189,23 +196,23 @@ export default function HomePage() {
                 style={{ animation: 'hp-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.1s', opacity: 0 }}
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                BAS Field Toolkit · v{APP_VERSION}
+                <span>BAS Field Toolkit</span>
+                <span className="text-muted-foreground/50" aria-hidden="true">·</span>
+                <span className="font-mono text-[11px] tabular-nums">v{APP_VERSION}</span>
               </div>
 
               <h1
-                className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight"
-                style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.2s', opacity: 0, lineHeight: '1.1' }}
+                className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-balance"
+                style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.2s', opacity: 0, lineHeight: '1.05' }}
               >
-                Stop carrying<br />
-                <span className="text-primary">five apps</span><br />
-                into the field
+                Stop carrying <span className="text-primary whitespace-nowrap">five apps</span> into the field
               </h1>
 
               <p
                 className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed max-w-lg"
                 style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.35s', opacity: 0 }}
               >
-                One offline-first workspace for BAS technicians and controls engineers.
+                One workspace for BAS technicians and controls engineers.
                 Projects, diagnostics, documentation, and terminal access — on site or in the office, with or without Wi-Fi.
               </p>
 
@@ -222,7 +229,7 @@ export default function HomePage() {
                     <Button size="lg" onClick={goSignup} className="gap-2 hp-btn-glow">
                       <UserPlus className="h-4 w-4" /> Get Started Free
                     </Button>
-                    <Button size="lg" variant="outline" onClick={goLogin} className="gap-2">
+                    <Button size="lg" variant="ghost" onClick={goLogin} className="gap-1.5 text-muted-foreground hover:text-foreground">
                       Sign In <ArrowRight className="h-4 w-4" />
                     </Button>
                   </>
@@ -235,12 +242,12 @@ export default function HomePage() {
                 style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.65s', opacity: 0 }}
               >
                 {[
-                  { value: '19+', label: 'Integrated tools' },
+                  { value: '19', label: 'Integrated tools' },
                   { value: '100%', label: 'Offline-capable' },
                   { value: 'Free', label: 'To get started' },
                 ].map(({ value, label }) => (
                   <div key={label}>
-                    <p className="text-2xl font-bold tracking-tight">{value}</p>
+                    <p className="text-2xl font-bold tracking-tight tabular-nums">{value}</p>
                     <p className="text-xs text-muted-foreground">{label}</p>
                   </div>
                 ))}
@@ -269,8 +276,8 @@ export default function HomePage() {
 
               {/* IP Plan + Terminal row */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="hp-hero-card will-change-transform p-3.5" style={{ animationDelay: '1.3s' }}>
-                  <span className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">IP Plan</span>
+                <div className="hp-hero-card will-change-transform p-3.5" style={{ animationDelay: '-2.6s' }}>
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">IP Plan</span>
                   <p className="font-mono text-sm font-bold mt-1 truncate">192.168.10.45</p>
                   <p className="text-[10px] text-muted-foreground">DDC-1 · VLAN 10</p>
                   <div className="mt-1.5 flex items-center gap-1">
@@ -280,17 +287,21 @@ export default function HomePage() {
                 </div>
                 <div
                   className="hp-hero-card will-change-transform p-3.5 overflow-hidden"
-                  style={{ background: '#0d1117', borderColor: '#30363d', animationDelay: '0.7s' }}
+                  style={{
+                    background: 'var(--color-terminal-bg)',
+                    borderColor: 'var(--color-terminal-border)',
+                    animationDelay: '-1.3s',
+                  }}
                 >
-                  <p className="font-mono text-[9px] text-green-500 mb-1.5">$ telnet 192.168.10.45</p>
-                  <p className="font-mono text-[10px] text-green-400">PSTATUS: ACTIVE</p>
-                  <p className="font-mono text-[10px] text-green-400">AO1 = 65.3%</p>
-                  <p className="font-mono text-[10px] text-green-400">SP  = 68.0°F</p>
+                  <p className="font-mono text-[10px] mb-1.5" style={{ color: 'var(--color-terminal-prompt)' }}>$ telnet 192.168.10.45</p>
+                  <p className="font-mono text-[10px]" style={{ color: 'var(--color-terminal-text)' }}>PSTATUS: ACTIVE</p>
+                  <p className="font-mono text-[10px]" style={{ color: 'var(--color-terminal-text)' }}>AO1 = 65.3%</p>
+                  <p className="font-mono text-[10px]" style={{ color: 'var(--color-terminal-text)' }}>SP  = 68.0°F</p>
                 </div>
               </div>
 
               {/* Ping results card */}
-              <div className="hp-hero-card will-change-transform p-4" style={{ animationDelay: '2s' }}>
+              <div className="hp-hero-card will-change-transform p-4" style={{ animationDelay: '-3.4s' }}>
                 <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Ping Results</span>
                 <div className="mt-2 space-y-1.5">
                   {[
@@ -314,6 +325,10 @@ export default function HomePage() {
       </section>
 
       {/* ── Social Proof ─────────────────────────────────────────────── */}
+      {/* Hide entire section for unauthed visitors when no reviews exist —
+          empty social proof signals "no one uses this" and crushes conversion.
+          Authed users still see the soft prompt to seed the first review. */}
+      {(reviews.length > 0 || isAuthed) && (
       <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           {reviews.length > 0 ? (
@@ -354,14 +369,11 @@ export default function HomePage() {
             </>
           ) : (
             <div className="text-center">
-              <div className="hp-reveal mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 mb-5">
-                <Star className="h-7 w-7 text-primary" />
+              <div className="hp-reveal mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 mb-4">
+                <Star className="h-6 w-6 text-primary" />
               </div>
-              <h2 className="hp-reveal text-2xl sm:text-3xl font-bold tracking-tight mb-3">
-                User Reviews Coming Soon
-              </h2>
-              <p className="hp-reveal text-sm text-muted-foreground max-w-md mx-auto mb-6">
-                We&apos;re collecting feedback from field engineers. Your review will appear here.
+              <p className="hp-reveal text-sm text-muted-foreground max-w-md mx-auto mb-5">
+                Used BAU Suite on a job? Share what worked — and what didn&apos;t.
               </p>
               {isAuthed && (
                 <Button
@@ -377,6 +389,7 @@ export default function HomePage() {
           )}
         </div>
       </section>
+      )}
 
       {/* ── Workflow ─────────────────────────────────────────────────── */}
       <section className="py-16 sm:py-20">
@@ -385,18 +398,20 @@ export default function HomePage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Workflow</p>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">How it works in the field</h2>
             <p className="mt-3 text-base text-muted-foreground max-w-xl">
-              A connected workflow built around the real rhythm of BAS commissioning, service, and troubleshooting.
+              A connected workflow that mirrors how a job actually runs — from project pin to customer handoff.
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {workflowSteps.map(({ step, title, desc }) => (
               <div key={step} className="hp-reveal hp-card-surface p-5 sm:p-6 group flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-mono text-xs font-bold border border-primary/20 bg-primary/8 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-mono text-xs font-bold border border-primary/20 bg-primary/10 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary">
                   {step}
                 </div>
                 <div className="min-w-0">
-                  <h4 className="text-sm font-semibold mb-1">{title}</h4>
+                  {/* h3 (was h4): workflow section jumped h2 → h4. Promote to
+                      h3 so the heading outline stays linear for screen readers. */}
+                  <h3 className="text-sm font-semibold mb-1">{title}</h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
                 </div>
               </div>
@@ -454,7 +469,7 @@ export default function HomePage() {
               Everything a BAS technician carries — in one platform
             </h2>
             <p className="mt-4 text-base text-muted-foreground leading-relaxed">
-              BAU Suite centralizes the project data, diagnostic tools, and documentation workflows that field engineers use every day.
+              BAU Suite consolidates the project data, diagnostic tools, and documentation workflows that field engineers reach for on every job.
             </p>
           </div>
 
@@ -462,7 +477,7 @@ export default function HomePage() {
             {platformPillars.map(({ icon: Icon, title, desc }) => (
               <div key={title} className="hp-reveal hp-card-surface p-6">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="hp-tool-icon rounded-xl bg-primary/8 p-2.5 border border-primary/10">
+                  <div className="hp-tool-icon rounded-xl bg-primary/10 p-2.5 border border-primary/15">
                     <Icon className="h-5 w-5 text-primary" />
                   </div>
                   <h3 className="text-sm font-semibold">{title}</h3>
@@ -478,8 +493,8 @@ export default function HomePage() {
       <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="hp-reveal mb-12">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Why it matters</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Built for the field</h2>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Field-first</p>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Made for site work</h2>
             <p className="mt-3 text-base text-muted-foreground max-w-xl">
               Designed around the real constraints of BAS commissioning, service, and troubleshooting.
             </p>
@@ -488,7 +503,7 @@ export default function HomePage() {
           <div className="hp-stagger grid gap-4 sm:grid-cols-2">
             {fieldBenefits.map(({ icon: Icon, title, desc }) => (
               <div key={title} className="hp-reveal hp-card-surface p-6 flex gap-4">
-                <div className="hp-tool-icon rounded-xl bg-primary/8 p-3 border border-primary/10 shrink-0 self-start">
+                <div className="hp-tool-icon rounded-xl bg-primary/10 p-3 border border-primary/15 shrink-0 self-start">
                   <Icon className="h-5 w-5 text-primary" />
                 </div>
                 <div>
@@ -507,10 +522,10 @@ export default function HomePage() {
           <div className="hp-reveal">
             <div
               className="relative overflow-hidden rounded-2xl border border-primary/15"
-              style={{ background: 'linear-gradient(135deg, var(--color-siemens-teal) 0%, var(--color-siemens-petrol) 100%)' }}
+              style={{ background: 'var(--gradient-brand)' }}
             >
               <div className="absolute inset-0 opacity-10" style={{
-                backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+                backgroundImage: 'var(--pattern-brand-grid)',
                 backgroundSize: '32px 32px',
               }} />
               <div className="relative px-6 sm:px-12 py-10 sm:py-14">
@@ -535,6 +550,10 @@ export default function HomePage() {
                     >
                       <Download className="h-4 w-4" /> Download for Windows <ArrowRight className="h-4 w-4" />
                     </Button>
+                    {/* Acknowledge Mac/Linux users so they don't bounce on a Windows-only CTA */}
+                    <p className="mt-3 text-xs text-white/60">
+                      Mac &amp; Linux users: the full web app works in any modern browser.
+                    </p>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     {[
@@ -543,7 +562,7 @@ export default function HomePage() {
                       { icon: TerminalSquare, title: 'Desktop terminal', desc: 'Native performance' },
                       { icon: Shield, title: 'Signed & auto-updating', desc: 'Trusted installer' },
                     ].map(({ icon: Icon, title, desc }) => (
-                      <div key={title} className="rounded-xl border border-white/10 bg-white/8 backdrop-blur-sm p-4">
+                      <div key={title} className="rounded-xl border border-white/15 bg-white/10 backdrop-blur-sm p-4">
                         <Icon className="h-5 w-5 text-white/80 mb-2" />
                         <p className="text-sm font-semibold text-white">{title}</p>
                         <p className="text-xs text-white/60">{desc}</p>
@@ -624,7 +643,7 @@ export default function HomePage() {
                           <Cloud className="h-4 w-4 text-primary" />
                           <div>
                             <p className="text-sm font-bold">Pro</p>
-                            <p className="text-xs text-muted-foreground">Cloud Sync</p>
+                            <p className="text-xs text-muted-foreground">Sync across devices</p>
                           </div>
                         </div>
                         <div className="text-right">
@@ -646,7 +665,7 @@ export default function HomePage() {
                           <Users className="h-4 w-4 text-field-info" />
                           <div>
                             <p className="text-sm font-bold">Team</p>
-                            <p className="text-xs text-muted-foreground">Collaborate</p>
+                            <p className="text-xs text-muted-foreground">Collaborate in real time</p>
                           </div>
                         </div>
                         <div className="text-right">
@@ -661,8 +680,15 @@ export default function HomePage() {
                       </div>
                     </div>
 
-                    <Button size="lg" onClick={() => router.push(user ? '/settings' : '/login')} className="w-full gap-2 hp-btn-glow">
-                      <Zap className="h-4 w-4" /> {user ? 'View Plans' : 'Get Started Free'}
+                    {/* Authed: route to settings to manage subscription. Unauthed: route to
+                        signup tab so the CTA matches its label ("Get Started Free" should land
+                        on signup, not the default signin tab). */}
+                    <Button size="lg" onClick={user ? () => router.push('/settings') : goSignup} className="w-full gap-2 hp-btn-glow">
+                      {user ? (
+                        <><Zap className="h-4 w-4" /> Manage Subscription</>
+                      ) : (
+                        <><UserPlus className="h-4 w-4" /> Start Free Trial</>
+                      )}
                     </Button>
                   </div>
                 ) : (
@@ -692,10 +718,10 @@ export default function HomePage() {
       <section className="py-16 sm:py-24">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="hp-reveal relative rounded-2xl overflow-hidden" style={{
-            background: 'linear-gradient(135deg, var(--color-siemens-teal) 0%, var(--color-siemens-petrol) 100%)',
+            background: 'var(--gradient-brand)',
           }}>
             <div className="absolute inset-0 opacity-10" style={{
-              backgroundImage: 'linear-gradient(to right, white 1px, transparent 1px), linear-gradient(to bottom, white 1px, transparent 1px)',
+              backgroundImage: 'var(--pattern-brand-grid)',
               backgroundSize: '32px 32px',
             }} />
             <div className="relative px-6 sm:px-12 py-12 sm:py-16 text-center">
@@ -705,7 +731,7 @@ export default function HomePage() {
                     Welcome back
                   </h2>
                   <p className="mt-3 text-sm text-white/70 max-w-md mx-auto">
-                    Your workspace is ready. All data is stored locally with secure cloud sync.
+                    Your workspace is ready. Data stays on your device — cloud sync is there when you need it.
                   </p>
                   <Button
                     size="lg"
@@ -721,7 +747,7 @@ export default function HomePage() {
                     Ready to simplify your fieldwork?
                   </h2>
                   <p className="mt-3 text-sm text-white/70 max-w-md mx-auto">
-                    Create a free account. All local features are free forever — upgrade when you need cloud sync or team collaboration.
+                    Create a free account in under a minute. Upgrade only when you need cloud sync or team collaboration.
                   </p>
                   <Button
                     size="lg"
@@ -730,6 +756,9 @@ export default function HomePage() {
                   >
                     <UserPlus className="h-4 w-4" /> Get Started Free
                   </Button>
+                  <p className="mt-3 text-xs text-white/60">
+                    No credit card required.
+                  </p>
                 </>
               )}
             </div>
@@ -750,7 +779,7 @@ export default function HomePage() {
                 <span className="text-sm font-semibold">BAU Suite</span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                The unified platform for BAS technicians and controls engineers. Offline-first. Field-ready.
+                The unified workspace for BAS technicians and controls engineers.
               </p>
               <p className="text-xs text-muted-foreground mt-3">v{APP_VERSION}</p>
             </div>
@@ -759,11 +788,11 @@ export default function HomePage() {
             <div>
               <p className="text-xs font-semibold uppercase tracking-wider mb-3">Product</p>
               <div className="space-y-2 text-xs text-muted-foreground">
-                <button onClick={() => router.push('/dashboard')} className="block hover:text-foreground transition-colors">Dashboard</button>
-                <button onClick={() => router.push('/projects')} className="block hover:text-foreground transition-colors">Projects</button>
-                <button onClick={() => router.push('/help')} className="block hover:text-foreground transition-colors">Help & Guides</button>
+                <button onClick={() => router.push('/dashboard')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Dashboard</button>
+                <button onClick={() => router.push('/projects')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Projects</button>
+                <button onClick={() => router.push('/help')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Help & Guides</button>
                 {isPaywallEnabled() && (
-                  <button onClick={() => router.push('/settings')} className="block hover:text-foreground transition-colors">Pricing</button>
+                  <button onClick={() => router.push('/settings')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Pricing</button>
                 )}
               </div>
             </div>
@@ -773,17 +802,17 @@ export default function HomePage() {
               <p className="text-xs font-semibold uppercase tracking-wider mb-3">Account</p>
               <div className="space-y-2 text-xs text-muted-foreground">
                 {!isAuthed && (
-                  <button onClick={goSignup} className="block hover:text-foreground transition-colors">Create Account</button>
+                  <button onClick={goSignup} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Create Account</button>
                 )}
                 {!isAuthed && (
-                  <button onClick={goLogin} className="block hover:text-foreground transition-colors">Sign In</button>
+                  <button onClick={goLogin} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Sign In</button>
                 )}
                 {isAuthed && (
-                  <button onClick={goApp} className="block hover:text-foreground transition-colors">Go to Dashboard</button>
+                  <button onClick={goApp} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Go to Dashboard</button>
                 )}
-                <button onClick={() => router.push('/settings')} className="block hover:text-foreground transition-colors">Settings</button>
+                <button onClick={() => router.push('/settings')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Settings</button>
                 {!isPaywallEnabled() && (
-                  <button onClick={() => router.push('/donate')} className="block hover:text-foreground transition-colors">Donate</button>
+                  <button onClick={() => router.push('/donate')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Donate</button>
                 )}
               </div>
             </div>

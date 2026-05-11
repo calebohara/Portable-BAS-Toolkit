@@ -55,6 +55,20 @@
   --color-field-warning: oklch(0.78 0.16 75);
   --color-field-danger: oklch(0.62 0.22 27);
   --color-field-info: oklch(0.62 0.18 250);
+  /* Terminal palette — used by hero terminal preview and any embedded
+     terminal-style cards. Matches the GitHub dark canvas (#0d1117 / #30363d)
+     intentionally to read as "real terminal" regardless of app theme. */
+  --color-terminal-bg: #0d1117;
+  --color-terminal-border: #30363d;
+  --color-terminal-prompt: oklch(0.72 0.20 145);
+  --color-terminal-text: oklch(0.78 0.18 145);
+  /* Brand gradient — Siemens teal → petrol diagonal. Used on hero
+     book-end banners (Desktop App + final CTA). Tokenized so both
+     surfaces stay locked together. */
+  --gradient-brand: linear-gradient(135deg, var(--color-siemens-teal) 0%, var(--color-siemens-petrol) 100%);
+  /* Brand grid overlay — used on dark gradient banners for texture. */
+  --pattern-brand-grid: linear-gradient(to right, white 1px, transparent 1px),
+                        linear-gradient(to bottom, white 1px, transparent 1px);
 }
 
 /* Siemens-inspired Light Theme */
@@ -428,8 +442,13 @@
   );
 }
 
-/* Reduce motion for accessibility */
+/* Reduce motion for accessibility.
+   IMPORTANT: hero copy uses inline `style={{ animation, opacity: 0 }}` to fade in.
+   With reduced motion we must (a) cancel the animation and (b) force opacity:1 so
+   the text never gets stuck invisible. The `[style*="hp-fade"]` selector targets
+   any inline style that references our hp-fade-up / hp-fade-in keyframes. */
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
   .hp-reveal {
     opacity: 1;
     transform: none;
@@ -444,11 +463,32 @@
   .hp-card-surface:hover {
     transform: none;
   }
-  .hp-grid-bg { animation: none !important; }
+  .hp-grid-bg { animation: none !important; opacity: 0.03 !important; }
   .hp-tool-icon:hover { transform: none !important; }
   .hp-btn-glow::after { transition: none !important; }
   .hp-glass-nav { transition: none !important; }
   .hp-card-surface { transition: none !important; }
+  /* Force inline-animated hero elements visible when motion is reduced. */
+  [style*="hp-fade-up"],
+  [style*="hp-fade-in"] {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .animate-pulse { animation: none !important; }
+}
+
+/* Stronger focus-visible ring for footer plain buttons and inline link-style
+   buttons that don't inherit shadcn Button styles. Keeps the visual minimal
+   while guaranteeing keyboard discoverability. */
+.hp-link-btn {
+  border-radius: 4px;
+  outline: none;
+  transition: color 0.2s ease;
+}
+.hp-link-btn:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
 }
 
 /* ─── Maintenance Page Animations ────────────────────────────────────────── */
