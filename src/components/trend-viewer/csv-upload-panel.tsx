@@ -30,8 +30,8 @@ export function CsvUploadPanel({ onFilesLoaded, existingSeriesCount }: CsvUpload
     let offset = existingSeriesCount;
 
     for (const file of Array.from(files)) {
-      if (!file.name.match(/\.(csv|tsv|txt)$/i)) {
-        toast.error(`Skipped ${file.name} — not a CSV/TSV/TXT file`);
+      if (!file.name.match(/\.csv$/i)) {
+        toast.error(`Skipped ${file.name} — not a CSV file`);
         continue;
       }
       try {
@@ -108,7 +108,7 @@ export function CsvUploadPanel({ onFilesLoaded, existingSeriesCount }: CsvUpload
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,.tsv,.txt"
+          accept=".csv"
           multiple
           className="hidden"
           onChange={e => e.target.files && handleFiles(e.target.files)}

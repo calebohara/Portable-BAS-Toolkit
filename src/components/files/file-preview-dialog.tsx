@@ -22,7 +22,7 @@ interface Props {
 type PreviewState = 'loading' | 'ready' | 'unsupported' | 'error';
 
 const PREVIEWABLE_IMAGES = ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp'];
-const PREVIEWABLE_TEXT = ['txt', 'csv', 'json', 'xml', 'log', 'md', 'cfg', 'ini', 'yaml', 'yml'];
+const PREVIEWABLE_TEXT = ['txt', 'csv', 'json', 'xml', 'log', 'md', 'cfg', 'ini', 'yaml', 'yml', 'pcl'];
 
 function getPreviewType(ext: string): 'pdf' | 'image' | 'text' | 'unsupported' {
   const lower = ext.toLowerCase().replace('.', '');
