@@ -19,6 +19,8 @@ const iconMap: Record<string, { icon: typeof FileText; color: string }> = {
   pxc: { icon: Database, color: 'text-primary' },
   bak: { icon: Database, color: 'text-primary' },
   db: { icon: Database, color: 'text-primary' },
+  p2: { icon: Database, color: 'text-primary' },
+  pcl: { icon: FileCode, color: 'text-muted-foreground' },
 };
 
 export function FileIcon({ fileType, className }: { fileType: string; className?: string }) {
