@@ -587,10 +587,10 @@ function ProjectCard({ project, onClick, counts }: {
       type="button"
       onClick={onClick}
       aria-label={`Open project ${project.name}`}
-      className="block w-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="block w-full h-full rounded-xl text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-    <Card className="transition-all hover:shadow-md hover:border-primary/20 active:scale-[0.98]">
-      <CardContent className="p-4">
+    <Card className="h-full min-h-44 transition-all hover:shadow-md hover:border-primary/20 active:scale-[0.98]">
+      <CardContent className="flex flex-col flex-1 p-4">
         <div className="mb-2 flex items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-sm font-semibold">{project.name}</h3>
@@ -622,14 +622,14 @@ function ProjectCard({ project, onClick, counts }: {
             )}
           </div>
         )}
-        <div className="mt-2 flex flex-wrap gap-1">
+        <div className="mt-auto flex flex-nowrap gap-1 overflow-hidden pt-2">
           {project.tags.slice(0, 3).map((tag) => (
-            <span key={tag} className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <span key={tag} className="shrink-0 truncate max-w-[40%] rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
               {tag}
             </span>
           ))}
           {project.tags.length > 3 && (
-            <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+            <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
               +{project.tags.length - 3}
             </span>
           )}
