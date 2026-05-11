@@ -30,10 +30,10 @@ const MAX_TAGS = 20;
 const MAX_TAG_LENGTH = 50;
 
 const ACCEPTED_TYPES: Record<FileCategory, { extensions: string[]; accept: string; description: string }> = {
-  'panel-databases': { extensions: ['.pcl'], accept: '.pcl', description: 'PCL files' },
+  'panel-databases': { extensions: ['.p2'], accept: '.p2', description: 'P2 files' },
   'wiring-diagrams': { extensions: ['.pdf'], accept: '.pdf', description: 'PDF files' },
   'sequences': { extensions: ['.txt', '.pdf'], accept: '.txt,.pdf', description: 'TXT or PDF files' },
-  'backups': { extensions: ['.pcl'], accept: '.pcl', description: 'PCL files' },
+  'backups': { extensions: ['.p2'], accept: '.p2', description: 'P2 files' },
   'ip-plan': { extensions: ['.xlsx', '.csv', '.pdf'], accept: '.xlsx,.csv,.pdf', description: 'XLSX, CSV, or PDF files' },
   'device-list': { extensions: ['.xlsx', '.csv'], accept: '.xlsx,.csv', description: 'XLSX or CSV files' },
   'general-documents': { extensions: [], accept: '*', description: 'Any file (PDF, DOCX, XLSX, images, etc.)' },
