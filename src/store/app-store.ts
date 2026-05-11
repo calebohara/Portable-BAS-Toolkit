@@ -93,7 +93,16 @@ export const useAppStore = create<AppState>()(
         }
         set({ tourActive: true, tourStep: 0, sidebarOpen: false });
       },
-      endTour: () => set({ tourActive: false, tourStep: 0, hasCompletedTour: true }),
+      endTour: () =>
+        set({
+          tourActive: false,
+          tourStep: 0,
+          hasCompletedTour: true,
+          // Restore expanded sidebar so users see labels after the tour.
+          // startTour() forced sidebarOpen: false; any mid-step exit may have
+          // also left the sidebar closed via tour-overlay's step effect.
+          sidebarOpen: true,
+        }),
       nextTourStep: () => set((s) => ({ tourStep: s.tourStep + 1 })),
       prevTourStep: () => set((s) => ({ tourStep: Math.max(0, s.tourStep - 1) })),
       setTourStep: (step) => set({ tourStep: step }),

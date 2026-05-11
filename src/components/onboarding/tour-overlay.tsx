@@ -169,35 +169,80 @@ export function TourOverlay() {
 
   if (!tourActive || !step) return null;
 
+  // Backdrop styles — dark veil that dims everything except the spotlight cutout
+  const backdropColor = 'rgba(0,0,0,0.55)';
+
   return (
     <div className="fixed inset-0 z-[9999]" aria-live="polite">
-      {/* Backdrop overlay with spotlight cutout */}
-      <svg className="absolute inset-0 h-full w-full" style={{ pointerEvents: 'none' }}>
-        <defs>
-          <mask id="tour-mask">
-            <rect x="0" y="0" width="100%" height="100%" fill="white" />
-            {targetRect && (
-              <rect
-                x={targetRect.left}
-                y={targetRect.top}
-                width={targetRect.width}
-                height={targetRect.height}
-                rx="8"
-                fill="black"
-              />
-            )}
-          </mask>
-        </defs>
-        <rect
-          x="0" y="0" width="100%" height="100%"
-          fill="rgba(0,0,0,0.55)"
-          mask="url(#tour-mask)"
-          style={{ pointerEvents: 'auto' }}
+      {/* Backdrop overlay built from 4 quads around the spotlight target.
+          The spotlight area has NO DOM element above it, so clicks pass
+          through naturally to the underlying element (e.g. sidebar links). */}
+      {targetRect ? (
+        <>
+          {/* Top quad — above the target, full width */}
+          <div
+            onClick={endTour}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: Math.max(0, targetRect.top),
+              background: backdropColor,
+            }}
+          />
+          {/* Bottom quad — below the target, full width */}
+          <div
+            onClick={endTour}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: targetRect.top + targetRect.height,
+              left: 0,
+              width: '100%',
+              bottom: 0,
+              background: backdropColor,
+            }}
+          />
+          {/* Left quad — left of the target, between top and bottom of target */}
+          <div
+            onClick={endTour}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: targetRect.top,
+              left: 0,
+              width: Math.max(0, targetRect.left),
+              height: targetRect.height,
+              background: backdropColor,
+            }}
+          />
+          {/* Right quad — right of the target, between top and bottom of target */}
+          <div
+            onClick={endTour}
+            aria-hidden="true"
+            style={{
+              position: 'absolute',
+              top: targetRect.top,
+              left: targetRect.left + targetRect.width,
+              right: 0,
+              height: targetRect.height,
+              background: backdropColor,
+            }}
+          />
+        </>
+      ) : (
+        // No target found — show a single full-screen backdrop (nothing to pass through to)
+        <div
           onClick={endTour}
+          aria-hidden="true"
+          className="absolute inset-0"
+          style={{ background: backdropColor }}
         />
-      </svg>
+      )}
 
-      {/* Spotlight ring */}
+      {/* Spotlight ring — pointer-events-none so clicks reach the underlying element */}
       {targetRect && (
         <div
           className="absolute rounded-lg ring-2 ring-primary ring-offset-2 ring-offset-background transition-all duration-300"
