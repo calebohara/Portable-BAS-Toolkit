@@ -86,7 +86,9 @@
       "Bash(sed -i '' 's/\"\"version\"\": \"\"4.8.7\"\"/\"\"version\"\": \"\"4.9.0\"\"/' package.json)",
       "Bash(grep '\"\"version\"\"' package.json)",
       "Bash(sed -i '' 's/\"\"version\"\": \"\"4.8.7\"\"/\"\"version\"\": \"\"4.9.0\"\"/' src-tauri/tauri.conf.json)",
-      "Bash(grep '\"\"version\"\"' src-tauri/tauri.conf.json)"
+      "Bash(grep '\"\"version\"\"' src-tauri/tauri.conf.json)",
+      "Bash(npx eslint *)",
+      "Bash(git check-ignore *)"
     ]
   }
 }
