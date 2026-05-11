@@ -53,7 +53,8 @@ export default function DashboardPage() {
   const { loading: authGateLoading, shouldShow } = useAuthGate();
   const { triggerFullSync } = useSyncContext();
   const showUpgradeBanner = isPaywallEnabled() && mode === 'authenticated' && !hasSyncAccess(profile?.subscriptionTier);
-  const canSync = mode === 'authenticated' && hasSyncAccess(profile?.subscriptionTier) && syncStatus !== 'syncing' && syncStatus !== 'disabled';
+  const canSync = mode === 'authenticated' && hasSyncAccess(profile?.subscriptionTier) && syncStatus !== 'disabled';
+  const isSyncing = syncStatus === 'syncing';
 
   // New dashboard data hooks
   const { activity, loading: activityLoading } = useRecentActivity(12);
@@ -336,10 +337,11 @@ export default function DashboardPage() {
                     variant="ghost"
                     className="shrink-0 h-8 w-8 p-0"
                     onClick={() => { triggerFullSync(); }}
-                    aria-label="Sync now"
-                    title="Sync now"
+                    disabled={isSyncing}
+                    aria-label={isSyncing ? 'Syncing' : 'Sync now'}
+                    title={isSyncing ? 'Syncing…' : 'Sync now'}
                   >
-                    <RefreshCw className={`h-4 w-4 ${syncStatus === 'syncing' ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
                   </Button>
                 )}
               </CardContent>
