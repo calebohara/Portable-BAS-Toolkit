@@ -965,6 +965,9 @@ function buildGlobalProjectRow(
     access_code: accessCode,
     tags: localProject.tags,
     status: coerceGlobalStatus(localProject.status),
+    // Defensive: clear any stale soft-delete flag so a re-share of a project
+    // whose linked global was previously soft-deleted comes back to life.
+    deleted_at: null,
     created_at: localProject.createdAt,
     updated_at: nowIso(),
   };

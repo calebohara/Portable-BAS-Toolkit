@@ -34,7 +34,7 @@ interface ShareToGlobalDialogProps {
   project: Project;
 }
 
-type DialogState = 'preview' | 'migrating' | 'success';
+type DialogState = 'preview' | 'sharing' | 'success';
 
 interface EntityCounts {
   notes: number;
@@ -129,26 +129,26 @@ export function ShareToGlobalDialog({
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
-    if (!nextOpen && state === 'migrating') return; // prevent close during migration
+    if (!nextOpen && state === 'sharing') return; // prevent close during sync
     if (!nextOpen) reset();
     onOpenChange(nextOpen);
   };
 
-  const handleMigrate = useCallback(async () => {
-    setState('migrating');
-    setProgressMessage('Preparing reconcile...');
+  const handleShare = useCallback(async () => {
+    setState('sharing');
+    setProgressMessage('Preparing share...');
     try {
-      const reconcileResult = await reconcileLocalToGlobal(
+      const shareResult = await reconcileLocalToGlobal(
         project.id,
         (step, current, total) => {
           setProgressMessage(`${step} (${current}/${total})...`);
         },
       );
-      setResult(reconcileResult);
+      setResult(shareResult);
       setState('success');
       toast.success('Project shared to Global successfully');
     } catch (err) {
-      toast.error('Reconcile failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      toast.error('Share failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
       setState('preview');
     }
   }, [project.id]);
@@ -183,12 +183,12 @@ export function ShareToGlobalDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Check className="h-5 w-5 text-green-500" />
-              {result.isNewProject ? 'Project Shared Successfully' : 'Project Reconciled'}
+              {result.isNewProject ? 'Project Shared Successfully' : 'Updates Shared'}
             </DialogTitle>
             <DialogDescription>
               {result.isNewProject
                 ? 'Your local project has been shared as a Global Project.'
-                : 'Updates pushed to the linked Global Project.'}
+                : 'Local updates have been shared to the Global Project.'}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="px-5 py-4 space-y-4">
@@ -213,9 +213,9 @@ export function ShareToGlobalDialog({
               </div>
             )}
 
-            {/* Reconcile Summary */}
+            {/* Share Summary */}
             <div className="rounded-md border p-3 space-y-1.5 text-sm">
-              <p className="font-medium">Reconcile Summary</p>
+              <p className="font-medium">Share Summary</p>
               <div className="grid grid-cols-2 gap-1 text-muted-foreground">
                 <span>Rows pushed:</span>
                 <span className="font-mono">{totalPushed}</span>
@@ -231,7 +231,7 @@ export function ShareToGlobalDialog({
                 <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-yellow-600 dark:text-yellow-400">
-                    Some rows failed to reconcile
+                    Some rows failed to share
                   </p>
                   <p className="text-muted-foreground mt-0.5">
                     Check the browser console for per-entity error details.
@@ -260,8 +260,8 @@ export function ShareToGlobalDialog({
     );
   }
 
-  // State 2: Migrating
-  if (state === 'migrating') {
+  // State 2: Sharing
+  if (state === 'sharing') {
     return (
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="max-w-md">
@@ -271,7 +271,7 @@ export function ShareToGlobalDialog({
               Sharing to Global...
             </DialogTitle>
             <DialogDescription>
-              Please wait while your project data is being reconciled.
+              Please wait while your project data is being shared.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="px-5 py-6">
@@ -294,11 +294,11 @@ export function ShareToGlobalDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Globe className="h-5 w-5" />
-            {project.syncedGlobalId ? 'Reconcile to Global Project' : 'Share to Global Project'}
+            Share to Global Project
           </DialogTitle>
           <DialogDescription>
             {project.syncedGlobalId
-              ? 'Push local updates to the linked Global Project.'
+              ? 'Share local updates to the linked Global Project.'
               : 'Share your local project to a new Global Project.'}
           </DialogDescription>
         </DialogHeader>
@@ -312,9 +312,9 @@ export function ShareToGlobalDialog({
             )}
           </div>
 
-          {/* What Will Be Reconciled */}
+          {/* What Will Be Shared */}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Will be reconciled</p>
+            <p className="text-sm font-medium">Will be shared</p>
             <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
               <MigrationItem icon={FileText}      label="Notes"                count={counts.notes} />
               <MigrationItem icon={HardDrive}     label="Devices"              count={counts.devices} />
@@ -335,7 +335,7 @@ export function ShareToGlobalDialog({
 
           <p className="text-xs text-muted-foreground leading-relaxed">
             {project.syncedGlobalId
-              ? 'Updates push into the linked Global Project. UUIDs are preserved, so this is safe to run multiple times.'
+              ? 'Updates push into the linked Global Project. IDs are preserved, so this is safe to run multiple times.'
               : 'A new Global Project will be created and your data will be pushed. Your local project remains unchanged.'}
           </p>
         </DialogBody>
@@ -343,9 +343,9 @@ export function ShareToGlobalDialog({
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="gap-1.5" onClick={handleMigrate}>
+          <Button className="gap-1.5" onClick={handleShare}>
             <Globe className="h-4 w-4" />
-            {project.syncedGlobalId ? 'Reconcile' : 'Share to Global'}
+            Share
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -237,10 +237,12 @@ export function useGlobalProjects() {
 export function useGlobalProject(id: string | undefined) {
   const [project, setProject] = useState<(GlobalProject & { members: GlobalProjectMember[] }) | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!id) {
       setProject(null);
+      setError('no project id in URL');
       setLoading(false);
       return;
     }
@@ -248,8 +250,12 @@ export function useGlobalProject(id: string | undefined) {
       setLoading(true);
       const data = unwrap(await fetchGlobalProject(id));
       setProject(data);
-    } catch {
+      setError(null);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn('[useGlobalProject] fetch failed for id', id, '—', msg);
       setProject(null);
+      setError(msg);
     } finally {
       setLoading(false);
     }
@@ -290,7 +296,7 @@ export function useGlobalProject(id: string | undefined) {
     notifyMembershipChanged();
   }, [id]);
 
-  return { project: decoratedProject, loading, update, remove, leave };
+  return { project: decoratedProject, loading, error, update, remove, leave };
 }
 
 // ─── useGlobalProjectMembers ───────────────────────────────

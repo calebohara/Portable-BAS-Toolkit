@@ -87,7 +87,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
   const { user } = useAuth();
   const currentUserId = user?.id ?? '';
 
-  const { project, loading, update: updateProject, remove: removeProject, leave: leaveProject } = useGlobalProject(id);
+  const { project, loading, error: projectError, update: updateProject, remove: removeProject, leave: leaveProject } = useGlobalProject(id);
   const { members, removeMember, promoteMember, regenerateCode } = useGlobalProjectMembers(id);
   const { notes, addNote, updateNote, removeNote } = useGlobalProjectNotes(id);
   const { devices, addDevice, updateDevice, removeDevice } = useGlobalProjectDevices(id);
@@ -203,7 +203,11 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
         <EmptyState
           icon={Network}
           title="Project Not Found"
-          description="This project may have been deleted, or you don't have access."
+          description={
+            projectError
+              ? `This project couldn't be loaded: ${projectError}. It may have been deleted, soft-deleted, or you don't have access. (Project id: ${id || 'missing'})`
+              : "This project may have been deleted, or you don't have access."
+          }
           action={<Button onClick={() => router.push('/global-projects')} variant="outline">Back to Global Projects</Button>}
         />
       </>
