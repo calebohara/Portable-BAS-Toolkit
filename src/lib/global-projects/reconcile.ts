@@ -1218,14 +1218,19 @@ async function reconcilePairLocalToGlobal(
   //   - decide insert-vs-update per row (preserves immutable created_by).
   //   - skip rows whose updated_at hasn't advanced since last reconcile.
   //   - know which file rows already have a storage_path (don't re-upload).
+  // Only `global_project_files` has a `storage_path` column; requesting it
+  // against any other table makes PostgREST return UNDEFINED_COLUMN (42703)
+  // and aborts the whole pair before any row is pushed.
   const globalTable = entityTable(pair.global);
+  const hasStoragePath = pair.global === 'globalProjectFiles';
+  const selectCols = hasStoragePath ? 'id, updated_at, storage_path' : 'id, updated_at';
   const { data: existingRaw, error: exErr } = await supabase
     .from(globalTable)
-    .select('id, updated_at, storage_path')
+    .select(selectCols)
     .eq('global_project_id', globalProjectId);
   if (exErr) throw new Error(`${globalTable} pre-fetch failed: ${exErr.message}`);
   const existingMap = new Map<string, { updated_at: string | null; storage_path: string | null }>();
-  for (const row of (existingRaw ?? []) as Array<{ id: string; updated_at: string | null; storage_path?: string | null }>) {
+  for (const row of (existingRaw ?? []) as unknown as Array<{ id: string; updated_at: string | null; storage_path?: string | null }>) {
     existingMap.set(row.id, { updated_at: row.updated_at ?? null, storage_path: row.storage_path ?? null });
   }
 
