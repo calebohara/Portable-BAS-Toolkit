@@ -864,8 +864,8 @@ export async function bulkUpsertProjectDxrs(
 
 /**
  * Delete every DXR row belonging to a project. Returns the number of rows
- * removed. Each deletion is enqueued for sync so the change propagates to
- * Global Projects on the next reconcile / push cycle.
+ * removed. Each deletion is enqueued for sync so it propagates to the user's
+ * per-user `public.dxrs` table and (via reconcile) to Global Projects.
  */
 export async function clearProjectDxrs(projectId: string): Promise<number> {
   const db = await getDB();
