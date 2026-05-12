@@ -58,6 +58,9 @@ REPLY.md
 !CLAUDE.md
 !.claude/BASAgents.md
 !.claude/DesignAgents.md
+!.claude/SyncAgents.md
 docs/**/*.md
 !docs/BASAgents-fixes-*.md
 !docs/DesignAgents-fixes-*.md
+!docs/SyncAgents-fixes-*.md
+!docs/SyncAgents-plan-*.md

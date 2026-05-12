@@ -7,7 +7,8 @@ import {
   ArrowLeft, LayoutGrid, StickyNote, Server, Network, FileText, FolderOpen,
   History, Users, Plus, Trash2, Edit2, MapPin, Hash, Building2,
   Copy, Check, Clock, User, ChevronDown, ChevronUp, Pencil, FolderKanban,
-  Upload, X, ExternalLink,
+  Upload, X, ExternalLink, FileCode, Terminal, GitBranch, Pin, PinOff,
+  Download, CloudOff, Phone, Mail, Eye, Database, ChevronRight,
 } from 'lucide-react';
 import {
   validateFileSize, isImageFile, buildStoragePath, uploadProjectFile,
@@ -22,6 +23,9 @@ import {
   useGlobalProjectFiles,
   useGlobalProjectReports,
   useGlobalProjectActivity,
+  useGlobalProjectPpcl,
+  useGlobalProjectTerminalLogs,
+  useGlobalProjectPreferences,
 } from '@/hooks/use-global-projects';
 import { useAuth } from '@/providers/auth-provider';
 import { TopBar } from '@/components/layout/top-bar';
@@ -40,8 +44,10 @@ import {
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { SaveToLocalDialog } from '@/components/global-projects/save-to-local-dialog';
+import { ContactDialog } from '@/components/projects/contact-dialog';
+import { PpclPreviewDialog } from '@/components/ppcl-editor/ppcl-preview-dialog';
 import { navigateToProject } from '@/lib/routes';
-import { cn, copyToClipboard } from '@/lib/utils';
+import { cn, copyToClipboard, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 import type {
   GlobalProject,
@@ -53,7 +59,10 @@ import type {
   GlobalProjectFile,
   GlobalDailyReport,
   GlobalActivityLogEntry,
+  GlobalPpclDocument,
+  GlobalTerminalSessionLog,
 } from '@/types/global-projects';
+import type { Contact, PpclDocument } from '@/types';
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutGrid },
@@ -62,6 +71,9 @@ const tabs = [
   { id: 'ip-plan', label: 'IP Plan', icon: Network },
   { id: 'documents', label: 'Documents', icon: FolderOpen },
   { id: 'reports', label: 'Reports', icon: FileText },
+  { id: 'ppcl-programs', label: 'PPCL', icon: FileCode },
+  { id: 'terminal-logs', label: 'Terminal Logs', icon: Terminal },
+  { id: 'network-diagrams', label: 'Diagrams', icon: GitBranch },
   { id: 'activity', label: 'Activity', icon: History },
   { id: 'members', label: 'Members', icon: Users },
 ] as const;
@@ -83,6 +95,13 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
   const { files, addFile, updateFile, removeFile } = useGlobalProjectFiles(id);
   const { reports, updateReport, removeReport } = useGlobalProjectReports(id);
   const { activity } = useGlobalProjectActivity(id);
+  const { documents: ppclDocs, addDocument: addPpclDoc, removeDocument: removePpclDoc } = useGlobalProjectPpcl(id);
+  const { logs: terminalLogs, removeLog: removeTerminalLog } = useGlobalProjectTerminalLogs(id);
+  const {
+    isPinned,
+    isOfflineAvailable,
+    update: updatePreferences,
+  } = useGlobalProjectPreferences(id);
 
   const getInitialTab = () => {
     if (typeof window === 'undefined') return 'overview';
@@ -207,8 +226,50 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
             )}
           </p>
         </div>
-        <div className="hidden sm:flex items-center gap-2 shrink-0">
-          <ProjectStatusBadge status={project.status} />
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'h-8 w-8 p-0',
+              isPinned ? 'text-primary' : 'text-muted-foreground',
+            )}
+            onClick={async () => {
+              try {
+                await updatePreferences({ isPinned: !isPinned });
+                toast.success(isPinned ? 'Unpinned' : 'Pinned to your projects');
+              } catch {
+                toast.error('Failed to update pin');
+              }
+            }}
+            title={isPinned ? 'Unpin project' : 'Pin project'}
+            aria-label={isPinned ? 'Unpin project' : 'Pin project'}
+          >
+            {isPinned ? <Pin className="h-4 w-4" /> : <PinOff className="h-4 w-4" />}
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              'h-8 w-8 p-0',
+              isOfflineAvailable ? 'text-primary' : 'text-muted-foreground',
+            )}
+            onClick={async () => {
+              try {
+                await updatePreferences({ isOfflineAvailable: !isOfflineAvailable });
+                toast.success(isOfflineAvailable ? 'Removed from offline cache' : 'Marked for offline cache');
+              } catch {
+                toast.error('Failed to update offline preference');
+              }
+            }}
+            title={isOfflineAvailable ? 'Stop caching offline' : 'Cache for offline'}
+            aria-label={isOfflineAvailable ? 'Stop caching offline' : 'Cache for offline'}
+          >
+            {isOfflineAvailable ? <Download className="h-4 w-4" /> : <CloudOff className="h-4 w-4" />}
+          </Button>
+          <div className="hidden sm:flex items-center gap-2 pl-1">
+            <ProjectStatusBadge status={project.status} />
+          </div>
         </div>
       </TopBar>
 
@@ -222,6 +283,8 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
                 : tabId === 'ip-plan' ? ipEntries.length
                 : tabId === 'documents' ? files.length
                 : tabId === 'reports' ? reports.length
+                : tabId === 'ppcl-programs' ? ppclDocs.length
+                : tabId === 'terminal-logs' ? terminalLogs.length
                 : tabId === 'members' ? members.length
                 : tabId === 'activity' ? activity.length
                 : 0;
@@ -260,11 +323,13 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
               deviceCount={devices.length}
               ipEntryCount={ipEntries.length}
               reportCount={reports.length}
+              ipEntries={ipEntries}
               isAdmin={isAdmin}
               onNavigate={setActiveTab}
               onDelete={() => setShowDeleteConfirm(true)}
               onEditProject={() => setEditingProject(true)}
               onSaveToLocal={() => setShowSaveToLocal(true)}
+              onUpdateProject={updateProject}
               getMemberName={getMemberName}
             />
           )}
@@ -322,6 +387,27 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
             />
           )}
 
+          {activeTab === 'ppcl-programs' && (
+            <GlobalPpclTab
+              documents={ppclDocs}
+              getMemberName={getMemberName}
+              onAdd={addPpclDoc}
+              onRemove={removePpclDoc}
+            />
+          )}
+
+          {activeTab === 'terminal-logs' && (
+            <GlobalTerminalLogsTab
+              logs={terminalLogs}
+              getMemberName={getMemberName}
+              onRemove={removeTerminalLog}
+            />
+          )}
+
+          {activeTab === 'network-diagrams' && (
+            <GlobalNetworkDiagramsTab />
+          )}
+
           {activeTab === 'activity' && (
             <ActivityTab activity={activity} getMemberName={getMemberName} />
           )}
@@ -368,10 +454,6 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
         open={showSaveToLocal}
         onOpenChange={setShowSaveToLocal}
         project={project}
-        notes={notes}
-        devices={devices}
-        ipEntries={ipEntries}
-        reports={reports}
         onSaved={(localProjectId) => {
           setShowSaveToLocal(false);
           navigateToProject(router, localProjectId);
@@ -385,7 +467,8 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
 
 function OverviewTab({
   project, memberCount, noteCount, deviceCount, ipEntryCount, reportCount,
-  isAdmin, onNavigate, onDelete, onEditProject, onSaveToLocal, getMemberName,
+  ipEntries, isAdmin, onNavigate, onDelete, onEditProject, onSaveToLocal,
+  onUpdateProject, getMemberName,
 }: {
   project: NonNullable<ReturnType<typeof useGlobalProject>['project']>;
   memberCount: number;
@@ -393,14 +476,37 @@ function OverviewTab({
   deviceCount: number;
   ipEntryCount: number;
   reportCount: number;
+  ipEntries: GlobalIpPlanEntry[];
   isAdmin: boolean;
   onNavigate: (tab: string) => void;
   onDelete: () => void;
   onEditProject: () => void;
   onSaveToLocal: () => void;
+  onUpdateProject: (data: Partial<GlobalProject>) => Promise<void>;
   getMemberName: (id: string) => string;
 }) {
   const [codeCopied, setCodeCopied] = useState(false);
+  const [editingCustomer, setEditingCustomer] = useState(false);
+  const [customerDraft, setCustomerDraft] = useState('');
+  const [editingTechNotes, setEditingTechNotes] = useState(false);
+  const [techNotesDraft, setTechNotesDraft] = useState('');
+  const [editingPanelRoster, setEditingPanelRoster] = useState(false);
+  const [panelRosterDraft, setPanelRosterDraft] = useState('');
+  const [editingNetworkSummary, setEditingNetworkSummary] = useState(false);
+  const [networkSummaryDraft, setNetworkSummaryDraft] = useState('');
+  const [contactDialogOpen, setContactDialogOpen] = useState(false);
+  const [editContact, setEditContact] = useState<{ contact: Contact; index: number } | undefined>();
+  const [deleteContactIndex, setDeleteContactIndex] = useState<number | null>(null);
+
+  const contacts = project.contacts ?? [];
+
+  // Derived network stats from IP entries
+  const networkStats = useMemo(() => {
+    if (ipEntries.length === 0) return null;
+    const subnets = [...new Set(ipEntries.map(e => e.subnet).filter(Boolean))];
+    const vlans = [...new Set(ipEntries.map(e => e.vlan).filter(Boolean))];
+    return { total: ipEntries.length, subnets: subnets.length, vlans: vlans.length };
+  }, [ipEntries]);
 
   const handleCopyCode = async () => {
     try {
@@ -411,6 +517,33 @@ function OverviewTab({
     } catch {
       toast.error('Failed to copy');
     }
+  };
+
+  const safeUpdate = async (data: Partial<GlobalProject>, successMsg?: string) => {
+    try {
+      await onUpdateProject(data);
+      if (successMsg) toast.success(successMsg);
+    } catch {
+      toast.error('Failed to update project');
+    }
+  };
+
+  const handleSaveContact = (contact: Contact) => {
+    const next = [...contacts];
+    if (editContact) {
+      next[editContact.index] = contact;
+    } else {
+      next.push(contact);
+    }
+    safeUpdate({ contacts: next }, editContact ? 'Contact updated' : 'Contact added');
+    setEditContact(undefined);
+  };
+
+  const handleDeleteContact = () => {
+    if (deleteContactIndex === null) return;
+    const next = contacts.filter((_, i) => i !== deleteContactIndex);
+    safeUpdate({ contacts: next }, 'Contact removed');
+    setDeleteContactIndex(null);
   };
 
   return (
@@ -458,36 +591,347 @@ function OverviewTab({
             <InfoRow icon={User} label="Created By" value={getMemberName(project.createdBy)} />
             <InfoRow icon={Clock} label="Created" value={format(new Date(project.createdAt), 'MMM d, yyyy')} />
             <InfoRow icon={Clock} label="Last Updated" value={format(new Date(project.updatedAt), 'MMM d, yyyy h:mm a')} />
+            {/* Customer Name — inline editable */}
+            <div className="pt-2 border-t border-border">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Customer</p>
+                  {editingCustomer ? (
+                    <div className="mt-1 space-y-2">
+                      <Input
+                        value={customerDraft}
+                        onChange={(e) => setCustomerDraft(e.target.value)}
+                        placeholder="Customer name"
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button variant="outline" size="sm" onClick={() => setEditingCustomer(false)}>Cancel</Button>
+                        <Button
+                          size="sm"
+                          onClick={async () => {
+                            await safeUpdate({ customerName: customerDraft.trim() }, 'Customer updated');
+                            setEditingCustomer(false);
+                          }}
+                        >
+                          Save
+                        </Button>
+                      </div>
+                    </div>
+                  ) : project.customerName ? (
+                    <p className="text-sm">{project.customerName}</p>
+                  ) : (
+                    <button
+                      onClick={() => { setCustomerDraft(''); setEditingCustomer(true); }}
+                      className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors py-0.5"
+                    >
+                      <Plus className="h-3 w-3" /> Add customer name
+                    </button>
+                  )}
+                </div>
+                {!editingCustomer && project.customerName && (
+                  <button
+                    onClick={() => { setCustomerDraft(project.customerName); setEditingCustomer(true); }}
+                    className="rounded p-1 hover:bg-muted shrink-0"
+                    title="Edit customer"
+                  >
+                    <Edit2 className="h-3 w-3 text-muted-foreground" />
+                  </button>
+                )}
+              </div>
+            </div>
             {project.description && (
               <div className="pt-2 border-t border-border">
-                <p className="text-xs text-muted-foreground whitespace-pre-wrap">{project.description}</p>
+                <p className="text-[11px] text-muted-foreground uppercase tracking-wider">Description</p>
+                <p className="text-sm whitespace-pre-wrap">{project.description}</p>
               </div>
             )}
           </CardContent>
         </Card>
 
-        {isAdmin && (
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-semibold">Access Code</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground mb-3">
-                Share this code with team members to join the project.
+        {/* Contacts Card */}
+        <Card>
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Users className="h-4 w-4" /> Contacts
+              </CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 gap-1 text-xs"
+                onClick={() => { setEditContact(undefined); setContactDialogOpen(true); }}
+              >
+                <Plus className="h-3.5 w-3.5" /> Add
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {contacts.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-2">
+                No contacts added. Add site contacts like GC, mechanical, or TAB.
               </p>
-              <div className="flex items-center gap-2">
-                <code className="rounded-lg bg-muted px-4 py-2 text-lg font-mono font-bold tracking-widest">
-                  {project.accessCode}
-                </code>
-                <Button variant="outline" size="sm" className="gap-1.5" onClick={handleCopyCode}>
-                  {codeCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {codeCopied ? 'Copied' : 'Copy'}
+            ) : (
+              <div className="space-y-3">
+                {contacts.map((contact, i) => (
+                  <div key={i} className="group flex items-start justify-between gap-2 text-sm">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium">{contact.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {contact.role}{contact.company ? ` — ${contact.company}` : ''}
+                      </p>
+                      {contact.phone && (
+                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Phone className="h-3 w-3" />{contact.phone}
+                        </p>
+                      )}
+                      {contact.email && (
+                        <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Mail className="h-3 w-3" />{contact.email}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-0.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity shrink-0">
+                      <button
+                        onClick={() => { setEditContact({ contact, index: i }); setContactDialogOpen(true); }}
+                        className="rounded p-1.5 hover:bg-muted"
+                        title="Edit"
+                      >
+                        <Edit2 className="h-3 w-3 text-muted-foreground" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteContactIndex(i)}
+                        className="rounded p-1.5 hover:bg-muted"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-3 w-3 text-field-danger" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Panel Roster + Network Summary */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Database className="h-4 w-4 text-primary" /> Panel Roster
+              </CardTitle>
+              {!editingPanelRoster && (
+                <button
+                  onClick={() => { setPanelRosterDraft(project.panelRosterSummary || ''); setEditingPanelRoster(true); }}
+                  className="rounded p-1.5 hover:bg-muted"
+                  title="Edit"
+                >
+                  <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            {editingPanelRoster ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={panelRosterDraft}
+                  onChange={(e) => setPanelRosterDraft(e.target.value)}
+                  placeholder="e.g. PXC36-AHU1, PXC36-AHU2, PXC100-Main, JACE-8000..."
+                  rows={3}
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setEditingPanelRoster(false)}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      await safeUpdate(
+                        { panelRosterSummary: panelRosterDraft.trim() || null },
+                        'Panel roster updated',
+                      );
+                      setEditingPanelRoster(false);
+                    }}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            ) : project.panelRosterSummary ? (
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{project.panelRosterSummary}</p>
+            ) : (
+              <button
+                onClick={() => { setPanelRosterDraft(''); setEditingPanelRoster(true); }}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add panel roster details
+              </button>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                <Network className="h-4 w-4 text-primary" /> Network Summary
+              </CardTitle>
+              {!editingNetworkSummary && (
+                <button
+                  onClick={() => { setNetworkSummaryDraft(project.networkSummary || ''); setEditingNetworkSummary(true); }}
+                  className="rounded p-1.5 hover:bg-muted"
+                  title="Edit"
+                >
+                  <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {networkStats && (
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-lg bg-muted/50 p-2">
+                  <p className="text-base sm:text-lg font-bold">{networkStats.total}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">IPs</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-2">
+                  <p className="text-base sm:text-lg font-bold">{networkStats.subnets}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">Subnets</p>
+                </div>
+                <div className="rounded-lg bg-muted/50 p-2">
+                  <p className="text-base sm:text-lg font-bold">{networkStats.vlans}</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">VLANs</p>
+                </div>
+              </div>
+            )}
+            {editingNetworkSummary ? (
+              <div className="space-y-2">
+                <Textarea
+                  value={networkSummaryDraft}
+                  onChange={(e) => setNetworkSummaryDraft(e.target.value)}
+                  placeholder="e.g. BACnet/IP via JACE-8000, MS/TP trunks on AHU panels..."
+                  rows={3}
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setEditingNetworkSummary(false)}>Cancel</Button>
+                  <Button
+                    size="sm"
+                    onClick={async () => {
+                      await safeUpdate(
+                        { networkSummary: networkSummaryDraft.trim() || null },
+                        'Network summary updated',
+                      );
+                      setEditingNetworkSummary(false);
+                    }}
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            ) : project.networkSummary ? (
+              <p className="text-xs text-muted-foreground whitespace-pre-wrap border-t border-border pt-2">
+                {project.networkSummary}
+              </p>
+            ) : (
+              <button
+                onClick={() => { setNetworkSummaryDraft(''); setEditingNetworkSummary(true); }}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add network summary
+              </button>
+            )}
+            {networkStats && (
+              <button
+                onClick={() => onNavigate('ip-plan')}
+                className="flex items-center gap-1 text-xs text-primary hover:underline"
+              >
+                View full IP plan <ChevronRight className="h-3 w-3" />
+              </button>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Technician Notes */}
+      <Card>
+        <CardHeader className="pb-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-semibold">Technician Notes</CardTitle>
+            {!editingTechNotes && (
+              <button
+                onClick={() => { setTechNotesDraft(project.technicianNotes || ''); setEditingTechNotes(true); }}
+                className="rounded p-1.5 hover:bg-muted"
+                title="Edit"
+              >
+                <Edit2 className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          {editingTechNotes ? (
+            <div className="space-y-2">
+              <Textarea
+                value={techNotesDraft}
+                onChange={(e) => setTechNotesDraft(e.target.value)}
+                placeholder="Project-level technician notes visible to all members..."
+                rows={4}
+                autoFocus
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setEditingTechNotes(false)}>Cancel</Button>
+                <Button
+                  size="sm"
+                  onClick={async () => {
+                    await safeUpdate(
+                      { technicianNotes: techNotesDraft.trim() },
+                      'Technician notes updated',
+                    );
+                    setEditingTechNotes(false);
+                  }}
+                >
+                  Save
                 </Button>
               </div>
-            </CardContent>
-          </Card>
-        )}
-      </div>
+            </div>
+          ) : project.technicianNotes ? (
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{project.technicianNotes}</p>
+          ) : (
+            <button
+              onClick={() => { setTechNotesDraft(''); setEditingTechNotes(true); }}
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+            >
+              <Plus className="h-3.5 w-3.5" /> Add technician notes
+            </button>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Access Code (admin only) */}
+      {isAdmin && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-semibold">Access Code</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-xs text-muted-foreground mb-3">
+              Share this code with team members to join the project.
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="rounded-lg bg-muted px-4 py-2 text-lg font-mono font-bold tracking-widest">
+                {project.accessCode}
+              </code>
+              <Button variant="outline" size="sm" className="gap-1.5" onClick={handleCopyCode}>
+                {codeCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {codeCopied ? 'Copied' : 'Copy'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Quick Stats */}
       <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
@@ -520,6 +964,31 @@ function OverviewTab({
           ))}
         </div>
       )}
+
+      {/* Contact editor dialog (reused from local projects) */}
+      <ContactDialog
+        open={contactDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setContactDialogOpen(false);
+            setEditContact(undefined);
+          } else {
+            setContactDialogOpen(true);
+          }
+        }}
+        contact={editContact?.contact}
+        onSave={handleSaveContact}
+      />
+
+      <ConfirmDialog
+        open={deleteContactIndex !== null}
+        onOpenChange={(open) => { if (!open) setDeleteContactIndex(null); }}
+        title="Delete Contact"
+        description={`Remove "${contacts[deleteContactIndex ?? 0]?.name ?? ''}" from this project?`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDeleteContact}
+      />
     </div>
   );
 }
@@ -533,8 +1002,9 @@ function EditProjectDialog({ project, onOpenChange, onSubmit }: {
 }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    name: '', jobSiteName: '', siteAddress: '', buildingArea: '',
-    projectNumber: '', description: '', status: 'active' as string, tags: '',
+    name: '', jobSiteName: '', customerName: '', siteAddress: '', buildingArea: '',
+    projectNumber: '', description: '', technicianNotes: '', panelRosterSummary: '',
+    networkSummary: '', status: 'active' as string, tags: '',
   });
 
   useEffect(() => {
@@ -542,10 +1012,14 @@ function EditProjectDialog({ project, onOpenChange, onSubmit }: {
       setForm({
         name: project.name || '',
         jobSiteName: project.jobSiteName || '',
+        customerName: project.customerName || '',
         siteAddress: project.siteAddress || '',
         buildingArea: project.buildingArea || '',
         projectNumber: project.projectNumber || '',
         description: project.description || '',
+        technicianNotes: project.technicianNotes || '',
+        panelRosterSummary: project.panelRosterSummary || '',
+        networkSummary: project.networkSummary || '',
         status: project.status || 'active',
         tags: (project.tags ?? []).join(', '),
       });
@@ -562,10 +1036,14 @@ function EditProjectDialog({ project, onOpenChange, onSubmit }: {
       await onSubmit({
         name: form.name.trim(),
         jobSiteName: form.jobSiteName.trim(),
+        customerName: form.customerName.trim(),
         siteAddress: form.siteAddress.trim(),
         buildingArea: form.buildingArea.trim(),
         projectNumber: form.projectNumber.trim(),
         description: form.description.trim(),
+        technicianNotes: form.technicianNotes.trim(),
+        panelRosterSummary: form.panelRosterSummary.trim() || null,
+        networkSummary: form.networkSummary.trim() || null,
         status: form.status as GlobalProjectStatus,
         tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
       });
@@ -593,6 +1071,10 @@ function EditProjectDialog({ project, onOpenChange, onSubmit }: {
               <div className="space-y-2">
                 <Label htmlFor="edit-proj-site">Job Site Name</Label>
                 <Input id="edit-proj-site" value={form.jobSiteName} onChange={(e) => updateField('jobSiteName', e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit-proj-customer">Customer Name</Label>
+                <Input id="edit-proj-customer" value={form.customerName} onChange={(e) => updateField('customerName', e.target.value)} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="edit-proj-address">Site Address</Label>
@@ -627,6 +1109,18 @@ function EditProjectDialog({ project, onOpenChange, onSubmit }: {
               <div className="space-y-2 sm:col-span-2">
                 <Label htmlFor="edit-proj-desc">Description</Label>
                 <Textarea id="edit-proj-desc" value={form.description} onChange={(e) => updateField('description', e.target.value)} rows={3} />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="edit-proj-tech-notes">Technician Notes</Label>
+                <Textarea id="edit-proj-tech-notes" value={form.technicianNotes} onChange={(e) => updateField('technicianNotes', e.target.value)} rows={3} placeholder="Project-level technician notes visible to all members..." />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="edit-proj-panel-roster">Panel Roster Summary</Label>
+                <Textarea id="edit-proj-panel-roster" value={form.panelRosterSummary} onChange={(e) => updateField('panelRosterSummary', e.target.value)} rows={2} placeholder="e.g. PXC36-AHU1, PXC36-AHU2, PXC100-Main, JACE-8000..." />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="edit-proj-network-summary">Network Summary</Label>
+                <Textarea id="edit-proj-network-summary" value={form.networkSummary} onChange={(e) => updateField('networkSummary', e.target.value)} rows={2} placeholder="e.g. BACnet/IP via JACE-8000, MS/TP trunks on AHU panels..." />
               </div>
             </div>
           </DialogBody>
@@ -2579,5 +3073,287 @@ function ActivityTab({ activity, getMemberName }: {
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Global PPCL Tab ─────────────────────────────────────────────────────────
+
+function GlobalPpclTab({
+  documents, getMemberName, onAdd, onRemove,
+}: {
+  documents: GlobalPpclDocument[];
+  getMemberName: (id: string) => string;
+  onAdd: (data: { name: string; content: string; firmware: PpclDocument['firmware'] }) => Promise<unknown>;
+  onRemove: (id: string) => Promise<void>;
+}) {
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GlobalPpclDocument | null>(null);
+  const previewDoc = previewDocId ? documents.find((d) => d.id === previewDocId) ?? null : null;
+
+  // Adapt a GlobalPpclDocument to the PpclDocument shape that PpclPreviewDialog expects.
+  const previewAdapter: PpclDocument | null = previewDoc
+    ? {
+        id: previewDoc.id,
+        name: previewDoc.name,
+        content: previewDoc.content,
+        // PpclDocument expects projectId; we don't have a local project here, so use empty string.
+        projectId: '',
+        firmware: previewDoc.firmware,
+        createdAt: previewDoc.createdAt,
+        updatedAt: previewDoc.updatedAt,
+      }
+    : null;
+
+  const handleNew = async () => {
+    try {
+      await onAdd({ name: 'Untitled.pcl', content: '', firmware: 'pxc-tc' });
+      toast.success('PPCL program created');
+    } catch {
+      toast.error('Failed to create PPCL program');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await onRemove(deleteTarget.id);
+      toast.success(`Deleted "${deleteTarget.name}"`);
+      setDeleteTarget(null);
+    } catch {
+      toast.error('Failed to delete program');
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <FileCode className="h-5 w-5" /> PPCL Programs
+        </h2>
+        <Button size="sm" className="gap-1.5" onClick={handleNew}>
+          <Plus className="h-4 w-4" /> New Program
+        </Button>
+      </div>
+
+      {documents.length === 0 ? (
+        <EmptyState
+          icon={FileCode}
+          title="No PPCL Programs"
+          description="Create a new PPCL program. The global PPCL editor is read-only for now — use Preview / Download to inspect content."
+          action={
+            <Button size="sm" className="gap-1.5" onClick={handleNew}>
+              <Plus className="h-4 w-4" /> New Program
+            </Button>
+          }
+        />
+      ) : (
+        <div className="space-y-2">
+          {documents.map((doc) => (
+            <Card key={doc.id}>
+              <CardContent className="p-3 flex items-center gap-3">
+                <FileCode className="h-4 w-4 text-primary shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{doc.name}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {format(new Date(doc.updatedAt), 'MMM d, h:mm a')}
+                    <span className="ml-2 uppercase">{doc.firmware}</span>
+                    <span className="ml-2">by {getMemberName(doc.createdBy)}</span>
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => setPreviewDocId(doc.id)}
+                    aria-label={`Preview ${doc.name}`}
+                    title="Preview program"
+                  >
+                    <Eye className="h-3 w-3" /> Preview
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => setDeleteTarget(doc)}
+                    title="Delete program"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Preview dialog reused from local PPCL viewer. */}
+      {/* "Open in Editor" is wired to a no-op because the editor route is local-only. */}
+      <PpclPreviewDialog
+        open={previewDocId !== null}
+        onOpenChange={(o) => { if (!o) setPreviewDocId(null); }}
+        document={previewAdapter}
+        onOpenInEditor={() => {
+          toast.info('The PPCL editor is currently local-only. Use Save to My Projects, then open the program from the local project.');
+        }}
+      />
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
+        title="Delete PPCL Program"
+        description={`Permanently delete "${deleteTarget?.name ?? ''}"? This cannot be undone.`}
+        confirmLabel="Delete"
+        variant="destructive"
+        onConfirm={handleDelete}
+      />
+    </div>
+  );
+}
+
+// ─── Global Terminal Logs Tab ────────────────────────────────────────────────
+
+function GlobalTerminalLogsTab({
+  logs, getMemberName, onRemove,
+}: {
+  logs: GlobalTerminalSessionLog[];
+  getMemberName: (id: string) => string;
+  onRemove: (id: string) => Promise<void>;
+}) {
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDownload = (log: GlobalTerminalSessionLog) => {
+    const blob = new Blob([log.logContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const mode = log.connectionMode === 'serial' ? 'serial' : 'telnet';
+    a.download = sanitizeFilename(`${log.sessionLabel}_${mode}_${format(new Date(log.createdAt), 'yyyy-MM-dd_HH-mm')}`) + '.txt';
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  const handleDelete = async (id: string) => {
+    setDeletingId(id);
+    try {
+      await onRemove(id);
+      toast.success('Terminal log deleted');
+    } catch {
+      toast.error('Failed to delete log');
+    }
+    setDeletingId(null);
+  };
+
+  if (logs.length === 0) {
+    return (
+      <EmptyState
+        icon={Terminal}
+        title="No Terminal Logs"
+        description="Terminal session logs attached to this global project will appear here."
+      />
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+          <Terminal className="h-5 w-5" /> Terminal Session Logs
+        </h2>
+        <Badge variant="secondary">{logs.length} log{logs.length !== 1 ? 's' : ''}</Badge>
+      </div>
+
+      <div className="space-y-2">
+        {logs.map((log) => {
+          const isSerial = log.connectionMode === 'serial';
+          const connectionInfo = isSerial
+            ? `${log.serialPort} @ ${log.baudRate} baud`
+            : `${log.host}:${log.port}`;
+          const isExpanded = expandedId === log.id;
+
+          return (
+            <Card key={log.id}>
+              <CardContent className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-medium text-sm">{log.sessionLabel}</h3>
+                      <Badge variant="secondary" className="text-[10px]">
+                        {isSerial ? 'Serial' : 'Telnet'}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground flex-wrap">
+                      <span>{connectionInfo}</span>
+                      <span>{log.lineCount} lines</span>
+                      <span>{format(new Date(log.createdAt), 'MMM d, yyyy h:mm a')}</span>
+                      <span>by {getMemberName(log.createdBy)}</span>
+                    </div>
+                    {log.startedAt && log.endedAt && (
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        {format(new Date(log.startedAt), 'h:mm:ss a')} — {format(new Date(log.endedAt), 'h:mm:ss a')}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                      title={isExpanded ? 'Collapse' : 'View log'}
+                    >
+                      <FileText className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0"
+                      onClick={() => handleDownload(log)}
+                      title="Download log"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 text-destructive hover:text-destructive"
+                      onClick={() => handleDelete(log.id)}
+                      disabled={deletingId === log.id}
+                      title="Delete log"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                </div>
+
+                {isExpanded && (
+                  <pre className="mt-3 max-h-96 overflow-auto rounded-lg bg-[#0d1117] p-3 font-mono text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">
+                    {log.logContent}
+                  </pre>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ─── Global Network Diagrams Tab (placeholder) ───────────────────────────────
+//
+// The `global_network_diagrams` table exists in the schema, but Step 3 did not
+// land a hook (`useGlobalProjectNetworkDiagrams`) or CRUD API for it. Until the
+// Hooks & API agent fills that gap, this tab shows an "in development" empty
+// state so the menu item is discoverable but doesn't lie about working.
+
+function GlobalNetworkDiagramsTab() {
+  return (
+    <EmptyState
+      icon={GitBranch}
+      title="Network Diagrams"
+      description="Shared network diagrams are coming soon. The schema is in place but the API / hook layer hasn't been wired up yet — file a SyncAgents follow-up if you need this now."
+    />
   );
 }

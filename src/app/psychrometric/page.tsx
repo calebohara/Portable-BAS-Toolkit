@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { Suspense, useState, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -13,12 +14,25 @@ import { CalculatorPanel } from '@/components/psychrometric/calculator-panel';
 import { AhuProcessesPanel } from '@/components/psychrometric/ahu-processes-panel';
 import { SessionsPanel } from '@/components/psychrometric/sessions-panel';
 import { ReferencePanel } from '@/components/psychrometric/reference-panel';
+import { GlobalModeBanner } from '@/components/global-projects/global-mode-banner';
 import {
   computeAllProperties, validateInputs, checkComfortZone,
   ipToSi, celsiusToFahrenheit, metersToFeet,
 } from '@/lib/psychrometric-engine';
 
 export default function PsychrometricPage() {
+  return (
+    <Suspense fallback={<><TopBar title="Psychrometric Calculator" /><div className="flex-1 flex items-center justify-center p-16" role="status" aria-live="polite"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" /></div></>}>
+      <PsychrometricPageInner />
+    </Suspense>
+  );
+}
+
+function PsychrometricPageInner() {
+  const searchParams = useSearchParams();
+  const globalProjectId = searchParams.get('globalProjectId') ?? undefined;
+  const isGlobalMode = Boolean(globalProjectId);
+
   // Unit system & altitude
   const [unitSystem, setUnitSystem] = useState<PsychUnitSystem>('ip');
   const [altitude, setAltitude] = useState(0);
@@ -174,6 +188,11 @@ export default function PsychrometricPage() {
       </TopBar>
 
       <div className="flex flex-col" style={{ height: 'calc(100vh - 3.5rem)' }}>
+        {isGlobalMode && (
+          <div className="shrink-0 border-b border-border bg-background px-4 py-2">
+            <GlobalModeBanner globalProjectId={globalProjectId} />
+          </div>
+        )}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0 gap-0">
           <div className="shrink-0 border-b border-border bg-muted/20 px-4">
             <TabsList variant="line" className="overflow-x-auto scrollbar-none">

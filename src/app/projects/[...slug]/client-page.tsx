@@ -330,10 +330,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         open={showShareToGlobal}
         onOpenChange={setShowShareToGlobal}
         project={project}
-        notes={notes}
-        devices={devices}
-        ipEntries={ipEntries}
-        reports={reports}
       />
     </>
   );

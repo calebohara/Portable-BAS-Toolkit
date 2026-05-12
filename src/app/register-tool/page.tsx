@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Calculator, Binary, Layers, Cpu, Grid3X3,
   TrendingUp, Database, Clock, Save, HelpCircle,
@@ -8,6 +9,7 @@ import {
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { GlobalModeBanner } from '@/components/global-projects/global-mode-banner';
 import { QuickConverter } from '@/components/register-tool/quick-converter';
 import { RegisterInterpreter } from '@/components/register-tool/register-interpreter';
 import { ByteOrderTool } from '@/components/register-tool/byte-order-tool';
@@ -32,6 +34,18 @@ const TAB_ITEMS = [
 ];
 
 export default function RegisterToolPage() {
+  return (
+    <Suspense fallback={<><TopBar title="Protocol Converter / Register Tool" /><div className="flex-1 flex items-center justify-center p-16" role="status" aria-live="polite"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" /></div></>}>
+      <RegisterToolPageInner />
+    </Suspense>
+  );
+}
+
+function RegisterToolPageInner() {
+  const searchParams = useSearchParams();
+  const globalProjectId = searchParams.get('globalProjectId') ?? undefined;
+  const isGlobalMode = Boolean(globalProjectId);
+
   const [activeTab, setActiveTab] = useState('convert');
   const [showSave, setShowSave] = useState(false);
 
@@ -45,6 +59,11 @@ export default function RegisterToolPage() {
         )}
       </TopBar>
       <div className="flex flex-col" style={{ height: 'calc(100vh - 3.5rem)' }}>
+        {isGlobalMode && (
+          <div className="shrink-0 border-b border-border bg-background px-4 py-2">
+            <GlobalModeBanner globalProjectId={globalProjectId} />
+          </div>
+        )}
         <Tabs value={activeTab} onValueChange={v => v && setActiveTab(v)}>
           <div className="shrink-0 border-b border-border bg-muted/20 px-4">
             <TabsList variant="line" className="overflow-x-auto scrollbar-none">

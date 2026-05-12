@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { SupabaseClient, RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import type { SyncEntityType, SyncQueueItem, SyncConflict } from '@/types';
 import {
   addSyncItem, getPendingSyncItems, updateSyncItem, deleteSyncItem,
@@ -6,16 +6,61 @@ import {
   bulkPutSilent, bulkDeleteSilent,
   addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
 } from '@/lib/db';
-import { entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER, fromSupabaseRow, isDeletedRow, REQUIRES_PROJECT_ID } from './field-map';
-import type { SyncManagerInterface } from './sync-bridge';
+import {
+  entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER,
+  fromSupabaseRow, isDeletedRow, REQUIRES_PROJECT_ID,
+  isGlobalEntity, GLOBAL_ENTITY_TYPES, REQUIRES_GLOBAL_PROJECT_ID,
+} from './field-map';
+import { emitPullComplete, type SyncManagerInterface } from './sync-bridge';
 
 const MAX_RETRIES = 5;
 const PROCESS_INTERVAL_MS = 5000;
 const BATCH_SIZE = 20;
 const LOG_PREFIX = '[sync]';
+const MEMBERSHIP_CACHE_TTL_MS = 30_000;
 
 type StatusCallback = (status: 'idle' | 'syncing' | 'error', pendingCount: number) => void;
 type ConflictCallback = (count: number) => void;
+
+// Module-level cache of global_project_members → user_id rows.
+// Keeps the pull loop from firing the same membership query 19 times in a row.
+// Keyed by userId so multiple users in one runtime (tests) don't cross-pollute.
+const membershipCache = new Map<string, { ids: string[]; fetchedAt: number }>();
+
+/**
+ * Fetches the set of global_project_ids the current user is a member of.
+ * Cached per-user with a short TTL — call repeatedly within a pull cycle without
+ * incurring redundant queries.
+ */
+async function fetchMyGlobalProjectIds(
+  supabase: SupabaseClient,
+  userId: string,
+  force = false,
+): Promise<string[]> {
+  if (!force) {
+    const cached = membershipCache.get(userId);
+    if (cached && Date.now() - cached.fetchedAt < MEMBERSHIP_CACHE_TTL_MS) {
+      return cached.ids;
+    }
+  }
+  try {
+    const { data, error } = await supabase
+      .from('global_project_members')
+      .select('global_project_id')
+      .eq('user_id', userId);
+    if (error) {
+      // Don't poison the cache on error — just return empty for this call
+      return [];
+    }
+    const ids = (data ?? [])
+      .map((r) => (r as { global_project_id?: string }).global_project_id)
+      .filter((id): id is string => typeof id === 'string' && id.length > 0);
+    membershipCache.set(userId, { ids, fetchedAt: Date.now() });
+    return ids;
+  } catch {
+    return [];
+  }
+}
 
 export class SyncManager implements SyncManagerInterface {
   private client: SupabaseClient;
@@ -27,6 +72,9 @@ export class SyncManager implements SyncManagerInterface {
   // Entity types whose Supabase tables don't exist — skip sync for these
   // to prevent retry storms that freeze the UI
   private brokenEntityTypes = new Set<string>();
+  // Active realtime channels for global_* tables. Populated by
+  // subscribeToGlobalRealtime() and torn down by stop().
+  private globalRealtimeChannels: RealtimeChannel[] = [];
 
   constructor(client: SupabaseClient, userId: string) {
     this.client = client;
@@ -64,6 +112,7 @@ export class SyncManager implements SyncManagerInterface {
       this.intervalId = null;
       console.info(`${LOG_PREFIX} Manager stopped`);
     }
+    this.unsubscribeFromGlobalRealtime();
   }
 
   /**
@@ -179,22 +228,43 @@ export class SyncManager implements SyncManagerInterface {
 
     try {
       const table = entityTypeToTable[item.entityType];
+      const isGlobal = isGlobalEntity(item.entityType);
 
       if (item.action === 'delete') {
-        // Use soft delete for tables that have deleted_at, hard delete for activity_log
-        if (item.entityType === 'activityLog') {
-          const { error } = await this.client
-            .from(table)
-            .delete()
-            .eq('id', item.entityId)
-            .eq('user_id', this.userId);
+        // Hard delete for append-only logs (no deleted_at column).
+        // Soft delete (deleted_at = now()) for everything else.
+        // Global membership-RLS tables: don't scope by user_id — RLS handles auth.
+        const isAppendOnly = item.entityType === 'activityLog' || item.entityType === 'globalActivityLog';
+        if (isAppendOnly) {
+          let query = this.client.from(table).delete().eq('id', item.entityId);
+          if (!isGlobal) {
+            query = query.eq('user_id', this.userId);
+          }
+          const { error } = await query;
           if (error) throw error;
-        } else {
+        } else if (item.entityType === 'globalProjectPreferences') {
+          // Composite PK (user_id, global_project_id). Delete row by composite
+          // key — `id` doesn't exist on this table. Payload carries the parts.
+          const payload = (item.payload ?? {}) as Record<string, unknown>;
+          const gpid = payload.globalProjectId as string | undefined;
+          if (!gpid) {
+            // Can't identify which preferences row to delete — drop the queue entry
+            console.warn(`${LOG_PREFIX} Skipping globalProjectPreferences delete with no globalProjectId`);
+            await deleteSyncItem(item.id);
+            return true;
+          }
           const { error } = await this.client
             .from(table)
             .update({ deleted_at: new Date().toISOString() })
-            .eq('id', item.entityId)
-            .eq('user_id', this.userId);
+            .eq('user_id', this.userId)
+            .eq('global_project_id', gpid);
+          if (error) throw error;
+        } else {
+          let query = this.client.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', item.entityId);
+          if (!isGlobal) {
+            query = query.eq('user_id', this.userId);
+          }
+          const { error } = await query;
           if (error) throw error;
         }
       } else {
@@ -203,10 +273,19 @@ export class SyncManager implements SyncManagerInterface {
           item.entityType,
           item.payload as Record<string, unknown>,
           this.userId,
+          { isUpdate: item.action === 'update' },
         );
 
-        // Conflict detection: for updates, check if remote is newer
-        if (item.action === 'update') {
+        // Conflict detection: for updates, check if remote is newer.
+        // globalActivityLog is append-only (no updates) and globalProjectPreferences
+        // doesn't have a stable `id` column to look up — skip conflict detection
+        // for both.
+        const supportsConflictCheck =
+          item.action === 'update'
+          && item.entityType !== 'globalActivityLog'
+          && item.entityType !== 'globalProjectPreferences';
+
+        if (supportsConflictCheck) {
           const localPayload = item.payload as Record<string, unknown>;
           const localUpdatedAt = (localPayload.updatedAt ?? localPayload.completedAt ?? localPayload.createdAt) as string | undefined;
 
@@ -246,9 +325,15 @@ export class SyncManager implements SyncManagerInterface {
           }
         }
 
+        // globalProjectPreferences uses the composite PK as the conflict target
+        // (it has no synthetic `id` column). Everything else conflicts on `id`.
+        const onConflict = item.entityType === 'globalProjectPreferences'
+          ? 'user_id,global_project_id'
+          : 'id';
+
         const { error } = await this.client
           .from(table)
-          .upsert(row, { onConflict: 'id' });
+          .upsert(row, { onConflict });
 
         if (error) throw error;
       }
@@ -433,29 +518,60 @@ export class SyncManager implements SyncManagerInterface {
     let totalDeleted = 0;
     const errors: string[] = [];
 
+    // Pre-fetch the user's global project membership once per pull cycle.
+    // Used by the global-entity branch below.
+    const memberProjectIds = await fetchMyGlobalProjectIds(this.client, this.userId);
+
     for (const entityType of SYNC_ORDER) {
       // Skip entity types whose tables are missing from Supabase
       if (this.brokenEntityTypes.has(entityType)) continue;
 
       try {
         const table = entityTypeToTable[entityType];
-        const isActivityLog = entityType === 'activityLog';
+        const isGlobal = isGlobalEntity(entityType);
+        const isAppendOnlyLog = entityType === 'activityLog' || entityType === 'globalActivityLog';
+
+        // Skip global child pulls when the user has no memberships — RLS would
+        // return nothing anyway and we save a round trip per table.
+        if (isGlobal && REQUIRES_GLOBAL_PROJECT_ID.has(entityType) && memberProjectIds.length === 0) {
+          continue;
+        }
+        if (isGlobal && entityType === 'globalProjects' && memberProjectIds.length === 0) {
+          continue;
+        }
 
         // Fetch all pages
         let allRows: Record<string, unknown>[] = [];
         let offset = 0;
 
         while (true) {
-          let query = this.client
-            .from(table)
-            .select('*')
-            .eq('user_id', this.userId);
+          // Build the per-entity-type base query. Local: filter on user_id
+          // (ownership). Global: filter on global_project_id IN (memberships),
+          // except for globalProjects (filter on id IN memberships) and
+          // globalProjectPreferences (filter on user_id — per-user, not membership).
+          let query;
+          if (isGlobal) {
+            if (entityType === 'globalProjects') {
+              query = this.client.from(table).select('*').in('id', memberProjectIds);
+            } else if (entityType === 'globalProjectPreferences') {
+              query = this.client.from(table).select('*').eq('user_id', this.userId);
+            } else {
+              // Global child: filter by membership
+              query = this.client.from(table).select('*').in('global_project_id', memberProjectIds);
+            }
+          } else {
+            query = this.client.from(table).select('*').eq('user_id', this.userId);
+          }
+
+          // Apply deleted_at filter consistently (skip for append-only logs
+          // which don't have a deleted_at column).
+          if (!isAppendOnlyLog) {
+            query = query.is('deleted_at', null);
+          }
 
           // Incremental: only fetch rows updated since last pull
           if (lastPulledAt) {
-            const timestampCol =
-              entityType === 'activityLog' ? 'timestamp' :
-              'updated_at';
+            const timestampCol = isAppendOnlyLog ? 'timestamp' : 'updated_at';
             query = query.gte(timestampCol, lastPulledAt);
           }
 
@@ -470,24 +586,57 @@ export class SyncManager implements SyncManagerInterface {
 
         if (allRows.length === 0) continue;
 
-        // Separate live rows from soft-deleted and orphaned rows
+        // Separate live rows from soft-deleted and orphaned rows.
+        // We already filtered out deleted_at in the query, but a row that was
+        // soft-deleted between the membership fetch and the query could
+        // theoretically slip through — keep the isDeletedRow() guard as a
+        // belt-and-braces check.
         const toUpsert: Record<string, unknown>[] = [];
         const toDeleteIds: string[] = [];
         let orphanCount = 0;
 
         for (const row of allRows) {
-          if (!isActivityLog && isDeletedRow(row)) {
-            toDeleteIds.push(row.id as string);
-          } else if (entityType !== 'projects' && REQUIRES_PROJECT_ID.has(entityType) && !row.project_id) {
-            // Orphaned row: requires project_id but has none — skip it (old demo data / orphaned child)
+          if (!isAppendOnlyLog && isDeletedRow(row)) {
+            // Soft-deleted: schedule for local removal.
+            // globalProjectPreferences uses the synthetic prefKey instead of id.
+            if (entityType === 'globalProjectPreferences') {
+              const uid = row.user_id as string | undefined;
+              const gpid = row.global_project_id as string | undefined;
+              if (uid && gpid) toDeleteIds.push(`${uid}|${gpid}`);
+            } else {
+              toDeleteIds.push(row.id as string);
+            }
+          } else if (!isGlobal && entityType !== 'projects' && REQUIRES_PROJECT_ID.has(entityType) && !row.project_id) {
+            // Orphaned local row: requires project_id but has none
+            orphanCount++;
+          } else if (isGlobal && REQUIRES_GLOBAL_PROJECT_ID.has(entityType) && !row.global_project_id) {
+            // Orphaned global child: requires global_project_id but has none
             orphanCount++;
           } else {
-            toUpsert.push(fromSupabaseRow(entityType, row));
+            const entity = fromSupabaseRow(entityType, row);
+            // Wave 1 TS interfaces expose `deletedAt: string | null` on every
+            // global entity, but fromSupabaseRow strips `deleted_at` from every
+            // row. Since the query already filters out tombstoned rows, the
+            // live rows that reach here always have deletedAt = null.
+            if (isGlobal) {
+              entity.deletedAt = null;
+            }
+            // globalProjectPreferences: synthesize the Dexie primary key.
+            // The Supabase row has user_id + global_project_id but no `id`.
+            if (entityType === 'globalProjectPreferences') {
+              const uid = entity.userId as string | undefined;
+              const gpid = entity.globalProjectId as string | undefined;
+              if (uid && gpid) {
+                entity.prefKey = `${uid}|${gpid}`;
+              }
+            }
+            toUpsert.push(entity);
           }
         }
 
         if (orphanCount > 0) {
-          console.info(`${LOG_PREFIX} ${entityType}: skipped ${orphanCount} orphaned row(s) with null project_id`);
+          const fkLabel = isGlobal ? 'global_project_id' : 'project_id';
+          console.info(`${LOG_PREFIX} ${entityType}: skipped ${orphanCount} orphaned row(s) with null ${fkLabel}`);
         }
 
         // Write to IndexedDB silently (no sync bridge trigger)
@@ -699,9 +848,14 @@ export class SyncManager implements SyncManagerInterface {
     if (!conflict) return;
 
     const table = entityTypeToTable[conflict.entityType];
-    const row = toSupabaseRow(conflict.entityType, conflict.localData, this.userId);
+    // Force-push of an existing row is semantically an update — keep created_by
+    // intact and only stamp updated_by.
+    const row = toSupabaseRow(conflict.entityType, conflict.localData, this.userId, { isUpdate: true });
 
-    const { error } = await this.client.from(table).upsert(row, { onConflict: 'id' });
+    const onConflict = conflict.entityType === 'globalProjectPreferences'
+      ? 'user_id,global_project_id'
+      : 'id';
+    const { error } = await this.client.from(table).upsert(row, { onConflict });
     if (error) {
       console.error(`${LOG_PREFIX} Failed to force-push local for ${conflictId}:`, error.message);
       throw error;
@@ -737,20 +891,28 @@ export class SyncManager implements SyncManagerInterface {
     if (!conflict) return;
 
     const table = entityTypeToTable[conflict.entityType];
+    const isGlobal = isGlobalEntity(conflict.entityType);
 
-    // Soft-delete in Supabase (or hard-delete for activityLog)
-    if (conflict.entityType === 'activityLog') {
-      await this.client
-        .from(table)
-        .delete()
-        .eq('id', conflict.entityId)
-        .eq('user_id', this.userId);
+    // Soft-delete in Supabase (hard-delete for append-only activity log tables).
+    // Global membership-RLS tables: skip the user_id filter (RLS enforces it).
+    const isAppendOnly = conflict.entityType === 'activityLog' || conflict.entityType === 'globalActivityLog';
+    if (isAppendOnly) {
+      let q = this.client.from(table).delete().eq('id', conflict.entityId);
+      if (!isGlobal) q = q.eq('user_id', this.userId);
+      await q;
+    } else if (conflict.entityType === 'globalProjectPreferences') {
+      const gpid = (conflict.localData as Record<string, unknown>).globalProjectId as string | undefined;
+      if (gpid) {
+        await this.client
+          .from(table)
+          .update({ deleted_at: new Date().toISOString() })
+          .eq('user_id', this.userId)
+          .eq('global_project_id', gpid);
+      }
     } else {
-      await this.client
-        .from(table)
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', conflict.entityId)
-        .eq('user_id', this.userId);
+      let q = this.client.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', conflict.entityId);
+      if (!isGlobal) q = q.eq('user_id', this.userId);
+      await q;
     }
 
     // Delete from local IndexedDB silently
@@ -759,6 +921,180 @@ export class SyncManager implements SyncManagerInterface {
     await deleteSyncConflict(conflictId);
     await this.reportConflictCount();
     console.info(`${LOG_PREFIX} Conflict resolved (delete both): ${conflictId}`);
+  }
+
+  // ─── Realtime: global_* tables ────────────────────────────────────────────
+
+  /**
+   * Subscribe to Postgres realtime changes on every `global_*` table the user
+   * is a member of (or, for global_projects + global_project_preferences,
+   * filter by the user's identity). On every change we mirror the row into
+   * IndexedDB silently and emit `onPullComplete()` so the UI hooks refresh.
+   *
+   * Consolidates all 19 global entity types into TWO channels (one for the
+   * "project-level" tables, one for child tables) to stay well under the
+   * default Supabase Realtime per-connection channel cap and to amortise
+   * heartbeats.
+   *
+   * Idempotent: calling twice tears down the previous subscriptions first.
+   * Returns a cleanup function that unsubscribes everything.
+   */
+  async subscribeToGlobalRealtime(): Promise<() => void> {
+    // Tear down any prior subscriptions before re-subscribing.
+    this.unsubscribeFromGlobalRealtime();
+
+    const memberProjectIds = await fetchMyGlobalProjectIds(this.client, this.userId);
+    // If the user belongs to no global projects, the IN filters would be
+    // empty (Postgres rejects `IN ()`). Subscribe only to the per-user
+    // preferences table in that case; the child-tables channel is skipped.
+    const hasMemberships = memberProjectIds.length > 0;
+    const idList = memberProjectIds.join(',');
+
+    // Channel 1 — project-level tables (global_projects + preferences).
+    const projectChannel = this.client.channel(`bau-sync-global-projects-${this.userId}`);
+
+    if (hasMemberships) {
+      projectChannel.on(
+        'postgres_changes' as never,
+        {
+          event: '*',
+          schema: 'public',
+          table: 'global_projects',
+          filter: `id=in.(${idList})`,
+        },
+        (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+          this.handleRealtimeChange('globalProjects', payload).catch((e) =>
+            console.warn(`${LOG_PREFIX} realtime apply failed (globalProjects):`, e),
+          );
+        },
+      );
+    }
+
+    projectChannel.on(
+      'postgres_changes' as never,
+      {
+        event: '*',
+        schema: 'public',
+        table: 'global_project_preferences',
+        filter: `user_id=eq.${this.userId}`,
+      },
+      (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+        this.handleRealtimeChange('globalProjectPreferences', payload).catch((e) =>
+          console.warn(`${LOG_PREFIX} realtime apply failed (globalProjectPreferences):`, e),
+        );
+      },
+    );
+
+    projectChannel.subscribe();
+    this.globalRealtimeChannels.push(projectChannel);
+
+    // Channel 2 — global child tables. Skip if user has no memberships.
+    if (hasMemberships) {
+      const childChannel = this.client.channel(`bau-sync-global-children-${this.userId}`);
+      // Subscribe to every global child entity type that filters by
+      // global_project_id (i.e. everything in REQUIRES_GLOBAL_PROJECT_ID
+      // except globalActivityLog handles the same filter).
+      for (const entityType of GLOBAL_ENTITY_TYPES) {
+        if (entityType === 'globalProjects' || entityType === 'globalProjectPreferences') continue;
+        const tableName = entityTypeToTable[entityType];
+        childChannel.on(
+          'postgres_changes' as never,
+          {
+            event: '*',
+            schema: 'public',
+            table: tableName,
+            filter: `global_project_id=in.(${idList})`,
+          },
+          (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+            this.handleRealtimeChange(entityType, payload).catch((e) =>
+              console.warn(`${LOG_PREFIX} realtime apply failed (${entityType}):`, e),
+            );
+          },
+        );
+      }
+      childChannel.subscribe();
+      this.globalRealtimeChannels.push(childChannel);
+    }
+
+    console.info(
+      `${LOG_PREFIX} Global realtime: subscribed across ${this.globalRealtimeChannels.length} channel(s) for ${memberProjectIds.length} project membership(s)`,
+    );
+
+    return () => this.unsubscribeFromGlobalRealtime();
+  }
+
+  /** Tear down all active global realtime channels. */
+  unsubscribeFromGlobalRealtime(): void {
+    if (this.globalRealtimeChannels.length === 0) return;
+    for (const channel of this.globalRealtimeChannels) {
+      try {
+        this.client.removeChannel(channel);
+      } catch (e) {
+        console.warn(`${LOG_PREFIX} Failed to remove realtime channel:`, e);
+      }
+    }
+    this.globalRealtimeChannels = [];
+  }
+
+  /**
+   * Apply a single realtime change event to the IndexedDB mirror.
+   * INSERT/UPDATE → bulkPutSilent. DELETE → bulkDeleteSilent.
+   * After every change we fire onPullComplete so hooks re-read.
+   */
+  private async handleRealtimeChange(
+    entityType: SyncEntityType,
+    payload: RealtimePostgresChangesPayload<Record<string, unknown>>,
+  ): Promise<void> {
+    const event = payload.eventType;
+
+    if (event === 'DELETE') {
+      // Realtime DELETE payload.old contains the deleted row's PK columns.
+      const oldRow = (payload.old ?? {}) as Record<string, unknown>;
+      if (entityType === 'globalProjectPreferences') {
+        const uid = oldRow.user_id as string | undefined;
+        const gpid = oldRow.global_project_id as string | undefined;
+        if (uid && gpid) {
+          await bulkDeleteSilent('globalProjectPreferences', [`${uid}|${gpid}`]);
+        }
+      } else {
+        const id = oldRow.id as string | undefined;
+        if (id) await bulkDeleteSilent(entityType, [id]);
+      }
+      emitPullComplete();
+      return;
+    }
+
+    // INSERT or UPDATE — payload.new is the post-change row.
+    const newRow = (payload.new ?? {}) as Record<string, unknown>;
+    if (!newRow || Object.keys(newRow).length === 0) return;
+
+    // Soft-deleted rows reach the realtime stream as UPDATE events. Mirror the
+    // pullSync behaviour: treat them as local deletes.
+    if (isDeletedRow(newRow)) {
+      if (entityType === 'globalProjectPreferences') {
+        const uid = newRow.user_id as string | undefined;
+        const gpid = newRow.global_project_id as string | undefined;
+        if (uid && gpid) {
+          await bulkDeleteSilent('globalProjectPreferences', [`${uid}|${gpid}`]);
+        }
+      } else {
+        const id = newRow.id as string | undefined;
+        if (id) await bulkDeleteSilent(entityType, [id]);
+      }
+      emitPullComplete();
+      return;
+    }
+
+    const entity = fromSupabaseRow(entityType, newRow);
+    // Same deletedAt asymmetry fix the pull loop applies.
+    entity.deletedAt = null;
+    if (entityType === 'globalProjectPreferences') {
+      const uid = entity.userId as string | undefined;
+      const gpid = entity.globalProjectId as string | undefined;
+      if (uid && gpid) entity.prefKey = `${uid}|${gpid}`;
+    }
+    await bulkPutSilent(entityType, [entity]);
+    emitPullComplete();
   }
 
   private async reportStatus(): Promise<void> {

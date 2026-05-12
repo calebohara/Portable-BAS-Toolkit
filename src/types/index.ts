@@ -26,6 +26,8 @@ export interface Project {
   contacts: Contact[];
   panelRosterSummary?: string;
   networkSummary?: string;
+  // id of the global_projects row this was shared to / from (preserves identity across reconcile)
+  syncedGlobalId?: string;
   isPinned: boolean;
   isOfflineAvailable: boolean;
 }
@@ -227,7 +229,14 @@ export type SyncEntityType =
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
   | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
   | 'ppclDocuments' | 'bugReports' | 'psychSessions' | 'reviews'
-  | 'trendSessions';
+  | 'trendSessions'
+  // ── Global mirrors ──
+  | 'globalProjects' | 'globalNotes' | 'globalDevices' | 'globalIpPlan'
+  | 'globalDailyReports' | 'globalActivityLog' | 'globalNetworkDiagrams'
+  | 'globalProjectFiles' | 'globalPpclDocuments' | 'globalTerminalLogs'
+  | 'globalPidTuningSessions' | 'globalPsychSessions' | 'globalRegisterCalculations'
+  | 'globalPingSessions' | 'globalTrendSessions' | 'globalConnectionProfiles'
+  | 'globalFieldPanels' | 'globalNotepadEntries' | 'globalProjectPreferences';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 

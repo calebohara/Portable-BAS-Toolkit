@@ -9,6 +9,17 @@ import type {
   GlobalProjectFile,
   GlobalActivityLogEntry,
   GlobalMessage,
+  GlobalPpclDocument,
+  GlobalTerminalSessionLog,
+  GlobalPidTuningSession,
+  GlobalPsychSession,
+  GlobalRegisterCalculation,
+  GlobalPingSession,
+  GlobalTrendSession,
+  GlobalConnectionProfile,
+  GlobalFieldPanel,
+  GlobalNotepadEntry,
+  GlobalProjectPreferences,
 } from '@/types/global-projects';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -965,4 +976,913 @@ export async function markMessagesRead(): Promise<ApiResult<null>> {
   } catch (err) {
     return fail((err as Error).message);
   }
+}
+
+// ─── Global Connection Profiles ─────────────────────────────────────────────
+
+export function fetchGlobalConnectionProfiles(
+  projectId: string,
+): Promise<ApiResult<GlobalConnectionProfile[]>> {
+  return fetchProjectEntities<GlobalConnectionProfile>(
+    'global_connection_profiles',
+    projectId,
+    'updated_at',
+    false,
+  );
+}
+
+export async function addGlobalConnectionProfile(
+  projectId: string,
+  data: Pick<
+    GlobalConnectionProfile,
+    | 'name'
+    | 'connectionType'
+    | 'serialPort'
+    | 'baudRate'
+    | 'dataBits'
+    | 'parity'
+    | 'stopBits'
+    | 'flowControl'
+    | 'host'
+    | 'port'
+    | 'localEcho'
+    | 'lineEnding'
+    | 'logging'
+    | 'notes'
+    | 'isFavorite'
+    | 'tags'
+    | 'lastConnectedAt'
+  >,
+): Promise<ApiResult<GlobalConnectionProfile>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_connection_profiles')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        name: data.name,
+        connection_type: data.connectionType,
+        serial_port: data.serialPort,
+        baud_rate: data.baudRate,
+        data_bits: data.dataBits,
+        parity: data.parity,
+        stop_bits: data.stopBits,
+        flow_control: data.flowControl,
+        host: data.host,
+        port: data.port,
+        local_echo: data.localEcho,
+        line_ending: data.lineEnding,
+        logging: data.logging,
+        notes: data.notes,
+        is_favorite: data.isFavorite,
+        tags: data.tags,
+        last_connected_at: data.lastConnectedAt || null,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalConnectionProfile>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalConnectionProfile(
+  id: string,
+  data: Partial<
+    Pick<
+      GlobalConnectionProfile,
+      | 'name'
+      | 'connectionType'
+      | 'serialPort'
+      | 'baudRate'
+      | 'dataBits'
+      | 'parity'
+      | 'stopBits'
+      | 'flowControl'
+      | 'host'
+      | 'port'
+      | 'localEcho'
+      | 'lineEnding'
+      | 'logging'
+      | 'notes'
+      | 'isFavorite'
+      | 'tags'
+      | 'lastConnectedAt'
+    >
+  >,
+): Promise<ApiResult<GlobalConnectionProfile>> {
+  return updateEntity<GlobalConnectionProfile>(
+    'global_connection_profiles',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalConnectionProfile(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_connection_profiles', id);
+}
+
+// ─── Global Field Panels ────────────────────────────────────────────────────
+
+export function fetchGlobalFieldPanels(
+  projectId: string,
+): Promise<ApiResult<GlobalFieldPanel[]>> {
+  return fetchProjectEntities<GlobalFieldPanel>(
+    'global_field_panels',
+    projectId,
+    'updated_at',
+    false,
+  );
+}
+
+export async function addGlobalFieldPanel(
+  projectId: string,
+  data: Pick<
+    GlobalFieldPanel,
+    | 'name'
+    | 'site'
+    | 'building'
+    | 'floor'
+    | 'system'
+    | 'equipment'
+    | 'controllerFamily'
+    | 'model'
+    | 'ipAddress'
+    | 'subnetMask'
+    | 'gateway'
+    | 'bacnetInstance'
+    | 'macAddress'
+    | 'networkType'
+    | 'firmwareVersion'
+    | 'applicationVersion'
+    | 'panelStatus'
+    | 'webUiUrl'
+    | 'secureWebUiUrl'
+    | 'lastSeenAt'
+    | 'lastBackupAt'
+    | 'lastCommissionedAt'
+    | 'assignedTechnician'
+    | 'tags'
+    | 'notes'
+    | 'activities'
+    | 'linkedFiles'
+    | 'relatedTools'
+  >,
+): Promise<ApiResult<GlobalFieldPanel>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_field_panels')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        name: data.name,
+        site: data.site,
+        building: data.building,
+        floor: data.floor,
+        system: data.system,
+        equipment: data.equipment,
+        controller_family: data.controllerFamily,
+        model: data.model,
+        ip_address: data.ipAddress,
+        subnet_mask: data.subnetMask,
+        gateway: data.gateway,
+        bacnet_instance: data.bacnetInstance,
+        mac_address: data.macAddress,
+        network_type: data.networkType,
+        firmware_version: data.firmwareVersion,
+        application_version: data.applicationVersion,
+        panel_status: data.panelStatus,
+        web_ui_url: data.webUiUrl,
+        secure_web_ui_url: data.secureWebUiUrl,
+        last_seen_at: data.lastSeenAt,
+        last_backup_at: data.lastBackupAt,
+        last_commissioned_at: data.lastCommissionedAt,
+        assigned_technician: data.assignedTechnician,
+        tags: data.tags,
+        notes: data.notes,
+        activities: data.activities,
+        linked_files: data.linkedFiles,
+        related_tools: data.relatedTools,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalFieldPanel>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalFieldPanel(
+  id: string,
+  data: Partial<
+    Pick<
+      GlobalFieldPanel,
+      | 'name'
+      | 'site'
+      | 'building'
+      | 'floor'
+      | 'system'
+      | 'equipment'
+      | 'controllerFamily'
+      | 'model'
+      | 'ipAddress'
+      | 'subnetMask'
+      | 'gateway'
+      | 'bacnetInstance'
+      | 'macAddress'
+      | 'networkType'
+      | 'firmwareVersion'
+      | 'applicationVersion'
+      | 'panelStatus'
+      | 'webUiUrl'
+      | 'secureWebUiUrl'
+      | 'lastSeenAt'
+      | 'lastBackupAt'
+      | 'lastCommissionedAt'
+      | 'assignedTechnician'
+      | 'tags'
+      | 'notes'
+      | 'activities'
+      | 'linkedFiles'
+      | 'relatedTools'
+    >
+  >,
+): Promise<ApiResult<GlobalFieldPanel>> {
+  return updateEntity<GlobalFieldPanel>(
+    'global_field_panels',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalFieldPanel(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_field_panels', id);
+}
+
+// ─── Global Notepad Entries ─────────────────────────────────────────────────
+
+export function fetchGlobalNotepadEntries(
+  projectId: string,
+): Promise<ApiResult<GlobalNotepadEntry[]>> {
+  return fetchProjectEntities<GlobalNotepadEntry>(
+    'global_project_notepad_entries',
+    projectId,
+    'updated_at',
+    false,
+  );
+}
+
+export async function addGlobalNotepadEntry(
+  projectId: string,
+  data: Pick<GlobalNotepadEntry, 'name' | 'content' | 'linkedTabId'>,
+): Promise<ApiResult<GlobalNotepadEntry>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_project_notepad_entries')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        name: data.name,
+        content: data.content,
+        linked_tab_id: data.linkedTabId,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalNotepadEntry>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalNotepadEntry(
+  id: string,
+  data: Partial<Pick<GlobalNotepadEntry, 'name' | 'content' | 'linkedTabId'>>,
+): Promise<ApiResult<GlobalNotepadEntry>> {
+  return updateEntity<GlobalNotepadEntry>(
+    'global_project_notepad_entries',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalNotepadEntry(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_project_notepad_entries', id);
+}
+
+// ─── Global PID Tuning Sessions ─────────────────────────────────────────────
+
+export function fetchGlobalPidTuningSessions(
+  projectId: string,
+): Promise<ApiResult<GlobalPidTuningSession[]>> {
+  return fetchProjectEntities<GlobalPidTuningSession>(
+    'global_pid_tuning_sessions',
+    projectId,
+    'updated_at',
+    false,
+  );
+}
+
+export async function addGlobalPidTuningSession(
+  projectId: string,
+  data: Pick<
+    GlobalPidTuningSession,
+    | 'loopName'
+    | 'equipment'
+    | 'loopType'
+    | 'controlledVariable'
+    | 'outputType'
+    | 'actuatorStrokeTime'
+    | 'action'
+    | 'controlMode'
+    | 'currentValues'
+    | 'recommendedValues'
+    | 'symptoms'
+    | 'responseData'
+    | 'fieldNotes'
+  >,
+): Promise<ApiResult<GlobalPidTuningSession>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_pid_tuning_sessions')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        loop_name: data.loopName,
+        equipment: data.equipment,
+        loop_type: data.loopType,
+        controlled_variable: data.controlledVariable,
+        output_type: data.outputType,
+        actuator_stroke_time: data.actuatorStrokeTime,
+        action: data.action,
+        control_mode: data.controlMode,
+        current_values: data.currentValues,
+        recommended_values: data.recommendedValues,
+        symptoms: data.symptoms,
+        response_data: data.responseData,
+        field_notes: data.fieldNotes,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalPidTuningSession>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalPidTuningSession(
+  id: string,
+  data: Partial<
+    Pick<
+      GlobalPidTuningSession,
+      | 'loopName'
+      | 'equipment'
+      | 'loopType'
+      | 'controlledVariable'
+      | 'outputType'
+      | 'actuatorStrokeTime'
+      | 'action'
+      | 'controlMode'
+      | 'currentValues'
+      | 'recommendedValues'
+      | 'symptoms'
+      | 'responseData'
+      | 'fieldNotes'
+    >
+  >,
+): Promise<ApiResult<GlobalPidTuningSession>> {
+  return updateEntity<GlobalPidTuningSession>(
+    'global_pid_tuning_sessions',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalPidTuningSession(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_pid_tuning_sessions', id);
+}
+
+// ─── Global Ping Sessions ───────────────────────────────────────────────────
+
+export function fetchGlobalPingSessions(
+  projectId: string,
+): Promise<ApiResult<GlobalPingSession[]>> {
+  return fetchProjectEntities<GlobalPingSession>(
+    'global_ping_sessions',
+    projectId,
+    'updated_at',
+    false,
+  );
+}
+
+export async function addGlobalPingSession(
+  projectId: string,
+  data: Pick<
+    GlobalPingSession,
+    'targets' | 'results' | 'mode' | 'intervalMs' | 'completedAt'
+  >,
+): Promise<ApiResult<GlobalPingSession>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_ping_sessions')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        targets: data.targets,
+        results: data.results,
+        mode: data.mode,
+        interval_ms: data.intervalMs,
+        completed_at: data.completedAt ?? null,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalPingSession>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalPingSession(
+  id: string,
+  data: Partial<
+    Pick<GlobalPingSession, 'targets' | 'results' | 'mode' | 'intervalMs' | 'completedAt'>
+  >,
+): Promise<ApiResult<GlobalPingSession>> {
+  return updateEntity<GlobalPingSession>(
+    'global_ping_sessions',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalPingSession(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_ping_sessions', id);
+}
+
+// ─── Global PPCL Documents ─────────────────────────────────────────────────
+
+export function fetchGlobalPpcl(
+  projectId: string,
+): Promise<ApiResult<GlobalPpclDocument[]>> {
+  return fetchProjectEntities<GlobalPpclDocument>(
+    'global_ppcl_documents',
+    projectId,
+    'updated_at',
+    false,
+  );
+}
+
+export async function addGlobalPpcl(
+  projectId: string,
+  data: Pick<GlobalPpclDocument, 'name' | 'content' | 'firmware'>,
+): Promise<ApiResult<GlobalPpclDocument>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_ppcl_documents')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        name: data.name,
+        content: data.content,
+        firmware: data.firmware,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalPpclDocument>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalPpcl(
+  id: string,
+  data: Partial<Pick<GlobalPpclDocument, 'name' | 'content' | 'firmware'>>,
+): Promise<ApiResult<GlobalPpclDocument>> {
+  return updateEntity<GlobalPpclDocument>(
+    'global_ppcl_documents',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalPpcl(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_ppcl_documents', id);
+}
+
+// ─── Global Project Preferences (per-user) ─────────────────────────────────
+
+export async function fetchGlobalProjectPreferences(
+  projectId: string,
+): Promise<ApiResult<GlobalProjectPreferences | null>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data, error } = await supabase
+      .from('global_project_preferences')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('global_project_id', projectId)
+      .maybeSingle();
+    if (error) return fail(error.message);
+    return ok(data ? camelCaseKeys<GlobalProjectPreferences>(data) : null);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function upsertGlobalProjectPreferences(
+  projectId: string,
+  data: Partial<
+    Pick<
+      GlobalProjectPreferences,
+      'isPinned' | 'isOfflineAvailable' | 'lastViewedTab' | 'preferences'
+    >
+  >,
+): Promise<ApiResult<GlobalProjectPreferences>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const row: Record<string, unknown> = {
+      user_id: userId,
+      global_project_id: projectId,
+    };
+    if (data.isPinned !== undefined) row.is_pinned = data.isPinned;
+    if (data.isOfflineAvailable !== undefined) row.is_offline_available = data.isOfflineAvailable;
+    if (data.lastViewedTab !== undefined) row.last_viewed_tab = data.lastViewedTab;
+    if (data.preferences !== undefined) row.preferences = data.preferences;
+    const { data: result, error } = await supabase
+      .from('global_project_preferences')
+      .upsert(row, { onConflict: 'user_id,global_project_id' })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalProjectPreferences>(result));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function deleteGlobalProjectPreferences(
+  projectId: string,
+): Promise<ApiResult<void>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { error } = await supabase
+      .from('global_project_preferences')
+      .delete()
+      .eq('user_id', userId)
+      .eq('global_project_id', projectId);
+    if (error) return fail(error.message);
+    return ok(undefined);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+// ─── Global Psych Sessions ─────────────────────────────────────────────────
+
+export function fetchGlobalPsychSessions(
+  projectId: string,
+): Promise<ApiResult<GlobalPsychSession[]>> {
+  return fetchProjectEntities<GlobalPsychSession>(
+    'global_psych_sessions',
+    projectId,
+    'updated_at',
+    false,
+  );
+}
+
+export async function addGlobalPsychSession(
+  projectId: string,
+  data: Pick<
+    GlobalPsychSession,
+    | 'label'
+    | 'unitSystem'
+    | 'altitude'
+    | 'inputMode'
+    | 'inputValues'
+    | 'results'
+    | 'comfortResult'
+    | 'ahuMixedAir'
+    | 'ahuCoilLoad'
+    | 'notes'
+    | 'tags'
+  >,
+): Promise<ApiResult<GlobalPsychSession>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_psych_sessions')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        label: data.label,
+        unit_system: data.unitSystem,
+        altitude: data.altitude,
+        input_mode: data.inputMode,
+        input_values: data.inputValues,
+        results: data.results,
+        comfort_result: data.comfortResult,
+        ahu_mixed_air: data.ahuMixedAir ?? null,
+        ahu_coil_load: data.ahuCoilLoad ?? null,
+        notes: data.notes,
+        tags: data.tags,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalPsychSession>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalPsychSession(
+  id: string,
+  data: Partial<
+    Pick<
+      GlobalPsychSession,
+      | 'label'
+      | 'unitSystem'
+      | 'altitude'
+      | 'inputMode'
+      | 'inputValues'
+      | 'results'
+      | 'comfortResult'
+      | 'ahuMixedAir'
+      | 'ahuCoilLoad'
+      | 'notes'
+      | 'tags'
+    >
+  >,
+): Promise<ApiResult<GlobalPsychSession>> {
+  return updateEntity<GlobalPsychSession>(
+    'global_psych_sessions',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalPsychSession(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_psych_sessions', id);
+}
+
+// ─── Global Register Calculations ───────────────────────────────────────────
+
+export function fetchGlobalRegisterCalculations(
+  projectId: string,
+): Promise<ApiResult<GlobalRegisterCalculation[]>> {
+  return fetchProjectEntities<GlobalRegisterCalculation>(
+    'global_register_calculations',
+    projectId,
+    'updated_at',
+    false,
+  );
+}
+
+export async function addGlobalRegisterCalculation(
+  projectId: string,
+  data: Pick<
+    GlobalRegisterCalculation,
+    'label' | 'module' | 'category' | 'inputs' | 'result' | 'notes' | 'tags'
+  >,
+): Promise<ApiResult<GlobalRegisterCalculation>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_register_calculations')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        label: data.label,
+        module: data.module,
+        category: data.category,
+        inputs: data.inputs,
+        result: data.result,
+        notes: data.notes,
+        tags: data.tags,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalRegisterCalculation>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalRegisterCalculation(
+  id: string,
+  data: Partial<
+    Pick<
+      GlobalRegisterCalculation,
+      'label' | 'module' | 'category' | 'inputs' | 'result' | 'notes' | 'tags'
+    >
+  >,
+): Promise<ApiResult<GlobalRegisterCalculation>> {
+  return updateEntity<GlobalRegisterCalculation>(
+    'global_register_calculations',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalRegisterCalculation(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_register_calculations', id);
+}
+
+// ─── Global Terminal Session Logs ───────────────────────────────────────────
+
+export function fetchGlobalTerminalLogs(
+  projectId: string,
+): Promise<ApiResult<GlobalTerminalSessionLog[]>> {
+  return fetchProjectEntities<GlobalTerminalSessionLog>(
+    'global_terminal_session_logs',
+    projectId,
+    'started_at',
+    false,
+  );
+}
+
+export async function addGlobalTerminalLog(
+  projectId: string,
+  data: Pick<
+    GlobalTerminalSessionLog,
+    | 'sessionLabel'
+    | 'connectionMode'
+    | 'host'
+    | 'port'
+    | 'serialPort'
+    | 'baudRate'
+    | 'lineCount'
+    | 'logContent'
+    | 'startedAt'
+    | 'endedAt'
+  >,
+): Promise<ApiResult<GlobalTerminalSessionLog>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_terminal_session_logs')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        session_label: data.sessionLabel,
+        connection_mode: data.connectionMode,
+        host: data.host,
+        port: data.port,
+        serial_port: data.serialPort,
+        baud_rate: data.baudRate,
+        line_count: data.lineCount,
+        log_content: data.logContent,
+        started_at: data.startedAt || null,
+        ended_at: data.endedAt || null,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalTerminalSessionLog>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalTerminalLog(
+  id: string,
+  data: Partial<
+    Pick<
+      GlobalTerminalSessionLog,
+      | 'sessionLabel'
+      | 'connectionMode'
+      | 'host'
+      | 'port'
+      | 'serialPort'
+      | 'baudRate'
+      | 'lineCount'
+      | 'logContent'
+      | 'startedAt'
+      | 'endedAt'
+    >
+  >,
+): Promise<ApiResult<GlobalTerminalSessionLog>> {
+  return updateEntity<GlobalTerminalSessionLog>(
+    'global_terminal_session_logs',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalTerminalLog(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_terminal_session_logs', id);
+}
+
+// ─── Global Trend Sessions ─────────────────────────────────────────────────
+
+export function fetchGlobalTrendSessions(
+  projectId: string,
+): Promise<ApiResult<GlobalTrendSession[]>> {
+  return fetchProjectEntities<GlobalTrendSession>(
+    'global_trend_sessions',
+    projectId,
+    'updated_at',
+    false,
+  );
+}
+
+export async function addGlobalTrendSession(
+  projectId: string,
+  data: Pick<
+    GlobalTrendSession,
+    | 'name'
+    | 'description'
+    | 'sourceSystem'
+    | 'series'
+    | 'data'
+    | 'anomalies'
+    | 'anomalyConfig'
+    | 'stats'
+  >,
+): Promise<ApiResult<GlobalTrendSession>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data: row, error } = await supabase
+      .from('global_trend_sessions')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        name: data.name,
+        description: data.description,
+        source_system: data.sourceSystem,
+        series: data.series,
+        data: data.data,
+        anomalies: data.anomalies,
+        anomaly_config: data.anomalyConfig,
+        stats: data.stats,
+      })
+      .select()
+      .single();
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalTrendSession>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalTrendSession(
+  id: string,
+  data: Partial<
+    Pick<
+      GlobalTrendSession,
+      | 'name'
+      | 'description'
+      | 'sourceSystem'
+      | 'series'
+      | 'data'
+      | 'anomalies'
+      | 'anomalyConfig'
+      | 'stats'
+    >
+  >,
+): Promise<ApiResult<GlobalTrendSession>> {
+  return updateEntity<GlobalTrendSession>(
+    'global_trend_sessions',
+    id,
+    data as Record<string, unknown>,
+  );
+}
+
+export function deleteGlobalTrendSession(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_trend_sessions', id);
 }

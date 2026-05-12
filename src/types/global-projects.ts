@@ -1,4 +1,31 @@
-import type { NoteCategory } from '@/types';
+import type {
+  AhuCoilLoadResult,
+  AhuMixedAirResult,
+  AnomalyConfig,
+  Contact,
+  FlowControl,
+  NoteCategory,
+  PidAction,
+  PidControlMode,
+  PidLoopType,
+  PidOutputType,
+  PidResponseData,
+  PidTuningValues,
+  PingResultEntry,
+  PingTarget,
+  PpclFirmwareTarget,
+  PsychComfortResult,
+  PsychInputMode,
+  PsychState,
+  PsychUnitSystem,
+  RegisterToolModule,
+  SavedCalcCategory,
+  TrendAnomaly,
+  TrendDataPoint,
+  TrendSeries,
+  TrendSeriesStats,
+  TrendSourceSystem,
+} from '@/types';
 
 // ─── Enums / Unions ─────────────────────────────────────────────────────────
 
@@ -19,6 +46,11 @@ export interface GlobalProject {
   buildingArea: string;
   projectNumber: string;
   description: string;
+  customerName: string;
+  technicianNotes: string;
+  panelRosterSummary: string | null;
+  networkSummary: string | null;
+  contacts: Contact[];
   accessCode: string;
   tags: string[];
   status: GlobalProjectStatus;
@@ -29,6 +61,10 @@ export interface GlobalProject {
   memberCount?: number;
   /** Populated via join — current user's role in this project */
   role?: GlobalProjectRole;
+  /** Per-user preference joined from global_project_preferences */
+  isPinned?: boolean;
+  /** Per-user preference joined from global_project_preferences */
+  isOfflineAvailable?: boolean;
 }
 
 export interface CreateGlobalProjectData {
@@ -218,6 +254,248 @@ export interface GlobalNetworkDiagram {
   nodes: unknown[];
   connections: unknown[];
   deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// ─── Extended Child Entities (Step-2 parity additions) ──────────────────────
+
+export interface GlobalPpclDocument {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  name: string;
+  content: string;
+  firmware: PpclFirmwareTarget;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GlobalTerminalSessionLog {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  sessionLabel: string;
+  connectionMode: 'serial' | 'tcp';
+  host: string;
+  port: number;
+  serialPort: string;
+  baudRate: number;
+  lineCount: number;
+  logContent: string;
+  startedAt: string;
+  endedAt: string;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GlobalPidTuningSession {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  loopName: string;
+  equipment: string;
+  loopType: PidLoopType;
+  controlledVariable: string;
+  outputType: PidOutputType;
+  actuatorStrokeTime: number | null;
+  action: PidAction;
+  controlMode: PidControlMode;
+  currentValues: PidTuningValues;
+  recommendedValues: PidTuningValues;
+  symptoms: string[];
+  responseData: PidResponseData;
+  fieldNotes: string;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GlobalPsychSession {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  label: string;
+  unitSystem: PsychUnitSystem;
+  altitude: number;
+  inputMode: PsychInputMode;
+  inputValues: Record<string, number>;
+  results: PsychState;
+  comfortResult: PsychComfortResult;
+  ahuMixedAir?: AhuMixedAirResult;
+  ahuCoilLoad?: AhuCoilLoadResult;
+  notes: string;
+  tags: string[];
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GlobalRegisterCalculation {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  label: string;
+  module: RegisterToolModule;
+  category: SavedCalcCategory;
+  inputs: Record<string, unknown>;
+  result: Record<string, unknown>;
+  notes: string;
+  tags: string[];
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GlobalPingSession {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  targets: PingTarget[];
+  results: Record<string, PingResultEntry[]>;
+  mode: 'single' | 'repeated' | 'multi';
+  intervalMs: number;
+  completedAt?: string;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GlobalTrendSession {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  name: string;
+  description: string;
+  sourceSystem: TrendSourceSystem;
+  series: TrendSeries[];
+  data: TrendDataPoint[];
+  anomalies: TrendAnomaly[];
+  anomalyConfig: AnomalyConfig;
+  stats: TrendSeriesStats[];
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface GlobalConnectionProfile {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  name: string;
+  connectionType: 'serial' | 'tcp';
+  // Serial settings
+  serialPort: string;
+  baudRate: number;
+  dataBits: number;
+  parity: string;
+  stopBits: string;
+  flowControl: FlowControl;
+  // TCP/Telnet settings
+  host: string;
+  port: number;
+  // Common settings
+  localEcho: boolean;
+  lineEnding: string;
+  logging: boolean;
+  // Organization
+  notes: string;
+  isFavorite: boolean;
+  tags: string[];
+  // Metadata
+  lastConnectedAt: string;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Derived from `supabase/migrations/add-global-field-panels.sql` — there is
+ * no local TS `FieldPanel` interface in `src/types/index.ts`, so this is the
+ * canonical shape for the global side. The local IndexedDB store uses the
+ * same column set (see `src/lib/db.ts` v14 migration), but it's typed
+ * loosely with `any` there.
+ */
+export interface GlobalFieldPanel {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  name: string;
+  site: string;
+  building: string;
+  floor: string;
+  system: string;
+  equipment: string;
+  controllerFamily: string;
+  model: string;
+  ipAddress: string;
+  subnetMask: string;
+  gateway: string;
+  bacnetInstance: number | null;
+  macAddress: string;
+  networkType: string;
+  firmwareVersion: string;
+  applicationVersion: string;
+  panelStatus: string;
+  webUiUrl: string;
+  secureWebUiUrl: string;
+  lastSeenAt: string | null;
+  lastBackupAt: string | null;
+  lastCommissionedAt: string | null;
+  assignedTechnician: string;
+  tags: string[];
+  notes: unknown[];
+  activities: unknown[];
+  linkedFiles: unknown[];
+  relatedTools: unknown[];
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Derived from `supabase/migrations/add-global-project-notepad-entries.sql` —
+ * there is no local TS `ProjectNotepadEntry` interface in `src/types/index.ts`
+ * (the notepad UI store in `src/store/notepad-store.ts` is unrelated; it tracks
+ * floating UI tabs, not the per-project notepad table).
+ */
+export interface GlobalNotepadEntry {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  name: string;
+  content: string;
+  linkedTabId: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Per-user preferences for a global project. Backed by
+ * `global_project_preferences (user_id, global_project_id)`. No local
+ * counterpart — `Project.isPinned` / `isOfflineAvailable` live directly on
+ * the project row on the local side.
+ */
+export interface GlobalProjectPreferences {
+  userId: string;
+  globalProjectId: string;
+  isPinned: boolean;
+  isOfflineAvailable: boolean;
+  lastViewedTab: string | null;
+  preferences: Record<string, unknown>;
   createdAt: string;
   updatedAt: string;
 }

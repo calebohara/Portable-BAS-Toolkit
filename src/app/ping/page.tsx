@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { Suspense, useState, useRef, useCallback, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   Activity, Play, Square, Plus, Trash2, Download, Info,
@@ -17,6 +18,8 @@ import {
 import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useProjects, usePingSessions } from '@/hooks/use-projects';
+import { useGlobalProjectPingSessions } from '@/hooks/use-global-projects';
+import { GlobalModeBanner } from '@/components/global-projects/global-mode-banner';
 import type { PingTarget, PingResultEntry, PingSession, PingStatus } from '@/types';
 import { v4 as uuid } from 'uuid';
 import { isTauri, nativeIcmpPing, nativeCheckPort } from '@/lib/tauri-bridge';
@@ -267,9 +270,51 @@ function ResultRow({ target, results }: { target: PingTarget; results: PingResul
 
 // ─── Main Page ───────────────────────────────────────────────
 export default function PingToolPage() {
+  return (
+    <Suspense fallback={<><TopBar title="Ping Tool" /><div className="flex-1 flex items-center justify-center p-16" role="status" aria-live="polite"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" /></div></>}>
+      <PingToolPageInner />
+    </Suspense>
+  );
+}
+
+function PingToolPageInner() {
+  const searchParams = useSearchParams();
+  const globalProjectId = searchParams.get('globalProjectId') ?? undefined;
+  const isGlobalMode = Boolean(globalProjectId);
+
   const { projects } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState('');
-  const { sessions: savedSessions, saveSession, removeSession } = usePingSessions();
+
+  // Both hooks unconditionally — unused one returns empty.
+  const { sessions: localSessions, saveSession: saveLocalSession, removeSession: removeLocalSession } = usePingSessions();
+  const { sessions: globalSessions, addSession: addGlobalSession, removeSession: removeGlobalSession } = useGlobalProjectPingSessions(globalProjectId);
+
+  const savedSessions = isGlobalMode ? globalSessions : localSessions;
+  // Local `saveSession` takes a full PingSession (with id/createdAt). Global
+  // `addSession` takes only data fields. Wrap to a single common shape.
+  const saveSession = useCallback(
+    async (session: PingSession) => {
+      if (isGlobalMode) {
+        await addGlobalSession({
+          targets: session.targets,
+          results: session.results,
+          mode: session.mode,
+          intervalMs: session.intervalMs,
+          completedAt: session.completedAt,
+        });
+        return;
+      }
+      return saveLocalSession(session);
+    },
+    [isGlobalMode, saveLocalSession, addGlobalSession],
+  );
+  const removeSession = useCallback(
+    async (id: string) => {
+      if (isGlobalMode) return removeGlobalSession(id);
+      return removeLocalSession(id);
+    },
+    [isGlobalMode, removeLocalSession, removeGlobalSession],
+  );
 
   // Desktop detection
   const [isDesktop, setIsDesktop] = useState(false);
@@ -447,13 +492,17 @@ export default function PingToolPage() {
   }, [targets, results, mode]);
 
   // ─── Load saved session ────────────────────────────────
-  const loadSession = useCallback((s: PingSession) => {
-    setTargets(s.targets.length > 0 ? s.targets : [{ host: '', label: '' }]);
-    setResults(s.results);
-    setMode(s.mode);
-    setIntervalMs(s.intervalMs);
-    setShowHistory(false);
-  }, []);
+  // Accepts the shared shape between local `PingSession` and `GlobalPingSession`.
+  const loadSession = useCallback(
+    (s: Pick<PingSession, 'targets' | 'results' | 'mode' | 'intervalMs'>) => {
+      setTargets(s.targets.length > 0 ? s.targets : [{ host: '', label: '' }]);
+      setResults(s.results);
+      setMode(s.mode);
+      setIntervalMs(s.intervalMs);
+      setShowHistory(false);
+    },
+    [],
+  );
 
   const hasResults = Object.keys(results).length > 0;
   const validTargets = targets.filter(t => t.host.trim());
@@ -463,6 +512,7 @@ export default function PingToolPage() {
       <TopBar title="Ping Tool" />
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-4xl mx-auto px-3 py-4 sm:p-6 space-y-4 sm:space-y-6">
+          {isGlobalMode && <GlobalModeBanner globalProjectId={globalProjectId} />}
           {/* Disclaimer */}
           <div className="rounded-lg border border-field-info/20 bg-field-info/5 px-4 py-3 text-sm flex gap-3">
             <Info className="h-4 w-4 text-field-info shrink-0 mt-0.5" />

@@ -1,10 +1,12 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Globe, Check, AlertTriangle, Copy, ExternalLink,
-  FileText, HardDrive, Network, ClipboardList, X,
+  FileText, HardDrive, Network, ClipboardList, FolderOpen,
+  GitBranch, FileCode, Terminal, Activity, Wind, Calculator,
+  Radio, LineChart, Plug, X,
 } from 'lucide-react';
 import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
@@ -14,37 +16,110 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
-import { migrateLocalToGlobal } from '@/lib/global-projects/migrate';
+import { reconcileLocalToGlobal, type ReconcileResult } from '@/lib/global-projects/reconcile';
 import { navigateToGlobalProject } from '@/lib/routes';
-import type { Project, FieldNote, DeviceEntry, IpPlanEntry, DailyReport } from '@/types';
-import type { MigrationResult } from '@/lib/global-projects/migrate';
+import type { Project } from '@/types';
+import {
+  getProjectNotes, getProjectDevices, getProjectIpPlan,
+  getProjectDailyReports, getProjectDiagrams, getProjectFiles,
+  getProjectPpclDocuments, getProjectTerminalLogs,
+  getProjectPidTuningSessions, getProjectPsychSessions,
+  getProjectRegisterCalculations, getProjectPingSessions,
+  getProjectTrendSessions, getProjectConnectionProfiles,
+} from '@/lib/db';
 
 interface ShareToGlobalDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   project: Project;
-  notes: FieldNote[];
-  devices: DeviceEntry[];
-  ipEntries: IpPlanEntry[];
-  reports: DailyReport[];
 }
 
 type DialogState = 'preview' | 'migrating' | 'success';
+
+interface EntityCounts {
+  notes: number;
+  devices: number;
+  ipEntries: number;
+  reports: number;
+  diagrams: number;
+  files: number;
+  ppcl: number;
+  terminalLogs: number;
+  pidSessions: number;
+  psychSessions: number;
+  registerCalcs: number;
+  pingSessions: number;
+  trendSessions: number;
+  connectionProfiles: number;
+}
+
+const ZERO_COUNTS: EntityCounts = {
+  notes: 0, devices: 0, ipEntries: 0, reports: 0, diagrams: 0, files: 0,
+  ppcl: 0, terminalLogs: 0, pidSessions: 0, psychSessions: 0,
+  registerCalcs: 0, pingSessions: 0, trendSessions: 0, connectionProfiles: 0,
+};
 
 export function ShareToGlobalDialog({
   open,
   onOpenChange,
   project,
-  notes,
-  devices,
-  ipEntries,
-  reports,
 }: ShareToGlobalDialogProps) {
   const router = useRouter();
   const [state, setState] = useState<DialogState>('preview');
   const [progressMessage, setProgressMessage] = useState('');
-  const [result, setResult] = useState<MigrationResult | null>(null);
+  const [result, setResult] = useState<ReconcileResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const [counts, setCounts] = useState<EntityCounts>(ZERO_COUNTS);
+
+  // Load entity counts when the dialog opens.
+  useEffect(() => {
+    if (!open || state !== 'preview') return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const [
+          notes, devices, ipEntries, reports, diagrams, files,
+          ppcl, terminalLogs, pidSessions, psychSessions,
+          registerCalcs, pingSessions, trendSessions, connectionProfiles,
+        ] = await Promise.all([
+          getProjectNotes(project.id),
+          getProjectDevices(project.id),
+          getProjectIpPlan(project.id),
+          getProjectDailyReports(project.id),
+          getProjectDiagrams(project.id),
+          getProjectFiles(project.id),
+          getProjectPpclDocuments(project.id),
+          getProjectTerminalLogs(project.id),
+          getProjectPidTuningSessions(project.id),
+          getProjectPsychSessions(project.id),
+          getProjectRegisterCalculations(project.id),
+          getProjectPingSessions(project.id),
+          getProjectTrendSessions(project.id),
+          getProjectConnectionProfiles(project.id),
+        ]);
+        if (cancelled) return;
+        setCounts({
+          notes: notes.length,
+          devices: devices.length,
+          ipEntries: ipEntries.length,
+          reports: reports.length,
+          diagrams: diagrams.length,
+          files: files.length,
+          ppcl: ppcl.length,
+          terminalLogs: terminalLogs.length,
+          pidSessions: pidSessions.length,
+          psychSessions: psychSessions.length,
+          registerCalcs: registerCalcs.length,
+          pingSessions: pingSessions.length,
+          trendSessions: trendSessions.length,
+          connectionProfiles: connectionProfiles.length,
+        });
+      } catch (e) {
+        console.warn('[share-to-global] failed to load counts:', e);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [open, state, project.id]);
 
   const reset = () => {
     setState('preview');
@@ -61,25 +136,25 @@ export function ShareToGlobalDialog({
 
   const handleMigrate = useCallback(async () => {
     setState('migrating');
-    setProgressMessage('Preparing migration...');
+    setProgressMessage('Preparing reconcile...');
     try {
-      const migrationResult = await migrateLocalToGlobal(
-        { project, notes, devices, ipEntries, reports },
+      const reconcileResult = await reconcileLocalToGlobal(
+        project.id,
         (step, current, total) => {
           setProgressMessage(`${step} (${current}/${total})...`);
         },
       );
-      setResult(migrationResult);
+      setResult(reconcileResult);
       setState('success');
       toast.success('Project shared to Global successfully');
     } catch (err) {
-      toast.error('Migration failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
+      toast.error('Reconcile failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
       setState('preview');
     }
-  }, [project, notes, devices, ipEntries, reports]);
+  }, [project.id]);
 
   const handleCopyCode = async () => {
-    if (!result) return;
+    if (!result?.accessCode) return;
     try {
       await copyToClipboard(result.accessCode);
       setCopied(true);
@@ -90,8 +165,14 @@ export function ShareToGlobalDialog({
     }
   };
 
+  const totalPushed = result
+    ? Object.values(result.counts).reduce((sum, c) => sum + c.pushed, 0)
+    : 0;
   const totalFailed = result
-    ? result.failed.notes + result.failed.devices + result.failed.ipEntries + result.failed.reports
+    ? Object.values(result.counts).reduce((sum, c) => sum + c.failed, 0)
+    : 0;
+  const totalSkipped = result
+    ? Object.values(result.counts).reduce((sum, c) => sum + c.skipped, 0)
     : 0;
 
   // State 3: Success
@@ -102,60 +183,58 @@ export function ShareToGlobalDialog({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Check className="h-5 w-5 text-green-500" />
-              Project Shared Successfully
+              {result.isNewProject ? 'Project Shared Successfully' : 'Project Reconciled'}
             </DialogTitle>
             <DialogDescription>
-              Your local project has been shared as a Global Project.
+              {result.isNewProject
+                ? 'Your local project has been shared as a Global Project.'
+                : 'Updates pushed to the linked Global Project.'}
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="px-5 py-4 space-y-4">
-            {/* Access Code */}
-            <div className="text-center">
-              <p className="text-sm text-muted-foreground mb-2">Access Code</p>
-              <div className="flex items-center justify-center gap-2">
-                <code className="rounded-lg bg-muted px-4 py-2 text-lg font-mono font-bold tracking-widest">
-                  {result.accessCode}
-                </code>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5 shrink-0"
-                  onClick={handleCopyCode}
-                >
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {copied ? 'Copied' : 'Copy'}
-                </Button>
+            {/* Access Code — only when a new global project was created */}
+            {result.accessCode && (
+              <div className="text-center">
+                <p className="text-sm text-muted-foreground mb-2">Access Code</p>
+                <div className="flex items-center justify-center gap-2">
+                  <code className="rounded-lg bg-muted px-4 py-2 text-lg font-mono font-bold tracking-widest">
+                    {result.accessCode}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5 shrink-0"
+                    onClick={handleCopyCode}
+                  >
+                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {copied ? 'Copied' : 'Copy'}
+                  </Button>
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* Migration Summary */}
+            {/* Reconcile Summary */}
             <div className="rounded-md border p-3 space-y-1.5 text-sm">
-              <p className="font-medium">Migration Summary</p>
+              <p className="font-medium">Reconcile Summary</p>
               <div className="grid grid-cols-2 gap-1 text-muted-foreground">
-                <span>Notes migrated:</span>
-                <span className="font-mono">{result.migrated.notes}</span>
-                <span>Devices migrated:</span>
-                <span className="font-mono">{result.migrated.devices}</span>
-                <span>IP Entries migrated:</span>
-                <span className="font-mono">{result.migrated.ipEntries}</span>
-                <span>Reports migrated:</span>
-                <span className="font-mono">{result.migrated.reports}</span>
+                <span>Rows pushed:</span>
+                <span className="font-mono">{totalPushed}</span>
+                <span>Rows unchanged:</span>
+                <span className="font-mono">{totalSkipped}</span>
+                <span>Rows failed:</span>
+                <span className="font-mono">{totalFailed}</span>
               </div>
             </div>
 
-            {/* Failure Warning */}
             {totalFailed > 0 && (
               <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 flex items-start gap-2 text-sm">
                 <AlertTriangle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium text-yellow-600 dark:text-yellow-400">
-                    Some items failed to migrate
+                    Some rows failed to reconcile
                   </p>
                   <p className="text-muted-foreground mt-0.5">
-                    {result.failed.notes > 0 && `${result.failed.notes} notes, `}
-                    {result.failed.devices > 0 && `${result.failed.devices} devices, `}
-                    {result.failed.ipEntries > 0 && `${result.failed.ipEntries} IP entries, `}
-                    {result.failed.reports > 0 && `${result.failed.reports} reports`}
+                    Check the browser console for per-entity error details.
                   </p>
                 </div>
               </div>
@@ -192,7 +271,7 @@ export function ShareToGlobalDialog({
               Sharing to Global...
             </DialogTitle>
             <DialogDescription>
-              Please wait while your project data is being migrated.
+              Please wait while your project data is being reconciled.
             </DialogDescription>
           </DialogHeader>
           <DialogBody className="px-5 py-6">
@@ -215,10 +294,12 @@ export function ShareToGlobalDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Globe className="h-5 w-5" />
-            Share to Global Project
+            {project.syncedGlobalId ? 'Reconcile to Global Project' : 'Share to Global Project'}
           </DialogTitle>
           <DialogDescription>
-            Migrate your local project to a shared Global Project.
+            {project.syncedGlobalId
+              ? 'Push local updates to the linked Global Project.'
+              : 'Share your local project to a new Global Project.'}
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="px-5 py-4 space-y-4">
@@ -231,36 +312,31 @@ export function ShareToGlobalDialog({
             )}
           </div>
 
-          {/* What Will Be Migrated */}
+          {/* What Will Be Reconciled */}
           <div className="space-y-2">
-            <p className="text-sm font-medium">Will be migrated</p>
-            <div className="space-y-1.5">
-              <MigrationItem icon={FileText} label="Notes" count={notes.length} included />
-              <MigrationItem icon={HardDrive} label="Devices" count={devices.length} included />
-              <MigrationItem icon={Network} label="IP Plan Entries" count={ipEntries.length} included />
-              <MigrationItem icon={ClipboardList} label="Daily Reports" count={reports.length} included />
+            <p className="text-sm font-medium">Will be reconciled</p>
+            <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
+              <MigrationItem icon={FileText}      label="Notes"                count={counts.notes} />
+              <MigrationItem icon={HardDrive}     label="Devices"              count={counts.devices} />
+              <MigrationItem icon={Network}       label="IP Plan Entries"      count={counts.ipEntries} />
+              <MigrationItem icon={ClipboardList} label="Daily Reports"        count={counts.reports} />
+              <MigrationItem icon={FolderOpen}    label="Files"                count={counts.files} />
+              <MigrationItem icon={GitBranch}     label="Network Diagrams"     count={counts.diagrams} />
+              <MigrationItem icon={FileCode}      label="PPCL Documents"       count={counts.ppcl} />
+              <MigrationItem icon={Terminal}      label="Terminal Logs"        count={counts.terminalLogs} />
+              <MigrationItem icon={Activity}      label="PID Sessions"         count={counts.pidSessions} />
+              <MigrationItem icon={Wind}          label="Psych Sessions"       count={counts.psychSessions} />
+              <MigrationItem icon={Calculator}    label="Register Calcs"       count={counts.registerCalcs} />
+              <MigrationItem icon={Radio}         label="Ping Sessions"        count={counts.pingSessions} />
+              <MigrationItem icon={LineChart}     label="Trend Sessions"       count={counts.trendSessions} />
+              <MigrationItem icon={Plug}          label="Connection Profiles"  count={counts.connectionProfiles} />
             </div>
           </div>
 
-          {/* What Cannot Be Migrated */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-muted-foreground">Cannot be migrated</p>
-            <div className="space-y-1.5 text-muted-foreground">
-              <div className="flex items-center gap-2 text-sm">
-                <X className="h-4 w-4 text-muted-foreground/60" />
-                <span>Files (stored locally — must be re-uploaded)</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <X className="h-4 w-4 text-muted-foreground/60" />
-                <span>Terminal logs, contacts, panel roster</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Info Text */}
           <p className="text-xs text-muted-foreground leading-relaxed">
-            This will create a new Global Project and migrate all applicable data.
-            Your local project will remain unchanged.
+            {project.syncedGlobalId
+              ? 'Updates push into the linked Global Project. UUIDs are preserved, so this is safe to run multiple times.'
+              : 'A new Global Project will be created and your data will be pushed. Your local project remains unchanged.'}
           </p>
         </DialogBody>
         <DialogFooter>
@@ -269,7 +345,7 @@ export function ShareToGlobalDialog({
           </Button>
           <Button className="gap-1.5" onClick={handleMigrate}>
             <Globe className="h-4 w-4" />
-            Share to Global
+            {project.syncedGlobalId ? 'Reconcile' : 'Share to Global'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -281,23 +357,22 @@ function MigrationItem({
   icon: Icon,
   label,
   count,
-  included,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   count: number;
-  included: boolean;
 }) {
+  const included = count > 0;
   return (
     <div className="flex items-center justify-between text-sm">
       <div className="flex items-center gap-2">
         {included ? (
           <Check className="h-4 w-4 text-green-500" />
         ) : (
-          <X className="h-4 w-4 text-muted-foreground/60" />
+          <X className="h-4 w-4 text-muted-foreground/40" />
         )}
         <Icon className="h-4 w-4" />
-        <span>{label}</span>
+        <span className={included ? '' : 'text-muted-foreground'}>{label}</span>
       </div>
       <Badge variant="secondary" className="font-mono text-xs">
         {count}

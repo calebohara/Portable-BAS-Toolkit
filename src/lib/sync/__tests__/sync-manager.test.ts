@@ -46,6 +46,11 @@ vi.mock('../field-map', () => ({
   isDeletedRow: vi.fn(() => false),
   SYNC_ORDER: ['projects', 'files', 'notes', 'devices'],
   REQUIRES_PROJECT_ID: new Set(['notes', 'devices']),
+  // Wave 3a added these — the sync-manager imports them at module load time
+  // so the mock must expose them or the entire module fails to import.
+  isGlobalEntity: vi.fn(() => false),
+  GLOBAL_ENTITY_TYPES: new Set<string>(),
+  REQUIRES_GLOBAL_PROJECT_ID: new Set<string>(),
 }));
 
 import { SyncManager } from '../sync-manager';
@@ -60,8 +65,27 @@ Object.defineProperty(globalThis, 'navigator', {
 });
 
 // Minimal mock SupabaseClient
-function createMockSupabase() {
-  const mockFrom = {
+interface MockFrom {
+  select: ReturnType<typeof vi.fn>;
+  eq: ReturnType<typeof vi.fn>;
+  not: ReturnType<typeof vi.fn>;
+  is: ReturnType<typeof vi.fn>;
+  in: ReturnType<typeof vi.fn>;
+  gte: ReturnType<typeof vi.fn>;
+  range: ReturnType<typeof vi.fn>;
+  maybeSingle: ReturnType<typeof vi.fn>;
+  upsert: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
+}
+
+interface MockSupabaseClient {
+  from: ReturnType<typeof vi.fn>;
+  _mock: MockFrom;
+}
+
+function createMockSupabase(): MockSupabaseClient {
+  const mockFrom: MockFrom = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
     not: vi.fn().mockReturnThis(),
@@ -94,14 +118,14 @@ function createMockSupabase() {
   return {
     from: vi.fn(() => mockFrom),
     _mock: mockFrom,
-  } as unknown as ReturnType<typeof createMockSupabase> & { from: ReturnType<typeof vi.fn>; _mock: typeof mockFrom };
+  };
 }
 
 const TEST_USER_ID = '00000000-1111-2222-3333-444444444444';
 
 describe('SyncManager', () => {
   let manager: SyncManager;
-  let supabase: ReturnType<typeof createMockSupabase>;
+  let supabase: MockSupabaseClient;
 
   beforeEach(() => {
     vi.clearAllMocks();

@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useRef } from 'react';
+import { Suspense, useState, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
@@ -21,6 +22,8 @@ import { mergeParsedResults } from '@/lib/trend-csv-parser';
 import { detectAnomalies, computeSeriesStats, defaultAnomalyConfig } from '@/lib/trend-anomaly-engine';
 import { exportCleanCSV, downloadCSV, exportChartAsPng, printReport } from '@/lib/trend-export';
 import { useTrendSessions } from '@/hooks/use-trend-sessions';
+import { useGlobalProjectTrendSessions } from '@/hooks/use-global-projects';
+import { GlobalModeBanner } from '@/components/global-projects/global-mode-banner';
 
 import { CsvUploadPanel } from '@/components/trend-viewer/csv-upload-panel';
 import { SeriesPanel } from '@/components/trend-viewer/series-panel';
@@ -46,6 +49,18 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 export default function TrendViewerPage() {
+  return (
+    <Suspense fallback={<><TopBar title="Trend Data Visualizer" /><div className="flex-1 flex items-center justify-center p-16" role="status" aria-live="polite"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" /></div></>}>
+      <TrendViewerPageInner />
+    </Suspense>
+  );
+}
+
+function TrendViewerPageInner() {
+  const searchParams = useSearchParams();
+  const globalProjectId = searchParams.get('globalProjectId') ?? undefined;
+  const isGlobalMode = Boolean(globalProjectId);
+
   // ─── State ───────────────────────────────────────────────
   const [allResults, setAllResults] = useState<ParseResult[]>([]);
   const [series, setSeries] = useState<TrendSeries[]>([]);
@@ -59,7 +74,36 @@ export default function TrendViewerPage() {
   const [loadOpen, setLoadOpen] = useState(false);
 
   const chartRef = useRef<TrendChartHandle>(null);
-  const { sessions, addSession, removeSession } = useTrendSessions();
+  // Both hooks called unconditionally — the unused one short-circuits to []
+  const { sessions: localSessions, addSession: addLocalSession, removeSession: removeLocalSession } = useTrendSessions();
+  const { sessions: globalSessions, addSession: addGlobalSession, removeSession: removeGlobalSession } = useGlobalProjectTrendSessions(globalProjectId);
+
+  const sessions = isGlobalMode ? globalSessions : localSessions;
+  const addSession = useCallback(
+    async (data: Parameters<typeof addLocalSession>[0]) => {
+      if (isGlobalMode) {
+        return addGlobalSession({
+          name: data.name,
+          description: data.description,
+          sourceSystem: data.sourceSystem,
+          series: data.series,
+          data: data.data,
+          anomalies: data.anomalies,
+          anomalyConfig: data.anomalyConfig,
+          stats: data.stats,
+        });
+      }
+      return addLocalSession(data);
+    },
+    [isGlobalMode, addLocalSession, addGlobalSession],
+  );
+  const removeSession = useCallback(
+    async (id: string) => {
+      if (isGlobalMode) return removeGlobalSession(id);
+      return removeLocalSession(id);
+    },
+    [isGlobalMode, removeLocalSession, removeGlobalSession],
+  );
 
   const hasData = data.length > 0;
 
@@ -137,7 +181,9 @@ export default function TrendViewerPage() {
   }, [addSession, series, data, anomalies, anomalyConfig, stats]);
 
   // ─── Load session ───────────────────────────────────────
-  const handleLoad = useCallback((session: TrendSession) => {
+  // In global mode the session is a `GlobalTrendSession` (no `projectId`); we
+  // only read fields shared by both shapes.
+  const handleLoad = useCallback((session: Pick<TrendSession, 'series' | 'data' | 'anomalies' | 'anomalyConfig' | 'stats' | 'name'>) => {
     setSeries(session.series);
     setData(session.data);
     setAnomalies(session.anomalies);
@@ -181,6 +227,12 @@ export default function TrendViewerPage() {
   return (
     <div className="flex flex-col h-full">
       <TopBar title="Trend Data Visualizer" />
+
+      {isGlobalMode && (
+        <div className="shrink-0 border-b border-border bg-background px-4 py-2">
+          <GlobalModeBanner globalProjectId={globalProjectId} />
+        </div>
+      )}
 
       <div className="flex-1 overflow-auto p-4 space-y-4">
         {/* Toolbar */}
@@ -339,7 +391,10 @@ export default function TrendViewerPage() {
       <SessionLoadDialog
         open={loadOpen}
         onOpenChange={setLoadOpen}
-        sessions={sessions}
+        // In global mode `sessions` is GlobalTrendSession[]; dialog reads only
+        // the common subset (id, name, series, data, sourceSystem, updatedAt),
+        // so cast is safe. Type follow-up to widen the dialog prop is Step 5.
+        sessions={sessions as unknown as TrendSession[]}
         onLoad={handleLoad}
         onDelete={removeSession}
       />

@@ -7,6 +7,7 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import { SyncManager } from '@/lib/sync/sync-manager';
 import { registerSyncManager, unregisterSyncManager, emitPullComplete } from '@/lib/sync/sync-bridge';
 import { hasSyncAccess, isInGracePeriod } from '@/lib/paywall';
+import { GLOBAL_MEMBERSHIP_CHANGED_EVENT } from '@/hooks/use-global-projects';
 
 interface SyncContextValue {
   triggerFullSync: () => Promise<{ enqueued: number; errors: string[] } | null>;
@@ -30,6 +31,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const { mode, user, profile: authProfile } = useAuth();
   const managerRef = useRef<SyncManager | null>(null);
   const autoPullFiredRef = useRef(false);
+  const realtimeCleanupRef = useRef<(() => void) | null>(null);
   const setSyncStatus = useAppStore((s) => s.setSyncStatus);
   const setPendingSyncCount = useAppStore((s) => s.setPendingSyncCount);
   const setLastSyncedAt = useAppStore((s) => s.setLastSyncedAt);
@@ -43,6 +45,8 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     if (mode !== 'authenticated' || !userId) {
       // Not authenticated — tear down and disable
       if (managerRef.current) {
+        realtimeCleanupRef.current?.();
+        realtimeCleanupRef.current = null;
         managerRef.current.stop();
         unregisterSyncManager();
         managerRef.current = null;
@@ -89,6 +93,29 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     manager.start();
     setSyncStatus('idle');
 
+    // Subscribe to realtime changes on the user's global_* tables. The
+    // returned cleanup function is stored so we can tear down channels on
+    // logout/unmount. `subscribeToGlobalRealtime` is idempotent — calling it
+    // again (e.g. after a membership change) tears down the prior channel set
+    // first.
+    manager.subscribeToGlobalRealtime().then((cleanup) => {
+      realtimeCleanupRef.current = cleanup;
+    }).catch((err) => {
+      console.warn('[sync] Failed to subscribe to global realtime:', err);
+    });
+
+    // Re-subscribe whenever the user joins or leaves a global project so the
+    // 30s membership cache in `api.ts` doesn't keep us subscribed to stale
+    // project ids. Idempotent — safe to fire on every event.
+    const handleMembershipChanged = () => {
+      manager.subscribeToGlobalRealtime().then((cleanup) => {
+        realtimeCleanupRef.current = cleanup;
+      }).catch((err) => {
+        console.warn('[sync] Failed to re-subscribe to global realtime:', err);
+      });
+    };
+    window.addEventListener(GLOBAL_MEMBERSHIP_CHANGED_EVENT, handleMembershipChanged);
+
     // Report initial conflict count
     manager.getConflictCount().then((count) => setSyncConflictCount(count));
 
@@ -131,6 +158,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener(GLOBAL_MEMBERSHIP_CHANGED_EVENT, handleMembershipChanged);
+      // Tear down realtime explicitly first; `manager.stop()` also calls
+      // `unsubscribeFromGlobalRealtime` for belt-and-suspenders.
+      realtimeCleanupRef.current?.();
+      realtimeCleanupRef.current = null;
+      manager.unsubscribeFromGlobalRealtime();
       manager.stop();
       unregisterSyncManager();
       managerRef.current = null;

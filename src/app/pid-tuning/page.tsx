@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useMemo, useId } from 'react';
+import { Suspense, useState, useCallback, useMemo, useId } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,6 +21,8 @@ import { toast } from 'sonner';
 import { cn, copyToClipboard } from '@/lib/utils';
 import { useProjects } from '@/hooks/use-projects';
 import { usePidTuningSessions } from '@/hooks/use-pid-tuning';
+import { useGlobalProjectPidTuningSessions } from '@/hooks/use-global-projects';
+import { GlobalModeBanner } from '@/components/global-projects/global-mode-banner';
 import { format } from 'date-fns';
 import type {
   PidLoopType, PidOutputType, PidControlMode, PidAction,
@@ -335,10 +338,101 @@ function CalculatorsTab({ onUseValues }: { onUseValues: UseValuesFn }) {
 
 // ─── Main Page ──────────────────────────────────────────────
 export default function PidTuningPage() {
+  // useSearchParams requires a Suspense boundary in app router.
+  return (
+    <Suspense fallback={<><TopBar title="PID Tuning Tool" /><div className="flex-1 flex items-center justify-center p-16" role="status" aria-live="polite"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" aria-label="Loading" /></div></>}>
+      <PidTuningPageInner />
+    </Suspense>
+  );
+}
+
+function PidTuningPageInner() {
+  const searchParams = useSearchParams();
+  const globalProjectId = searchParams.get('globalProjectId') ?? undefined;
+  const isGlobalMode = Boolean(globalProjectId);
+
   const { projects } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [filterProjectId, setFilterProjectId] = useState('');
-  const { sessions, loading: sessionsLoading, addSession, updateSession, removeSession } = usePidTuningSessions(filterProjectId || undefined);
+
+  // Call BOTH hooks unconditionally (React rules). The unused one short-circuits
+  // on empty id and returns empty state. In global mode we pass globalProjectId
+  // to the global hook; the local hook is still called but its data is never
+  // read.
+  const {
+    sessions: localSessions,
+    loading: localLoading,
+    addSession: addLocalSession,
+    updateSession: updateLocalSession,
+    removeSession: removeLocalSession,
+  } = usePidTuningSessions(filterProjectId || undefined);
+  const {
+    sessions: globalSessions,
+    loading: globalLoading,
+    addSession: addGlobalSession,
+    updateSession: updateGlobalSession,
+    removeSession: removeGlobalSession,
+  } = useGlobalProjectPidTuningSessions(globalProjectId);
+
+  // Adapter: pick local-vs-global. Global hook's addSession signature differs
+  // (no projectId in payload — it's curried). We wrap to keep the call sites
+  // below unchanged.
+  const sessions = isGlobalMode ? globalSessions : localSessions;
+  const sessionsLoading = isGlobalMode ? globalLoading : localLoading;
+  const addSession = useCallback(
+    async (data: Parameters<typeof addLocalSession>[0]) => {
+      if (isGlobalMode) {
+        return addGlobalSession({
+          loopName: data.loopName,
+          equipment: data.equipment,
+          loopType: data.loopType,
+          controlledVariable: data.controlledVariable,
+          outputType: data.outputType,
+          actuatorStrokeTime: data.actuatorStrokeTime,
+          action: data.action,
+          controlMode: data.controlMode,
+          currentValues: data.currentValues,
+          recommendedValues: data.recommendedValues,
+          symptoms: data.symptoms,
+          responseData: data.responseData,
+          fieldNotes: data.fieldNotes,
+        });
+      }
+      return addLocalSession(data);
+    },
+    [isGlobalMode, addLocalSession, addGlobalSession],
+  );
+  const updateSession = useCallback(
+    async (session: Parameters<typeof updateLocalSession>[0]) => {
+      if (isGlobalMode) {
+        await updateGlobalSession(session.id, {
+          loopName: session.loopName,
+          equipment: session.equipment,
+          loopType: session.loopType,
+          controlledVariable: session.controlledVariable,
+          outputType: session.outputType,
+          actuatorStrokeTime: session.actuatorStrokeTime,
+          action: session.action,
+          controlMode: session.controlMode,
+          currentValues: session.currentValues,
+          recommendedValues: session.recommendedValues,
+          symptoms: session.symptoms,
+          responseData: session.responseData,
+          fieldNotes: session.fieldNotes,
+        });
+        return;
+      }
+      return updateLocalSession(session);
+    },
+    [isGlobalMode, updateLocalSession, updateGlobalSession],
+  );
+  const removeSession = useCallback(
+    async (id: string) => {
+      if (isGlobalMode) return removeGlobalSession(id);
+      return removeLocalSession(id);
+    },
+    [isGlobalMode, removeLocalSession, removeGlobalSession],
+  );
 
   // Active session state
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -440,9 +534,14 @@ export default function PidTuningPage() {
     setFieldNotes('');
   }, []);
 
-  const loadSession = useCallback((session: PidTuningSession) => {
+  // In global mode `session` is a `GlobalPidTuningSession` which has
+  // `globalProjectId` instead of `projectId`. We use the local `PidTuningSession`
+  // shape as the canonical surface and tolerate the missing field via a
+  // structural fallback — the project-selector UI is irrelevant in global mode
+  // anyway (we're scoped to one global project).
+  const loadSession = useCallback((session: PidTuningSession | (Omit<PidTuningSession, 'projectId'> & { projectId?: string })) => {
     setActiveSessionId(session.id);
-    setSelectedProjectId(session.projectId);
+    setSelectedProjectId(session.projectId ?? '');
     setLoopName(session.loopName);
     setEquipment(session.equipment);
     setLoopType(session.loopType);
@@ -644,6 +743,11 @@ export default function PidTuningPage() {
         </div>
       </TopBar>
       <div className="flex flex-col" style={{ height: 'calc(100vh - 3.5rem)' }}>
+        {isGlobalMode && (
+          <div className="shrink-0 border-b border-border bg-background px-4 py-2">
+            <GlobalModeBanner globalProjectId={globalProjectId} />
+          </div>
+        )}
         <Tabs defaultValue="setup" className="flex flex-col flex-1 min-h-0 gap-0">
           <div className="shrink-0 border-b border-border bg-muted/20 px-4">
             <TabsList variant="line" className="overflow-x-auto scrollbar-none">

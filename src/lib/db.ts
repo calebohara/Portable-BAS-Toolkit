@@ -7,6 +7,14 @@ import type {
   PsychSession, UserReview, TrendSession,
   SyncQueueItem, SyncConflict,
 } from '@/types';
+import type {
+  GlobalProject, GlobalFieldNote, GlobalDevice, GlobalIpPlanEntry,
+  GlobalDailyReport, GlobalActivityLogEntry, GlobalNetworkDiagram,
+  GlobalProjectFile, GlobalPpclDocument, GlobalTerminalSessionLog,
+  GlobalPidTuningSession, GlobalPsychSession, GlobalRegisterCalculation,
+  GlobalPingSession, GlobalTrendSession, GlobalConnectionProfile,
+  GlobalFieldPanel, GlobalNotepadEntry, GlobalProjectPreferences,
+} from '@/types/global-projects';
 import { notifySync } from '@/lib/sync/sync-bridge';
 import type { SyncEntityType } from '@/types';
 
@@ -137,6 +145,109 @@ interface BasToolkitDB extends DBSchema {
     value: SyncConflict;
     indexes: { 'by-entity-type': string; 'by-detected': string };
   };
+  // ─── Global mirror stores (v19) ──
+  // Read-mostly IndexedDB cache of Supabase global_* tables. SyncManager writes
+  // here on pull + realtime change events. Indexes mirror the local stores
+  // where possible (use globalProjectId in place of projectId).
+  globalProjects: {
+    key: string;
+    value: GlobalProject;
+    indexes: { 'by-updated': string; 'by-created': string };
+  };
+  globalNotes: {
+    key: string;
+    value: GlobalFieldNote;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalDevices: {
+    key: string;
+    value: GlobalDevice;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalIpPlan: {
+    key: string;
+    value: GlobalIpPlanEntry;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalDailyReports: {
+    key: string;
+    value: GlobalDailyReport;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalActivityLog: {
+    key: string;
+    value: GlobalActivityLogEntry;
+    indexes: { 'by-project': string; 'by-timestamp': string };
+  };
+  globalNetworkDiagrams: {
+    key: string;
+    value: GlobalNetworkDiagram;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalProjectFiles: {
+    key: string;
+    value: GlobalProjectFile;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalPpclDocuments: {
+    key: string;
+    value: GlobalPpclDocument;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalTerminalLogs: {
+    key: string;
+    value: GlobalTerminalSessionLog;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalPidTuningSessions: {
+    key: string;
+    value: GlobalPidTuningSession;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalPsychSessions: {
+    key: string;
+    value: GlobalPsychSession;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalRegisterCalculations: {
+    key: string;
+    value: GlobalRegisterCalculation;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalPingSessions: {
+    key: string;
+    value: GlobalPingSession;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalTrendSessions: {
+    key: string;
+    value: GlobalTrendSession;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalConnectionProfiles: {
+    key: string;
+    value: GlobalConnectionProfile;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalFieldPanels: {
+    key: string;
+    value: GlobalFieldPanel;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  globalNotepadEntries: {
+    key: string;
+    value: GlobalNotepadEntry;
+    indexes: { 'by-project': string; 'by-updated': string };
+  };
+  // Composite-PK mirror: TS keyPath is the synthetic `prefKey` field
+  // ("${userId}|${globalProjectId}") populated on pull; the Supabase upsert
+  // uses onConflict: 'user_id,global_project_id' instead of this synthetic id.
+  // See SyncManager.pullSync → preferences branch.
+  globalProjectPreferences: {
+    key: string;
+    value: GlobalProjectPreferences & { prefKey: string };
+    indexes: { 'by-project': string; 'by-user': string };
+  };
 }
 
 /** Union of all object-store names in the schema — use instead of bare `string`. */
@@ -144,10 +255,17 @@ export type BasToolkitStoreName =
   | 'projects' | 'files' | 'fileBlobs' | 'notes' | 'devices' | 'ipPlan'
   | 'activityLog' | 'dailyReports' | 'networkDiagrams' | 'commandSnippets'
   | 'pingSessions' | 'terminalLogs' | 'connectionProfiles' | 'registerCalculations'
-  | 'pidTuningSessions' | 'ppclDocuments' | 'psychSessions' | 'trendSessions' | 'bugReports' | 'reviews' | 'syncQueue' | 'syncConflicts';
+  | 'pidTuningSessions' | 'ppclDocuments' | 'psychSessions' | 'trendSessions' | 'bugReports' | 'reviews' | 'syncQueue' | 'syncConflicts'
+  // ── Global mirrors (v19) — same set as GLOBAL_ENTITY_TYPES in field-map.ts ──
+  | 'globalProjects' | 'globalNotes' | 'globalDevices' | 'globalIpPlan'
+  | 'globalDailyReports' | 'globalActivityLog' | 'globalNetworkDiagrams'
+  | 'globalProjectFiles' | 'globalPpclDocuments' | 'globalTerminalLogs'
+  | 'globalPidTuningSessions' | 'globalPsychSessions' | 'globalRegisterCalculations'
+  | 'globalPingSessions' | 'globalTrendSessions' | 'globalConnectionProfiles'
+  | 'globalFieldPanels' | 'globalNotepadEntries' | 'globalProjectPreferences';
 
 /** Current schema version — bump this and add a new `if (oldVersion < N)` block when changing the schema. */
-export const DB_VERSION = 18;
+export const DB_VERSION = 19;
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
@@ -314,6 +432,50 @@ function getDB() {
           const trendStore = db.createObjectStore('trendSessions', { keyPath: 'id' });
           trendStore.createIndex('by-project', 'projectId');
           trendStore.createIndex('by-updated', 'updatedAt');
+        }
+
+        if (oldVersion < 19) {
+          // ─── Global mirror stores ──────────────────────────────────────────
+          // Read-mostly IndexedDB cache of Supabase global_* tables. SyncManager
+          // writes here on pull + realtime change events. Indexes mirror the
+          // local stores where possible, using `globalProjectId` in place of
+          // `projectId`.
+
+          // globalProjects — top-level, no parent FK
+          const gpStore = db.createObjectStore('globalProjects', { keyPath: 'id' });
+          gpStore.createIndex('by-updated', 'updatedAt');
+          gpStore.createIndex('by-created', 'createdAt');
+
+          // Standard global child stores (PK: id, indexes: globalProjectId, updatedAt)
+          const standardChildStores: readonly string[] = [
+            'globalNotes', 'globalDevices', 'globalIpPlan', 'globalDailyReports',
+            'globalNetworkDiagrams', 'globalProjectFiles', 'globalPpclDocuments',
+            'globalTerminalLogs', 'globalPidTuningSessions', 'globalPsychSessions',
+            'globalRegisterCalculations', 'globalPingSessions', 'globalTrendSessions',
+            'globalConnectionProfiles', 'globalFieldPanels', 'globalNotepadEntries',
+          ];
+          for (const name of standardChildStores) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const store = (db as any).createObjectStore(name, { keyPath: 'id' });
+            store.createIndex('by-project', 'globalProjectId');
+            store.createIndex('by-updated', 'updatedAt');
+          }
+
+          // globalActivityLog — append-only, indexed by timestamp (no updatedAt column)
+          const galStore = db.createObjectStore('globalActivityLog', { keyPath: 'id' });
+          galStore.createIndex('by-project', 'globalProjectId');
+          galStore.createIndex('by-timestamp', 'timestamp');
+
+          // globalProjectPreferences — composite PK (user_id, global_project_id)
+          // in Postgres. Dexie can't model that natively; we synthesize a string
+          // primary key `${userId}|${globalProjectId}` written to the
+          // `prefKey` field by SyncManager on pull. Realtime upserts compute
+          // the same key. The Supabase upsert uses onConflict:
+          // 'user_id,global_project_id' (NOT this synthetic id) — see
+          // SyncManager.processItem → globalProjectPreferences branch.
+          const gprefStore = db.createObjectStore('globalProjectPreferences', { keyPath: 'prefKey' });
+          gprefStore.createIndex('by-project', 'globalProjectId');
+          gprefStore.createIndex('by-user', 'userId');
         }
       },
     }).catch((err) => {
@@ -1108,6 +1270,13 @@ export async function clearAllData(): Promise<void> {
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
     'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions', 'bugReports', 'reviews', 'syncQueue', 'syncConflicts',
+    // Global mirror stores (v19)
+    'globalProjects', 'globalNotes', 'globalDevices', 'globalIpPlan',
+    'globalDailyReports', 'globalActivityLog', 'globalNetworkDiagrams',
+    'globalProjectFiles', 'globalPpclDocuments', 'globalTerminalLogs',
+    'globalPidTuningSessions', 'globalPsychSessions', 'globalRegisterCalculations',
+    'globalPingSessions', 'globalTrendSessions', 'globalConnectionProfiles',
+    'globalFieldPanels', 'globalNotepadEntries', 'globalProjectPreferences',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');
