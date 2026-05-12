@@ -88,7 +88,21 @@
       "Bash(sed -i '' 's/\"\"version\"\": \"\"4.8.7\"\"/\"\"version\"\": \"\"4.9.0\"\"/' src-tauri/tauri.conf.json)",
       "Bash(grep '\"\"version\"\"' src-tauri/tauri.conf.json)",
       "Bash(npx eslint *)",
-      "Bash(git check-ignore *)"
+      "Bash(git check-ignore *)",
+      "Bash(node node_modules/typescript/bin/tsc --noEmit --pretty false)",
+      "Bash(sed -i '2093,2616d' src/app/global-projects/\\\\[...slug\\\\]/client-page.tsx)",
+      "Bash(sed -n '2088,2098p' src/app/global-projects/\\\\[...slug\\\\]/client-page.tsx)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\z004jdke\\\\Documents\\\\GitHub\\\\Portable-BAS-Toolkit\" -Directory)",
+      "Bash(Select-Object Name)",
+      "PowerShell(Join-Path *)",
+      "Bash(git show *)",
+      "Bash(node -e \"const pkg = require\\('./package.json'\\); console.log\\('xlsx:', pkg.dependencies.xlsx\\)\")",
+      "Bash(node -e \"const { DB_VERSION } = require\\('./src/lib/db.ts'\\); console.log\\(DB_VERSION\\)\")",
+      "Bash(echo \"Exit: $?\")",
+      "Bash(printenv)",
+      "Bash(supabase --version)",
+      "Bash(netstat -ano)",
+      "Bash(grep -E \"^\\(create table|CREATE TABLE\\).*\\\\\\\\s+\\(devices|notes|ip_plan|dxrs|daily_reports\\)\\\\\\\\s*\\\\\\\\\\(\" supabase/schema.sql supabase/global-projects-schema.sql)"
     ]
   }
 }
