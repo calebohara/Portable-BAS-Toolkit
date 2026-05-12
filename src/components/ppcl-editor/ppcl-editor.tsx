@@ -176,7 +176,7 @@ export function PpclEditorComponent({
         highlightSelectionMatches: true,
       }}
       style={{ fontSize: `${fontSize}px`, height: '100%' }}
-      className="h-full overflow-auto"
+      className="h-full overflow-hidden"
     />
   );
 }

@@ -77,9 +77,9 @@ export function PpclPreviewDialog({ open, onOpenChange, document: doc, onOpenInE
                 {formatFileSize(byteSize)}
               </p>
             </DialogHeader>
-            <DialogBody className="p-0 min-h-[400px] max-h-[65vh]">
+            <DialogBody className="p-0 overflow-hidden">
               {isEmpty ? (
-                <div className="flex h-full flex-col items-center justify-center py-16 text-center">
+                <div className="flex h-[400px] flex-col items-center justify-center py-16 text-center">
                   <FileCode className="h-8 w-8 text-muted-foreground/40 mb-2" />
                   <p className="text-sm text-muted-foreground">Empty program</p>
                   <p className="text-xs text-muted-foreground/60 max-w-xs">
@@ -87,12 +87,17 @@ export function PpclPreviewDialog({ open, onOpenChange, document: doc, onOpenInE
                   </p>
                 </div>
               ) : (
-                <PpclEditorComponent
-                  content={doc.content}
-                  onContentChange={() => { /* read-only: never called */ }}
-                  charLimit={charLimit}
-                  readOnly
-                />
+                <div
+                  className="resize-y overflow-hidden h-[50vh] min-h-[250px] max-h-[65vh]"
+                  aria-label="Resizable preview area — drag the bottom edge to resize"
+                >
+                  <PpclEditorComponent
+                    content={doc.content}
+                    onContentChange={() => { /* read-only: never called */ }}
+                    charLimit={charLimit}
+                    readOnly
+                  />
+                </div>
               )}
             </DialogBody>
             <DialogFooter>
