@@ -67,6 +67,12 @@ const UUID_FK_COLUMNS = new Set([
 // Unlike LOCAL_ONLY_FIELDS which applies globally, these are entity-specific.
 const SKIP_FIELDS: Partial<Record<SyncEntityType, Set<string>>> = {
   activityLog: new Set(['user']), // local `user` field — Supabase uses `user_id` instead
+  // global_activity_log is append-only with no `deleted_at` or `sync_version`
+  // columns. The pullSync / realtime paths unconditionally stamp deletedAt=null
+  // on every global entity (sync-manager.ts:622, :1090) which leaks into
+  // IndexedDB. Strip both at push time so upserts don't fail PostgREST schema-
+  // cache validation.
+  globalActivityLog: new Set(['deletedAt', 'syncVersion']),
 };
 
 // camelCase → snake_case conversion

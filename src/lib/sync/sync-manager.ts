@@ -618,7 +618,10 @@ export class SyncManager implements SyncManagerInterface {
             // global entity, but fromSupabaseRow strips `deleted_at` from every
             // row. Since the query already filters out tombstoned rows, the
             // live rows that reach here always have deletedAt = null.
-            if (isGlobal) {
+            // Exception: globalActivityLog is append-only — the TS interface
+            // doesn't declare `deletedAt` and the table has no such column.
+            // Stamping it would poison the IndexedDB row and break upserts.
+            if (isGlobal && entityType !== 'globalActivityLog') {
               entity.deletedAt = null;
             }
             // globalProjectPreferences: synthesize the Dexie primary key.
@@ -1086,8 +1089,11 @@ export class SyncManager implements SyncManagerInterface {
     }
 
     const entity = fromSupabaseRow(entityType, newRow);
-    // Same deletedAt asymmetry fix the pull loop applies.
-    entity.deletedAt = null;
+    // Same deletedAt asymmetry fix the pull loop applies — skip for
+    // globalActivityLog (no deleted_at column on the append-only table).
+    if (entityType !== 'globalActivityLog') {
+      entity.deletedAt = null;
+    }
     if (entityType === 'globalProjectPreferences') {
       const uid = entity.userId as string | undefined;
       const gpid = entity.globalProjectId as string | undefined;
