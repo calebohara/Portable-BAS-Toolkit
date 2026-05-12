@@ -7,6 +7,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { useAppStore } from '@/store/app-store';
 import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
 import { useInbox } from '@/hooks/use-inbox';
+import { usePendingApprovals } from '@/hooks/use-pending-approvals';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { Button } from '@/components/ui/button';
 import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
@@ -25,6 +26,7 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
   const [showInbox, setShowInbox] = useState(false);
   const [showBugReport, setShowBugReport] = useState(false);
   const { unreadCount } = useInbox();
+  const { count: pendingApprovalsCount, isAdmin } = usePendingApprovals();
 
   const goToSearch = useCallback(() => router.push('/search'), [router]);
 
@@ -144,23 +146,33 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
               className="flex items-center gap-2 rounded-full border border-border bg-muted/50 pl-1 pr-3 py-1 hover:bg-muted transition-colors cursor-pointer"
               aria-label="Go to profile"
             >
-              <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden text-[10px] font-semibold text-primary">
-                {profile?.avatarUrl ? (
-                  <img
-                    src={profile.avatarUrl}
-                    alt=""
-                    width={24}
-                    height={24}
-                    loading="lazy"
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                    className="h-6 w-6 rounded-full object-cover"
-                  />
-                ) : (
-                  (() => {
-                    const f = profile?.firstName?.[0] ?? '';
-                    const l = profile?.lastName?.[0] ?? '';
-                    return (f + l).toUpperCase() || user.email?.slice(0, 2).toUpperCase() || '??';
-                  })()
+              <div className="relative">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 overflow-hidden text-[10px] font-semibold text-primary">
+                  {profile?.avatarUrl ? (
+                    <img
+                      src={profile.avatarUrl}
+                      alt=""
+                      width={24}
+                      height={24}
+                      loading="lazy"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                      className="h-6 w-6 rounded-full object-cover"
+                    />
+                  ) : (
+                    (() => {
+                      const f = profile?.firstName?.[0] ?? '';
+                      const l = profile?.lastName?.[0] ?? '';
+                      return (f + l).toUpperCase() || user.email?.slice(0, 2).toUpperCase() || '??';
+                    })()
+                  )}
+                </div>
+                {isAdmin && pendingApprovalsCount > 0 && (
+                  <span
+                    className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground ring-2 ring-background"
+                    aria-label={`${pendingApprovalsCount} pending account approvals`}
+                  >
+                    {pendingApprovalsCount > 9 ? '9+' : pendingApprovalsCount}
+                  </span>
                 )}
               </div>
               <span className="hidden sm:inline max-w-28 truncate text-xs font-medium text-foreground">

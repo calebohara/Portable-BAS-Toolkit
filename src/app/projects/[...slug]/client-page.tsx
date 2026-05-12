@@ -7,7 +7,7 @@ import {
   ArrowLeft, Database, FileText, Network, Server, HardDrive,
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
-  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink, Eye,
+  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink, Eye, UserPlus,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
@@ -34,6 +34,7 @@ import { FileListView } from '@/components/files/file-list-view';
 import { ActivityTimeline } from '@/components/projects/activity-timeline';
 import { ShareDialog } from '@/components/share/share-dialog';
 import { ShareToGlobalDialog } from '@/components/global-projects/share-to-global-dialog';
+import { ShareWithUserDialog } from '@/components/global-projects/share-with-user-dialog';
 import { PpclPreviewDialog } from '@/components/ppcl-editor/ppcl-preview-dialog';
 import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry, type TerminalSessionLog } from '@/types';
 import { cn, sanitizeFilename } from '@/lib/utils';
@@ -110,6 +111,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [deleting, setDeleting] = useState(false);
   const [showShare, setShowShare] = useState(false);
   const [showShareToGlobal, setShowShareToGlobal] = useState(false);
+  const [showShareWithUser, setShowShareWithUser] = useState(false);
 
   // Auto-refresh files when a global upload targets this project
   useEffect(() => {
@@ -248,6 +250,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onUpdateProject={handleUpdateProject}
               onShare={() => setShowShare(true)}
               onShareToGlobal={() => setShowShareToGlobal(true)}
+              onShareWithUser={() => setShowShareWithUser(true)}
               onDelete={() => setShowDeleteConfirm(true)}
             />
           )}
@@ -331,6 +334,12 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         onOpenChange={setShowShareToGlobal}
         project={project}
       />
+
+      <ShareWithUserDialog
+        open={showShareWithUser}
+        onOpenChange={setShowShareWithUser}
+        project={project}
+      />
     </>
   );
 }
@@ -338,7 +347,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 // ─── Overview Section ───────────────────────────────────────────────────────
 
 function OverviewSection({
-  project, files, notes, devices, ipEntries, onNavigate, onUpdateProject, onShare, onShareToGlobal, onDelete,
+  project, files, notes, devices, ipEntries, onNavigate, onUpdateProject, onShare, onShareToGlobal, onShareWithUser, onDelete,
 }: {
   project: Project;
   files: ProjectFile[];
@@ -349,6 +358,7 @@ function OverviewSection({
   onUpdateProject: (data: Partial<Project>) => Promise<void>;
   onShare: () => void;
   onShareToGlobal: () => void;
+  onShareWithUser: () => void;
   onDelete: () => void;
 }) {
   const [editOpen, setEditOpen] = useState(false);
@@ -422,6 +432,11 @@ function OverviewSection({
         </Button>
         <Button variant="outline" size="sm" className="gap-1.5 border-primary/30 text-primary hover:bg-primary/5" onClick={onShareToGlobal}>
           <Globe className="h-3.5 w-3.5" /> Share to Global
+        </Button>
+        <Button variant="outline" size="sm" className="gap-1.5" onClick={onShareWithUser}>
+          <UserPlus className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Share with User</span>
+          <span className="sm:hidden">User</span>
         </Button>
         <Button variant="outline" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={onDelete}>
           <Trash2 className="h-3.5 w-3.5" /> Delete

@@ -1886,3 +1886,115 @@ export function updateGlobalTrendSession(
 export function deleteGlobalTrendSession(id: string): Promise<ApiResult<void>> {
   return softDelete('global_trend_sessions', id);
 }
+
+// ─── User Search & Direct Sharing ───────────────────────────────────────────
+// Powers the "Share with User" dialog: autocomplete over approved profiles,
+// idempotent bulk-add to a global project, admin pending-approval count, and
+// recipient-side "what got shared with me since X" list.
+
+export interface SearchableUser {
+  id: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+}
+
+export async function searchUsersForSharing(
+  query: string,
+): Promise<ApiResult<SearchableUser[]>> {
+  if (query.trim().length < 2) return ok([]);
+  try {
+    const { data, error } = await getClient().rpc('search_users', { query });
+    if (error) return fail(error.message);
+    return ok((data ?? []).map((r: unknown) => camelCaseKeys<SearchableUser>(r)));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function shareProjectWithUsers(
+  globalProjectId: string,
+  userIds: string[],
+): Promise<ApiResult<{ added: number; alreadyMember: number }>> {
+  if (userIds.length === 0) return ok({ added: 0, alreadyMember: 0 });
+  try {
+    const supabase = getClient();
+    const inviter = await getCurrentUserId();
+    const rows = userIds.map((uid) => ({
+      global_project_id: globalProjectId,
+      user_id: uid,
+      role: 'member',
+      invited_by: inviter,
+    }));
+    // ignoreDuplicates: true → Supabase v2 returns only newly-inserted rows
+    // in `data`, so `added` = data.length and the rest were already members.
+    const { data, error } = await supabase
+      .from('global_project_members')
+      .upsert(rows, { onConflict: 'global_project_id,user_id', ignoreDuplicates: true })
+      .select();
+    if (error) return fail(error.message);
+    const added = data?.length ?? 0;
+    return ok({ added, alreadyMember: userIds.length - added });
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export async function fetchPendingApprovalsCount(): Promise<ApiResult<number>> {
+  try {
+    const supabase = getClient();
+    const { count, error } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('approved', false);
+    if (error) return fail(error.message);
+    return ok(count ?? 0);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export interface RecentShare {
+  globalProjectId: string;
+  projectName: string;
+  joinedAt: string;
+  invitedBy: string | null;
+}
+
+export async function fetchRecentSharesForCurrentUser(
+  sinceIso: string,
+): Promise<ApiResult<RecentShare[]>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+    const { data, error } = await supabase
+      .from('global_project_members')
+      .select('global_project_id, joined_at, invited_by, global_projects!inner(name)')
+      .eq('user_id', userId)
+      .gt('joined_at', sinceIso)
+      .not('invited_by', 'is', null)
+      .order('joined_at', { ascending: false });
+    if (error) return fail(error.message);
+    const shares: RecentShare[] = (data ?? []).map((r: unknown) => {
+      const row = r as {
+        global_project_id: string;
+        joined_at: string;
+        invited_by: string | null;
+        global_projects: { name: string } | { name: string }[];
+      };
+      // Supabase typings sometimes widen embed to an array; normalize both.
+      const projects = Array.isArray(row.global_projects)
+        ? row.global_projects[0]
+        : row.global_projects;
+      return {
+        globalProjectId: row.global_project_id,
+        projectName: projects?.name ?? '',
+        joinedAt: row.joined_at,
+        invitedBy: row.invited_by,
+      };
+    });
+    return ok(shares);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}

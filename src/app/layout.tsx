@@ -4,6 +4,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ThemeProvider } from '@/components/theme/theme-provider';
 import { AppShell } from '@/components/layout/app-shell';
+import { RecentSharesToast } from '@/components/layout/recent-shares-toast';
 import { ErrorBoundary } from '@/components/shared/error-boundary';
 import { AuthProvider } from '@/providers/auth-provider';
 import { SyncProvider } from '@/providers/sync-provider';
@@ -81,6 +82,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <ErrorBoundary>
                   <AppShell>{children}</AppShell>
                 </ErrorBoundary>
+                <RecentSharesToast />
                 <Toaster position="bottom-right" richColors />
               </TooltipProvider>
             </SyncProvider>
