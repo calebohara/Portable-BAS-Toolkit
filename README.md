@@ -17,7 +17,18 @@
 
 ---
 
-## What's New in v4.9.1
+## What's New
+
+### Unreleased — improvements since v4.9.1
+
+- **Dashboard Redesign (DashAgents)** — Three-pass overhaul (REMOVE / IMPROVE / ADD). Cut the sidebar-duplicating Tools Grid, the Recently Opened redundancy, the Total Projects vanity stat, the Desktop App acquisition banner, and the Leave Review action. Added proper a11y landmarks (`<main>`, `aria-labelledby` on every section, visually-hidden page `<h1>`), real `<button>` semantics on project cards (replacing a fake `role="button"` div), section-level skeleton loaders, an actionable Sync Now button wired to `triggerFullSync()`, and a clickable conflict resolver that opens the existing `SyncConflictsDialog`. New "Today" section above Quick Actions surfaces the most recently opened project + its last activity, today's draft daily reports, and active terminal/web sessions — hidden when none apply. Project tiles render at uniform height regardless of data payload.
+- **PPCL Preview Dialog** — Preview PPCL programs from the project page without opening the full editor. Read-only CodeMirror with full syntax highlighting via the existing `ppclLanguage()` extension, metadata header (firmware target, line count, byte size), and a Download button that produces a properly named `.pcl` file. The preview pane is vertically resizable via native CSS resize; horizontal and vertical scrollbars stay sticky at the visible viewport edges regardless of scroll position. CodeMirror is dynamic-imported so the chunk only loads when a preview is opened.
+- **File Extension Corrections** — Panel DBs and Backups upload categories now correctly accept `.p2` (Siemens panel database format) instead of `.pcl`. Added `.p2` → Database and `.pcl` → FileCode entries to the file-icon mapping. PPCL files (`.pcl`) are now previewable in-app via the project file preview dialog. Tightened the Trend Data uploader to `.csv` only — removed the vestigial `.tsv` / `.txt` accept paths that real BAS exports never use.
+- **Landing Page Polish (LandingAgents)** — Hero animation refinement, design-token alignment, copy and conversion fixes, accessibility improvements. Restored missing tools in the landing tools grid and removed the broken Message Board entry. Corrected the placeholder Vercel favicon that was overriding the BAU Suite icon.
+- **DesignAgents P0–P3 Fixes** — Accessibility audit, design-system consistency, and UX polish across the app shell, component library, and shared primitives.
+- **PPCL Editor Navigation-Lock Fixes** — Three separate fixes for tour-overlay issues that could trap the user in the editor: TourOverlay SVG mask was blocking clicks across the editor surface; keyboard focus trap left users with no escape route; fullscreen overlay was blocking the sidebar.
+
+### v4.9.1
 
 - **macOS Desktop App** — BAU Suite is now available as a native macOS app (.dmg) via GitHub Releases, alongside the existing Windows installer. CI/CD pipeline updated with a full macOS aarch64 build matrix.
 - **ANSI 256-color & True-color Terminal** — Telnet HMI now renders full 256-color (ESC[38;5;N) and 24-bit true-color (ESC[38;2;R;G;B) sequences from BAS controllers instead of stripping them.
@@ -148,12 +159,14 @@
 - **Register Tool** — hex/decimal/binary converter, IEEE 754 float decoder, byte order tool, bitmask editor, scaling calculator, Modbus address builder, and calculation history
 - **PID Tuning** — interactive PID loop tuning calculator with multiple loop types, control modes, and session management
 - **Psychrometric Calculator** — HVAC air property calculations with session save/load, AHU process modeling, comfort analysis, and reference tables
+- **Trend Data Visualizer** — upload BAS trend CSVs from Niagara N4, Desigo CC, Metasys, EcoStruxure, WebCTRL, or generic exports; auto-detect delimiter / header / timestamp format / units; multi-series overlay with dual Y-axis and brush zoom; built-in anomaly detection (stuck sensor, spikes, oscillation, short-cycling, out-of-range, data gaps); per-series statistics; export to CSV / high-DPI PNG / HTML report / clipboard; session save/load with optional project linking
 
 ### Access & Diagnostics
 - **Web Interface** — access BAS controller web panels with saved endpoints and security handling
 - **Telnet HMI** — browser-based Telnet terminal with session tabs, logging, and command history
 - **Command Snippets** — reusable commands for BACnet, Modbus, Niagara, Siemens, and more
-- **PPCL Editor** — syntax-highlighted editor for PPCL programs with multi-tab support, line length enforcement, GOTO navigation, and cloud sync
+- **PPCL Editor** — syntax-highlighted editor for PPCL programs with multi-tab support, line-length enforcement (198 chars for PXC/TC, 80 for PTEC), GOTO navigation, duplicate-line-number warning on save, and cloud sync
+- **PPCL Preview & Download** — preview PPCL programs directly from a project's PPCL tab in a read-only modal with full syntax highlighting, resizable viewer, sticky scrollbars, and a Download button that produces a proper `.pcl` file — no round-trip through the editor route required
 
 ### Cloud Sync & Offline
 - **Offline-first** — all data in IndexedDB, works without Wi-Fi
@@ -168,6 +181,7 @@
 - **Graceful fallback** — shows "Coming Soon" when Stripe keys are not configured
 
 ### Platform
+- **Dashboard** — at-a-glance home view with a contextual "Today" rail (resume your last project + its last activity, today's draft daily reports, active terminal/web sessions), Quick Actions, Pinned and Active project grids, Overview stats (active count, offline-ready count, sync status with one-click Sync Now and conflict resolver, local storage usage), and Recent Activity + Field Notes feeds with skeleton loaders
 - **Desktop app** — native Tauri app with real ICMP ping and full network access
 - **Global search** — search across all projects, files, devices, IP entries, and notes
 - **Global notepad** — floating scratch pad with tabs, project linking, and persistent state
