@@ -20,6 +20,9 @@ import { DeleteAccountDialog } from '@/components/settings/delete-account-dialog
 import { AvatarCropDialog } from '@/components/settings/avatar-crop-dialog';
 import { BugReportsPanel } from '@/components/settings/bug-reports-panel';
 import { ReviewsPanel } from '@/components/settings/reviews-panel';
+import { SyncErrorInspectorDialog } from '@/components/sync/sync-error-inspector-dialog';
+import { useSyncErrors } from '@/hooks/use-sync-errors';
+import { reportSyncErrorAsBug } from '@/lib/sync/report-sync-error';
 import { UpgradeCTA } from '@/components/settings/upgrade-cta';
 import { ActionCard } from '@/components/settings/section-heading';
 import { AdminApprovalPanel } from '@/components/settings/admin-approval-panel';
@@ -144,6 +147,14 @@ export default function SettingsPage() {
   })();
 
   const isAdmin = mode === 'authenticated' && profile?.role === 'admin';
+
+  // Sync Error Inspector state (settings entry point)
+  const [syncErrorInspectorOpen, setSyncErrorInspectorOpen] = useState(false);
+  const { errors: syncErrors } = useSyncErrors();
+  const handleSyncErrorReport = async (error: Parameters<typeof reportSyncErrorAsBug>[0]) => {
+    await reportSyncErrorAsBug(error);
+    toast.success('Report drafted — see Settings → Bug Reports');
+  };
 
   return (
     <>
@@ -722,6 +733,37 @@ export default function SettingsPage() {
                       <BugReportsPanel />
                     </CardContent>
                   </Card>
+
+                  {/* Sync Errors tile — mirrors BugReportsPanel visual style */}
+                  <Card>
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
+                            <AlertTriangle className="h-4 w-4 text-red-500" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">Sync Errors</p>
+                            <p className="text-xs text-muted-foreground">
+                              {syncErrors.length === 0
+                                ? 'No sync errors recorded.'
+                                : `${syncErrors.length} error${syncErrors.length === 1 ? '' : 's'} captured`}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 shrink-0"
+                          onClick={() => setSyncErrorInspectorOpen(true)}
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5" />
+                          View errors
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+
                   <Card>
                     <CardContent className="p-5">
                       <ReviewsPanel />
@@ -794,6 +836,12 @@ export default function SettingsPage() {
         onUpload={handleAvatarUpload}
         currentAvatarUrl={profile?.avatarUrl}
         initials={profileInitials}
+      />
+
+      <SyncErrorInspectorDialog
+        open={syncErrorInspectorOpen}
+        onOpenChange={setSyncErrorInspectorOpen}
+        onReport={handleSyncErrorReport}
       />
     </>
   );

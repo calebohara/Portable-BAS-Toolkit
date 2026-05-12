@@ -1,10 +1,11 @@
 import type { SupabaseClient, RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
-import type { SyncEntityType, SyncQueueItem, SyncConflict } from '@/types';
+import type { SyncEntityType, SyncQueueItem, SyncConflict, SyncError } from '@/types';
 import {
   addSyncItem, getPendingSyncItems, updateSyncItem, deleteSyncItem,
   getSyncQueueCount, getAllFromStore, clearSyncQueue,
   bulkPutSilent, bulkDeleteSilent,
   addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
+  addSyncError,
 } from '@/lib/db';
 import {
   entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER,
@@ -12,6 +13,7 @@ import {
   isGlobalEntity, GLOBAL_ENTITY_TYPES, REQUIRES_GLOBAL_PROJECT_ID,
 } from './field-map';
 import { emitPullComplete, type SyncManagerInterface } from './sync-bridge';
+import { formatPostgrestError, sanitizeForLog } from './sync-error-utils';
 
 const MAX_RETRIES = 5;
 const PROCESS_INTERVAL_MS = 5000;
@@ -349,6 +351,37 @@ export class SyncManager implements SyncManagerInterface {
           ? String((err as { message: string }).message)
           : JSON.stringify(err);
 
+      // ── Capture push error into syncErrors store ────────────────────────
+      try {
+        const { code: capturedCode, message: capturedMessage, hint: capturedHint, details: capturedDetails } =
+          formatPostgrestError(err);
+        const pushSyncError: SyncError = {
+          id: crypto.randomUUID(),
+          entityType: item.entityType,
+          entityId: item.entityId,
+          action: item.action,
+          table: entityTypeToTable[item.entityType] ?? item.entityType,
+          errorCode: capturedCode,
+          errorMessage: capturedMessage,
+          hint: capturedHint,
+          details: capturedDetails,
+          payload: item.payload
+            ? (sanitizeForLog(item.payload) as Record<string, unknown>)
+            : null,
+          retryCount: item.retriedCount,
+          userId: this.userId,
+          appVersion: (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_APP_VERSION) || 'unknown',
+          createdAt: new Date().toISOString(),
+        };
+        await addSyncError(pushSyncError);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('bau-suite:sync-error-added', { detail: pushSyncError }));
+        }
+      } catch (captureErr) {
+        console.warn(`${LOG_PREFIX} Failed to capture push error to syncErrors store:`, captureErr);
+      }
+      // ── End capture ─────────────────────────────────────────────────────
+
       // Detect "relation does not exist" — table missing from Supabase.
       // Mark this entity type as broken to prevent retry storms that freeze the UI.
       const errorCode = (err && typeof err === 'object' && 'code' in err)
@@ -662,6 +695,36 @@ export class SyncManager implements SyncManagerInterface {
           : (err && typeof err === 'object' && 'message' in err)
             ? String((err as { message: string }).message)
             : String(err);
+
+        // ── Capture pull error into syncErrors store ──────────────────────
+        try {
+          const { code: pullCode, message: pullMessage, hint: pullHint, details: pullDetails } =
+            formatPostgrestError(err);
+          const pullSyncError: SyncError = {
+            id: crypto.randomUUID(),
+            entityType,
+            entityId: '*',
+            action: 'pull',
+            table: entityTypeToTable[entityType] ?? entityType,
+            errorCode: pullCode,
+            errorMessage: pullMessage,
+            hint: pullHint,
+            details: pullDetails,
+            payload: null,
+            retryCount: 0,
+            userId: this.userId,
+            appVersion: (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_APP_VERSION) || 'unknown',
+            createdAt: new Date().toISOString(),
+          };
+          await addSyncError(pullSyncError);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('bau-suite:sync-error-added', { detail: pullSyncError }));
+          }
+        } catch (captureErr) {
+          console.warn(`${LOG_PREFIX} Failed to capture pull error to syncErrors store:`, captureErr);
+        }
+        // ── End capture ───────────────────────────────────────────────────
+
         // Detect missing table — disable this entity type for the session
         const errCode = (err && typeof err === 'object' && 'code' in err)
           ? String((err as { code: string }).code) : '';

@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { CloudOff, Loader2, AlertTriangle, CheckCircle2, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/providers/auth-provider';
 import { useSyncContext } from '@/providers/sync-provider';
 import { cn } from '@/lib/utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { SyncConflictsDialog } from '@/components/settings/sync-conflicts-dialog';
+import { SyncErrorInspectorDialog } from '@/components/sync/sync-error-inspector-dialog';
+import { reportSyncErrorAsBug } from '@/lib/sync/report-sync-error';
 
 const STALE_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour
 
@@ -34,6 +37,7 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
   const { triggerFullSync } = useSyncContext();
 
   const [conflictsOpen, setConflictsOpen] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
 
   // Re-render every 30s to keep relative time fresh — pause when tab is hidden
   const [, setTick] = useState(0);
@@ -89,7 +93,7 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
   } else if (syncStatus === 'error') {
     icon = AlertTriangle;
     label = `${pendingCount} failed`;
-    sublabel = 'Tap to retry';
+    sublabel = pendingCount > 0 ? 'Tap to inspect' : 'Tap to retry';
     colorClass = 'text-red-500';
     bgClass = 'hover:bg-red-500/10';
   } else if (isStale) {
@@ -113,9 +117,16 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
   const handleClick = () => {
     if (conflictCount > 0) {
       setConflictsOpen(true);
+    } else if (syncStatus === 'error' && pendingCount > 0) {
+      setInspectorOpen(true);
     } else {
       triggerFullSync();
     }
+  };
+
+  const handleReport = async (error: Parameters<typeof reportSyncErrorAsBug>[0]) => {
+    await reportSyncErrorAsBug(error);
+    toast.success('Report drafted — see Settings → Bug Reports');
   };
 
   // Collapsed mode: icon-only with tooltip
@@ -143,6 +154,11 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
           </TooltipContent>
         </Tooltip>
         <SyncConflictsDialog open={conflictsOpen} onOpenChange={setConflictsOpen} />
+        <SyncErrorInspectorDialog
+          open={inspectorOpen}
+          onOpenChange={setInspectorOpen}
+          onReport={handleReport}
+        />
       </div>
     );
   }
@@ -167,6 +183,11 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
         </div>
       </button>
       <SyncConflictsDialog open={conflictsOpen} onOpenChange={setConflictsOpen} />
+      <SyncErrorInspectorDialog
+        open={inspectorOpen}
+        onOpenChange={setInspectorOpen}
+        onReport={handleReport}
+      />
     </div>
   );
 }

@@ -297,6 +297,40 @@ export interface SyncConflict {
   detectedAt: string;
 }
 
+// ─── SyncError ───────────────────────────────────────────────
+// Persistent log of every push/pull failure captured by SyncManager.
+// Keyed by UUID; rotated to a max of 100 rows (oldest-first).
+export interface SyncError {
+  /** UUID — primary key in the syncErrors IndexedDB store */
+  id: string;
+  /** IndexedDB entity type (mirrors SyncQueueItem.entityType) */
+  entityType: SyncEntityType;
+  /** UUID of the entity that failed to sync */
+  entityId: string;
+  /** 'pull' for read-side failures; matches SyncQueueItem.action for push failures */
+  action: 'create' | 'update' | 'delete' | 'pull';
+  /** Supabase table name derived from entityTypeToTable */
+  table: string;
+  /** Postgres SQLSTATE code e.g. '42501', '42P01'; null if not available */
+  errorCode: string | null;
+  /** Human-readable error message */
+  errorMessage: string;
+  /** Postgres hint field from PostgREST response; null if absent */
+  hint: string | null;
+  /** Postgres details field from PostgREST response; null if absent */
+  details: string | null;
+  /** Sanitized entity payload at time of failure; null for pull errors */
+  payload: Record<string, unknown> | null;
+  /** Mirror of SyncQueueItem.retriedCount at time of capture */
+  retryCount: number;
+  /** The authenticated user who triggered the sync operation */
+  userId: string;
+  /** App version from process.env.NEXT_PUBLIC_APP_VERSION or 'unknown' */
+  appVersion: string;
+  /** ISO 8601 timestamp when this error was captured */
+  createdAt: string;
+}
+
 export const FILE_CATEGORY_LABELS: Record<FileCategory, string> = {
   'panel-databases': 'Panel Databases',
   'wiring-diagrams': 'Wiring Diagrams',

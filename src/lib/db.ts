@@ -5,7 +5,7 @@ import type {
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
   ConnectionProfile, SavedCalculation, PidTuningSession, PpclDocument, BugReport,
   PsychSession, UserReview, TrendSession,
-  SyncQueueItem, SyncConflict, DxrEntry,
+  SyncQueueItem, SyncConflict, DxrEntry, SyncError,
 } from '@/types';
 import type {
   GlobalProject, GlobalFieldNote, GlobalDevice, GlobalIpPlanEntry,
@@ -266,6 +266,16 @@ interface BasToolkitDB extends DBSchema {
       'by-project-guid': [string, string];
     };
   };
+  // ─── Sync Error log (v21) ──
+  syncErrors: {
+    key: string;
+    value: SyncError;
+    indexes: {
+      'by-created-at': string;
+      'by-entity-type': string;
+      'by-error-code': string;
+    };
+  };
 }
 
 /** Union of all object-store names in the schema — use instead of bare `string`. */
@@ -282,10 +292,12 @@ export type BasToolkitStoreName =
   | 'globalPingSessions' | 'globalTrendSessions' | 'globalConnectionProfiles'
   | 'globalFieldPanels' | 'globalNotepadEntries' | 'globalProjectPreferences'
   // ── DXR stores (v20) ──
-  | 'dxrs' | 'globalDxrs';
+  | 'dxrs' | 'globalDxrs'
+  // ── Sync Error log (v21) ──
+  | 'syncErrors';
 
 /** Current schema version — bump this and add a new `if (oldVersion < N)` block when changing the schema. */
-export const DB_VERSION = 20;
+export const DB_VERSION = 21;
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
@@ -511,6 +523,16 @@ function getDB() {
           const globalDxrStore = db.createObjectStore('globalDxrs', { keyPath: 'id' });
           globalDxrStore.createIndex('by-project', 'globalProjectId');
           globalDxrStore.createIndex('by-project-guid', ['globalProjectId', 'guid'], { unique: true });
+        }
+
+        if (oldVersion < 21) {
+          // ─── Sync Error log ────────────────────────────────────────────────
+          // Captures every push/pull failure from SyncManager for the in-app
+          // Sync Error Inspector. Rotated to a max of 100 rows (oldest-first).
+          const syncErrorStore = db.createObjectStore('syncErrors', { keyPath: 'id' });
+          syncErrorStore.createIndex('by-created-at', 'createdAt');
+          syncErrorStore.createIndex('by-entity-type', 'entityType');
+          syncErrorStore.createIndex('by-error-code', 'errorCode');
         }
       },
     }).catch((err) => {
@@ -1432,6 +1454,8 @@ export async function clearAllData(): Promise<void> {
     'globalFieldPanels', 'globalNotepadEntries', 'globalProjectPreferences',
     // DXR stores (v20)
     'dxrs', 'globalDxrs',
+    // Sync Error log (v21)
+    'syncErrors',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');
@@ -1501,4 +1525,74 @@ export async function bulkDeleteSilent(
   }
   await tx.done;
   return ids.length;
+}
+
+// ─── Sync Errors ─────────────────────────────────────────────
+
+const SYNC_ERROR_CAP = 100;
+
+/**
+ * Persist a SyncError and enforce the 100-row rotation cap.
+ * The `id` and `createdAt` fields must be populated by the caller before
+ * this function is invoked (capture point owns UUID generation).
+ * After insert, deletes oldest rows until count <= 100.
+ */
+export async function addSyncError(error: SyncError): Promise<void> {
+  const db = await getDB();
+  await db.put('syncErrors', error);
+
+  // Enforce cap: if we now exceed 100 rows, delete the oldest until we're at 100.
+  const total = await db.count('syncErrors');
+  if (total > SYNC_ERROR_CAP) {
+    const overflow = total - SYNC_ERROR_CAP;
+    // Open a cursor on the by-created-at index (ascending = oldest first) and
+    // delete the first `overflow` rows.
+    const tx = db.transaction('syncErrors', 'readwrite');
+    let cursor = await tx.store.index('by-created-at').openCursor(null, 'next');
+    let deleted = 0;
+    while (cursor && deleted < overflow) {
+      await cursor.delete();
+      deleted++;
+      cursor = await cursor.continue();
+    }
+    await tx.done;
+  }
+}
+
+/**
+ * Return all sync errors sorted newest-first.
+ */
+export async function getAllSyncErrors(): Promise<SyncError[]> {
+  const db = await getDB();
+  // by-created-at index ascending — reverse for newest-first
+  const all = await db.getAllFromIndex('syncErrors', 'by-created-at');
+  return all.reverse();
+}
+
+/**
+ * Drop all sync errors. Returns the count deleted.
+ */
+export async function clearSyncErrors(): Promise<number> {
+  const db = await getDB();
+  const tx = db.transaction('syncErrors', 'readwrite');
+  const count = await tx.store.count();
+  await tx.store.clear();
+  await tx.done;
+  return count;
+}
+
+/**
+ * Delete a single sync error by id.
+ */
+export async function deleteSyncError(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('syncErrors', id);
+}
+
+/**
+ * Return the total number of stored sync errors.
+ */
+export async function getSyncErrorsCount(): Promise<number> {
+  const db = await getDB();
+  return db.count('syncErrors');
 }

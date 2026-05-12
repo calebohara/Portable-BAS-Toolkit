@@ -63,3 +63,22 @@ Same required sections as BASAgents fix logs: header block, audit phase, fixes b
 
 - Agent team definition: `.claude/DxrAgents.md`
 - Fix log archive: `docs/DxrAgents-fixes-*.md`
+
+---
+
+## SyncErrorAgents Fix Documentation Rule
+
+**Whenever SyncErrorAgents run an audit and fixes are applied, create a new dated log file:**
+
+```
+docs/SyncErrorAgents-fixes-YYYY-MM-DD.md
+```
+
+Use the current date at the time of the fix session. Create a new file each time — never overwrite an existing log. If multiple sessions occur on the same day, append a suffix: `SyncErrorAgents-fixes-2026-05-09-2.md`.
+
+Same required sections as BASAgents fix logs: header block, audit phase, fixes by priority, housekeeping, verification.
+
+### Reference
+
+- Agent team definition: `.claude/SyncErrorAgents.md`
+- Fix log archive: `docs/SyncErrorAgents-fixes-*.md`
