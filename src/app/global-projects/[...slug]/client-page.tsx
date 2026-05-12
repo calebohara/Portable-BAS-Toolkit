@@ -8,7 +8,7 @@ import {
   History, Users, Plus, Trash2, Edit2, MapPin, Hash, Building2,
   Copy, Check, Clock, User, ChevronDown, ChevronUp, Pencil, FolderKanban,
   Upload, X, ExternalLink, FileCode, Terminal, GitBranch, Pin, PinOff,
-  Download, CloudOff, Phone, Mail, Eye, Database, ChevronRight,
+  Download, CloudOff, Phone, Mail, Eye, Database, ChevronRight, HardDrive,
 } from 'lucide-react';
 import {
   validateFileSize, isImageFile, buildStoragePath, uploadProjectFile,
@@ -44,8 +44,10 @@ import {
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { SaveToLocalDialog } from '@/components/global-projects/save-to-local-dialog';
+import { GlobalFileListView } from '@/components/global-projects/global-file-list-view';
 import { ContactDialog } from '@/components/projects/contact-dialog';
 import { PpclPreviewDialog } from '@/components/ppcl-editor/ppcl-preview-dialog';
+import type { FileCategory } from '@/types';
 import { navigateToProject } from '@/lib/routes';
 import { cn, copyToClipboard, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -66,10 +68,14 @@ import type { Contact, PpclDocument } from '@/types';
 
 const tabs = [
   { id: 'overview', label: 'Overview', icon: LayoutGrid },
-  { id: 'notes', label: 'Notes', icon: StickyNote },
-  { id: 'devices', label: 'Devices', icon: Server },
+  { id: 'panel-databases', label: 'Panel DBs', icon: Database },
+  { id: 'wiring-diagrams', label: 'Wiring', icon: FileText },
+  { id: 'sequences', label: 'Sequences', icon: FileText },
   { id: 'ip-plan', label: 'IP Plan', icon: Network },
-  { id: 'documents', label: 'Documents', icon: FolderOpen },
+  { id: 'devices', label: 'Devices', icon: Server },
+  { id: 'backups', label: 'Backups', icon: HardDrive },
+  { id: 'general-documents', label: 'General Docs', icon: FolderOpen },
+  { id: 'notes', label: 'Notes', icon: StickyNote },
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'ppcl-programs', label: 'PPCL', icon: FileCode },
   { id: 'terminal-logs', label: 'Terminal Logs', icon: Terminal },
@@ -77,6 +83,8 @@ const tabs = [
   { id: 'activity', label: 'Activity', icon: History },
   { id: 'members', label: 'Members', icon: Users },
 ] as const;
+
+const FILE_CATEGORY_TABS = new Set(['panel-databases', 'wiring-diagrams', 'sequences', 'backups', 'general-documents']);
 
 export default function GlobalProjectDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id: paramId } = use(params);
@@ -285,7 +293,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
               const count = tabId === 'notes' ? notes.length
                 : tabId === 'devices' ? devices.length
                 : tabId === 'ip-plan' ? ipEntries.length
-                : tabId === 'documents' ? files.length
+                : FILE_CATEGORY_TABS.has(tabId) ? files.filter((f) => f.category === tabId).length
                 : tabId === 'reports' ? reports.length
                 : tabId === 'ppcl-programs' ? ppclDocs.length
                 : tabId === 'terminal-logs' ? terminalLogs.length
@@ -368,16 +376,17 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
             />
           )}
 
-          {activeTab === 'documents' && (
-            <DocumentsTab
-              files={files}
-              getMemberName={getMemberName}
+          {FILE_CATEGORY_TABS.has(activeTab) && (
+            <GlobalFileListView
+              projectId={id}
+              category={activeTab as FileCategory}
+              files={files.filter((f) => f.category === activeTab)}
               currentUserId={currentUserId}
               isAdmin={isAdmin}
+              getMemberName={getMemberName}
               onAdd={addFile}
               onUpdate={updateFile}
               onRemove={removeFile}
-              projectId={id}
             />
           )}
 
@@ -2072,530 +2081,6 @@ function EditIpEntryDialog({ entry, onOpenChange, onSubmit }: {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
             <Button type="submit" disabled={saving || !form.ipAddress.trim()}>
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// ─── Documents Tab ──────────────────────────────────────────────────────────
-
-const DOCUMENT_CATEGORIES = [
-  { value: 'all', label: 'All Categories' },
-  { value: 'panel-databases', label: 'Panel Databases' },
-  { value: 'wiring-diagrams', label: 'Wiring Diagrams' },
-  { value: 'sequences', label: 'Sequences' },
-  { value: 'backups', label: 'Backups' },
-  { value: 'general-documents', label: 'General Documents' },
-  { value: 'photos', label: 'Photos' },
-  { value: 'other', label: 'Other' },
-] as const;
-
-const DOCUMENT_STATUSES = [
-  { value: 'current', label: 'Current' },
-  { value: 'superseded', label: 'Superseded' },
-  { value: 'archived', label: 'Archived' },
-] as const;
-
-function DocumentsTab({
-  files, getMemberName, currentUserId, isAdmin, onAdd, onUpdate, onRemove, projectId,
-}: {
-  files: GlobalProjectFile[];
-  getMemberName: (id: string) => string;
-  currentUserId: string;
-  isAdmin: boolean;
-  onAdd: (data: Omit<GlobalProjectFile, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => Promise<unknown>;
-  onUpdate: (id: string, data: Partial<GlobalProjectFile>) => Promise<void>;
-  onRemove: (id: string) => Promise<void>;
-  projectId: string;
-}) {
-  const [showAdd, setShowAdd] = useState(false);
-  const [editTarget, setEditTarget] = useState<GlobalProjectFile | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<GlobalProjectFile | null>(null);
-  const [categoryFilter, setCategoryFilter] = useState('all');
-
-  const filteredFiles = useMemo(() => {
-    if (categoryFilter === 'all') return files;
-    return files.filter((f) => f.category === categoryFilter);
-  }, [files, categoryFilter]);
-
-  const handleDelete = async () => {
-    if (!deleteTarget) return;
-    try {
-      await onRemove(deleteTarget.id);
-      setDeleteTarget(null);
-      toast.success('Document deleted');
-    } catch {
-      toast.error('Failed to delete document');
-    }
-  };
-
-  const canEdit = (file: GlobalProjectFile) => isAdmin || file.createdBy === currentUserId;
-
-  return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
-          <FolderOpen className="h-5 w-5" /> Documents
-        </h2>
-        <Button size="sm" className="gap-1.5" onClick={() => setShowAdd(true)}>
-          <Plus className="h-4 w-4" /> Add Document
-        </Button>
-      </div>
-
-      {/* Category filter */}
-      <div className="flex items-center gap-2">
-        <Label htmlFor="doc-category-filter" className="text-xs text-muted-foreground whitespace-nowrap">Filter:</Label>
-        <select
-          id="doc-category-filter"
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value)}
-          className="flex h-8 rounded-md border border-input bg-transparent px-2 py-1 text-xs shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-        >
-          {DOCUMENT_CATEGORIES.map((cat) => (
-            <option key={cat.value} value={cat.value}>{cat.label}</option>
-          ))}
-        </select>
-      </div>
-
-      {filteredFiles.length === 0 ? (
-        <EmptyState
-          icon={FolderOpen}
-          title="No Documents Yet"
-          description={categoryFilter !== 'all' ? 'No documents match the selected category.' : 'Add project documents like panel databases, wiring diagrams, and sequences.'}
-          action={
-            categoryFilter === 'all' ? (
-              <Button size="sm" className="gap-1.5" onClick={() => setShowAdd(true)}>
-                <Plus className="h-4 w-4" /> Add Document
-              </Button>
-            ) : undefined
-          }
-        />
-      ) : (
-        <div className="space-y-2">
-          {filteredFiles.map((file) => {
-            const fileUrl = file.storagePath ? getPublicUrl(file.storagePath) : null;
-            const isImg = isImageFile(file.mimeType);
-            return (
-              <Card key={file.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    {/* Thumbnail for images */}
-                    {isImg && fileUrl && (
-                      <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="shrink-0">
-                        <img
-                          src={fileUrl}
-                          alt={file.title}
-                          className="h-16 w-16 rounded-md object-cover border border-border hover:ring-2 hover:ring-primary/40 transition-all"
-                        />
-                      </a>
-                    )}
-                    {!isImg && fileUrl && (
-                      <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-md bg-muted border border-border">
-                        <FileText className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                    )}
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className="text-sm font-semibold truncate">{file.title}</h3>
-                        <Badge variant="secondary" className="text-[10px]">{file.category}</Badge>
-                        {file.size > 0 && (
-                          <span className="text-[10px] text-muted-foreground">{formatBytes(file.size)}</span>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        {file.fileName && <span className="truncate">File: {file.fileName}</span>}
-                        {file.panelSystem && <span>Panel/System: {file.panelSystem}</span>}
-                        {file.revisionNumber && <span>Rev: {file.revisionNumber}</span>}
-                        {file.revisionDate && <span>Rev Date: {file.revisionDate}</span>}
-                      </div>
-                      {file.notes && (
-                        <p className="mt-1 text-xs text-muted-foreground line-clamp-2">{file.notes}</p>
-                      )}
-                      <p className="mt-1.5 text-xs text-muted-foreground">
-                        Uploaded by {getMemberName(file.createdBy)} &middot; {format(new Date(file.createdAt), 'MMM d, yyyy')}
-                        {file.updatedBy && file.updatedAt !== file.createdAt && (
-                          <span className="text-primary/70"> &middot; Edited {format(new Date(file.updatedAt), 'MMM d h:mm a')}</span>
-                        )}
-                      </p>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      {fileUrl && (
-                        <a
-                          href={fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="rounded p-1.5 hover:bg-muted"
-                          title="Open / Download"
-                        >
-                          <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                        </a>
-                      )}
-                      {canEdit(file) && (
-                        <>
-                          <button
-                            onClick={() => setEditTarget(file)}
-                            className="rounded p-1.5 hover:bg-muted"
-                            title="Edit"
-                          >
-                            <Edit2 className="h-3 w-3 text-muted-foreground" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteTarget(file)}
-                            className="rounded p-1.5 hover:bg-muted"
-                            title="Delete"
-                          >
-                            <Trash2 className="h-3 w-3 text-destructive" />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-      )}
-
-      <AddDocumentDialog open={showAdd} onOpenChange={setShowAdd} onSubmit={onAdd} projectId={projectId} />
-
-      <EditDocumentDialog
-        file={editTarget}
-        onOpenChange={(open) => { if (!open) setEditTarget(null); }}
-        onSubmit={async (data) => {
-          if (!editTarget) return;
-          await onUpdate(editTarget.id, data);
-          setEditTarget(null);
-          toast.success('Document updated');
-        }}
-      />
-
-      <ConfirmDialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}
-        title="Delete Document"
-        description={deleteTarget ? `Delete "${deleteTarget.title}"? This cannot be undone.` : ''}
-        confirmLabel="Delete"
-        variant="destructive"
-        onConfirm={handleDelete}
-      />
-    </div>
-  );
-}
-
-function FilePreviewImage({ file }: { file: File }) {
-  const url = useMemo(() => URL.createObjectURL(file), [file]);
-  useEffect(() => () => URL.revokeObjectURL(url), [url]);
-  return <img src={url} alt="Preview" className="mx-auto mb-2 max-h-24 rounded-md object-contain" />;
-}
-
-function AddDocumentDialog({ open, onOpenChange, onSubmit, projectId }: {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
-  onSubmit: (data: Omit<GlobalProjectFile, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => Promise<unknown>;
-  projectId: string;
-}) {
-  const [saving, setSaving] = useState(false);
-  const [file, setFile] = useState<File | null>(null);
-  const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [form, setForm] = useState({
-    title: '',
-    category: 'general-documents',
-    panelSystem: '',
-    notes: '',
-  });
-
-  const updateField = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
-
-  const handleFileSelect = (selected: File | null) => {
-    if (!selected) return;
-    const sizeError = validateFileSize(selected);
-    if (sizeError) { toast.error(sizeError); return; }
-    setFile(selected);
-    if (!form.title) {
-      setForm(f => ({ ...f, title: selected.name.replace(/\.[^.]+$/, '') }));
-    }
-    // Auto-detect category for images
-    if (isImageFile(selected.type)) {
-      setForm(f => ({ ...f, category: 'photos' }));
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const dropped = e.dataTransfer.files[0];
-    if (dropped) handleFileSelect(dropped);
-  };
-
-  const resetForm = () => {
-    setFile(null);
-    setForm({ title: '', category: 'general-documents', panelSystem: '', notes: '' });
-    setDragOver(false);
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.title.trim()) return;
-    setSaving(true);
-    try {
-      let storagePath: string | null = null;
-      let fileName = '';
-      let fileType = '';
-      let mimeType = '';
-      let size = 0;
-
-      if (file) {
-        fileName = file.name;
-        fileType = file.name.split('.').pop() || '';
-        mimeType = file.type || 'application/octet-stream';
-        size = file.size;
-        storagePath = buildStoragePath(projectId, file.name);
-        await uploadProjectFile(file, storagePath);
-      }
-
-      await onSubmit({
-        title: form.title.trim(),
-        fileName,
-        fileType,
-        mimeType,
-        category: form.category,
-        panelSystem: form.panelSystem.trim() || null,
-        revisionNumber: '',
-        revisionDate: '',
-        notes: form.notes.trim(),
-        status: 'current',
-        tags: [],
-        isPinned: false,
-        size,
-        storagePath,
-        versions: [],
-        updatedBy: null,
-        deletedAt: null,
-      });
-      resetForm();
-      onOpenChange(false);
-      toast.success(file ? 'File uploaded' : 'Document added');
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add document');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) resetForm(); onOpenChange(v); }}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Upload Document / Photo</DialogTitle>
-          <DialogDescription>
-            Upload a file to this project. Photos: 5MB max. Documents: 50MB max.
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
-          <DialogBody className="px-5 py-4 space-y-4">
-            {/* Drop zone */}
-            <div
-              className={cn(
-                'relative flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed p-6 transition-colors cursor-pointer',
-                dragOver ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40',
-                file && 'border-field-success/50 bg-field-success/5'
-              )}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="*"
-                className="hidden"
-                onChange={(e) => { handleFileSelect(e.target.files?.[0] || null); if (e.target) e.target.value = ''; }}
-              />
-              {file ? (
-                <div className="text-center">
-                  {isImageFile(file.type) && (
-                    <FilePreviewImage file={file} />
-                  )}
-                  <p className="text-sm font-medium truncate max-w-[280px]">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
-                  <button
-                    type="button"
-                    className="absolute top-2 right-2 rounded p-1 hover:bg-muted"
-                    onClick={(e) => { e.stopPropagation(); setFile(null); }}
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <>
-                  <Upload className="h-8 w-8 text-muted-foreground" />
-                  <div className="text-center">
-                    <p className="text-sm font-medium">Drop file here or click to browse</p>
-                    <p className="text-xs text-muted-foreground">Photos, PDFs, drawings, or any document</p>
-                  </div>
-                </>
-              )}
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="doc-title">Title *</Label>
-                <Input id="doc-title" placeholder="e.g. AHU-1 Panel Photo" value={form.title} onChange={(e) => updateField('title', e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="doc-category">Category</Label>
-                <select
-                  id="doc-category"
-                  value={form.category}
-                  onChange={(e) => updateField('category', e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {DOCUMENT_CATEGORIES.filter((c) => c.value !== 'all').map((cat) => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="doc-panel">Panel / System</Label>
-                <Input id="doc-panel" placeholder="e.g. MEC-1" value={form.panelSystem} onChange={(e) => updateField('panelSystem', e.target.value)} />
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="doc-notes">Notes</Label>
-                <Textarea id="doc-notes" placeholder="Any notes about this document..." value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={2} />
-              </div>
-            </div>
-          </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { resetForm(); onOpenChange(false); }}>Cancel</Button>
-            <Button type="submit" disabled={saving || !form.title.trim()}>
-              {saving ? 'Uploading...' : file ? 'Upload' : 'Add Record'}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function EditDocumentDialog({ file, onOpenChange, onSubmit }: {
-  file: GlobalProjectFile | null;
-  onOpenChange: (v: boolean) => void;
-  onSubmit: (data: Partial<GlobalProjectFile>) => Promise<void>;
-}) {
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    title: '', category: 'general-documents', panelSystem: '',
-    revisionNumber: '', revisionDate: '', notes: '', status: 'current',
-  });
-
-  useEffect(() => {
-    if (file) {
-      setForm({
-        title: file.title || '',
-        category: file.category || 'general-documents',
-        panelSystem: file.panelSystem || '',
-        revisionNumber: file.revisionNumber || '',
-        revisionDate: file.revisionDate || '',
-        notes: file.notes || '',
-        status: file.status || 'current',
-      });
-    }
-  }, [file]);
-
-  const updateField = (field: string, value: string) => setForm((f) => ({ ...f, [field]: value }));
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.title.trim()) return;
-    setSaving(true);
-    try {
-      await onSubmit({
-        title: form.title.trim(),
-        category: form.category,
-        panelSystem: form.panelSystem.trim() || null,
-        revisionNumber: form.revisionNumber.trim(),
-        revisionDate: form.revisionDate.trim(),
-        notes: form.notes.trim(),
-        status: form.status,
-      });
-    } catch {
-      toast.error('Failed to update document');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return (
-    <Dialog open={file !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Edit Document</DialogTitle>
-          <DialogDescription>Update document details.</DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="flex flex-col flex-1" style={{ minHeight: 0 }}>
-          <DialogBody className="px-5 py-4 space-y-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="edit-doc-title">Title *</Label>
-                <Input id="edit-doc-title" value={form.title} onChange={(e) => updateField('title', e.target.value)} required autoFocus />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-doc-category">Category</Label>
-                <select
-                  id="edit-doc-category"
-                  value={form.category}
-                  onChange={(e) => updateField('category', e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {DOCUMENT_CATEGORIES.filter((c) => c.value !== 'all').map((cat) => (
-                    <option key={cat.value} value={cat.value}>{cat.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-doc-panel">Panel / System</Label>
-                <Input id="edit-doc-panel" value={form.panelSystem} onChange={(e) => updateField('panelSystem', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-doc-revnum">Revision Number</Label>
-                <Input id="edit-doc-revnum" value={form.revisionNumber} onChange={(e) => updateField('revisionNumber', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-doc-revdate">Revision Date</Label>
-                <Input id="edit-doc-revdate" type="date" value={form.revisionDate} onChange={(e) => updateField('revisionDate', e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="edit-doc-status">Status</Label>
-                <select
-                  id="edit-doc-status"
-                  value={form.status}
-                  onChange={(e) => updateField('status', e.target.value)}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {DOCUMENT_STATUSES.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2 sm:col-span-2">
-                <Label htmlFor="edit-doc-notes">Notes</Label>
-                <Textarea id="edit-doc-notes" value={form.notes} onChange={(e) => updateField('notes', e.target.value)} rows={2} />
-              </div>
-            </div>
-          </DialogBody>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={saving || !form.title.trim()}>
               {saving ? 'Saving...' : 'Save Changes'}
             </Button>
           </DialogFooter>
