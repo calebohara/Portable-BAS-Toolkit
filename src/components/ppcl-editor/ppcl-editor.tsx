@@ -80,6 +80,13 @@ export function PpclEditorComponent({
   const extensions = useMemo(() => {
     const exts = [
       ppclLanguage(),
+      // Force cm-editor to fill its wrapper; without this CodeMirror sizes to natural
+      // content height and cm-scroller (the real scroll container) never overflows,
+      // so neither the horizontal nor vertical scrollbar appears.
+      EditorView.theme({
+        '&': { height: '100%', maxHeight: '100%' },
+        '.cm-scroller': { overflow: 'auto' },
+      }),
       search(),
       keymap.of(searchKeymap),
       EditorView.updateListener.of((update: ViewUpdate) => {
