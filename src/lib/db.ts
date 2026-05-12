@@ -5,7 +5,7 @@ import type {
   NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog,
   ConnectionProfile, SavedCalculation, PidTuningSession, PpclDocument, BugReport,
   PsychSession, UserReview, TrendSession,
-  SyncQueueItem, SyncConflict,
+  SyncQueueItem, SyncConflict, DxrEntry,
 } from '@/types';
 import type {
   GlobalProject, GlobalFieldNote, GlobalDevice, GlobalIpPlanEntry,
@@ -14,6 +14,7 @@ import type {
   GlobalPidTuningSession, GlobalPsychSession, GlobalRegisterCalculation,
   GlobalPingSession, GlobalTrendSession, GlobalConnectionProfile,
   GlobalFieldPanel, GlobalNotepadEntry, GlobalProjectPreferences,
+  GlobalDxrEntry,
 } from '@/types/global-projects';
 import { notifySync } from '@/lib/sync/sync-bridge';
 import type { SyncEntityType } from '@/types';
@@ -248,6 +249,23 @@ interface BasToolkitDB extends DBSchema {
     value: GlobalProjectPreferences & { prefKey: string };
     indexes: { 'by-project': string; 'by-user': string };
   };
+  // ─── DXR stores (v20) ──
+  dxrs: {
+    key: string;
+    value: DxrEntry;
+    indexes: {
+      'by-project': string;
+      'by-project-guid': [string, string];
+    };
+  };
+  globalDxrs: {
+    key: string;
+    value: GlobalDxrEntry;
+    indexes: {
+      'by-project': string;
+      'by-project-guid': [string, string];
+    };
+  };
 }
 
 /** Union of all object-store names in the schema — use instead of bare `string`. */
@@ -262,10 +280,12 @@ export type BasToolkitStoreName =
   | 'globalProjectFiles' | 'globalPpclDocuments' | 'globalTerminalLogs'
   | 'globalPidTuningSessions' | 'globalPsychSessions' | 'globalRegisterCalculations'
   | 'globalPingSessions' | 'globalTrendSessions' | 'globalConnectionProfiles'
-  | 'globalFieldPanels' | 'globalNotepadEntries' | 'globalProjectPreferences';
+  | 'globalFieldPanels' | 'globalNotepadEntries' | 'globalProjectPreferences'
+  // ── DXR stores (v20) ──
+  | 'dxrs' | 'globalDxrs';
 
 /** Current schema version — bump this and add a new `if (oldVersion < N)` block when changing the schema. */
-export const DB_VERSION = 19;
+export const DB_VERSION = 20;
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
@@ -477,6 +497,21 @@ function getDB() {
           gprefStore.createIndex('by-project', 'globalProjectId');
           gprefStore.createIndex('by-user', 'userId');
         }
+
+        if (oldVersion < 20) {
+          // ─── DXR stores ────────────────────────────────────────────────────
+          // Local per-project DXR rows imported from Desigo CC "DXR Smart Copy"
+          // Excel exports. Unique keyed on (projectId, guid) so re-imports are
+          // idempotent.
+          const dxrStore = db.createObjectStore('dxrs', { keyPath: 'id' });
+          dxrStore.createIndex('by-project', 'projectId');
+          dxrStore.createIndex('by-project-guid', ['projectId', 'guid'], { unique: true });
+
+          // globalDxrs — read-mostly mirror of Supabase global_dxrs table.
+          const globalDxrStore = db.createObjectStore('globalDxrs', { keyPath: 'id' });
+          globalDxrStore.createIndex('by-project', 'globalProjectId');
+          globalDxrStore.createIndex('by-project-guid', ['globalProjectId', 'guid'], { unique: true });
+        }
       },
     }).catch((err) => {
       // Reset so next call retries instead of returning cached failure
@@ -575,7 +610,7 @@ const PROJECT_CHILD_STORES: readonly SyncEntityType[] = [
   'files', 'notes', 'devices', 'ipPlan', 'activityLog',
   'dailyReports', 'networkDiagrams', 'pingSessions',
   'terminalLogs', 'connectionProfiles', 'registerCalculations',
-  'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions',
+  'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions', 'dxrs',
 ];
 
 export async function deleteProject(id: string): Promise<void> {
@@ -730,6 +765,124 @@ export async function saveDevices(devices: DeviceEntry[]): Promise<void> {
   for (const device of devices) await tx.store.put(device);
   await tx.done;
   for (const device of devices) notifySync('update', 'devices', device.id, device);
+}
+
+// ─── DXR Entries ────────────────────────────────────────────
+
+export const getProjectDxrs = async (projectId: string): Promise<DxrEntry[]> => {
+  const db = await getDB();
+  return sortDesc(await db.getAllFromIndex('dxrs', 'by-project', projectId), 'updatedAt');
+};
+
+export async function addProjectDxr(dxr: DxrEntry): Promise<void> {
+  const db = await getDB();
+  await db.put('dxrs', dxr);
+  notifySync('update', 'dxrs', dxr.id, dxr);
+}
+
+export async function updateProjectDxr(dxr: DxrEntry): Promise<void> {
+  const db = await getDB();
+  await db.put('dxrs', dxr);
+  notifySync('update', 'dxrs', dxr.id, dxr);
+}
+
+export async function deleteProjectDxr(id: string): Promise<void> {
+  const db = await getDB();
+  await db.delete('dxrs', id);
+  notifySync('delete', 'dxrs', id, null);
+}
+
+/**
+ * Bulk upsert DXR rows for a project, keyed on (projectId, guid).
+ * - New rows get a generated UUID + createdAt.
+ * - Existing rows (matched by guid) preserve id/createdAt and bump updatedAt.
+ * - Rows with a null guid are always inserted as new (can't upsert without key).
+ * Enqueues sync for every written row via notifySync.
+ */
+export async function bulkUpsertProjectDxrs(
+  projectId: string,
+  rows: Omit<DxrEntry, 'id' | 'projectId' | 'createdAt' | 'updatedAt'>[],
+): Promise<{ inserted: number; updated: number }> {
+  if (rows.length === 0) return { inserted: 0, updated: 0 };
+
+  const { v4: uuidv4 } = await import('uuid');
+  const db = await getDB();
+  const now = new Date().toISOString();
+
+  // Build a lookup map of existing rows: guid → DxrEntry
+  const existing = await db.getAllFromIndex('dxrs', 'by-project', projectId);
+  const existingByGuid = new Map<string, DxrEntry>();
+  for (const row of existing) {
+    if (row.guid) existingByGuid.set(row.guid, row);
+  }
+
+  const tx = db.transaction('dxrs', 'readwrite');
+  let inserted = 0;
+  let updated = 0;
+  const written: DxrEntry[] = [];
+
+  for (const row of rows) {
+    const existing = row.guid ? existingByGuid.get(row.guid) : undefined;
+
+    if (existing) {
+      // Update: preserve id and createdAt, bump updatedAt
+      const updated_row: DxrEntry = {
+        ...existing,
+        ...row,
+        id: existing.id,
+        projectId,
+        createdAt: existing.createdAt,
+        updatedAt: now,
+      };
+      await tx.store.put(updated_row);
+      written.push(updated_row);
+      updated++;
+    } else {
+      // Insert: generate id and timestamps
+      const new_row: DxrEntry = {
+        ...row,
+        id: uuidv4(),
+        projectId,
+        createdAt: now,
+        updatedAt: now,
+      };
+      await tx.store.put(new_row);
+      written.push(new_row);
+      inserted++;
+    }
+  }
+
+  await tx.done;
+
+  // Enqueue sync for all written rows
+  for (const row of written) {
+    notifySync('update', 'dxrs', row.id, row);
+  }
+
+  return { inserted, updated };
+}
+
+/**
+ * Delete every DXR row belonging to a project. Returns the number of rows
+ * removed. Each deletion is enqueued for sync so the change propagates to
+ * Global Projects on the next reconcile / push cycle.
+ */
+export async function clearProjectDxrs(projectId: string): Promise<number> {
+  const db = await getDB();
+  const rows = await db.getAllFromIndex('dxrs', 'by-project', projectId);
+  if (rows.length === 0) return 0;
+
+  const tx = db.transaction('dxrs', 'readwrite');
+  for (const row of rows) {
+    await tx.store.delete(row.id);
+  }
+  await tx.done;
+
+  for (const row of rows) {
+    notifySync('delete', 'dxrs', row.id, null);
+  }
+
+  return rows.length;
 }
 
 // ─── IP Plan ────────────────────────────────────────────────
@@ -1180,7 +1333,7 @@ export async function purgeOrphanedRecords(): Promise<number> {
     'files', 'notes', 'devices', 'ipPlan', 'activityLog',
     'dailyReports', 'networkDiagrams', 'pingSessions',
     'terminalLogs', 'connectionProfiles', 'registerCalculations', 'pidTuningSessions',
-    'ppclDocuments', 'psychSessions', 'trendSessions',
+    'ppclDocuments', 'psychSessions', 'trendSessions', 'dxrs',
   ] as const;
 
   let totalDeleted = 0;
@@ -1277,6 +1430,8 @@ export async function clearAllData(): Promise<void> {
     'globalPidTuningSessions', 'globalPsychSessions', 'globalRegisterCalculations',
     'globalPingSessions', 'globalTrendSessions', 'globalConnectionProfiles',
     'globalFieldPanels', 'globalNotepadEntries', 'globalProjectPreferences',
+    // DXR stores (v20)
+    'dxrs', 'globalDxrs',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');
@@ -1297,7 +1452,7 @@ export async function exportAllData(): Promise<Record<string, unknown[]>> {
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
     'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions',
-    'bugReports', 'reviews',
+    'bugReports', 'reviews', 'dxrs',
   ] as const;
   const snapshot: Record<string, unknown[]> = { _dbVersion: [DB_VERSION], _exportedAt: [new Date().toISOString()] };
   for (const name of exportableStores) {

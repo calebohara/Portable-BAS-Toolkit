@@ -20,6 +20,7 @@ import type {
   GlobalFieldPanel,
   GlobalNotepadEntry,
   GlobalProjectPreferences,
+  GlobalDxrEntry,
 } from '@/types/global-projects';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
@@ -1994,6 +1995,126 @@ export async function fetchRecentSharesForCurrentUser(
       };
     });
     return ok(shares);
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+// ─── Global DXR Entries ─────────────────────────────────────────────────────
+
+export function fetchGlobalDxrs(
+  projectId: string,
+): Promise<ApiResult<GlobalDxrEntry[]>> {
+  return fetchProjectEntities<GlobalDxrEntry>('global_dxrs', projectId, 'name', true);
+}
+
+export async function addGlobalDxr(
+  projectId: string,
+  data: Omit<GlobalDxrEntry, 'id' | 'globalProjectId' | 'createdBy' | 'updatedBy' | 'createdAt' | 'updatedAt' | 'deletedAt'>,
+): Promise<ApiResult<GlobalDxrEntry>> {
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+
+    const { data: row, error } = await supabase
+      .from('global_dxrs')
+      .insert({
+        global_project_id: projectId,
+        created_by: userId,
+        updated_by: userId,
+        name: data.name ?? null,
+        location: data.location ?? null,
+        description: data.description ?? null,
+        device_instance_number: data.deviceInstanceNumber ?? null,
+        equipment_id: data.equipmentId ?? null,
+        serial_number: data.serialNumber ?? null,
+        application_template: data.applicationTemplate ?? null,
+        application_number: data.applicationNumber ?? null,
+        network: data.network ?? null,
+        auto_addressing: data.autoAddressing ?? null,
+        mac_address: data.macAddress ?? null,
+        max_manager_address: data.maxManagerAddress ?? null,
+        baud_rate: data.baudRate ?? null,
+        room_hierarchy: data.roomHierarchy ?? null,
+        room_name: data.roomName ?? null,
+        room_description: data.roomDescription ?? null,
+        segment_hierarchy: data.segmentHierarchy ?? null,
+        segment_name: data.segmentName ?? null,
+        segment_description: data.segmentDescription ?? null,
+        ms_tp_nw_id: data.msTpNwId ?? null,
+        guid: data.guid ?? null,
+        imported_from_file_id: data.importedFromFileId ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) return fail(error.message);
+    return ok(camelCaseKeys<GlobalDxrEntry>(row));
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+
+export function updateGlobalDxr(
+  id: string,
+  data: Partial<Omit<GlobalDxrEntry, 'id' | 'globalProjectId' | 'createdBy' | 'createdAt' | 'updatedAt' | 'deletedAt'>>,
+): Promise<ApiResult<GlobalDxrEntry>> {
+  return updateEntity<GlobalDxrEntry>('global_dxrs', id, data as Record<string, unknown>);
+}
+
+export function deleteGlobalDxr(id: string): Promise<ApiResult<void>> {
+  return softDelete('global_dxrs', id);
+}
+
+/**
+ * Bulk upsert DXR rows into global_dxrs, keyed on (global_project_id, guid).
+ * Uses Supabase upsert with onConflict: 'global_project_id,guid' (partial index
+ * where guid is not null). Rows without a guid are always inserted.
+ */
+export async function bulkUpsertGlobalDxrs(
+  projectId: string,
+  rows: Omit<GlobalDxrEntry, 'id' | 'globalProjectId' | 'createdBy' | 'updatedBy' | 'createdAt' | 'updatedAt' | 'deletedAt'>[],
+): Promise<ApiResult<{ upserted: number }>> {
+  if (rows.length === 0) return ok({ upserted: 0 });
+  try {
+    const supabase = getClient();
+    const userId = await getCurrentUserId();
+
+    const insertRows = rows.map((r) => ({
+      global_project_id: projectId,
+      created_by: userId,
+      updated_by: userId,
+      name: r.name ?? null,
+      location: r.location ?? null,
+      description: r.description ?? null,
+      device_instance_number: r.deviceInstanceNumber ?? null,
+      equipment_id: r.equipmentId ?? null,
+      serial_number: r.serialNumber ?? null,
+      application_template: r.applicationTemplate ?? null,
+      application_number: r.applicationNumber ?? null,
+      network: r.network ?? null,
+      auto_addressing: r.autoAddressing ?? null,
+      mac_address: r.macAddress ?? null,
+      max_manager_address: r.maxManagerAddress ?? null,
+      baud_rate: r.baudRate ?? null,
+      room_hierarchy: r.roomHierarchy ?? null,
+      room_name: r.roomName ?? null,
+      room_description: r.roomDescription ?? null,
+      segment_hierarchy: r.segmentHierarchy ?? null,
+      segment_name: r.segmentName ?? null,
+      segment_description: r.segmentDescription ?? null,
+      ms_tp_nw_id: r.msTpNwId ?? null,
+      guid: r.guid ?? null,
+      imported_from_file_id: r.importedFromFileId ?? null,
+    }));
+
+    const { data, error } = await supabase
+      .from('global_dxrs')
+      .upsert(insertRows, { onConflict: 'global_project_id,guid' })
+      .select('id');
+
+    if (error) return fail(error.message);
+    return ok({ upserted: data?.length ?? 0 });
   } catch (err) {
     return fail((err as Error).message);
   }

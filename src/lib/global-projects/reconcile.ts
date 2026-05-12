@@ -42,6 +42,7 @@ import { getSupabaseClient } from '@/lib/supabase/client';
 import type {
   DailyReport,
   DeviceEntry,
+  DxrEntry,
   FieldNote,
   IpPlanEntry,
   NetworkDiagram,
@@ -61,6 +62,7 @@ import type {
   GlobalConnectionProfile,
   GlobalDailyReport,
   GlobalDevice,
+  GlobalDxrEntry,
   GlobalFieldNote,
   GlobalIpPlanEntry,
   GlobalNetworkDiagram,
@@ -136,6 +138,7 @@ export const RECONCILED_ENTITY_PAIRS = [
   { key: 'pingSessions',         local: 'pingSessions' as const,         global: 'globalPingSessions' as const },
   { key: 'trendSessions',        local: 'trendSessions' as const,        global: 'globalTrendSessions' as const },
   { key: 'connectionProfiles',   local: 'connectionProfiles' as const,   global: 'globalConnectionProfiles' as const },
+  { key: 'dxrs',                 local: 'dxrs' as const,                 global: 'globalDxrs' as const },
 ] as const;
 
 export type ReconciledEntityKey = (typeof RECONCILED_ENTITY_PAIRS)[number]['key'];
@@ -584,6 +587,39 @@ function mapLocalTrendToRow(t: TrendSession, globalProjectId: string, userId: st
   };
 }
 
+function mapLocalDxrToRow(d: DxrEntry, globalProjectId: string, userId: string, isUpdate: boolean): Record<string, unknown> {
+  return {
+    id: d.id,
+    global_project_id: globalProjectId,
+    ...(isUpdate ? {} : { created_by: userId }),
+    updated_by: userId,
+    name: d.name,
+    location: d.location,
+    description: d.description,
+    device_instance_number: d.deviceInstanceNumber,
+    equipment_id: d.equipmentId,
+    serial_number: d.serialNumber,
+    application_template: d.applicationTemplate,
+    application_number: d.applicationNumber,
+    network: d.network,
+    auto_addressing: d.autoAddressing,
+    mac_address: d.macAddress,
+    max_manager_address: d.maxManagerAddress,
+    baud_rate: d.baudRate,
+    room_hierarchy: d.roomHierarchy,
+    room_name: d.roomName,
+    room_description: d.roomDescription,
+    segment_hierarchy: d.segmentHierarchy,
+    segment_name: d.segmentName,
+    segment_description: d.segmentDescription,
+    ms_tp_nw_id: d.msTpNwId,
+    guid: d.guid,
+    imported_from_file_id: d.importedFromFileId ?? null,
+    created_at: d.createdAt,
+    updated_at: d.updatedAt,
+  };
+}
+
 function mapLocalConnProfileToRow(p: ConnectionProfile, globalProjectId: string, userId: string, isUpdate: boolean): Record<string, unknown> {
   return {
     id: p.id,
@@ -902,6 +938,37 @@ function mapGlobalTrendToLocal(t: GlobalTrendSession, projectId: string): TrendS
     stats: t.stats,
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
+  };
+}
+
+function mapGlobalDxrToLocal(d: GlobalDxrEntry, projectId: string): DxrEntry {
+  return {
+    id: d.id,
+    projectId,
+    name: d.name,
+    location: d.location,
+    description: d.description,
+    deviceInstanceNumber: d.deviceInstanceNumber,
+    equipmentId: d.equipmentId,
+    serialNumber: d.serialNumber,
+    applicationTemplate: d.applicationTemplate,
+    applicationNumber: d.applicationNumber,
+    network: d.network,
+    autoAddressing: d.autoAddressing,
+    macAddress: d.macAddress,
+    maxManagerAddress: d.maxManagerAddress,
+    baudRate: d.baudRate,
+    roomHierarchy: d.roomHierarchy,
+    roomName: d.roomName,
+    roomDescription: d.roomDescription,
+    segmentHierarchy: d.segmentHierarchy,
+    segmentName: d.segmentName,
+    segmentDescription: d.segmentDescription,
+    msTpNwId: d.msTpNwId,
+    guid: d.guid,
+    importedFromFileId: d.importedFromFileId ?? undefined,
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt,
   };
 }
 
@@ -1315,6 +1382,7 @@ function entityTable(globalKey: Pair['global']): string {
     globalPingSessions: 'global_ping_sessions',
     globalTrendSessions: 'global_trend_sessions',
     globalConnectionProfiles: 'global_connection_profiles',
+    globalDxrs: 'global_dxrs',
   };
   return lookup[globalKey];
 }
@@ -1340,6 +1408,7 @@ async function loadLocalItems(
     case 'pingSessions':         return db.getProjectPingSessions(projectId);
     case 'trendSessions':        return db.getProjectTrendSessions(projectId);
     case 'connectionProfiles':   return db.getProjectConnectionProfiles(projectId);
+    case 'dxrs':                 return db.getProjectDxrs(projectId);
     default: {
       const exhaustive: never = localKey;
       throw new Error(`loadLocalItems: unhandled key ${exhaustive as string}`);
@@ -1368,6 +1437,7 @@ async function saveLocalItem(
     case 'pingSessions':         return db.savePingSession(row as PingSession);
     case 'trendSessions':        return db.saveTrendSession(row as TrendSession);
     case 'connectionProfiles':   return db.saveConnectionProfile(row as ConnectionProfile);
+    case 'dxrs':                 return db.addProjectDxr(row as DxrEntry);
     default: {
       const exhaustive: never = localKey;
       throw new Error(`saveLocalItem: unhandled key ${exhaustive as string}`);
@@ -1398,6 +1468,7 @@ async function buildLocalToGlobalRow(
     case 'pingSessions':         return mapLocalPingToRow(item as PingSession, globalProjectId, userId, isUpdate);
     case 'trendSessions':        return mapLocalTrendToRow(item as TrendSession, globalProjectId, userId, isUpdate);
     case 'connectionProfiles':   return mapLocalConnProfileToRow(item as ConnectionProfile, globalProjectId, userId, isUpdate);
+    case 'dxrs':                 return mapLocalDxrToRow(item as DxrEntry, globalProjectId, userId, isUpdate);
     default: {
       const exhaustive: never = key;
       throw new Error(`buildLocalToGlobalRow: unhandled key ${exhaustive as string}`);
@@ -1425,6 +1496,7 @@ async function convertGlobalToLocal(
     case 'pingSessions':         return mapGlobalPingToLocal(global as unknown as GlobalPingSession, projectId);
     case 'trendSessions':        return mapGlobalTrendToLocal(global as unknown as GlobalTrendSession, projectId);
     case 'connectionProfiles':   return mapGlobalConnProfileToLocal(global as unknown as GlobalConnectionProfile, projectId);
+    case 'dxrs':                 return mapGlobalDxrToLocal(global as unknown as GlobalDxrEntry, projectId);
     default: {
       const exhaustive: never = key;
       throw new Error(`convertGlobalToLocal: unhandled key ${exhaustive as string}`);

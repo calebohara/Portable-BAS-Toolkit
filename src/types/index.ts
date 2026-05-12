@@ -222,6 +222,38 @@ export interface DailyReport {
   attachments: ReportAttachment[];
 }
 
+// ─── DXR Entries (Desigo CC DXR Smart Copy export) ──────────
+export interface DxrEntry {
+  id: string;                              // our UUID (not the Desigo source GUID)
+  projectId: string;
+  // ── 21 source columns from DXR Smart Copy export ──
+  name: string | null;
+  location: string | null;
+  description: string | null;
+  deviceInstanceNumber: number | null;
+  equipmentId: string | null;
+  serialNumber: string | null;
+  applicationTemplate: string | null;
+  applicationNumber: number | null;
+  network: number | null;
+  autoAddressing: boolean | null;
+  macAddress: number | null;
+  maxManagerAddress: number | null;
+  baudRate: number | null;
+  roomHierarchy: string | null;
+  roomName: string | null;
+  roomDescription: string | null;
+  segmentHierarchy: string | null;
+  segmentName: string | null;
+  segmentDescription: string | null;
+  msTpNwId: string | null;
+  guid: string | null;                     // Desigo source GUID — identity key for upsert
+  // ── metadata ──
+  importedFromFileId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ─── Sync Types ─────────────────────────────────────────────
 export type SyncEntityType =
   | 'projects' | 'files' | 'notes' | 'devices' | 'ipPlan'
@@ -229,14 +261,15 @@ export type SyncEntityType =
   | 'commandSnippets' | 'pingSessions' | 'terminalLogs'
   | 'connectionProfiles' | 'registerCalculations' | 'pidTuningSessions'
   | 'ppclDocuments' | 'bugReports' | 'psychSessions' | 'reviews'
-  | 'trendSessions'
+  | 'trendSessions' | 'dxrs'
   // ── Global mirrors ──
   | 'globalProjects' | 'globalNotes' | 'globalDevices' | 'globalIpPlan'
   | 'globalDailyReports' | 'globalActivityLog' | 'globalNetworkDiagrams'
   | 'globalProjectFiles' | 'globalPpclDocuments' | 'globalTerminalLogs'
   | 'globalPidTuningSessions' | 'globalPsychSessions' | 'globalRegisterCalculations'
   | 'globalPingSessions' | 'globalTrendSessions' | 'globalConnectionProfiles'
-  | 'globalFieldPanels' | 'globalNotepadEntries' | 'globalProjectPreferences';
+  | 'globalFieldPanels' | 'globalNotepadEntries' | 'globalProjectPreferences'
+  | 'globalDxrs';
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 

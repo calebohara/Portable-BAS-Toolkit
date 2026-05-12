@@ -483,6 +483,41 @@ export interface GlobalNotepadEntry {
   updatedAt: string;
 }
 
+// ─── DXR Entries (Global mirror) ────────────────────────────────────────────
+
+export interface GlobalDxrEntry {
+  id: string;
+  globalProjectId: string;
+  createdBy: string;
+  updatedBy: string | null;
+  // ── 21 source columns ──
+  name: string | null;
+  location: string | null;
+  description: string | null;
+  deviceInstanceNumber: number | null;
+  equipmentId: string | null;
+  serialNumber: string | null;
+  applicationTemplate: string | null;
+  applicationNumber: number | null;
+  network: number | null;
+  autoAddressing: boolean | null;
+  macAddress: number | null;
+  maxManagerAddress: number | null;
+  baudRate: number | null;
+  roomHierarchy: string | null;
+  roomName: string | null;
+  roomDescription: string | null;
+  segmentHierarchy: string | null;
+  segmentName: string | null;
+  segmentDescription: string | null;
+  msTpNwId: string | null;
+  guid: string | null;
+  importedFromFileId: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /**
  * Per-user preferences for a global project. Backed by
  * `global_project_preferences (user_id, global_project_id)`. No local

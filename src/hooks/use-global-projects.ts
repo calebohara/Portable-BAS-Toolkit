@@ -24,6 +24,7 @@ import type {
   GlobalNotepadEntry,
   GlobalProjectPreferences,
   CreateGlobalProjectData,
+  GlobalDxrEntry,
 } from '@/types/global-projects';
 import {
   fetchGlobalProjects,
@@ -107,6 +108,7 @@ import {
   fetchGlobalProjectPreferences,
   upsertGlobalProjectPreferences,
   deleteGlobalProjectPreferences,
+  fetchGlobalDxrs,
 } from '@/lib/global-projects/api';
 
 /**
@@ -1547,4 +1549,36 @@ export function useGlobalMessages() {
   }, []);
 
   return { messages, loading, error, unreadCount, lastReadAt, refresh, postMessage, removeMessage, markRead };
+}
+
+// ─── useGlobalProjectDxrs ──────────────────────────────────
+export function useGlobalProjectDxrs(projectId: string | undefined) {
+  const [dxrs, setDxrs] = useState<GlobalDxrEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    if (!projectId) {
+      setDxrs([]);
+      setLoading(false);
+      return;
+    }
+    try {
+      setLoading(true);
+      const data = unwrap(await fetchGlobalDxrs(projectId));
+      setDxrs(data);
+    } catch {
+      setDxrs([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  // Realtime: refresh when DXRs change for this project
+  useRealtimeRefresh('global_dxrs', refresh, projectId ? `global_project_id=eq.${projectId}` : undefined);
+
+  return { dxrs, loading, refresh };
 }

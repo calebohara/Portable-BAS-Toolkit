@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog, ConnectionProfile } from '@/types';
+import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry, DailyReport, NetworkDiagram, CommandSnippet, PingSession, TerminalSessionLog, ConnectionProfile, DxrEntry } from '@/types';
+import type { DxrImportRow } from '@/lib/dxr/xlsx-parser';
 import * as db from '@/lib/db';
 import { getAllRecentActivity, getAllProjectEntityCounts, getRecentNotes } from '@/lib/db';
 import { onPullComplete } from '@/lib/sync/sync-bridge';
@@ -898,4 +899,93 @@ export function useRecentNotes(limit = 5) {
   usePullRefresh(refresh);
 
   return { notes, loading, refresh };
+}
+
+// ─── DXR Entries ────────────────────────────────────────────
+export function useProjectDxrs(projectId: string) {
+  const [dxrs, setDxrs] = useState<DxrEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const refresh = useCallback(async () => {
+    try {
+      const all = await db.getProjectDxrs(projectId);
+      setDxrs(all);
+    } catch (e) {
+      console.error('Failed to load DXRs:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    let stale = false;
+    (async () => {
+      try {
+        const all = await db.getProjectDxrs(projectId);
+        if (!stale) { setDxrs(all); setLoading(false); }
+      } catch (e) {
+        if (!stale) { console.error('Failed to load DXRs:', e); setLoading(false); }
+      }
+    })();
+    return () => { stale = true; };
+  }, [projectId]);
+  usePullRefresh(refresh);
+
+  const addDxr = useCallback(async (data: Omit<DxrEntry, 'id'>) => {
+    const dxr: DxrEntry = { ...data, id: uuid() };
+    try {
+      await db.addProjectDxr(dxr);
+    } catch (e) {
+      console.error('Failed to add DXR:', e);
+      throw e;
+    }
+    await refresh();
+    return dxr;
+  }, [refresh]);
+
+  const updateDxr = useCallback(async (dxr: DxrEntry) => {
+    const now = new Date().toISOString();
+    const updated = { ...dxr, updatedAt: now };
+    try {
+      await db.updateProjectDxr(updated);
+    } catch (e) {
+      console.error('Failed to update DXR:', e);
+      throw e;
+    }
+    await refresh();
+  }, [refresh]);
+
+  const removeDxr = useCallback(async (id: string) => {
+    try {
+      await db.deleteProjectDxr(id);
+    } catch (e) {
+      console.error('Failed to delete DXR:', e);
+      throw e;
+    }
+    await refresh();
+  }, [refresh]);
+
+  const bulkImport = useCallback(async (rows: DxrImportRow[]): Promise<{ inserted: number; updated: number }> => {
+    try {
+      const result = await db.bulkUpsertProjectDxrs(projectId, rows);
+      await refresh();
+      return result;
+    } catch (e) {
+      console.error('Failed to bulk import DXRs:', e);
+      throw e;
+    }
+  }, [projectId, refresh]);
+
+  const clearAll = useCallback(async (): Promise<number> => {
+    try {
+      const count = await db.clearProjectDxrs(projectId);
+      await refresh();
+      return count;
+    } catch (e) {
+      console.error('Failed to clear DXRs:', e);
+      throw e;
+    }
+  }, [projectId, refresh]);
+
+  return { dxrs, loading, refresh, addDxr, updateDxr, removeDxr, bulkImport, clearAll };
 }

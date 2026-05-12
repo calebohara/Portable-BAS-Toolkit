@@ -8,7 +8,7 @@ import {
   History, Users, Plus, Trash2, Edit2, MapPin, Hash, Building2,
   Copy, Check, Clock, User, ChevronDown, ChevronUp, Pencil, FolderKanban,
   Upload, X, ExternalLink, FileCode, Terminal, GitBranch, Pin, PinOff,
-  Download, CloudOff, Phone, Mail, Eye, Database, ChevronRight, HardDrive,
+  Download, CloudOff, Phone, Mail, Eye, Database, ChevronRight, HardDrive, Cpu,
 } from 'lucide-react';
 import {
   validateFileSize, isImageFile, buildStoragePath, uploadProjectFile,
@@ -26,6 +26,7 @@ import {
   useGlobalProjectPpcl,
   useGlobalProjectTerminalLogs,
   useGlobalProjectPreferences,
+  useGlobalProjectDxrs,
 } from '@/hooks/use-global-projects';
 import { useAuth } from '@/providers/auth-provider';
 import { TopBar } from '@/components/layout/top-bar';
@@ -45,6 +46,7 @@ import {
 } from '@/components/ui/dialog';
 import { SaveToLocalDialog } from '@/components/global-projects/save-to-local-dialog';
 import { GlobalFileListView } from '@/components/global-projects/global-file-list-view';
+import { GlobalDxrsView } from '@/components/global-projects/global-dxrs-view';
 import { ContactDialog } from '@/components/projects/contact-dialog';
 import { PpclPreviewDialog } from '@/components/ppcl-editor/ppcl-preview-dialog';
 import type { FileCategory } from '@/types';
@@ -73,6 +75,7 @@ const tabs = [
   { id: 'sequences', label: 'Sequences', icon: FileText },
   { id: 'ip-plan', label: 'IP Plan', icon: Network },
   { id: 'devices', label: 'Devices', icon: Server },
+  { id: 'dxrs', label: 'DXRs', icon: Cpu },
   { id: 'backups', label: 'Backups', icon: HardDrive },
   { id: 'general-documents', label: 'General Docs', icon: FolderOpen },
   { id: 'notes', label: 'Notes', icon: StickyNote },
@@ -99,6 +102,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
   const { members, removeMember, promoteMember, regenerateCode } = useGlobalProjectMembers(id);
   const { notes, addNote, updateNote, removeNote } = useGlobalProjectNotes(id);
   const { devices, addDevice, updateDevice, removeDevice } = useGlobalProjectDevices(id);
+  const { dxrs } = useGlobalProjectDxrs(id);
   const { entries: ipEntries, addEntry: addIpEntry, updateEntry: updateIpEntry, removeEntry: removeIpEntry } = useGlobalProjectIpPlan(id);
   const { files, addFile, updateFile, removeFile } = useGlobalProjectFiles(id);
   const { reports, updateReport, removeReport } = useGlobalProjectReports(id);
@@ -292,6 +296,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
             {tabs.map(({ id: tabId, label, icon: Icon }) => {
               const count = tabId === 'notes' ? notes.length
                 : tabId === 'devices' ? devices.length
+                : tabId === 'dxrs' ? dxrs.length
                 : tabId === 'ip-plan' ? ipEntries.length
                 : FILE_CATEGORY_TABS.has(tabId) ? files.filter((f) => f.category === tabId).length
                 : tabId === 'reports' ? reports.length
@@ -364,6 +369,10 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
               onUpdate={updateDevice}
               onRemove={removeDevice}
             />
+          )}
+
+          {activeTab === 'dxrs' && (
+            <GlobalDxrsView projectId={id} />
           )}
 
           {activeTab === 'ip-plan' && (

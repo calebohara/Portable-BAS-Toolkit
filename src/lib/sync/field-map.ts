@@ -24,6 +24,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   bugReports: 'bug_reports',
   reviews: 'user_reviews',
   trendSessions: 'trend_sessions',
+  dxrs: 'dxrs',
   // ── Global mirrors ──
   globalProjects: 'global_projects',
   globalNotes: 'global_field_notes',
@@ -44,6 +45,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
   globalFieldPanels: 'global_field_panels',
   globalNotepadEntries: 'global_project_notepad_entries',
   globalProjectPreferences: 'global_project_preferences',
+  globalDxrs: 'global_dxrs',
 };
 
 // Fields to strip from local entities before pushing to Supabase.
@@ -86,6 +88,7 @@ export const GLOBAL_ENTITY_TYPES: Set<SyncEntityType> = new Set([
   'globalPidTuningSessions', 'globalPsychSessions', 'globalRegisterCalculations',
   'globalPingSessions', 'globalTrendSessions', 'globalConnectionProfiles',
   'globalFieldPanels', 'globalNotepadEntries', 'globalProjectPreferences',
+  'globalDxrs',
 ]);
 
 export function isGlobalEntity(entityType: SyncEntityType): boolean {
@@ -104,6 +107,7 @@ const GLOBAL_AUDITED_ENTITY_TYPES: Set<SyncEntityType> = new Set([
   'globalTerminalLogs', 'globalPidTuningSessions', 'globalPsychSessions',
   'globalRegisterCalculations', 'globalPingSessions', 'globalTrendSessions',
   'globalConnectionProfiles', 'globalFieldPanels', 'globalNotepadEntries',
+  'globalDxrs',
 ]);
 
 // Per-entity field overrides (where auto snake_case doesn't match the schema,
@@ -288,6 +292,28 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     projectId: 'project_id',
     sourceSystem: 'source_system',
     anomalyConfig: 'anomaly_config',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
+  dxrs: {
+    projectId: 'project_id',
+    deviceInstanceNumber: 'device_instance_number',
+    equipmentId: 'equipment_id',
+    serialNumber: 'serial_number',
+    applicationTemplate: 'application_template',
+    applicationNumber: 'application_number',
+    autoAddressing: 'auto_addressing',
+    macAddress: 'mac_address',
+    maxManagerAddress: 'max_manager_address',
+    baudRate: 'baud_rate',
+    roomHierarchy: 'room_hierarchy',
+    roomName: 'room_name',
+    roomDescription: 'room_description',
+    segmentHierarchy: 'segment_hierarchy',
+    segmentName: 'segment_name',
+    segmentDescription: 'segment_description',
+    msTpNwId: 'ms_tp_nw_id',
+    importedFromFileId: 'imported_from_file_id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
@@ -542,6 +568,31 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },
+  globalDxrs: {
+    globalProjectId: 'global_project_id',
+    deviceInstanceNumber: 'device_instance_number',
+    equipmentId: 'equipment_id',
+    serialNumber: 'serial_number',
+    applicationTemplate: 'application_template',
+    applicationNumber: 'application_number',
+    autoAddressing: 'auto_addressing',
+    macAddress: 'mac_address',
+    maxManagerAddress: 'max_manager_address',
+    baudRate: 'baud_rate',
+    roomHierarchy: 'room_hierarchy',
+    roomName: 'room_name',
+    roomDescription: 'room_description',
+    segmentHierarchy: 'segment_hierarchy',
+    segmentName: 'segment_name',
+    segmentDescription: 'segment_description',
+    msTpNwId: 'ms_tp_nw_id',
+    importedFromFileId: 'imported_from_file_id',
+    createdBy: 'created_by',
+    updatedBy: 'updated_by',
+    deletedAt: 'deleted_at',
+    createdAt: 'created_at',
+    updatedAt: 'updated_at',
+  },
 };
 
 /**
@@ -632,6 +683,7 @@ export const REQUIRES_PROJECT_ID: Set<SyncEntityType> = new Set([
   'networkDiagrams', // network_diagrams.project_id NOT NULL
   'pidTuningSessions', // pid_tuning_sessions.project_id NOT NULL
   'psychSessions',     // psych_sessions.project_id NOT NULL
+  'dxrs',          // dxrs.project_id NOT NULL
 ]);
 // These tables have project_id nullable: files, commandSnippets,
 // pingSessions, terminalLogs, connectionProfiles, registerCalculations
@@ -648,7 +700,7 @@ export const REQUIRES_GLOBAL_PROJECT_ID: Set<SyncEntityType> = new Set([
   'globalPpclDocuments', 'globalTerminalLogs', 'globalPidTuningSessions',
   'globalPsychSessions', 'globalRegisterCalculations', 'globalPingSessions',
   'globalTrendSessions', 'globalConnectionProfiles', 'globalFieldPanels',
-  'globalNotepadEntries',
+  'globalNotepadEntries', 'globalDxrs',
 ]);
 
 /**
@@ -776,6 +828,7 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'bugReports',
   'reviews',
   'trendSessions',
+  'dxrs',
   // ── Global mirrors — parents before children ──
   // globalProjects must come before any global child (FK constraint).
   // globalProjectPreferences references auth.users + global_projects and is
@@ -799,4 +852,5 @@ export const SYNC_ORDER: SyncEntityType[] = [
   'globalFieldPanels',
   'globalNotepadEntries',
   'globalProjectPreferences',
+  'globalDxrs',
 ];

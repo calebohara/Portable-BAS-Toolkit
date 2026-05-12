@@ -7,12 +7,12 @@ import {
   ArrowLeft, Database, FileText, Network, Server, HardDrive,
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
-  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink, Eye, UserPlus,
+  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink, Eye, UserPlus, Cpu,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
   useProjectDevices, useProjectIpPlan, useProjectActivity,
-  useTerminalLogs, useDailyReports,
+  useTerminalLogs, useDailyReports, useProjectDxrs,
 } from '@/hooks/use-projects';
 import { usePpclDocuments } from '@/hooks/use-ppcl-documents';
 import { TopBar } from '@/components/layout/top-bar';
@@ -28,6 +28,7 @@ import { Badge } from '@/components/ui/badge';
 
 import { Textarea } from '@/components/ui/textarea';
 import { DeviceListView } from '@/components/devices/device-list-view';
+import { DxrsView } from '@/components/dxrs/dxrs-view';
 import { IpPlanView } from '@/components/devices/ip-plan-view';
 import { FieldNotesView } from '@/components/notes/field-notes-view';
 import { FileListView } from '@/components/files/file-list-view';
@@ -49,6 +50,7 @@ const sections = [
   { id: 'sequences', label: 'Sequences', icon: FileText },
   { id: 'ip-plan', label: 'IP Plan', icon: Network },
   { id: 'device-list', label: 'Devices', icon: Server },
+  { id: 'dxrs', label: 'DXRs', icon: Cpu },
   { id: 'backups', label: 'Backups', icon: HardDrive },
   { id: 'general-documents', label: 'General Docs', icon: FolderOpen },
   { id: 'notes', label: 'Notes', icon: StickyNote },
@@ -68,6 +70,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const { files, refresh: refreshFiles } = useProjectFiles(id);
   const { notes, addNote, updateNote, removeNote } = useProjectNotes(id);
   const { devices, addDevice, updateDevice, removeDevice } = useProjectDevices(id);
+  const { dxrs } = useProjectDxrs(id);
   const { entries: ipEntries, addIpEntry, updateIpEntry, removeIpEntry } = useProjectIpPlan(id);
   const { activity } = useProjectActivity(id);
   const { logs: terminalLogs, removeLog: removeTerminalLog } = useTerminalLogs(id);
@@ -207,6 +210,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
           <nav className="flex lg:flex-col overflow-x-auto lg:overflow-x-visible p-2 gap-0.5 scrollbar-thin">
             {sections.map(({ id: sectionId, label, icon: Icon }) => {
               const count = sectionId === 'device-list' ? devices.length
+                : sectionId === 'dxrs' ? dxrs.length
                 : sectionId === 'ip-plan' ? ipEntries.length
                 : sectionId === 'notes' ? notes.length
                 : sectionId === 'ppcl-programs' ? ppclDocs.length
@@ -282,6 +286,10 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onUpdateDevice={updateDevice}
               onDeleteDevice={removeDevice}
             />
+          )}
+
+          {activeTab === 'dxrs' && (
+            <DxrsView projectId={id} />
           )}
 
           {activeTab === 'notes' && (
