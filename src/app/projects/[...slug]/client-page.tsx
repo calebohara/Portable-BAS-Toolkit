@@ -7,7 +7,7 @@ import {
   ArrowLeft, Database, FileText, Network, Server, HardDrive,
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
-  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink,
+  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink, Eye,
 } from 'lucide-react';
 import {
   useProject, useProjectFiles, useProjectNotes,
@@ -34,6 +34,7 @@ import { FileListView } from '@/components/files/file-list-view';
 import { ActivityTimeline } from '@/components/projects/activity-timeline';
 import { ShareDialog } from '@/components/share/share-dialog';
 import { ShareToGlobalDialog } from '@/components/global-projects/share-to-global-dialog';
+import { PpclPreviewDialog } from '@/components/ppcl-editor/ppcl-preview-dialog';
 import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry, type TerminalSessionLog } from '@/types';
 import { cn, sanitizeFilename } from '@/lib/utils';
 import { deleteProject } from '@/lib/db';
@@ -766,6 +767,8 @@ function PpclProgramsView({ projectId, documents, onAdd, onDelete }: {
   onDelete: (id: string) => Promise<void>;
 }) {
   const router = useRouter();
+  const [previewDocId, setPreviewDocId] = useState<string | null>(null);
+  const previewDoc = previewDocId ? documents.find((d) => d.id === previewDocId) ?? null : null;
 
   const handleNew = async () => {
     const doc = await onAdd('Untitled.pcl', '', 'pxc-tc', projectId);
@@ -815,6 +818,16 @@ function PpclProgramsView({ projectId, documents, onAdd, onDelete }: {
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => setPreviewDocId(doc.id)}
+                    aria-label={`Preview ${doc.name}`}
+                    title="Preview program"
+                  >
+                    <Eye className="h-3 w-3" /> Preview
+                  </Button>
+                  <Button
                     variant="outline"
                     size="sm"
                     className="h-7 gap-1 text-xs"
@@ -837,6 +850,12 @@ function PpclProgramsView({ projectId, documents, onAdd, onDelete }: {
           ))}
         </div>
       )}
+      <PpclPreviewDialog
+        open={previewDocId !== null}
+        onOpenChange={(o) => { if (!o) setPreviewDocId(null); }}
+        document={previewDoc}
+        onOpenInEditor={handleOpen}
+      />
     </div>
   );
 }

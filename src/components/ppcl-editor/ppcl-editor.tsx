@@ -24,6 +24,8 @@ interface PpclEditorComponentProps {
   onEditorView?: (view: EditorView) => void;
   /** Max characters per line for the active firmware target (198 for PXC/TC, 80 for PTEC) */
   charLimit?: number;
+  /** Render the editor in read-only mode. Disables typing, the save shortcut, and the auto line-numbering Enter handler. */
+  readOnly?: boolean;
 }
 
 /**
@@ -42,6 +44,7 @@ export function PpclEditorComponent({
   onSave,
   onEditorView,
   charLimit = 198,
+  readOnly = false,
 }: PpclEditorComponentProps) {
   const wordWrap = usePpclEditorStore(s => s.wordWrap);
   const fontSize = usePpclEditorStore(s => s.fontSize);
@@ -89,8 +92,10 @@ export function PpclEditorComponent({
           selectionLength: Math.abs(pos.to - pos.from),
         });
       }),
+    ];
+    if (!readOnly) {
       // Prec.high ensures our Enter handler runs BEFORE basicSetup's insertNewlineAndIndent
-      Prec.high(keymap.of([
+      exts.push(Prec.high(keymap.of([
         {
           key: 'Enter',
           run: (view) => {
@@ -115,42 +120,44 @@ export function PpclEditorComponent({
             return false;
           },
         },
-      ])),
-      keymap.of([
-        {
-          key: 'Mod-s',
-          run: () => { onSaveRef.current?.(); return true; },
+      ])));
+    }
+    exts.push(keymap.of([
+      // Save shortcut only makes sense when editable.
+      ...(readOnly ? [] : [{
+        key: 'Mod-s',
+        run: () => { onSaveRef.current?.(); return true; },
+      }]),
+      {
+        key: 'Mod-h',
+        run: (view: EditorView) => { openSearchPanel(view); return true; },
+      },
+    ]));
+    // Escape blurs the editor so keyboard users can navigate away
+    // (Tab to sidebar, browser shortcuts, etc.). Without this, CodeMirror's
+    // contenteditable captures focus and there is no keyboard escape route —
+    // users feel "trapped" in the editor once they click into it.
+    // Prec.high so this runs before any extension that might consume Escape
+    // (e.g. autocomplete close), but autocomplete's Escape handler returns
+    // true and stops propagation only when a completion is open, so this is
+    // safe — Escape closes completions first, then a second Escape blurs.
+    exts.push(Prec.high(keymap.of([
+      {
+        key: 'Escape',
+        run: (view) => {
+          // Only blur if no completion/search panel is consuming Escape
+          // (those return true from their own handlers and prevent us from running).
+          view.contentDOM.blur();
+          return true;
         },
-        {
-          key: 'Mod-h',
-          run: (view) => { openSearchPanel(view); return true; },
-        },
-      ]),
-      // Escape blurs the editor so keyboard users can navigate away
-      // (Tab to sidebar, browser shortcuts, etc.). Without this, CodeMirror's
-      // contenteditable captures focus and there is no keyboard escape route —
-      // users feel "trapped" in the editor once they click into it.
-      // Prec.high so this runs before any extension that might consume Escape
-      // (e.g. autocomplete close), but autocomplete's Escape handler returns
-      // true and stops propagation only when a completion is open, so this is
-      // safe — Escape closes completions first, then a second Escape blurs.
-      Prec.high(keymap.of([
-        {
-          key: 'Escape',
-          run: (view) => {
-            // Only blur if no completion/search panel is consuming Escape
-            // (those return true from their own handlers and prevent us from running).
-            view.contentDOM.blur();
-            return true;
-          },
-        },
-      ])),
-      ppclLineLengthEnforcement(charLimit),
-      ppclGotoNavigation(),
-    ];
+      },
+    ])));
+    exts.push(ppclLineLengthEnforcement(charLimit));
+    exts.push(ppclGotoNavigation());
+    if (readOnly) exts.push(EditorView.editable.of(false));
     if (wordWrap) exts.push(EditorView.lineWrapping);
     return exts;
-  }, [wordWrap, charLimit]);
+  }, [wordWrap, charLimit, readOnly]);
 
   return (
     <CodeMirror
