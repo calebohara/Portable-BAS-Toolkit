@@ -563,6 +563,9 @@ export class SyncManager implements SyncManagerInterface {
         const table = entityTypeToTable[entityType];
         const isGlobal = isGlobalEntity(entityType);
         const isAppendOnlyLog = entityType === 'activityLog' || entityType === 'globalActivityLog';
+        // Tables without a `deleted_at` column. Skip the soft-delete filter
+        // entirely for these — applying it raises 42703 column-not-found.
+        const lacksDeletedAt = isAppendOnlyLog || entityType === 'globalProjectPreferences';
 
         // Skip global child pulls when the user has no memberships — RLS would
         // return nothing anyway and we save a round trip per table.
@@ -596,9 +599,10 @@ export class SyncManager implements SyncManagerInterface {
             query = this.client.from(table).select('*').eq('user_id', this.userId);
           }
 
-          // Apply deleted_at filter consistently (skip for append-only logs
-          // which don't have a deleted_at column).
-          if (!isAppendOnlyLog) {
+          // Apply deleted_at filter consistently — skip for tables that
+          // don't have a deleted_at column (append-only logs +
+          // globalProjectPreferences).
+          if (!lacksDeletedAt) {
             query = query.is('deleted_at', null);
           }
 
