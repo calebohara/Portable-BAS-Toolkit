@@ -6,6 +6,7 @@ import {
   bulkPutSilent, bulkDeleteSilent,
   addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
   addSyncError,
+  cascadeDeleteProject, cascadeDeleteGlobalProject,
 } from '@/lib/db';
 import {
   entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER,
@@ -501,8 +502,13 @@ export class SyncManager implements SyncManagerInterface {
   }> {
     console.info(`${LOG_PREFIX} Restore from cloud — reversing soft-deletes…`);
 
-    // Undelete all user's soft-deleted rows across all tables (except activityLog which has no deleted_at)
-    const tablesWithDeletedAt = SYNC_ORDER.filter((t) => t !== 'activityLog');
+    // Undelete all user's soft-deleted rows across all tables. Exclude:
+    //   - activityLog: append-only, no deleted_at column
+    //   - globalActivityLog: append-only, no deleted_at column (42703 on UPDATE)
+    //   - globalProjectPreferences: composite-PK table, no deleted_at column (42703 on UPDATE)
+    const tablesWithDeletedAt = SYNC_ORDER.filter(
+      (t) => t !== 'activityLog' && t !== 'globalActivityLog' && t !== 'globalProjectPreferences',
+    );
     for (const entityType of tablesWithDeletedAt) {
       try {
         const table = entityTypeToTable[entityType];
@@ -635,8 +641,26 @@ export class SyncManager implements SyncManagerInterface {
         for (const row of allRows) {
           if (!isAppendOnlyLog && isDeletedRow(row)) {
             // Soft-deleted: schedule for local removal.
-            // globalProjectPreferences uses the synthetic prefKey instead of id.
-            if (entityType === 'globalProjectPreferences') {
+            // For parent entities (projects / globalProjects) use the cascade
+            // helper so all children are cleaned up in IndexedDB too — otherwise
+            // child rows linger and keep pushing against RLS forever.
+            if (entityType === 'projects') {
+              const pid = row.id as string | undefined;
+              if (pid) {
+                await cascadeDeleteProject(pid).catch((e) =>
+                  console.warn(`${LOG_PREFIX} pullSync cascade (projects/${pid}) failed:`, e),
+                );
+                totalDeleted++;
+              }
+            } else if (entityType === 'globalProjects') {
+              const gpid = row.id as string | undefined;
+              if (gpid) {
+                await cascadeDeleteGlobalProject(gpid).catch((e) =>
+                  console.warn(`${LOG_PREFIX} pullSync cascade (globalProjects/${gpid}) failed:`, e),
+                );
+                totalDeleted++;
+              }
+            } else if (entityType === 'globalProjectPreferences') {
               const uid = row.user_id as string | undefined;
               const gpid = row.global_project_id as string | undefined;
               if (uid && gpid) toDeleteIds.push(`${uid}|${gpid}`);
@@ -1120,7 +1144,16 @@ export class SyncManager implements SyncManagerInterface {
     if (event === 'DELETE') {
       // Realtime DELETE payload.old contains the deleted row's PK columns.
       const oldRow = (payload.old ?? {}) as Record<string, unknown>;
-      if (entityType === 'globalProjectPreferences') {
+      if (entityType === 'globalProjects') {
+        // Parent deleted — cascade to all IndexedDB child stores so orphans
+        // don't keep pushing against RLS.
+        const id = oldRow.id as string | undefined;
+        if (id) {
+          await cascadeDeleteGlobalProject(id).catch((e) =>
+            console.warn(`${LOG_PREFIX} realtime cascade (globalProjects/${id}) failed:`, e),
+          );
+        }
+      } else if (entityType === 'globalProjectPreferences') {
         const uid = oldRow.user_id as string | undefined;
         const gpid = oldRow.global_project_id as string | undefined;
         if (uid && gpid) {
@@ -1141,7 +1174,15 @@ export class SyncManager implements SyncManagerInterface {
     // Soft-deleted rows reach the realtime stream as UPDATE events. Mirror the
     // pullSync behaviour: treat them as local deletes.
     if (isDeletedRow(newRow)) {
-      if (entityType === 'globalProjectPreferences') {
+      if (entityType === 'globalProjects') {
+        // Parent soft-deleted — cascade to all IndexedDB child stores.
+        const id = newRow.id as string | undefined;
+        if (id) {
+          await cascadeDeleteGlobalProject(id).catch((e) =>
+            console.warn(`${LOG_PREFIX} realtime soft-delete cascade (globalProjects/${id}) failed:`, e),
+          );
+        }
+      } else if (entityType === 'globalProjectPreferences') {
         const uid = newRow.user_id as string | undefined;
         const gpid = newRow.global_project_id as string | undefined;
         if (uid && gpid) {

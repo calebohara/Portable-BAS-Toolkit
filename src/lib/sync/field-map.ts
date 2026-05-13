@@ -55,6 +55,7 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
 const LOCAL_ONLY_FIELDS = new Set([
   'isOfflineCached', // files — local-only blob cache indicator
   'fts',             // full-text search tsvector — generated column on every global_* table that opts in
+  'prefKey',         // globalProjectPreferences — synthetic IDB primary key ("uid|gpid"); no pref_key Supabase column
 ]);
 
 // Snake_case column names that are uuid foreign-key references in Supabase.
@@ -275,8 +276,8 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     comfortResult: 'comfort_result',
     ahuMixedAir: 'ahu_mixed_air',
     ahuCoilLoad: 'ahu_coil_load',
-    syncVersion: 'sync_version',
-    deletedAt: 'deleted_at',
+    // syncVersion and deletedAt were removed: PsychSession TS interface has
+    // no such fields; they were dead overrides that could confuse future maintainers.
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },

@@ -322,16 +322,37 @@ export async function deleteGlobalProject(id: string): Promise<ApiResult<void>> 
 
     if (error) return fail(error.message);
 
-    // Cascade soft-delete child entities so they don't linger after the
-    // parent project is removed. Failures here are logged but non-fatal —
-    // the project itself is already deleted at this point.
+    // Cascade soft-delete all child entities so they don't remain queryable
+    // after the parent project is soft-deleted. The parent row is only stamped
+    // with deleted_at (not hard-deleted), so Postgres ON DELETE CASCADE never
+    // fires — we must mirror the soft-delete explicitly for every child table
+    // that carries a deleted_at column.
+    //
+    // Tables WITHOUT a deleted_at column (global_activity_log,
+    // global_project_preferences) are intentionally excluded — they rely on
+    // Postgres FK ON DELETE CASCADE for cleanup when the parent is eventually
+    // hard-purged, and their RLS gates access by membership/user_id anyway.
     const now = new Date().toISOString();
     const childTables = [
+      // Originally cascaded (5)
       'global_field_notes',
       'global_devices',
       'global_ip_plan',
       'global_daily_reports',
       'global_project_files',
+      // Previously missing from cascade (12) — Finding #3
+      'global_network_diagrams',
+      'global_ppcl_documents',
+      'global_terminal_session_logs',
+      'global_pid_tuning_sessions',
+      'global_psych_sessions',
+      'global_register_calculations',
+      'global_ping_sessions',
+      'global_trend_sessions',
+      'global_connection_profiles',
+      'global_field_panels',
+      'global_project_notepad_entries',
+      'global_dxrs',
     ];
     for (const table of childTables) {
       const { error: childErr } = await supabase

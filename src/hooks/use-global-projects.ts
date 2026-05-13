@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { cascadeDeleteGlobalProject } from '@/lib/db';
 import type {
   GlobalProject,
   GlobalProjectMember,
@@ -289,6 +290,12 @@ export function useGlobalProject(id: string | undefined) {
   const remove = useCallback(async () => {
     if (!id) return;
     unwrap(await deleteGlobalProject(id));
+    // Cascade-delete local IndexedDB child rows so orphaned children don't
+    // keep pushing against RLS. The Supabase delete already cascades server-side;
+    // this ensures the local mirror is clean immediately (before the next pull).
+    await cascadeDeleteGlobalProject(id).catch((e) =>
+      console.warn('[useGlobalProject] local cascade failed (non-fatal):', e),
+    );
     notifyMembershipChanged();
   }, [id]);
 

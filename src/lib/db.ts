@@ -627,7 +627,7 @@ export const getAllProjects = projectRepo.getAll;
 export const getProject    = projectRepo.get;
 export const saveProject   = projectRepo.save;
 
-/** Stores whose children are cascade-deleted when a project is removed. */
+/** Stores whose children are cascade-deleted when a local project is removed. */
 const PROJECT_CHILD_STORES: readonly SyncEntityType[] = [
   'files', 'notes', 'devices', 'ipPlan', 'activityLog',
   'dailyReports', 'networkDiagrams', 'pingSessions',
@@ -635,15 +635,38 @@ const PROJECT_CHILD_STORES: readonly SyncEntityType[] = [
   'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions', 'dxrs',
 ];
 
-export async function deleteProject(id: string): Promise<void> {
+/** Stores whose children are cascade-deleted when a global project is removed. */
+const GLOBAL_PROJECT_CHILD_STORES: readonly SyncEntityType[] = [
+  'globalNotes', 'globalDevices', 'globalIpPlan', 'globalDailyReports',
+  'globalNetworkDiagrams', 'globalProjectFiles', 'globalPpclDocuments',
+  'globalTerminalLogs', 'globalPidTuningSessions', 'globalPsychSessions',
+  'globalRegisterCalculations', 'globalPingSessions', 'globalTrendSessions',
+  'globalConnectionProfiles', 'globalFieldPanels', 'globalNotepadEntries',
+  'globalActivityLog', 'globalDxrs',
+];
+
+// ─── Cascade Delete Helpers ──────────────────────────────────
+// These helpers delete a project row and every child record across all child
+// stores, then clean up any lingering syncQueue items and syncErrors so the
+// Sync Error Inspector doesn't show ghost entries after a delete.
+
+/**
+ * Cascade-delete a local project and all its children from IndexedDB.
+ * Also cleans up `syncQueue` items and `syncErrors` records for the deleted
+ * entities so the Sync Inspector shows no ghost errors after deletion.
+ *
+ * Re-exported as `deleteProject` for backward compatibility — all call sites
+ * should migrate to `cascadeDeleteProject` for clarity.
+ */
+export async function cascadeDeleteProject(id: string): Promise<void> {
   const db = await getDB();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const tx = (db as any).transaction(['projects', 'fileBlobs', ...PROJECT_CHILD_STORES], 'readwrite');
 
-  try {
-    // Track deleted IDs per store for sync notifications after commit
-    const deleted = new Map<SyncEntityType, string[]>();
+  // Track deleted IDs per store — used for sync notifications and cleanup below
+  const deleted = new Map<SyncEntityType, string[]>();
 
+  try {
     // Handle blob cleanup for files and daily reports
     const files = await tx.objectStore('files').index('by-project').getAll(id);
     for (const file of files) {
@@ -674,16 +697,150 @@ export async function deleteProject(id: string): Promise<void> {
 
     await tx.objectStore('projects').delete(id);
     await tx.done;
-
-    // Notify sync bridge about cascade-deleted children
-    for (const [store, ids] of deleted) {
-      for (const childId of ids) notifySync('delete', store, childId, null);
-    }
-    notifySync('delete', 'projects', id, null);
   } catch (e) {
     tx.abort();
     throw e;
   }
+
+  // ── Post-commit: clean up syncQueue and syncErrors for deleted entities ──
+  // These are in separate stores (not part of the cascade transaction) so we
+  // handle them independently. Failures here are non-fatal — the IndexedDB data
+  // is already gone; at worst the Inspector shows stale rows that can be cleared
+  // manually.
+  try {
+    const allChildIds: Array<{ entityType: SyncEntityType; entityId: string }> = [];
+    for (const [store, ids] of deleted) {
+      for (const childId of ids) {
+        allChildIds.push({ entityType: store, entityId: childId });
+      }
+    }
+    // Also include the project itself
+    allChildIds.push({ entityType: 'projects', entityId: id });
+
+    for (const { entityType, entityId } of allChildIds) {
+      // syncQueue uses deterministic key `${entityType}-${entityId}`
+      await deleteSyncItem(`${entityType}-${entityId}`).catch(() => { /* no-op if absent */ });
+      // syncErrors: delete by scanning the by-entity-type index for matching entityId
+      const errorDb = await getDB();
+      const errorsByType = await errorDb.getAllFromIndex('syncErrors', 'by-entity-type', entityType);
+      for (const err of errorsByType) {
+        if (err.entityId === entityId) {
+          await errorDb.delete('syncErrors', err.id);
+        }
+      }
+    }
+  } catch (cleanupErr) {
+    console.warn('[db] cascadeDeleteProject: syncQueue/syncErrors cleanup failed (non-fatal):', cleanupErr);
+  }
+
+  // Notify sync bridge about cascade-deleted children
+  for (const [store, ids] of deleted) {
+    for (const childId of ids) notifySync('delete', store, childId, null);
+  }
+  notifySync('delete', 'projects', id, null);
+}
+
+/**
+ * Cascade-delete a global project and all its children from IndexedDB.
+ * Handles the append-only `globalActivityLog` store (no `deletedAt`) and the
+ * composite-PK `globalProjectPreferences` store (keyed by `prefKey`, indexed
+ * by `globalProjectId`).
+ * Also cleans up `syncQueue` items and `syncErrors` records for deleted
+ * entities so the Inspector shows no ghost errors after deletion.
+ */
+export async function cascadeDeleteGlobalProject(globalProjectId: string): Promise<void> {
+  const db = await getDB();
+
+  // Collect all child entity IDs across every child store so we can clean up
+  // syncQueue and syncErrors after the cascade transaction commits.
+  const deleted = new Map<SyncEntityType, string[]>();
+
+  // ── Step 1: Cascade-delete standard global child stores ──────────────────
+  // Each store uses `by-project` index on `globalProjectId`.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const childTx = (db as any).transaction(
+    ['globalProjects', ...GLOBAL_PROJECT_CHILD_STORES],
+    'readwrite',
+  );
+  try {
+    for (const store of GLOBAL_PROJECT_CHILD_STORES) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const items = await (childTx as any).objectStore(store).index('by-project').getAll(globalProjectId);
+      const ids: string[] = [];
+      for (const item of items) {
+        const rec = item as unknown as { id: string };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (childTx as any).objectStore(store).delete(rec.id);
+        ids.push(rec.id);
+      }
+      deleted.set(store, ids);
+    }
+    await childTx.objectStore('globalProjects').delete(globalProjectId);
+    await childTx.done;
+  } catch (e) {
+    childTx.abort();
+    throw e;
+  }
+
+  // ── Step 2: globalProjectPreferences (composite PK = prefKey = `uid|gpid`) ─
+  // The `by-project` index is on `globalProjectId`, so we can look up all
+  // preferences for this project regardless of which user they belong to.
+  try {
+    const prefDb = await getDB();
+    const prefs = await prefDb.getAllFromIndex('globalProjectPreferences', 'by-project', globalProjectId);
+    if (prefs.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const prefTx = (prefDb as any).transaction('globalProjectPreferences', 'readwrite');
+      const prefIds: string[] = [];
+      for (const pref of prefs) {
+        await prefTx.store.delete(pref.prefKey);
+        prefIds.push(pref.prefKey);
+      }
+      await prefTx.done;
+      // globalProjectPreferences doesn't have a simple entityId for syncQueue;
+      // the queue key uses `globalProjectPreferences-${prefKey}` — handled below.
+      deleted.set('globalProjectPreferences', prefIds);
+    }
+  } catch (prefErr) {
+    console.warn('[db] cascadeDeleteGlobalProject: globalProjectPreferences cleanup failed (non-fatal):', prefErr);
+  }
+
+  // ── Step 3: Clean up syncQueue and syncErrors ────────────────────────────
+  try {
+    const allChildIds: Array<{ entityType: SyncEntityType; entityId: string }> = [];
+    for (const [store, ids] of deleted) {
+      for (const childId of ids) {
+        allChildIds.push({ entityType: store, entityId: childId });
+      }
+    }
+    // Include the global project itself
+    allChildIds.push({ entityType: 'globalProjects', entityId: globalProjectId });
+
+    const cleanupDb = await getDB();
+    for (const { entityType, entityId } of allChildIds) {
+      // syncQueue key is `${entityType}-${entityId}`
+      await deleteSyncItem(`${entityType}-${entityId}`).catch(() => { /* no-op if absent */ });
+      // syncErrors: scan by-entity-type index for matching entityId
+      const errorsByType = await cleanupDb.getAllFromIndex('syncErrors', 'by-entity-type', entityType);
+      for (const err of errorsByType) {
+        if (err.entityId === entityId) {
+          await cleanupDb.delete('syncErrors', err.id);
+        }
+      }
+    }
+  } catch (cleanupErr) {
+    console.warn('[db] cascadeDeleteGlobalProject: syncQueue/syncErrors cleanup failed (non-fatal):', cleanupErr);
+  }
+
+  // ── Step 4: Notify sync bridge ───────────────────────────────────────────
+  for (const [store, ids] of deleted) {
+    for (const childId of ids) notifySync('delete', store, childId, null);
+  }
+  notifySync('delete', 'globalProjects', globalProjectId, null);
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  return cascadeDeleteProject(id);
 }
 
 // ─── Files ──────────────────────────────────────────────────
