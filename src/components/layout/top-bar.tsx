@@ -8,6 +8,7 @@ import { useAppStore } from '@/store/app-store';
 import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
 import { useInbox } from '@/hooks/use-inbox';
 import { usePendingApprovals } from '@/hooks/use-pending-approvals';
+import { useNewBugReports } from '@/hooks/use-new-bug-reports';
 import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { Button } from '@/components/ui/button';
 import { GlobalUploadDialog } from '@/components/files/global-upload-dialog';
@@ -27,6 +28,8 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
   const [showBugReport, setShowBugReport] = useState(false);
   const { unreadCount } = useInbox();
   const { count: pendingApprovalsCount, isAdmin } = usePendingApprovals();
+  const { count: newBugReportsCount } = useNewBugReports();
+  const adminBadgeCount = pendingApprovalsCount + newBugReportsCount;
 
   const goToSearch = useCallback(() => router.push('/search'), [router]);
 
@@ -166,12 +169,17 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
                     })()
                   )}
                 </div>
-                {isAdmin && pendingApprovalsCount > 0 && (
+                {isAdmin && adminBadgeCount > 0 && (
                   <span
                     className="absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-bold text-destructive-foreground ring-2 ring-background"
-                    aria-label={`${pendingApprovalsCount} pending account approvals`}
+                    aria-label={
+                      [
+                        pendingApprovalsCount > 0 ? `${pendingApprovalsCount} pending account approval${pendingApprovalsCount === 1 ? '' : 's'}` : '',
+                        newBugReportsCount > 0 ? `${newBugReportsCount} new bug report${newBugReportsCount === 1 ? '' : 's'}` : '',
+                      ].filter(Boolean).join(', ')
+                    }
                   >
-                    {pendingApprovalsCount > 9 ? '9+' : pendingApprovalsCount}
+                    {adminBadgeCount > 9 ? '9+' : adminBadgeCount}
                   </span>
                 )}
               </div>

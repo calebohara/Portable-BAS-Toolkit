@@ -1127,8 +1127,24 @@ export const deleteTrendSession     = trendRepo.delete;
 
 export const getAllBugReports = bugReportRepo.getAll;
 export const getBugReport     = bugReportRepo.get;
-export const saveBugReport    = bugReportRepo.save;
 export const deleteBugReport  = bugReportRepo.delete;
+
+/**
+ * Save a bug report and emit `bau-suite:bug-report-added` so the admin
+ * notification badge in the top bar can refresh. Listeners filter on
+ * `createdAt > lastSeen` so re-saves of existing reports (e.g. status
+ * changes by admins) don't re-trigger the badge.
+ */
+export async function saveBugReport(report: BugReport): Promise<void> {
+  await bugReportRepo.save(report);
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('bau-suite:bug-report-added', { detail: report }));
+    } catch {
+      // ignore if dispatch fails (e.g. test envs without window.CustomEvent)
+    }
+  }
+}
 
 // ─── User Reviews ───────────────────────────────────────────
 

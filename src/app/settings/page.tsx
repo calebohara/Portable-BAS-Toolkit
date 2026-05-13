@@ -152,7 +152,9 @@ export default function SettingsPage() {
   const [syncErrorInspectorOpen, setSyncErrorInspectorOpen] = useState(false);
   const { errors: syncErrors } = useSyncErrors();
   const handleSyncErrorReport = async (error: Parameters<typeof reportSyncErrorAsBug>[0]) => {
-    await reportSyncErrorAsBug(error);
+    await reportSyncErrorAsBug(error, {
+      userName: profile?.displayName ?? user?.email ?? undefined,
+    });
     toast.success('Report drafted — see Settings → Bug Reports');
   };
 

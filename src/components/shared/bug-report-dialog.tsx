@@ -18,6 +18,7 @@ import { APP_VERSION } from '@/lib/version';
 import { saveBugReport } from '@/lib/db';
 import { useDeviceClass } from '@/hooks/use-device-class';
 import { useAppStore } from '@/store/app-store';
+import { useAuth } from '@/providers/auth-provider';
 import type { BugReportSeverity } from '@/types';
 
 interface BugReportDialogProps {
@@ -43,6 +44,7 @@ export function BugReportDialog({ open, onOpenChange, pageTitle }: BugReportDial
 
   const { deviceClass, desktopOS } = useDeviceClass();
   const syncStatus = useAppStore((s) => s.syncStatus);
+  const { user, profile } = useAuth();
 
   const resetForm = useCallback(() => {
     setTitle('');
@@ -76,6 +78,8 @@ export function BugReportDialog({ open, onOpenChange, pageTitle }: BugReportDial
         desktopOS,
         currentPage: pageTitle ? `${pageTitle} (${pathname})` : pathname,
         syncStatus,
+        userId: user?.id,
+        userName: profile?.displayName ?? user?.email ?? undefined,
         createdAt: now,
         updatedAt: now,
       });
@@ -88,7 +92,7 @@ export function BugReportDialog({ open, onOpenChange, pageTitle }: BugReportDial
     } finally {
       setSubmitting(false);
     }
-  }, [title, description, stepsToReproduce, severity, deviceClass, desktopOS, syncStatus, resetForm, onOpenChange]);
+  }, [title, description, stepsToReproduce, severity, deviceClass, desktopOS, syncStatus, user, profile, pageTitle, resetForm, onOpenChange]);
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

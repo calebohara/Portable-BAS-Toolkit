@@ -111,6 +111,10 @@ export interface BugReport {
   desktopOS: string;
   currentPage: string;
   syncStatus: string;
+  /** Supabase auth.users UUID of the reporter (optional — older reports may lack it). */
+  userId?: string;
+  /** Display name or email of the reporter at capture time (optional). */
+  userName?: string;
   createdAt: string;
   updatedAt: string;
 }

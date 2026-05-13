@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/select';
 import { getAllBugReports, saveBugReport, deleteBugReport } from '@/lib/db';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
+import { useNewBugReports } from '@/hooks/use-new-bug-reports';
 import type { BugReport, BugReportSeverity, BugReportStatus } from '@/types';
 
 const SEVERITY_COLORS: Record<BugReportSeverity, string> = {
@@ -41,6 +42,7 @@ export function BugReportsPanel() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BugReport | null>(null);
   const [loading, setLoading] = useState(true);
+  const { markSeen } = useNewBugReports();
 
   const loadReports = useCallback(async () => {
     try {
@@ -56,7 +58,10 @@ export function BugReportsPanel() {
 
   useEffect(() => {
     loadReports();
-  }, [loadReports]);
+    // Clear the admin notification badge — the admin is now looking at
+    // the panel, so anything older than now counts as "seen".
+    markSeen();
+  }, [loadReports, markSeen]);
 
   const handleStatusChange = useCallback(async (report: BugReport, newStatus: BugReportStatus) => {
     try {
@@ -124,6 +129,9 @@ export function BugReportsPanel() {
                     <Badge className={STATUS_COLORS[report.status]}>
                       {STATUS_LABELS[report.status]}
                     </Badge>
+                    {report.userName && (
+                      <span className="text-xs text-muted-foreground">{report.userName}</span>
+                    )}
                     {report.appVersion && (
                       <span className="text-xs text-muted-foreground">v{report.appVersion}</span>
                     )}
@@ -148,6 +156,18 @@ export function BugReportsPanel() {
                     <div>
                       <p className="text-xs font-medium text-muted-foreground mb-1">Steps to Reproduce</p>
                       <p className="text-sm whitespace-pre-wrap">{report.stepsToReproduce}</p>
+                    </div>
+                  )}
+
+                  {(report.userName || report.userId) && (
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground mb-1">Reporter</p>
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                        {report.userName && <span>Name: {report.userName}</span>}
+                        {report.userId && (
+                          <span className="font-mono">UUID: {report.userId}</span>
+                        )}
+                      </div>
                     </div>
                   )}
 

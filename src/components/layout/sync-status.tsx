@@ -29,7 +29,7 @@ function getRelativeTime(iso: string): string {
 }
 
 export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
-  const { mode } = useAuth();
+  const { mode, user, profile } = useAuth();
   const syncStatus = useAppStore((s) => s.syncStatus);
   const pendingCount = useAppStore((s) => s.pendingSyncCount);
   const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
@@ -125,7 +125,9 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
   };
 
   const handleReport = async (error: Parameters<typeof reportSyncErrorAsBug>[0]) => {
-    await reportSyncErrorAsBug(error);
+    await reportSyncErrorAsBug(error, {
+      userName: profile?.displayName ?? user?.email ?? undefined,
+    });
     toast.success('Report drafted — see Settings → Bug Reports');
   };
 

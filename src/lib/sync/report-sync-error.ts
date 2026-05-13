@@ -95,8 +95,15 @@ function buildDescription(error: SyncError): string {
 /**
  * Convert a SyncError into a BugReport, save it via saveBugReport, and
  * return the saved report so the caller can toast a confirmation.
+ *
+ * `userName` is accepted as an argument (not read from a hook) because this
+ * function runs outside React. Callers in React components should pass
+ * `profile?.displayName ?? user?.email` from useAuth().
  */
-export async function reportSyncErrorAsBug(error: SyncError): Promise<BugReport> {
+export async function reportSyncErrorAsBug(
+  error: SyncError,
+  opts: { userName?: string } = {},
+): Promise<BugReport> {
   const now = new Date().toISOString();
   const pathname = typeof window !== 'undefined' ? window.location.pathname : '';
 
@@ -123,6 +130,8 @@ export async function reportSyncErrorAsBug(error: SyncError): Promise<BugReport>
     desktopOS: detectDesktopOS(),
     currentPage: pathname,
     syncStatus: syncStatusStr,
+    userId: error.userId || undefined,
+    userName: opts.userName,
     createdAt: now,
     updatedAt: now,
   };
