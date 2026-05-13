@@ -987,5 +987,16 @@ export function useProjectDxrs(projectId: string) {
     }
   }, [projectId, refresh]);
 
-  return { dxrs, loading, refresh, addDxr, updateDxr, removeDxr, bulkImport, clearAll };
+  const bulkSetBaudRate = useCallback(async (rate: number): Promise<number> => {
+    try {
+      const count = await db.bulkSetDxrBaudRate(projectId, rate);
+      await refresh();
+      return count;
+    } catch (e) {
+      console.error('Failed to bulk set baud rate:', e);
+      throw e;
+    }
+  }, [projectId, refresh]);
+
+  return { dxrs, loading, refresh, addDxr, updateDxr, removeDxr, bulkImport, clearAll, bulkSetBaudRate };
 }

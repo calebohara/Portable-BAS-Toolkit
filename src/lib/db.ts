@@ -1042,6 +1042,39 @@ export async function bulkUpsertProjectDxrs(
 }
 
 /**
+ * Set the baudRate field on every DXR row for a project in a single
+ * readwrite transaction. Preserves all other fields, id, and createdAt.
+ * After commit, enqueues a sync notification for each updated row.
+ * Returns the number of rows updated.
+ */
+export async function bulkSetDxrBaudRate(
+  projectId: string,
+  baudRate: number,
+): Promise<number> {
+  const db = await getDB();
+  const rows = await db.getAllFromIndex('dxrs', 'by-project', projectId);
+  if (rows.length === 0) return 0;
+
+  const now = new Date().toISOString();
+  const tx = db.transaction('dxrs', 'readwrite');
+  const written: DxrEntry[] = [];
+
+  for (const row of rows) {
+    const updated: DxrEntry = { ...row, baudRate, updatedAt: now };
+    await tx.store.put(updated);
+    written.push(updated);
+  }
+
+  await tx.done;
+
+  for (const row of written) {
+    notifySync('update', 'dxrs', row.id, row);
+  }
+
+  return written.length;
+}
+
+/**
  * Delete every DXR row belonging to a project. Returns the number of rows
  * removed. Each deletion is enqueued for sync so it propagates to the user's
  * per-user `public.dxrs` table and (via reconcile) to Global Projects.

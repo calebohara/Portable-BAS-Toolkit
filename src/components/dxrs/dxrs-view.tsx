@@ -34,6 +34,7 @@ import { DxrImportDialog } from './dxr-import-dialog';
 import { DxrRowDetailDialog } from './dxr-row-detail-dialog';
 import { DxrExportDialog } from './dxr-export-dialog';
 import { DxrSmartPasteDialog } from './dxr-smart-paste-dialog';
+import { DxrAnalysisPanel } from './dxr-analysis-panel';
 
 // ── Column definitions ─────────────────────────────────────
 
@@ -133,7 +134,7 @@ interface DxrsViewProps {
 // ── Component ──────────────────────────────────────────────
 
 export function DxrsView({ projectId, readOnly = false }: DxrsViewProps) {
-  const { dxrs, loading, refresh, bulkImport, clearAll } = useProjectDxrs(projectId);
+  const { dxrs, loading, refresh, bulkImport, clearAll, bulkSetBaudRate } = useProjectDxrs(projectId);
 
   const [search, setSearch]             = useState('');
   const [sortField, setSortField]       = useState<keyof DxrEntry>('name');
@@ -145,6 +146,9 @@ export function DxrsView({ projectId, readOnly = false }: DxrsViewProps) {
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [clearing, setClearing]         = useState(false);
   const [detailDxr, setDetailDxr]       = useState<DxrEntry | null>(null);
+  const [baudConfirmOpen, setBaudConfirmOpen] = useState(false);
+  const [pendingBaudRate, setPendingBaudRate] = useState<number | null>(null);
+  const [applyingBaud, setApplyingBaud] = useState(false);
 
   // Hydrate column visibility from localStorage after mount
   useEffect(() => {
@@ -198,6 +202,11 @@ export function DxrsView({ projectId, readOnly = false }: DxrsViewProps) {
 
   const toggleCol = (key: string) => {
     setColVisibility((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleApplyBaudRate = async (rate: number) => {
+    setPendingBaudRate(rate);
+    setBaudConfirmOpen(true);
   };
 
   // ── Render ─────────────────────────────────────────────────
@@ -310,49 +319,60 @@ export function DxrsView({ projectId, readOnly = false }: DxrsViewProps) {
           }
         />
       ) : (
-        <Table
-          containerClassName="rounded-lg border max-h-[70vh] overflow-y-auto"
-          className="min-w-max"
-        >
-            <TableHeader className="sticky top-0 z-10 bg-background">
-              <TableRow>
-                {visibleColumns.map((col) => (
-                  <SortHeader
-                    key={col.key}
-                    field={col.key}
-                    sortField={sortField}
-                    sortDir={sortDir}
-                    onSort={handleSort}
-                  >
-                    {col.label}
-                  </SortHeader>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((dxr) => (
-                <TableRow
-                  key={dxr.id}
-                  className="cursor-pointer hover:bg-muted/40"
-                  onClick={() => setDetailDxr(dxr)}
-                >
-                  {visibleColumns.map((col) => (
-                    <TableCell
-                      key={col.key}
-                      className={cn(
-                        'text-xs whitespace-nowrap',
-                        (col.key === 'name') && 'font-medium font-mono',
-                        (col.key === 'guid') && 'font-mono text-muted-foreground max-w-32 truncate',
-                        (col.key === 'description') && 'max-w-48 truncate',
-                      )}
+        <div className="flex flex-col xl:flex-row gap-4">
+          <div className="flex-1 min-w-0">
+            <Table
+              containerClassName="rounded-lg border max-h-[70vh] overflow-y-auto"
+              className="min-w-max"
+            >
+                <TableHeader className="sticky top-0 z-10 bg-background">
+                  <TableRow>
+                    {visibleColumns.map((col) => (
+                      <SortHeader
+                        key={col.key}
+                        field={col.key}
+                        sortField={sortField}
+                        sortDir={sortDir}
+                        onSort={handleSort}
+                      >
+                        {col.label}
+                      </SortHeader>
+                    ))}
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filtered.map((dxr) => (
+                    <TableRow
+                      key={dxr.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => setDetailDxr(dxr)}
                     >
-                      {displayCell(dxr[col.key])}
-                    </TableCell>
+                      {visibleColumns.map((col) => (
+                        <TableCell
+                          key={col.key}
+                          className={cn(
+                            'text-xs whitespace-nowrap',
+                            (col.key === 'name') && 'font-medium font-mono',
+                            (col.key === 'guid') && 'font-mono text-muted-foreground max-w-32 truncate',
+                            (col.key === 'description') && 'max-w-48 truncate',
+                          )}
+                        >
+                          {displayCell(dxr[col.key])}
+                        </TableCell>
+                      ))}
+                    </TableRow>
                   ))}
-                </TableRow>
-              ))}
-            </TableBody>
-        </Table>
+                </TableBody>
+            </Table>
+          </div>
+          <div className="xl:w-80 shrink-0">
+            <DxrAnalysisPanel
+              rows={dxrs}
+              onApplyBaudRate={handleApplyBaudRate}
+              readOnly={readOnly}
+            />
+          </div>
+        </div>
       )}
 
       {/* Import dialog */}
@@ -434,6 +454,50 @@ export function DxrsView({ projectId, readOnly = false }: DxrsViewProps) {
             >
               {clearing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               Delete {dxrs.length} DXR{dxrs.length === 1 ? '' : 's'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Baud-rate bulk-apply confirmation */}
+      <Dialog open={baudConfirmOpen} onOpenChange={(o) => { if (!applyingBaud) setBaudConfirmOpen(o); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Set baud rate to {pendingBaudRate} for all {dxrs.length} DXRs?</DialogTitle>
+            <DialogDescription>
+              This will update every row regardless of current value. The change syncs to Global Projects on the next reconcile.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setBaudConfirmOpen(false)}
+              disabled={applyingBaud}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              className="gap-1.5"
+              disabled={applyingBaud || pendingBaudRate === null}
+              onClick={async () => {
+                if (pendingBaudRate === null) return;
+                setApplyingBaud(true);
+                try {
+                  const n = await bulkSetBaudRate(pendingBaudRate);
+                  toast.success(`Baud rate set to ${pendingBaudRate} for ${n} DXR${n === 1 ? '' : 's'}.`);
+                  setBaudConfirmOpen(false);
+                } catch (e) {
+                  toast.error(`Failed to set baud rate: ${e instanceof Error ? e.message : String(e)}`);
+                } finally {
+                  setApplyingBaud(false);
+                }
+              }}
+            >
+              {applyingBaud ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Apply
             </Button>
           </DialogFooter>
         </DialogContent>
