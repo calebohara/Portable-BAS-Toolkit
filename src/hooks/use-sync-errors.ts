@@ -1,11 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { SyncError } from '@/types';
+import type { SyncError, SyncEntityType } from '@/types';
 import {
   getAllSyncErrors,
   clearSyncErrors,
   deleteSyncError,
+  deleteSyncItem,
+  bulkDeleteSilent,
+  type BasToolkitStoreName,
 } from '@/lib/db';
 
 export interface UseSyncErrorsResult {
@@ -13,7 +16,47 @@ export interface UseSyncErrorsResult {
   loading: boolean;
   refresh: () => Promise<void>;
   clearAll: () => Promise<void>;
-  removeOne: (id: string) => Promise<void>;
+  /**
+   * Delete the captured SyncError record AND the underlying syncQueue item
+   * (if any). After this, the SyncManager won't retry the failing entity
+   * again — the local IndexedDB row is preserved.
+   */
+  removeOne: (error: SyncError) => Promise<void>;
+  /**
+   * Same as removeOne plus deletes the underlying IndexedDB entity row,
+   * so this entity is fully forgotten locally. Use for stale orphans the
+   * server will never accept (e.g. an RLS rejection after membership was
+   * revoked). No-op for pull-side errors (entityId === '*') since they
+   * don't correspond to a specific row.
+   */
+  forgetRow: (error: SyncError) => Promise<void>;
+}
+
+const PULL_SENTINEL = '*';
+
+function syncQueueIdFor(error: SyncError): string {
+  // Mirrors SyncManager.enqueue: deterministic queue key per (entityType, entityId).
+  return `${error.entityType}-${error.entityId}`;
+}
+
+async function deleteUnderlyingQueueItem(error: SyncError): Promise<void> {
+  if (error.entityId === PULL_SENTINEL) return;
+  try {
+    await deleteSyncItem(syncQueueIdFor(error));
+  } catch (e) {
+    console.warn('Failed to delete underlying sync queue item:', e);
+  }
+}
+
+async function deleteUnderlyingEntityRow(error: SyncError): Promise<void> {
+  if (error.entityId === PULL_SENTINEL) return;
+  // SyncEntityType values map 1:1 to IndexedDB store names.
+  const storeName = error.entityType as SyncEntityType as BasToolkitStoreName;
+  try {
+    await bulkDeleteSilent(storeName, [error.entityId]);
+  } catch (e) {
+    console.warn(`Failed to delete entity row ${storeName}/${error.entityId}:`, e);
+  }
 }
 
 export function useSyncErrors(): UseSyncErrorsResult {
@@ -51,9 +94,10 @@ export function useSyncErrors(): UseSyncErrorsResult {
     }
   }, [refresh]);
 
-  const removeOne = useCallback(async (id: string) => {
+  const removeOne = useCallback(async (error: SyncError) => {
     try {
-      await deleteSyncError(id);
+      await deleteSyncError(error.id);
+      await deleteUnderlyingQueueItem(error);
       await refresh();
     } catch (e) {
       console.error('Failed to delete sync error:', e);
@@ -61,5 +105,17 @@ export function useSyncErrors(): UseSyncErrorsResult {
     }
   }, [refresh]);
 
-  return { errors, loading, refresh, clearAll, removeOne };
+  const forgetRow = useCallback(async (error: SyncError) => {
+    try {
+      await deleteSyncError(error.id);
+      await deleteUnderlyingQueueItem(error);
+      await deleteUnderlyingEntityRow(error);
+      await refresh();
+    } catch (e) {
+      console.error('Failed to forget sync error row:', e);
+      throw e;
+    }
+  }, [refresh]);
+
+  return { errors, loading, refresh, clearAll, removeOne, forgetRow };
 }

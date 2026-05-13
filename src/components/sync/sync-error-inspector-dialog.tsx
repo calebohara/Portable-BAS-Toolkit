@@ -40,7 +40,7 @@ export function SyncErrorInspectorDialog({
   onOpenChange,
   onReport,
 }: SyncErrorInspectorDialogProps) {
-  const { errors, loading, refresh, clearAll, removeOne } = useSyncErrors();
+  const { errors, loading, refresh, clearAll, removeOne, forgetRow } = useSyncErrors();
 
   const [search, setSearch] = useState('');
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
@@ -212,6 +212,7 @@ export function SyncErrorInspectorDialog({
                 error={error}
                 onReport={onReport}
                 onRemove={removeOne}
+                onForget={forgetRow}
               />
             ))
           )}

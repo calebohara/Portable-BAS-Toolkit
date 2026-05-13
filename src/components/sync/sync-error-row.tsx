@@ -11,6 +11,7 @@ import {
   Clipboard,
   Send,
   Trash2,
+  EraserIcon,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -99,14 +100,21 @@ function buildCopyText(error: SyncError): string {
 interface SyncErrorRowProps {
   error: SyncError;
   onReport: (error: SyncError) => void | Promise<void>;
-  onRemove: (id: string) => void;
+  /** Drops the captured error + the underlying syncQueue item (keeps local row). */
+  onRemove: (error: SyncError) => void | Promise<void>;
+  /** Same as onRemove plus deletes the local IndexedDB entity row. */
+  onForget: (error: SyncError) => void | Promise<void>;
 }
 
 // ── Component ─────────────────────────────────────────────────
 
-export function SyncErrorRow({ error, onReport, onRemove }: SyncErrorRowProps) {
+export function SyncErrorRow({ error, onReport, onRemove, onForget }: SyncErrorRowProps) {
   const [expanded, setExpanded] = useState(false);
+  const [confirmingForget, setConfirmingForget] = useState(false);
   const { icon: Icon, color, label } = classifyForUi(error);
+
+  // Pull-side errors have no specific row to forget — disable the Forget button.
+  const canForgetRow = error.entityId !== '*';
 
   const shortEntityId =
     error.entityId === '*' ? 'pull' : error.entityId.slice(0, 8);
@@ -215,7 +223,7 @@ export function SyncErrorRow({ error, onReport, onRemove }: SyncErrorRowProps) {
           </div>
 
           {/* Action buttons */}
-          <div className="flex items-center gap-2 pt-1">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <Button
               variant="outline"
               size="sm"
@@ -238,11 +246,50 @@ export function SyncErrorRow({ error, onReport, onRemove }: SyncErrorRowProps) {
               variant="outline"
               size="sm"
               className="gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
-              onClick={() => onRemove(error.id)}
+              onClick={() => onRemove(error)}
+              title="Drop this error + stop retrying. Local row is preserved."
             >
               <Trash2 className="h-3.5 w-3.5" />
               Delete
             </Button>
+
+            {canForgetRow && !confirmingForget && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30 ml-auto"
+                onClick={() => setConfirmingForget(true)}
+                title="Drop this error + stop retrying + delete the local row entirely. Irreversible."
+              >
+                <EraserIcon className="h-3.5 w-3.5" />
+                Forget locally
+              </Button>
+            )}
+
+            {canForgetRow && confirmingForget && (
+              <div className="ml-auto flex items-center gap-2 rounded-md border border-destructive/40 bg-destructive/5 px-2 py-1">
+                <span className="text-[11px] text-destructive">
+                  Delete local row too? Irreversible.
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs"
+                  onClick={() => setConfirmingForget(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="h-6 px-2 text-xs gap-1"
+                  onClick={() => { setConfirmingForget(false); onForget(error); }}
+                >
+                  <EraserIcon className="h-3 w-3" />
+                  Forget
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}
