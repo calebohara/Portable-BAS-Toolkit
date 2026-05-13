@@ -23,6 +23,7 @@ import { ReviewsPanel } from '@/components/settings/reviews-panel';
 import { SyncErrorInspectorDialog } from '@/components/sync/sync-error-inspector-dialog';
 import { useSyncErrors } from '@/hooks/use-sync-errors';
 import { reportSyncErrorAsBug } from '@/lib/sync/report-sync-error';
+import { ResetSyncStateCard } from '@/components/settings/reset-sync-state-card';
 import { UpgradeCTA } from '@/components/settings/upgrade-cta';
 import { ActionCard } from '@/components/settings/section-heading';
 import { AdminApprovalPanel } from '@/components/settings/admin-approval-panel';
@@ -735,6 +736,9 @@ export default function SettingsPage() {
                       <BugReportsPanel />
                     </CardContent>
                   </Card>
+
+                  {/* Reset Sync State — admin recovery tool */}
+                  <ResetSyncStateCard />
 
                   {/* Sync Errors tile — mirrors BugReportsPanel visual style */}
                   <Card>
