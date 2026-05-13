@@ -49,9 +49,12 @@ export const entityTypeToTable: Record<SyncEntityType, string> = {
 };
 
 // Fields to strip from local entities before pushing to Supabase.
-// These only exist locally and have no corresponding Supabase column.
+// Either: (a) the field only exists locally and has no Supabase column,
+// or (b) the column is generated/computed by Postgres and rejects writes
+// (428C9 "cannot insert a non-DEFAULT value into column").
 const LOCAL_ONLY_FIELDS = new Set([
   'isOfflineCached', // files — local-only blob cache indicator
+  'fts',             // full-text search tsvector — generated column on every global_* table that opts in
 ]);
 
 // Snake_case column names that are uuid foreign-key references in Supabase.
@@ -752,8 +755,10 @@ for (const [entityType, overrides] of Object.entries(FIELD_OVERRIDES)) {
   REVERSE_OVERRIDES[entityType as SyncEntityType] = reversed;
 }
 
-// Supabase-only columns that don't exist in local IndexedDB entities
-const SUPABASE_ONLY_FIELDS = new Set(['user_id', 'sync_version', 'deleted_at']);
+// Supabase-only columns that don't exist in local IndexedDB entities.
+// `fts` is a generated tsvector on multiple global_* tables — strip on pull
+// so it never enters IndexedDB and never gets attempted on push.
+const SUPABASE_ONLY_FIELDS = new Set(['user_id', 'sync_version', 'deleted_at', 'fts']);
 
 // Global entities whose TS interface keeps the `userId` field (i.e. user_id is
 // semantic payload, not a stripped-on-pull ownership column). For these,
