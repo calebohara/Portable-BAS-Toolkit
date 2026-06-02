@@ -26,6 +26,8 @@ import { isPaywallEnabled, hasSyncAccess } from '@/lib/paywall';
 import { useAuthGate } from '@/hooks/use-auth-gate';
 import { actionIcons } from '@/components/projects/activity-timeline';
 import { SyncConflictsDialog } from '@/components/settings/sync-conflicts-dialog';
+import { PwslReminderDialog } from '@/components/safety/pwsl-reminder-dialog';
+import { PwslFormOverlay } from '@/components/safety/pwsl-form-overlay';
 import type { Project } from '@/types';
 
 // Cache navigator.storage.estimate() across dashboard remounts; freshness < 30s is plenty.
@@ -49,6 +51,9 @@ export default function DashboardPage() {
   const syncConflictCount = useAppStore((s) => s.syncConflictCount);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const [conflictsOpen, setConflictsOpen] = useState(false);
+  const pwslRemindOnLoad = useAppStore((s) => s.pwslRemindOnLoad);
+  const [pwslOpen, setPwslOpen] = useState(false);
+  const [safetyOverlayOpen, setSafetyOverlayOpen] = useState(false);
   const { mode, profile } = useAuth();
   const { loading: authGateLoading, shouldShow } = useAuthGate();
   const { triggerFullSync } = useSyncContext();
@@ -117,6 +122,12 @@ export default function DashboardPage() {
     getCachedStorageEstimate().then(setStorage).catch(() => {
       setStorage({ used: -1, quota: -1 });
     });
+  }, []);
+
+  // Open the Pre-Work Safety Log reminder once per dashboard mount when reminders are enabled.
+  useEffect(() => {
+    if (pwslRemindOnLoad) setPwslOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auth gate blocks the whole page; project data load is handled inline so the shell stays visible.
@@ -494,6 +505,12 @@ export default function DashboardPage() {
 
       </main>
       <SyncConflictsDialog open={conflictsOpen} onOpenChange={setConflictsOpen} />
+      <PwslReminderDialog
+        open={pwslOpen}
+        onOpenChange={setPwslOpen}
+        onSelectNo={() => setSafetyOverlayOpen(true)}
+      />
+      <PwslFormOverlay open={safetyOverlayOpen} onOpenChange={setSafetyOverlayOpen} />
     </>
   );
 }

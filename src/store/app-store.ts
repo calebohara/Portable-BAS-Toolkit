@@ -42,6 +42,9 @@ interface AppState {
   nextTourStep: () => void;
   prevTourStep: () => void;
   setTourStep: (step: number) => void;
+  // PWSL safety reminder
+  pwslRemindOnLoad: boolean;
+  setPwslRemindOnLoad: (remind: boolean) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -106,6 +109,9 @@ export const useAppStore = create<AppState>()(
       nextTourStep: () => set((s) => ({ tourStep: s.tourStep + 1 })),
       prevTourStep: () => set((s) => ({ tourStep: Math.max(0, s.tourStep - 1) })),
       setTourStep: (step) => set({ tourStep: step }),
+      // PWSL safety reminder
+      pwslRemindOnLoad: true,
+      setPwslRemindOnLoad: (remind) => set({ pwslRemindOnLoad: remind }),
     }),
     {
       name: 'bau-suite-app',
@@ -117,6 +123,7 @@ export const useAppStore = create<AppState>()(
         hasCompletedTour: state.hasCompletedTour,
         lastSyncedAt: state.lastSyncedAt,
         lastPulledAt: state.lastPulledAt,
+        pwslRemindOnLoad: state.pwslRemindOnLoad,
       }),
     }
   )

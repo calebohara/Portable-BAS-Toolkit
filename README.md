@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.9.1-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.10.0-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -19,8 +19,9 @@
 
 ## What's New
 
-### Unreleased — improvements since v4.9.1
+### v4.10.0
 
+- **Pre-Work Safety Log (PWSL) Gate** — A mandatory safety check now greets users on the dashboard at login. An attention-grabbing, non-dismissible dialog (amber safety banner, pulsing shield) asks whether the Pre-Work Safety Log has been completed before work begins. **Yes** clears it (with an optional "Don't remind me on future logins" checkbox); **No** opens the company Microsoft Forms PWSL in a full-screen in-app overlay so the user never leaves the tool, with a persistent "Open in new tab" escape hatch, Escape-to-close, and body-scroll lock. The reminder preference persists across sessions and is re-enableable from **Settings → Preferences → Safety**.
 - **Dashboard Redesign (DashAgents)** — Three-pass overhaul (REMOVE / IMPROVE / ADD). Cut the sidebar-duplicating Tools Grid, the Recently Opened redundancy, the Total Projects vanity stat, the Desktop App acquisition banner, and the Leave Review action. Added proper a11y landmarks (`<main>`, `aria-labelledby` on every section, visually-hidden page `<h1>`), real `<button>` semantics on project cards (replacing a fake `role="button"` div), section-level skeleton loaders, an actionable Sync Now button wired to `triggerFullSync()`, and a clickable conflict resolver that opens the existing `SyncConflictsDialog`. New "Today" section above Quick Actions surfaces the most recently opened project + its last activity, today's draft daily reports, and active terminal/web sessions — hidden when none apply. Project tiles render at uniform height regardless of data payload.
 - **PPCL Preview Dialog** — Preview PPCL programs from the project page without opening the full editor. Read-only CodeMirror with full syntax highlighting via the existing `ppclLanguage()` extension, metadata header (firmware target, line count, byte size), and a Download button that produces a properly named `.pcl` file. The preview pane is vertically resizable via native CSS resize; horizontal and vertical scrollbars stay sticky at the visible viewport edges regardless of scroll position. CodeMirror is dynamic-imported so the chunk only loads when a preview is opened.
 - **File Extension Corrections** — Panel DBs and Backups upload categories now correctly accept `.p2` (Siemens panel database format) instead of `.pcl`. Added `.p2` → Database and `.pcl` → FileCode entries to the file-icon mapping. PPCL files (`.pcl`) are now previewable in-app via the project file preview dialog. Tightened the Trend Data uploader to `.csv` only — removed the vestigial `.tsv` / `.txt` accept paths that real BAS exports never use.
@@ -181,6 +182,7 @@
 - **Graceful fallback** — shows "Coming Soon" when Stripe keys are not configured
 
 ### Platform
+- **Pre-Work Safety Log gate** — mandatory safety reminder on dashboard login asking whether the PWSL is complete; opens the company Microsoft Forms safety log in an in-app overlay on "No", with a persisted "don't remind me" preference and a Settings re-enable toggle
 - **Dashboard** — at-a-glance home view with a contextual "Today" rail (resume your last project + its last activity, today's draft daily reports, active terminal/web sessions), Quick Actions, Pinned and Active project grids, Overview stats (active count, offline-ready count, sync status with one-click Sync Now and conflict resolver, local storage usage), and Recent Activity + Field Notes feeds with skeleton loaders
 - **Desktop app** — native Tauri app with real ICMP ping and full network access
 - **Global search** — search across all projects, files, devices, IP entries, and notes
@@ -290,7 +292,7 @@ Supabase-powered authentication is **optional**. Without it, the app runs fully 
 
 ## Versioning
 
-**Current: v4.9.1** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.10.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 

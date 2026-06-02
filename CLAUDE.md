@@ -102,3 +102,38 @@ Same required sections as BASAgents fix logs: header block, audit phase, fixes b
 - Agent team definition: `.claude/SyncAuditAgents.md`
 - Findings doc: `docs/SyncAuditAgents-findings-*.md`
 - Fix log archive: `docs/SyncAuditAgents-fixes-*.md`
+
+---
+
+## ReviewAgents Findings Documentation Rule
+
+**ReviewAgents is read-only.** It never edits code. Each audit session produces one dated findings doc:
+
+```
+docs/ReviewAgents-findings-YYYY-MM-DD.md
+```
+
+Use the current date at the time of the audit. Create a new file each time — never overwrite an existing findings doc. If multiple sessions occur on the same day, append a suffix: `ReviewAgents-findings-2026-05-20-2.md`.
+
+### Required sections in every findings doc
+
+1. **Header block** — date, agent count (6), files reviewed, LOC reviewed, mode (read-only)
+2. **Executive Summary** — table of P0/P1/P2/P3 counts and the top theme per priority
+3. **Findings grouped by priority** (P0 → P1 → P2 → P3), each with:
+   - Location (`file:line`)
+   - Owner agent (which of the 6 found it)
+   - Current behavior
+   - Why it's a bug / inconsistency / bloat
+   - Suggested fix (described, not applied)
+   - Handoff target (which fix-team agent should own remediation)
+4. **Cross-cutting findings** — items spanning multiple agents' slices, owned by the Cross-Cutting Pattern Auditor
+5. **Out of scope / deferred** — explicit list of items not recommended for fixing this round, with reasons
+
+### No fix log from ReviewAgents itself
+
+When fixes are subsequently applied by a different team (typically BASAgents), that team writes its own fix log under its own rule above (e.g., `docs/BASAgents-fixes-YYYY-MM-DD.md`). The fix log should reference the originating findings doc.
+
+### Reference
+
+- Agent team definition: `.claude/ReviewAgents.md`
+- Findings doc archive: `docs/ReviewAgents-findings-*.md`

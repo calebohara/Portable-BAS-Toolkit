@@ -34,6 +34,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/providers/auth-provider';
@@ -64,6 +65,8 @@ export default function SettingsPage() {
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const startTour = useAppStore((s) => s.startTour);
+  const pwslRemindOnLoad = useAppStore((s) => s.pwslRemindOnLoad);
+  const setPwslRemindOnLoad = useAppStore((s) => s.setPwslRemindOnLoad);
   const { isWindowsDesktopWeb, isTauriRuntime } = useDeviceClass();
   const [activeTab, setActiveTab] = useState('account');
 
@@ -576,6 +579,32 @@ export default function SettingsPage() {
                         </div>
                       </div>
                       <ThemeSwitcher />
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Safety */}
+                <Card>
+                  <CardContent className="p-5">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-muted">
+                          <Shield className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <Label htmlFor="pwsl-remind" className="text-sm font-semibold cursor-pointer">
+                            Pre-Work Safety Log reminder
+                          </Label>
+                          <p className="text-xs text-muted-foreground">
+                            Show the PWSL safety check each time you open the dashboard.
+                          </p>
+                        </div>
+                      </div>
+                      <Switch
+                        id="pwsl-remind"
+                        checked={pwslRemindOnLoad}
+                        onCheckedChange={setPwslRemindOnLoad}
+                      />
                     </div>
                   </CardContent>
                 </Card>
