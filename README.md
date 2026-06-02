@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.10.1-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.10.2-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -18,6 +18,10 @@
 ---
 
 ## What's New
+
+### v4.10.2
+
+- **PWSL dashboard access button** — Added an always-visible Pre-Work Safety Log access row at the top of the dashboard. If the login safety prompt is dismissed or missed, one click reopens the gate — so the safety check is never out of reach.
 
 ### v4.10.1
 
@@ -296,7 +300,7 @@ Supabase-powered authentication is **optional**. Without it, the app runs fully 
 
 ## Versioning
 
-**Current: v4.10.1** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.10.2** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 

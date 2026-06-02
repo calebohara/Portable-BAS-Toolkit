@@ -7,7 +7,7 @@ import {
   FolderPlus, Upload, StickyNote, Database, Network, Pin, Star,
   ChevronRight, HardDrive, Cloud, FileText, Settings,
   AlertTriangle, CheckCircle, History, Zap, RefreshCw,
-  Clock, ClipboardList, TerminalSquare,
+  Clock, ClipboardList, TerminalSquare, ShieldAlert,
 } from 'lucide-react';
 import { useProjects, useRecentActivity, useProjectCounts, useRecentNotes, useDailyReports } from '@/hooks/use-projects';
 import { useAppStore } from '@/store/app-store';
@@ -173,6 +173,30 @@ export default function DashboardPage() {
       <TopBar title="Dashboard" />
       <main className="p-4 md:p-6 space-y-6">
         <h1 className="sr-only">Dashboard</h1>
+
+        {/* Pre-Work Safety Log — always-available access in case the login
+            prompt was dismissed or missed. Reopens the safety gate. */}
+        <section aria-label="Pre-Work Safety Log">
+          <button
+            type="button"
+            onClick={() => setPwslOpen(true)}
+            aria-label="Open the Pre-Work Safety Log"
+            className="flex w-full items-center gap-3 rounded-xl border border-field-warning/30 bg-field-warning/10 px-4 py-3 text-left transition-all hover:bg-field-warning/15 hover:border-field-warning/40 hover:shadow-sm active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-field-warning/15 text-field-warning">
+              <ShieldAlert className="size-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-field-warning">Pre-Work Safety Log</p>
+              <p className="truncate text-xs text-muted-foreground">Complete your PWSL before starting work on site.</p>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-field-warning/15 px-2.5 py-1 text-xs font-semibold text-field-warning">
+              Open
+              <ChevronRight className="size-3.5" />
+            </span>
+          </button>
+        </section>
+
         {/* Upgrade Banner — only when paywall is on and user is free tier */}
         {showUpgradeBanner && (
           <section aria-label="Upgrade to Cloud Sync">
