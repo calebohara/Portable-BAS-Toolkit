@@ -33,6 +33,12 @@ export interface AuthState {
   loading: boolean;
   /** Whether Supabase environment is configured at all */
   isConfigured: boolean;
+  /**
+   * True only after Supabase fires a PASSWORD_RECOVERY auth event (i.e. the user
+   * arrived via a valid reset link). The reset-password form gates on this so a
+   * normally signed-in session can't change the password without the old one.
+   */
+  isPasswordRecovery: boolean;
   /** Sign in with email + password */
   signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
   /** Sign up with email + password */
@@ -63,6 +69,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
 
   const configured = isSupabaseConfigured();
   const client = configured ? getSupabaseClient() : null;
@@ -128,11 +135,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
 
     // Subscribe to auth state changes (sign in, sign out, token refresh, password recovery)
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, s) => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((event, s) => {
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) fetchProfile(s.user.id);
       else setProfile(null);
+
+      // PASSWORD_RECOVERY: the user landed via a valid reset link. Flag it so the
+      // reset-password form unlocks. Any other event (normal SIGNED_IN, token
+      // refresh, sign-out) clears the flag so an ordinary session can't reuse it.
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsPasswordRecovery(true);
+      } else if (event === 'SIGNED_OUT') {
+        setIsPasswordRecovery(false);
+      }
     });
 
     return () => { subscription.unsubscribe(); };
@@ -201,6 +217,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const updatePassword = useCallback(async (newPassword: string) => {
     if (!client) return { error: notConfiguredError };
     const { error } = await client.auth.updateUser({ password: newPassword });
+    if (!error) {
+      // Recovery is single-use — clear the flag so the form re-locks.
+      setIsPasswordRecovery(false);
+      // Revoke every OTHER session (keep the current one signed in). If the
+      // reset was triggered because credentials were compromised, this kicks
+      // any attacker who still holds a stale session for this account.
+      try {
+        await client.auth.signOut({ scope: 'others' });
+      } catch (revokeErr) {
+        // Non-fatal: the password was still changed successfully.
+        console.warn('[auth] Failed to revoke other sessions after password reset:', revokeErr);
+      }
+    }
     return { error };
   }, [client]);
 
@@ -268,6 +297,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       mode, user, session, profile, loading, isConfigured: configured,
+      isPasswordRecovery,
       signIn, signUp, signOut, resetPassword, updatePassword, updateEmail,
       updateProfile, refreshProfile,
     }}>

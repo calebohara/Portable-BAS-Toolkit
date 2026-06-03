@@ -110,7 +110,13 @@
       "Bash(sed -n '94,97p' src/store/app-store.ts)",
       "Bash(sed -i '' 's/\"version\": \"4.10.2\"/\"version\": \"4.11.0\"/' package.json src-tauri/tauri.conf.json)",
       "Bash(sed -i '' 's/^version = \"4.10.2\"/version = \"4.11.0\"/' src-tauri/Cargo.toml)",
-      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.10.2\"/name = \"bau-suite\"\\\\nversion = \"4.11.0\"/' src-tauri/Cargo.lock)"
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.10.2\"/name = \"bau-suite\"\\\\nversion = \"4.11.0\"/' src-tauri/Cargo.lock)",
+      "Bash(awk '/create table if not exists global_projects/,/\\\\\\);/' supabase/schema.sql)",
+      "Bash(node -e \"const fs=require\\('fs'\\); try{const yaml=require\\('js-yaml'\\); const d=yaml.load\\(fs.readFileSync\\('.github/workflows/release.yml','utf8'\\)\\); console.log\\('YAML valid; matrix:', JSON.stringify\\(d.jobs.build.strategy.matrix.include\\)\\); console.log\\('steps:', d.jobs.build.steps.map\\(s=>s.name||s.uses\\).join\\(' | '\\)\\);}catch\\(e\\){console.log\\('js-yaml not available:',e.message\\)}\")",
+      "Bash(awk '/create table[^;]*global_projects[ \\(]/{f=1} f{print} /\\\\\\);/{if\\(f\\)exit}' supabase/global-projects-schema.sql)",
+      "Bash(npx vitest *)",
+      "Bash(echo \"total errors: $\\(npx tsc --noEmit 2>&1)",
+      "Bash(echo \"=== tsc exit: $? ===\")"
     ]
   }
 }

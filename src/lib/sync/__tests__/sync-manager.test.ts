@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('@/lib/db', () => ({
   addSyncItem: vi.fn().mockResolvedValue(undefined),
   getPendingSyncItems: vi.fn().mockResolvedValue([]),
+  resetSyncingItemsToPending: vi.fn().mockResolvedValue(0),
   updateSyncItem: vi.fn().mockResolvedValue(undefined),
   deleteSyncItem: vi.fn().mockResolvedValue(undefined),
   getSyncQueueCount: vi.fn().mockResolvedValue({ pending: 0, failed: 0 }),
@@ -332,7 +333,9 @@ describe('SyncManager', () => {
 
       manager.start();
 
-      // Should call processQueue immediately on start
+      // The first process run is chained after the recovery sweep (a microtask),
+      // so flush pending timers/microtasks before asserting the immediate run.
+      await vi.advanceTimersByTimeAsync(0);
       expect(getPendingSyncItems).toHaveBeenCalledTimes(1);
 
       // Advance past one interval
@@ -344,6 +347,8 @@ describe('SyncManager', () => {
       vi.mocked(getPendingSyncItems).mockResolvedValue([]);
 
       manager.start();
+      // Let the recovery-sweep-chained first run complete before stopping.
+      await vi.advanceTimersByTimeAsync(0);
       manager.stop();
 
       const callsBefore = vi.mocked(getPendingSyncItems).mock.calls.length;

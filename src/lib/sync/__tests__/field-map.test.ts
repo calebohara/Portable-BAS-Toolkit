@@ -136,7 +136,7 @@ describe('field-map — fromSupabaseRow', () => {
     expect(entity.randomFieldName).toBe('value');
   });
 
-  it('strips Supabase-only fields (user_id, sync_version, deleted_at)', () => {
+  it('strips Supabase-only fields (user_id, deleted_at) but keeps sync_version', () => {
     const entity = fromSupabaseRow('projects', {
       id: ENTITY_ID,
       user_id: USER_ID,
@@ -145,8 +145,10 @@ describe('field-map — fromSupabaseRow', () => {
       name: 'Test',
     });
     expect(entity).not.toHaveProperty('userId');
-    expect(entity).not.toHaveProperty('syncVersion');
     expect(entity).not.toHaveProperty('deletedAt');
+    // sync_version now round-trips IN (→ syncVersion) as a conflict tiebreaker;
+    // it is stripped again on PUSH via LOCAL_ONLY_FIELDS.
+    expect(entity.syncVersion).toBe(3);
     expect(entity.name).toBe('Test');
   });
 

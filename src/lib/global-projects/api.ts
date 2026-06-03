@@ -279,12 +279,18 @@ export async function createGlobalProject(
 
 export async function updateGlobalProject(
   id: string,
-  data: Partial<Pick<GlobalProject, 'name' | 'jobSiteName' | 'siteAddress' | 'buildingArea' | 'projectNumber' | 'description' | 'tags' | 'status'>>
+  data: Partial<Pick<GlobalProject, 'name' | 'jobSiteName' | 'siteAddress' | 'buildingArea' | 'projectNumber' | 'description' | 'tags' | 'status' | 'customerName' | 'technicianNotes' | 'panelRosterSummary' | 'networkSummary' | 'contacts'>>
 ): Promise<ApiResult<GlobalProject>> {
   try {
     const supabase = getClient();
 
-    // Build snake_case update payload
+    // Build snake_case update payload. NOTE: global_projects has NO `updated_by`
+    // column (unlike the child tables driven by `updateEntity`), so we map keys
+    // by hand here rather than reusing that helper. `updated_at` is stamped by
+    // the `global_projects_updated_at` trigger. Every key below maps to a
+    // verified column on global_projects — the five parity fields
+    // (customer_name, technician_notes, panel_roster_summary, network_summary,
+    // contacts) were added by migration add-global-project-parity-fields.sql.
     const update: Record<string, unknown> = {};
     if (data.name !== undefined) update.name = data.name;
     if (data.jobSiteName !== undefined) update.job_site_name = data.jobSiteName;
@@ -294,6 +300,11 @@ export async function updateGlobalProject(
     if (data.description !== undefined) update.description = data.description;
     if (data.tags !== undefined) update.tags = data.tags;
     if (data.status !== undefined) update.status = data.status;
+    if (data.customerName !== undefined) update.customer_name = data.customerName;
+    if (data.technicianNotes !== undefined) update.technician_notes = data.technicianNotes;
+    if (data.panelRosterSummary !== undefined) update.panel_roster_summary = data.panelRosterSummary;
+    if (data.networkSummary !== undefined) update.network_summary = data.networkSummary;
+    if (data.contacts !== undefined) update.contacts = data.contacts;
 
     const { data: project, error } = await supabase
       .from('global_projects')

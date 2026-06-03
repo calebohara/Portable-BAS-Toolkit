@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "BAU Suite",
-  "version": "4.11.0",
+  "version": "4.12.0",
   "identifier": "com.bau-suite.app",
   "build": {
     "frontendDist": "../out",
@@ -45,11 +45,6 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "macOS": {
-      "entitlements": "entitlements.plist",
-      "signingIdentity": "-",
-      "minimumSystemVersion": "10.15"
-    },
     "windows": {
       "wix": {
         "language": "en-US"

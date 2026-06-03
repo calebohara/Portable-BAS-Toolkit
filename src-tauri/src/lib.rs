@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read as _, Write as _};
+use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{Emitter, Manager};
@@ -700,21 +701,31 @@ pub struct ProxyResponse {
     pub is_binary: bool,
 }
 
-/// Check if a host is on a private/local network (safe to proxy without cert validation)
+/// Check if a host is on a private/local network (safe to proxy without cert validation).
+///
+/// SECURITY: We parse the host into a real `IpAddr` and only accept literal
+/// private/loopback/link-local addresses. Hostnames (including deceptive ones
+/// like `10.attacker.example` or `127.evil.tld`) are rejected outright — no DNS
+/// names are accepted, since they could resolve to public/attacker-controlled IPs.
 fn is_private_network(host: &str) -> bool {
-    // RFC 1918 private ranges + localhost
-    host.starts_with("10.")
-        || host.starts_with("192.168.")
-        || host.starts_with("127.")
-        || host == "localhost"
-        || (host.starts_with("172.") && {
-            let parts: Vec<&str> = host.split('.').collect();
-            parts.len() >= 2 && parts[1].parse::<u8>().map_or(false, |n| (16..=31).contains(&n))
-        })
+    // reqwest's host_str() leaves IPv6 literals wrapped in brackets, e.g. "[::1]".
+    let host = host.strip_prefix('[').and_then(|h| h.strip_suffix(']')).unwrap_or(host);
+
+    match host.parse::<IpAddr>() {
+        Ok(IpAddr::V4(v4)) => v4.is_private() || v4.is_loopback() || v4.is_link_local(),
+        Ok(IpAddr::V6(v6)) => {
+            // Loopback (::1), link-local (fe80::/10), or unique-local (fc00::/7).
+            v6.is_loopback()
+                || (v6.segments()[0] & 0xffc0) == 0xfe80
+                || (v6.segments()[0] & 0xfe00) == 0xfc00
+        }
+        // Not a literal IP address (i.e. a hostname) → reject.
+        Err(_) => false,
+    }
 }
 
 #[tauri::command]
-async fn proxy_fetch(url: String) -> Result<ProxyResponse, String> {
+async fn proxy_fetch(url: String, allow_invalid_certs: Option<bool>) -> Result<ProxyResponse, String> {
     // Parse URL to validate and extract host
     let parsed = reqwest::Url::parse(&url)
         .map_err(|e| format!("Invalid URL: {}", e))?;
@@ -726,9 +737,15 @@ async fn proxy_fetch(url: String) -> Result<ProxyResponse, String> {
         return Err("Proxy only available for private network addresses (10.x, 172.16-31.x, 192.168.x, localhost)".to_string());
     }
 
-    // Build a client that accepts invalid certs (self-signed BAS controllers)
+    // SECURITY:
+    //  - Cert validation is ON by default; callers must explicitly opt in to
+    //    accepting self-signed certs per request (field BAS controllers).
+    //  - Redirects are disabled (Policy::none) to prevent the proxy being used
+    //    as an SSRF redirect pivot off the private-network allowlist.
+    let allow_invalid_certs = allow_invalid_certs.unwrap_or(false);
     let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
+        .danger_accept_invalid_certs(allow_invalid_certs)
+        .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(15))
         .build()
         .map_err(|e| format!("Failed to create HTTP client: {}", e))?;

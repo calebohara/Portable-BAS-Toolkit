@@ -56,6 +56,12 @@ const LOCAL_ONLY_FIELDS = new Set([
   'isOfflineCached', // files — local-only blob cache indicator
   'fts',             // full-text search tsvector — generated column on every global_* table that opts in
   'prefKey',         // globalProjectPreferences — synthetic IDB primary key ("uid|gpid"); no pref_key Supabase column
+  // sync_version (schema: `int default 1`) round-trips IN on pull so it can be
+  // used as a JS-side secondary tiebreaker for conflict detection, but is
+  // stripped on PUSH so the database default / future server-side increment owns
+  // it. Sending it would also clobber concurrent increments. Mirrors how a
+  // DB-managed column must not be echoed back on write.
+  'syncVersion',
 ]);
 
 // Snake_case column names that are uuid foreign-key references in Supabase.
@@ -759,7 +765,10 @@ for (const [entityType, overrides] of Object.entries(FIELD_OVERRIDES)) {
 // Supabase-only columns that don't exist in local IndexedDB entities.
 // `fts` is a generated tsvector on multiple global_* tables — strip on pull
 // so it never enters IndexedDB and never gets attempted on push.
-const SUPABASE_ONLY_FIELDS = new Set(['user_id', 'sync_version', 'deleted_at', 'fts']);
+// NOTE: `sync_version` is intentionally NOT stripped on pull anymore — it
+// round-trips into IndexedDB as `syncVersion` to serve as a secondary conflict
+// tiebreaker, and is stripped on PUSH via LOCAL_ONLY_FIELDS instead.
+const SUPABASE_ONLY_FIELDS = new Set(['user_id', 'deleted_at', 'fts']);
 
 // Global entities whose TS interface keeps the `userId` field (i.e. user_id is
 // semantic payload, not a stripped-on-pull ownership column). For these,
@@ -794,7 +803,9 @@ export function fromSupabaseRow(
     // column. For globalActivityLog / globalProjectPreferences it's semantic
     // payload that the TS interface exposes as `userId`.
     if (snakeKey === 'user_id' && !keepsUserId) continue;
-    if (snakeKey === 'sync_version' || snakeKey === 'deleted_at') continue;
+    if (snakeKey === 'deleted_at') continue;
+    // sync_version is kept (→ syncVersion) for use as a conflict tiebreaker.
+    // It is stripped again on push via LOCAL_ONLY_FIELDS so it stays DB-managed.
     const camelKey = reverseMap[snakeKey] ?? toCamelCase(snakeKey);
     entity[camelKey] = value;
   }

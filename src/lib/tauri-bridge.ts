@@ -178,9 +178,15 @@ export interface ProxyResponse {
   is_binary: boolean;
 }
 
-export async function nativeProxyFetch(url: string): Promise<ProxyResponse> {
+export async function nativeProxyFetch(
+  url: string,
+  allowInvalidCerts = false,
+): Promise<ProxyResponse> {
   const invoke = await getInvoke();
-  return invoke('proxy_fetch', { url }) as Promise<ProxyResponse>;
+  // BAS controllers commonly use self-signed certs, so callers explicitly opt
+  // in to accepting invalid certs. The Rust side still enforces the private-
+  // network allowlist and disables redirects regardless of this flag.
+  return invoke('proxy_fetch', { url, allowInvalidCerts }) as Promise<ProxyResponse>;
 }
 
 // ─── Native Serial Port ──────────────────────────────────────

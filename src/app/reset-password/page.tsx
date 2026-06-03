@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { AlertCircle, ArrowLeft, CheckCircle2, Loader2, Lock } from 'lucide-react';
 
 export default function ResetPasswordPage() {
-  const { updatePassword, isConfigured, mode } = useAuth();
+  const { updatePassword, isConfigured, isPasswordRecovery } = useAuth();
   const router = useRouter();
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -55,9 +55,12 @@ export default function ResetPasswordPage() {
     );
   }
 
-  // If user is not authenticated at all (no recovery session), they may have
-  // navigated here directly. Show a helpful message.
-  if (mode !== 'authenticated') {
+  // Gate the form strictly behind a PASSWORD_RECOVERY auth event. A normal
+  // signed-in session is NOT sufficient — otherwise any logged-in user could
+  // change their password here without proving knowledge of the old one (or a
+  // valid reset link). Users who navigate here directly, or whose recovery
+  // session hasn't been established, see the request-a-link message instead.
+  if (!isPasswordRecovery) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="w-full max-w-sm space-y-6 text-center">

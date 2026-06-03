@@ -660,45 +660,61 @@ const GLOBAL_PROJECT_CHILD_STORES: readonly SyncEntityType[] = [
  */
 export async function cascadeDeleteProject(id: string): Promise<void> {
   const db = await getDB();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tx = (db as any).transaction(['projects', 'fileBlobs', ...PROJECT_CHILD_STORES], 'readwrite');
 
   // Track deleted IDs per store — used for sync notifications and cleanup below
   const deleted = new Map<SyncEntityType, string[]>();
 
-  try {
-    // Handle blob cleanup for files and daily reports
-    const files = await tx.objectStore('files').index('by-project').getAll(id);
-    for (const file of files) {
-      for (const version of file.versions) {
-        if (version.blobKey) await tx.objectStore('fileBlobs').delete(version.blobKey);
-      }
-    }
-    const reports = await tx.objectStore('dailyReports').index('by-project').getAll(id);
-    for (const report of reports) {
-      for (const att of (report.attachments ?? [])) {
-        if (att.blobKey) await tx.objectStore('fileBlobs').delete(att.blobKey);
-      }
-    }
+  // ── Step 1: READ phase — gather all child IDs + blob keys up front ─────────
+  // Each getAll() awaits, so they must NOT share the write transaction (an idb
+  // transaction auto-closes once the microtask queue drains between awaits).
+  // Read everything first, then do a single synchronous write transaction.
+  const childIdsByStore = new Map<SyncEntityType, string[]>();
+  for (const store of PROJECT_CHILD_STORES) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items = await (db as any).getAllFromIndex(store, 'by-project', id);
+    childIdsByStore.set(
+      store,
+      (items as Array<{ id: string }>).map((it) => it.id),
+    );
+  }
 
-    // Cascade-delete all child stores
+  // Blob keys referenced by this project's files + daily-report attachments.
+  const blobKeys: string[] = [];
+  const files = await db.getAllFromIndex('files', 'by-project', id);
+  for (const file of files) {
+    for (const version of file.versions) {
+      if (version.blobKey) blobKeys.push(version.blobKey);
+    }
+  }
+  const reports = await db.getAllFromIndex('dailyReports', 'by-project', id);
+  for (const report of reports) {
+    for (const att of (report.attachments ?? [])) {
+      if (att.blobKey) blobKeys.push(att.blobKey);
+    }
+  }
+
+  // ── Step 2: WRITE phase — one transaction, all deletes enqueued synchronously
+  // No awaits between requests; only `tx.done` is awaited at the end. This keeps
+  // the parent + every child deletion atomic so a partial cascade can't orphan
+  // rows. Mirrors the synchronous-enqueue pattern used by bulkDeleteSilent.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const tx = (db as any).transaction(['projects', 'fileBlobs', ...PROJECT_CHILD_STORES], 'readwrite');
+  try {
+    for (const key of blobKeys) {
+      void tx.objectStore('fileBlobs').delete(key);
+    }
     for (const store of PROJECT_CHILD_STORES) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const items = await (tx as any).objectStore(store).index('by-project').getAll(id);
-      const ids: string[] = [];
-      for (const item of items) {
-        const rec = item as unknown as { id: string };
+      const ids = childIdsByStore.get(store) ?? [];
+      for (const childId of ids) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (tx as any).objectStore(store).delete(rec.id);
-        ids.push(rec.id);
+        void (tx as any).objectStore(store).delete(childId);
       }
       deleted.set(store, ids);
     }
-
-    await tx.objectStore('projects').delete(id);
+    void tx.objectStore('projects').delete(id);
     await tx.done;
   } catch (e) {
-    tx.abort();
+    try { tx.abort(); } catch { /* already settled */ }
     throw e;
   }
 
@@ -757,6 +773,19 @@ export async function cascadeDeleteGlobalProject(globalProjectId: string): Promi
 
   // ── Step 1: Cascade-delete standard global child stores ──────────────────
   // Each store uses `by-project` index on `globalProjectId`.
+  // READ phase first: gather every child ID outside the write transaction so an
+  // idb tx can't auto-close mid-cascade (it does once awaits drain the microtask
+  // queue). Then enqueue every delete synchronously in one write transaction.
+  const childIdsByStore = new Map<SyncEntityType, string[]>();
+  for (const store of GLOBAL_PROJECT_CHILD_STORES) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const items = await (db as any).getAllFromIndex(store, 'by-project', globalProjectId);
+    childIdsByStore.set(
+      store,
+      (items as Array<{ id: string }>).map((it) => it.id),
+    );
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const childTx = (db as any).transaction(
     ['globalProjects', ...GLOBAL_PROJECT_CHILD_STORES],
@@ -764,21 +793,17 @@ export async function cascadeDeleteGlobalProject(globalProjectId: string): Promi
   );
   try {
     for (const store of GLOBAL_PROJECT_CHILD_STORES) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const items = await (childTx as any).objectStore(store).index('by-project').getAll(globalProjectId);
-      const ids: string[] = [];
-      for (const item of items) {
-        const rec = item as unknown as { id: string };
+      const ids = childIdsByStore.get(store) ?? [];
+      for (const childId of ids) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (childTx as any).objectStore(store).delete(rec.id);
-        ids.push(rec.id);
+        void (childTx as any).objectStore(store).delete(childId);
       }
       deleted.set(store, ids);
     }
-    await childTx.objectStore('globalProjects').delete(globalProjectId);
+    void childTx.objectStore('globalProjects').delete(globalProjectId);
     await childTx.done;
   } catch (e) {
-    childTx.abort();
+    try { childTx.abort(); } catch { /* already settled */ }
     throw e;
   }
 
@@ -1447,6 +1472,27 @@ export async function clearCompletedSyncItems(): Promise<void> {
   await tx.done;
 }
 
+/**
+ * Recovery sweep: flip every item stuck in `'syncing'` back to `'pending'`.
+ *
+ * A row is marked `'syncing'` immediately before its network call. If the
+ * process dies (tab closed, crash, reload) between that flip and the response,
+ * the row is stranded — `getPendingSyncItems` only returns `'pending'` rows, so
+ * the stuck item would never be retried (silent data loss). Call this once at
+ * sync-manager start-up to reclaim any such orphans. Returns the count reset.
+ */
+export async function resetSyncingItemsToPending(): Promise<number> {
+  const db = await getDB();
+  const stuck = await db.getAllFromIndex('syncQueue', 'by-status', 'syncing');
+  if (stuck.length === 0) return 0;
+  const tx = db.transaction('syncQueue', 'readwrite');
+  for (const item of stuck) {
+    void tx.store.put({ ...item, status: 'pending' });
+  }
+  await tx.done;
+  return stuck.length;
+}
+
 export async function resetFailedSyncItems(): Promise<number> {
   const db = await getDB();
   const failed = await db.getAllFromIndex('syncQueue', 'by-status', 'failed');
@@ -1525,16 +1571,32 @@ export async function getAllProjectEntityCounts(
   projectIds: string[]
 ): Promise<Map<string, { files: number; notes: number; devices: number }>> {
   const db = await getDB();
-  const tx = db.transaction(['files', 'notes', 'devices'], 'readonly');
   const result = new Map<string, { files: number; notes: number; devices: number }>();
-  for (const id of projectIds) {
-    const [files, notes, devices] = await Promise.all([
-      tx.objectStore('files').index('by-project').count(id),
-      tx.objectStore('notes').index('by-project').count(id),
-      tx.objectStore('devices').index('by-project').count(id),
-    ]);
-    result.set(id, { files, notes, devices });
-  }
+  if (projectIds.length === 0) return result;
+
+  // Fan out ALL count requests on one read-only transaction without awaiting
+  // between them. Awaiting per-project (the previous behaviour) let the tx
+  // auto-close after the first project, raising InvalidStateError on the 2nd+.
+  const tx = db.transaction(['files', 'notes', 'devices'], 'readonly');
+  const filesIdx = tx.objectStore('files').index('by-project');
+  const notesIdx = tx.objectStore('notes').index('by-project');
+  const devicesIdx = tx.objectStore('devices').index('by-project');
+
+  const counts = await Promise.all(
+    projectIds.flatMap((id) => [
+      filesIdx.count(id),
+      notesIdx.count(id),
+      devicesIdx.count(id),
+    ]),
+  );
+
+  projectIds.forEach((id, i) => {
+    result.set(id, {
+      files: counts[i * 3],
+      notes: counts[i * 3 + 1],
+      devices: counts[i * 3 + 2],
+    });
+  });
   return result;
 }
 

@@ -12,16 +12,29 @@ import {
 } from '@/components/ui/dialog';
 import { ProjectStatusBadge } from '@/components/shared/status-badge';
 import { getAllProjects, deleteProject, purgeOrphanedRecords } from '@/lib/db';
+import { entityTypeToTable, SYNC_ORDER, isGlobalEntity } from '@/lib/sync/field-map';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
-import type { Project } from '@/types';
+import type { Project, SyncEntityType } from '@/types';
 
-/** Supabase child tables that reference project_id (order: children before parent) */
-const SUPABASE_PROJECT_CHILD_TABLES = [
-  'project_files', 'field_notes', 'devices', 'ip_plan',
-  'daily_reports', 'activity_log', 'network_diagrams',
-  'ping_sessions', 'terminal_session_logs', 'connection_profiles',
-  'register_calculations', 'command_snippets',
-];
+/**
+ * Supabase child tables that reference project_id, ordered children-before-parent.
+ *
+ * Derived at runtime from the canonical sync registry (`SYNC_ORDER` +
+ * `entityTypeToTable` in `src/lib/sync/field-map.ts`) so it can never drift out
+ * of sync with the schema like the previous hand-maintained list did (which was
+ * missing several tables and caused FK violations / orphans).
+ *
+ * Excludes: `projects` itself (the parent, deleted last) and the two local
+ * entities that have NO project_id column — `bug_reports` and `user_reviews`
+ * are per-user. Global (`global_*`) entities are excluded entirely; they are
+ * cleaned up through their own cascade path.
+ */
+const NON_PROJECT_CHILD_ENTITIES = new Set<SyncEntityType>([
+  'projects', 'bugReports', 'reviews',
+]);
+const SUPABASE_PROJECT_CHILD_TABLES: string[] = SYNC_ORDER
+  .filter((t) => !isGlobalEntity(t) && !NON_PROJECT_CHILD_ENTITIES.has(t))
+  .map((t) => entityTypeToTable[t]);
 
 type Phase = 'loading' | 'select' | 'confirm' | 'deleting' | 'success' | 'error';
 

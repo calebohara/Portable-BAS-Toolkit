@@ -61,6 +61,11 @@ export function CsvPreviewDialog({ open, file, parseResult, onConfirm, onReparse
             <Badge variant="secondary">
               Timestamp: col {parseResult.detectedTimestampColumn + 1}
             </Badge>
+            {parseResult.detectedDecimalSeparator === ',' && (
+              <Badge variant="secondary">
+                Decimals: EU (comma)
+              </Badge>
+            )}
           </div>
 
           {/* Warnings */}

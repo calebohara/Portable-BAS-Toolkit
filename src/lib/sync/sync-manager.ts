@@ -7,6 +7,7 @@ import {
   addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
   addSyncError,
   cascadeDeleteProject, cascadeDeleteGlobalProject,
+  resetSyncingItemsToPending,
 } from '@/lib/db';
 import {
   entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER,
@@ -105,8 +106,21 @@ export class SyncManager implements SyncManagerInterface {
     if (this.intervalId) return;
     console.info(`${LOG_PREFIX} Manager started (user=${this.userId.substring(0, 8)}…)`);
     this.intervalId = setInterval(() => this.processQueue(), PROCESS_INTERVAL_MS);
-    // Immediate first run
-    this.processQueue();
+    // Recovery sweep: reclaim any items stranded in 'syncing' by a prior crash /
+    // reload before the first process run, so they aren't silently lost.
+    // Fire-and-forget; the immediate first run is chained after it completes.
+    resetSyncingItemsToPending()
+      .then((reset) => {
+        if (reset > 0) {
+          console.info(`${LOG_PREFIX} Recovery: reset ${reset} stuck 'syncing' item(s) to 'pending'`);
+        }
+      })
+      .catch((e) => console.warn(`${LOG_PREFIX} Recovery sweep failed:`, e))
+      .finally(() => {
+        // Don't kick off the first run if the manager was stopped while the
+        // sweep was in flight.
+        if (this.intervalId) this.processQueue();
+      });
   }
 
   stop(): void {
@@ -302,8 +316,28 @@ export class SyncManager implements SyncManagerInterface {
 
             if (!fetchError && remoteRow) {
               const remoteUpdatedAt = (remoteRow.updated_at ?? remoteRow.completed_at ?? remoteRow.created_at) as string | undefined;
-              if (remoteUpdatedAt && new Date(remoteUpdatedAt) > new Date(localUpdatedAt)) {
-                // Conflict: remote is newer — store conflict, remove from queue
+              // Conflict if the remote row is strictly newer, OR the timestamps
+              // are equal (ms granularity + client-clock skew) AND the remote
+              // sync_version is at least the local one. Using >= on equal-ms
+              // rows raises a conflict for the user to resolve instead of letting
+              // the slower-clock device silently drop the other's write.
+              // sync_version is the secondary tiebreaker (schema: int default 1,
+              // round-tripped via field-map). Falls back to a plain >= on the
+              // timestamp when versions are absent/equal.
+              const remoteVersion = typeof remoteRow.sync_version === 'number'
+                ? remoteRow.sync_version : undefined;
+              const localVersion = typeof localPayload.syncVersion === 'number'
+                ? localPayload.syncVersion : undefined;
+              const remoteTime = remoteUpdatedAt ? new Date(remoteUpdatedAt).getTime() : NaN;
+              const localTime = new Date(localUpdatedAt).getTime();
+              const remoteIsNewer = remoteTime > localTime;
+              const equalTimestamp = remoteTime === localTime;
+              const remoteVersionWins = remoteVersion !== undefined && localVersion !== undefined
+                ? remoteVersion >= localVersion
+                : true; // unknown versions: treat equal-timestamp as a conflict
+              if (remoteUpdatedAt && (remoteIsNewer || (equalTimestamp && remoteVersionWins))) {
+                // Conflict: remote is newer (or equal-ms with a version tiebreak)
+                // — store conflict, remove from queue
                 console.warn(
                   `${LOG_PREFIX} Conflict detected for ${item.entityType}/${item.entityId}: ` +
                   `local=${localUpdatedAt}, remote=${remoteUpdatedAt}`,

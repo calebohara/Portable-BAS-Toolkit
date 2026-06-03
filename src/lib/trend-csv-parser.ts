@@ -19,6 +19,7 @@ export interface ParseResult {
   detectedDelimiter: string;
   detectedHeaderRow: number;
   detectedTimestampColumn: number;
+  detectedDecimalSeparator: '.' | ',';
   rawPreview: string[][];
 }
 
@@ -121,6 +122,72 @@ function buildDateFromParts(
   const d = new Date(year, month - 1, day, hour, min, sec, ms);
   if (isNaN(d.getTime())) return null;
   return d.getTime();
+}
+
+// ─── Locale-Aware Numeric Parsing ────────────────────────────
+
+// Matches a comma-decimal number with optional dot thousands separators,
+// e.g. "1,5", "-1,5", "1.234,56", "12.345.678,9".
+const EU_DECIMAL_RE = /^[+-]?(\d{1,3}(\.\d{3})+|\d+),\d+$/;
+// Matches a dot-decimal number with optional comma thousands separators,
+// e.g. "1.5", "1,234.56".
+const US_DECIMAL_RE = /^[+-]?(\d{1,3}(,\d{3})+|\d+)\.\d+$/;
+
+/**
+ * Parse a numeric cell that may use either US (`1,234.56`) or EU (`1.234,56`)
+ * conventions. `decimalSeparator` is the separator detected for the file as a
+ * whole; the opposite character is treated as a (strippable) thousands grouping
+ * separator. NOTE: this operates on a cell that has *already* been split out of
+ * the CSV by the column delimiter, so an in-cell comma can only ever be a
+ * decimal or thousands separator — never a column delimiter.
+ */
+export function parseLocaleFloat(raw: string, decimalSeparator: '.' | ',' = '.'): number {
+  const t = raw.trim();
+  if (t === '') return NaN;
+
+  let normalized: string;
+  if (decimalSeparator === ',') {
+    // EU: dots are thousands separators, comma is the decimal point.
+    normalized = t.replace(/\./g, '').replace(',', '.');
+  } else {
+    // US: commas are thousands separators, dot is the decimal point.
+    normalized = t.replace(/,/g, '');
+  }
+
+  return parseFloat(normalized);
+}
+
+/**
+ * Sample value cells to decide whether the file uses comma decimal separators.
+ * Returns ',' when comma-decimals clearly dominate dot-decimals, else '.'.
+ */
+export function detectDecimalSeparator(
+  dataRows: string[][],
+  valueColIndexes: number[],
+  format?: ParseOptions['timestampFormat'],
+): '.' | ',' {
+  // Explicit locale selection wins over heuristics for consistency.
+  if (format === 'eu-locale') return ',';
+  if (format === 'us-locale' || format === 'iso') return '.';
+
+  let euHits = 0;
+  let usHits = 0;
+  const maxSamples = 200;
+  let seen = 0;
+
+  outer: for (const row of dataRows) {
+    for (const col of valueColIndexes) {
+      const cell = row[col];
+      if (cell === undefined) continue;
+      const t = cell.trim();
+      if (t === '') continue;
+      if (EU_DECIMAL_RE.test(t)) euHits++;
+      else if (US_DECIMAL_RE.test(t)) usHits++;
+      if (++seen >= maxSamples) break outer;
+    }
+  }
+
+  return euHits > usHits ? ',' : '.';
 }
 
 // ─── Header & Timestamp Column Detection ─────────────────────
@@ -277,7 +344,13 @@ export async function parseTrendCSV(
     });
   }
 
-  // 6. Parse data rows
+  // 6. Detect decimal separator (EU exports like Desigo/Bosch/ABB use commas).
+  const decimalSeparator = detectDecimalSeparator(dataRows, valueColIndexes, options.timestampFormat);
+  if (decimalSeparator === ',') {
+    warnings.push('Detected EU-format decimals (comma separator) — values normalized accordingly.');
+  }
+
+  // 7. Parse data rows
   const data: TrendDataPoint[] = [];
   let failedRows = 0;
 
@@ -295,7 +368,7 @@ export async function parseTrendCSV(
       if (cell === undefined || cell.trim() === '' || cell.trim() === 'null' || cell.trim() === 'NaN') {
         values[series[j].id] = null;
       } else {
-        const num = parseFloat(cell);
+        const num = parseLocaleFloat(cell, decimalSeparator);
         values[series[j].id] = isNaN(num) ? null : num;
       }
     }
@@ -335,6 +408,7 @@ export async function parseTrendCSV(
     detectedDelimiter: delimiter,
     detectedHeaderRow: headerRowIdx,
     detectedTimestampColumn: tsCol,
+    detectedDecimalSeparator: decimalSeparator,
     rawPreview,
   };
 }
@@ -349,6 +423,7 @@ function emptyResult(delimiter: string, rawPreview: string[][], warnings: string
     detectedDelimiter: delimiter,
     detectedHeaderRow: 0,
     detectedTimestampColumn: 0,
+    detectedDecimalSeparator: '.',
     rawPreview,
   };
 }

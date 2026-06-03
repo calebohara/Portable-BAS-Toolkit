@@ -228,6 +228,38 @@ export function ImportProjectDialog({ open, onOpenChange, onImported }: ImportPr
     contacts: pkg.contacts?.length ?? 0,
   } : null;
 
+  // ── Honest "what won't be imported" detection ──
+  // The importer persists exactly: project metadata, contacts, panelRoster,
+  // technicianNotes, networkSummary, notes, devices, ipPlan. Anything else
+  // present in the package is dropped — surface it so the user is never
+  // silently misled. Files in a share package are metadata-only (no blob
+  // payload), so they are NOT recreated as usable files. `activity` is a
+  // historical log we do not replay. Any unrecognized top-level data key is
+  // also flagged generically rather than swallowed.
+  const IMPORTED_KEYS = new Set([
+    '_meta', 'project', 'contacts', 'panelRoster', 'technicianNotes',
+    'networkSummary', 'notes', 'devices', 'ipPlan',
+  ]);
+  const droppedSections: Array<{ label: string; count: number }> = pkg
+    ? (() => {
+        const out: Array<{ label: string; count: number }> = [];
+        if (Array.isArray(pkg.files) && pkg.files.length > 0) {
+          out.push({ label: `${pkg.files.length} file${pkg.files.length !== 1 ? 's' : ''} (no file contents in package)`, count: pkg.files.length });
+        }
+        if (Array.isArray(pkg.activity) && pkg.activity.length > 0) {
+          out.push({ label: `${pkg.activity.length} activity-history ${pkg.activity.length !== 1 ? 'entries' : 'entry'}`, count: pkg.activity.length });
+        }
+        // Any other array-valued top-level key we don't import.
+        for (const [key, value] of Object.entries(pkg)) {
+          if (IMPORTED_KEYS.has(key) || key === 'files' || key === 'activity') continue;
+          if (Array.isArray(value) && value.length > 0) {
+            out.push({ label: `${value.length} ${key}`, count: value.length });
+          }
+        }
+        return out;
+      })()
+    : [];
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent showCloseButton={phase !== 'importing'} className="sm:max-w-md">
@@ -315,34 +347,55 @@ export function ImportProjectDialog({ open, onOpenChange, onImported }: ImportPr
                   )}
                 </div>
 
-                {/* Content counts */}
-                {counts && (counts.contacts > 0 || counts.notes > 0 || counts.devices > 0 || counts.ipPlan > 0 || counts.files > 0) && (
-                  <div className="flex flex-wrap gap-2">
-                    {counts.contacts > 0 && (
-                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        {counts.contacts} contact{counts.contacts !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {counts.files > 0 && (
-                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        {counts.files} file{counts.files !== 1 ? 's' : ''} (metadata only)
-                      </span>
-                    )}
-                    {counts.notes > 0 && (
-                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        {counts.notes} note{counts.notes !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {counts.devices > 0 && (
-                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        {counts.devices} device{counts.devices !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                    {counts.ipPlan > 0 && (
-                      <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        {counts.ipPlan} IP entr{counts.ipPlan !== 1 ? 'ies' : 'y'}
-                      </span>
-                    )}
+                {/* What WILL be imported */}
+                {counts && (counts.contacts > 0 || counts.notes > 0 || counts.devices > 0 || counts.ipPlan > 0) && (
+                  <div>
+                    <p className="text-xs font-medium text-foreground mb-1.5">Will be imported</p>
+                    <div className="flex flex-wrap gap-2">
+                      {counts.contacts > 0 && (
+                        <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                          {counts.contacts} contact{counts.contacts !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {counts.notes > 0 && (
+                        <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                          {counts.notes} note{counts.notes !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {counts.devices > 0 && (
+                        <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                          {counts.devices} device{counts.devices !== 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {counts.ipPlan > 0 && (
+                        <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                          {counts.ipPlan} IP entr{counts.ipPlan !== 1 ? 'ies' : 'y'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* What will NOT be imported — prominent so the user is never silently misled */}
+                {droppedSections.length > 0 && (
+                  <div className="rounded-lg border border-field-warning/40 bg-field-warning/10 p-3">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle className="h-4 w-4 text-field-warning shrink-0 mt-0.5" />
+                      <div className="space-y-1.5">
+                        <p className="text-xs font-semibold text-foreground">
+                          Not included in this import
+                        </p>
+                        <ul className="space-y-0.5">
+                          {droppedSections.map((d, i) => (
+                            <li key={i} className="text-xs text-muted-foreground">• {d.label}</li>
+                          ))}
+                        </ul>
+                        <p className="text-[11px] text-muted-foreground/80">
+                          Share packages carry data summaries, not file contents or full
+                          tool sessions. To transfer everything, use Cloud &amp; Sync instead.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -386,7 +439,7 @@ export function ImportProjectDialog({ open, onOpenChange, onImported }: ImportPr
               </div>
               <DialogTitle className="text-center">Import Complete</DialogTitle>
               <DialogDescription className="text-center">
-                &ldquo;{importedName}&rdquo; has been imported successfully with all its data.
+                &ldquo;{importedName}&rdquo; has been imported successfully.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>

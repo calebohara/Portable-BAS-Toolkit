@@ -36,7 +36,10 @@ export function EmbeddedWorkspace() {
     let cancelled = false;
     (async () => {
       try {
-        const response = await nativeProxyFetch(activeUrl);
+        // Field BAS controllers (Siemens PXC, Tridium, Honeywell) typically use
+        // self-signed certs, so we explicitly opt in to accepting invalid certs
+        // for this embedded-controller proxy path only.
+        const response = await nativeProxyFetch(activeUrl, true);
         if (cancelled) return;
         if (response.status >= 200 && response.status < 400 && !response.is_binary) {
           // Inject a <base> tag so relative URLs resolve correctly
@@ -240,7 +243,12 @@ export function EmbeddedWorkspace() {
             ref={iframeRef}
             srcDoc={proxyHtml}
             className="w-full h-full border-0"
-            sandbox="allow-same-origin allow-scripts allow-forms allow-popups"
+            // SECURITY: srcDoc inherits the host (app) origin. We deliberately
+            // omit `allow-same-origin` so the proxied controller HTML runs in an
+            // opaque origin sandbox and cannot reach the host's IndexedDB,
+            // Supabase tokens, or __TAURI_INTERNALS__. Scripts still execute,
+            // but only against the iframe's own opaque-origin document.
+            sandbox="allow-scripts allow-forms allow-popups"
             title="Panel Web Interface"
           />
         ) : (
