@@ -116,7 +116,10 @@
       "Bash(awk '/create table[^;]*global_projects[ \\(]/{f=1} f{print} /\\\\\\);/{if\\(f\\)exit}' supabase/global-projects-schema.sql)",
       "Bash(npx vitest *)",
       "Bash(echo \"total errors: $\\(npx tsc --noEmit 2>&1)",
-      "Bash(echo \"=== tsc exit: $? ===\")"
+      "Bash(echo \"=== tsc exit: $? ===\")",
+      "Bash(cargo test *)",
+      "Bash(psql --version)",
+      "Bash(echo \"=== cargo exit: $? ===\")"
     ]
   }
 }

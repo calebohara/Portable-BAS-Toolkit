@@ -650,16 +650,43 @@ function mapLocalConnProfileToRow(p: ConnectionProfile, globalProjectId: string,
 
 // ─── Global → Local field mappers (inverse of the above) ────────────────────
 
-function mapGlobalNoteToLocal(n: GlobalFieldNote, projectId: string): FieldNote {
+/**
+ * Resolve a human display-name `author` for a note coming back from the global
+ * side. `FieldNote.author` is a free-text DISPLAY NAME used for UI + filtering
+ * (field-notes-view.tsx) — it must NEVER be a raw Supabase UUID.
+ *
+ * Resolution order (first non-empty wins):
+ *   1. The existing local note's `author` (preserves the human name the user
+ *      originally typed; the round-trip must not clobber it).
+ *   2. A `created_by` UUID → profile display-name lookup (for notes created on
+ *      another device that never had a local row here).
+ *   3. "Unknown" — a user-friendly fallback, rather than exposing a UUID.
+ */
+function resolveNoteAuthor(
+  n: GlobalFieldNote,
+  existingAuthor: string | undefined,
+  displayNameByUserId?: Map<string, string>,
+): string {
+  if (existingAuthor && existingAuthor.trim().length > 0) return existingAuthor;
+  const resolved = n.createdBy ? displayNameByUserId?.get(n.createdBy) : undefined;
+  if (resolved && resolved.trim().length > 0) return resolved;
+  return 'Unknown';
+}
+
+function mapGlobalNoteToLocal(
+  n: GlobalFieldNote,
+  projectId: string,
+  existingAuthor?: string,
+  displayNameByUserId?: Map<string, string>,
+): FieldNote {
   return {
     id: n.id,
     projectId,
     fileId: n.fileId ?? undefined,
     content: n.content,
     category: n.category,
-    // Preserve authorship from the global audit column. Falls back to "User"
-    // only if Supabase didn't return created_by (shouldn't happen — it's NOT NULL).
-    author: n.createdBy ?? 'User',
+    // DISPLAY NAME — never the raw `created_by` UUID. See resolveNoteAuthor.
+    author: resolveNoteAuthor(n, existingAuthor, displayNameByUserId),
     isPinned: n.isPinned,
     tags: n.tags ?? [],
     createdAt: n.createdAt,
@@ -1328,6 +1355,59 @@ async function reconcilePairLocalToGlobal(
   }
 }
 
+/**
+ * Context used by the notes pull to resolve display-name authors (Finding #12).
+ * `existingAuthorById` maps a note id → the display-name `author` already stored
+ * locally (so a round-trip never clobbers it). `displayNameByUserId` maps a
+ * Supabase `created_by` UUID → that member's profile display name, used only for
+ * notes that have no local row yet.
+ */
+interface NoteAuthorContext {
+  existingAuthorById: Map<string, string>;
+  displayNameByUserId: Map<string, string>;
+}
+
+async function buildNoteAuthorContext(
+  localProjectId: string,
+  globalRows: Record<string, unknown>[],
+): Promise<NoteAuthorContext> {
+  const existingAuthorById = new Map<string, string>();
+  try {
+    const localNotes = await db.getProjectNotes(localProjectId);
+    for (const note of localNotes) {
+      if (note.author && note.author.trim().length > 0) existingAuthorById.set(note.id, note.author);
+    }
+  } catch (e) {
+    console.warn('[reconcile] could not load local notes for author preservation (non-fatal):', e);
+  }
+
+  const displayNameByUserId = new Map<string, string>();
+  const userIds = Array.from(
+    new Set(
+      globalRows
+        .map((r) => (r.created_by ?? r.createdBy) as string | undefined)
+        .filter((v): v is string => typeof v === 'string' && v.length > 0),
+    ),
+  );
+  if (userIds.length > 0) {
+    try {
+      const { data: profiles } = await client()
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', userIds);
+      for (const p of (profiles ?? []) as Array<{ id: string; display_name: string | null }>) {
+        if (p.display_name && p.display_name.trim().length > 0) {
+          displayNameByUserId.set(p.id, p.display_name);
+        }
+      }
+    } catch (e) {
+      console.warn('[reconcile] could not load profile display names (non-fatal):', e);
+    }
+  }
+
+  return { existingAuthorById, displayNameByUserId };
+}
+
 async function reconcilePairGlobalToLocal(
   pair: Pair,
   globalProjectId: string,
@@ -1344,13 +1424,22 @@ async function reconcilePairGlobalToLocal(
   if (error) throw new Error(`${globalTable} fetch failed: ${error.message}`);
   if (!rows || rows.length === 0) return;
 
+  // For notes, build a context that lets the mapper resolve a human display-name
+  // `author` instead of writing a raw `created_by` UUID (Finding #12):
+  //   - existing local notes → preserve the display name the user already typed.
+  //   - a created_by UUID → profile display-name lookup → for notes authored on
+  //     another device that never had a local row here.
+  const noteCtx = pair.key === 'notes'
+    ? await buildNoteAuthorContext(localProjectId, rows as Record<string, unknown>[])
+    : undefined;
+
   // We rely on IndexedDB's put-by-id semantics for idempotency; no
   // pre-fetch needed on the local side. Skip-on-unchanged could be added
   // later if write amplification becomes a concern.
   for (const raw of rows as Record<string, unknown>[]) {
     try {
       const camelRow = camelKeysShallow<Record<string, unknown>>(raw);
-      const localRow = await convertGlobalToLocal(pair.key, camelRow, localProjectId);
+      const localRow = await convertGlobalToLocal(pair.key, camelRow, localProjectId, noteCtx);
       if (!localRow) {
         counts.skipped++;
         continue;
@@ -1480,9 +1569,18 @@ async function convertGlobalToLocal(
   key: ReconciledEntityKey,
   global: Record<string, unknown>,
   projectId: string,
+  noteCtx?: NoteAuthorContext,
 ): Promise<unknown | null> {
   switch (key) {
-    case 'notes':                return mapGlobalNoteToLocal(global as unknown as GlobalFieldNote, projectId);
+    case 'notes': {
+      const note = global as unknown as GlobalFieldNote;
+      return mapGlobalNoteToLocal(
+        note,
+        projectId,
+        noteCtx?.existingAuthorById.get(note.id),
+        noteCtx?.displayNameByUserId,
+      );
+    }
     case 'devices':              return mapGlobalDeviceToLocal(global as unknown as GlobalDevice, projectId);
     case 'ipPlan':               return mapGlobalIpEntryToLocal(global as unknown as GlobalIpPlanEntry, projectId);
     case 'dailyReports':         return mapGlobalReportToLocal(global as unknown as GlobalDailyReport, projectId);

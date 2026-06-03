@@ -1,3 +1,4 @@
+import { deleteManyFromStorage } from '@/lib/storage';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import type {
   GlobalProject,
@@ -6,6 +7,7 @@ import type {
   GlobalDevice,
   GlobalIpPlanEntry,
   GlobalDailyReport,
+  GlobalReportAttachment,
   GlobalProjectFile,
   GlobalActivityLogEntry,
   GlobalMessage,
@@ -325,6 +327,43 @@ export async function deleteGlobalProject(id: string): Promise<ApiResult<void>> 
     const supabase = getClient();
     const userId = await getCurrentUserId();
 
+    // ── Collect every Supabase Storage path owned by this project BEFORE we
+    // soft-delete the rows, then best-effort remove the blobs from the
+    // `project-files` bucket. Without this, every uploaded file, daily-report
+    // attachment, etc. leaks into the bucket forever with live public URLs
+    // (privacy + storage-quota leak). Storage paths live in two places:
+    //   - global_project_files.storage_path (one per file row)
+    //   - global_daily_reports.attachments[].storagePath (jsonb array)
+    // The Knowledge Base is org-wide (not project-scoped) so its attachments
+    // are intentionally NOT touched here.
+    const storagePaths: string[] = [];
+    try {
+      const { data: fileRows } = await supabase
+        .from('global_project_files')
+        .select('storage_path')
+        .eq('global_project_id', id)
+        .is('deleted_at', null);
+      for (const row of (fileRows ?? []) as Array<{ storage_path: string | null }>) {
+        if (row.storage_path) storagePaths.push(row.storage_path);
+      }
+    } catch (collectErr) {
+      console.warn(`Failed to collect file storage paths for project ${id}:`, collectErr);
+    }
+    try {
+      const { data: reportRows } = await supabase
+        .from('global_daily_reports')
+        .select('attachments')
+        .eq('global_project_id', id)
+        .is('deleted_at', null);
+      for (const row of (reportRows ?? []) as Array<{ attachments: GlobalReportAttachment[] | null }>) {
+        for (const att of row.attachments ?? []) {
+          if (att?.storagePath) storagePaths.push(att.storagePath);
+        }
+      }
+    } catch (collectErr) {
+      console.warn(`Failed to collect report attachment paths for project ${id}:`, collectErr);
+    }
+
     const { error } = await supabase
       .from('global_projects')
       .update({ deleted_at: new Date().toISOString() })
@@ -332,6 +371,15 @@ export async function deleteGlobalProject(id: string): Promise<ApiResult<void>> 
       .eq('created_by', userId);
 
     if (error) return fail(error.message);
+
+    // Best-effort blob cleanup — failures must NOT block the project deletion.
+    if (storagePaths.length > 0) {
+      try {
+        await deleteManyFromStorage(storagePaths);
+      } catch (storageErr) {
+        console.warn(`Failed to delete ${storagePaths.length} storage blob(s) for project ${id}:`, storageErr);
+      }
+    }
 
     // Cascade soft-delete all child entities so they don't remain queryable
     // after the parent project is soft-deleted. The parent row is only stamped

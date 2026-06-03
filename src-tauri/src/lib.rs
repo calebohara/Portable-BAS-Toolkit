@@ -190,57 +190,135 @@ struct TelnetConnection {
 
 struct TelnetState(Arc<Mutex<HashMap<String, TelnetConnection>>>);
 
+/// Determine whether the byte slice ends with an incomplete IAC sequence that
+/// must be carried over to the next TCP read. Returns the index at which the
+/// trailing incomplete sequence begins, or `data.len()` if everything parses
+/// to a complete boundary.
+///
+/// Incomplete cases (per RFC 854):
+///   * a bare trailing `IAC` (0xFF) with nothing after it,
+///   * `IAC WILL/WONT/DO/DONT` (0xFB–0xFE) awaiting its option byte,
+///   * `IAC SB ...` awaiting the closing `IAC SE`.
+///
+/// Note `IAC IAC` (escaped literal 0xFF) is a *complete* 2-byte sequence and is
+/// never carried over.
+fn telnet_incomplete_tail(data: &[u8]) -> usize {
+    let n = data.len();
+    let mut i = 0;
+    while i < n {
+        if data[i] != IAC {
+            i += 1;
+            continue;
+        }
+        // We're at an IAC.
+        if i + 1 >= n {
+            // Bare trailing IAC — carry over.
+            return i;
+        }
+        let cmd = data[i + 1];
+        match cmd {
+            IAC => {
+                // Escaped literal 0xFF — complete 2-byte sequence.
+                i += 2;
+            }
+            WILL | WONT | DO | DONT => {
+                if i + 2 >= n {
+                    // Verb present but option byte missing — carry over.
+                    return i;
+                }
+                i += 3;
+            }
+            SB => {
+                // Subnegotiation: scan for the closing IAC SE.
+                let mut j = i + 2;
+                let mut closed = false;
+                while j < n {
+                    if data[j] == IAC && j + 1 < n && data[j + 1] == SE {
+                        j += 2;
+                        closed = true;
+                        break;
+                    }
+                    j += 1;
+                }
+                if !closed {
+                    // No terminating IAC SE yet — carry the whole SB block over.
+                    return i;
+                }
+                i = j;
+            }
+            _ => {
+                // Other two-byte command (GA, NOP, DM, SE, etc.).
+                i += 2;
+            }
+        }
+    }
+    n
+}
+
 /// Process incoming bytes: parse IAC sequences, build negotiation responses,
 /// and return only the displayable data.
-fn process_telnet_bytes(buf: &[u8], n: usize) -> (Vec<u8>, Vec<u8>) {
-    let mut filtered = Vec::with_capacity(n);
+///
+/// `residue` holds any incomplete IAC sequence carried over from the previous
+/// read. It is prepended to `buf[..n]` before parsing, and on return contains
+/// any new trailing incomplete sequence to carry into the next read. This makes
+/// the parser correct across TCP read boundaries — IAC sequences that straddle
+/// a boundary are reassembled rather than dropped or pushed literally.
+fn process_telnet_bytes(buf: &[u8], n: usize, residue: &mut Vec<u8>) -> (Vec<u8>, Vec<u8>) {
+    // Prepend carried-over residue, then process the combined stream.
+    let data: Vec<u8> = if residue.is_empty() {
+        buf[..n].to_vec()
+    } else {
+        let mut d = Vec::with_capacity(residue.len() + n);
+        d.extend_from_slice(residue);
+        d.extend_from_slice(&buf[..n]);
+        d
+    };
+    residue.clear();
+
+    // Split off any trailing incomplete sequence so we only parse complete data.
+    let boundary = telnet_incomplete_tail(&data);
+    if boundary < data.len() {
+        residue.extend_from_slice(&data[boundary..]);
+    }
+    let data = &data[..boundary];
+    let len = data.len();
+
+    let mut filtered = Vec::with_capacity(len);
     let mut responses = Vec::new();
     let mut i = 0;
 
-    while i < n {
-        if buf[i] == IAC && i + 1 < n {
-            let cmd = buf[i + 1];
+    while i < len {
+        if data[i] == IAC && i + 1 < len {
+            let cmd = data[i + 1];
             match cmd {
                 WILL => {
-                    if i + 2 < n {
-                        let opt = buf[i + 2];
-                        // Accept ECHO and SGA; reject everything else
-                        if opt == OPT_ECHO || opt == OPT_SGA {
-                            responses.extend_from_slice(&[IAC, DO, opt]);
-                        } else {
-                            responses.extend_from_slice(&[IAC, DONT, opt]);
-                        }
-                        i += 3;
+                    let opt = data[i + 2];
+                    // Accept ECHO and SGA; reject everything else
+                    if opt == OPT_ECHO || opt == OPT_SGA {
+                        responses.extend_from_slice(&[IAC, DO, opt]);
                     } else {
-                        break; // incomplete sequence, wait for next read
+                        responses.extend_from_slice(&[IAC, DONT, opt]);
                     }
+                    i += 3;
                 }
                 WONT => {
-                    if i + 2 < n {
-                        responses.extend_from_slice(&[IAC, DONT, buf[i + 2]]);
-                        i += 3;
-                    } else {
-                        break;
-                    }
+                    responses.extend_from_slice(&[IAC, DONT, data[i + 2]]);
+                    i += 3;
                 }
                 DO => {
-                    if i + 2 < n {
-                        // We don't support any DO requests from server
-                        responses.extend_from_slice(&[IAC, WONT, buf[i + 2]]);
-                        i += 3;
-                    } else {
-                        break;
-                    }
+                    // We don't support any DO requests from server
+                    responses.extend_from_slice(&[IAC, WONT, data[i + 2]]);
+                    i += 3;
                 }
                 DONT => {
                     // Acknowledge, no response needed
-                    if i + 2 < n { i += 3; } else { break; }
+                    i += 3;
                 }
                 SB => {
-                    // Skip subnegotiation until IAC SE
+                    // Skip subnegotiation until IAC SE (guaranteed complete here).
                     i += 2;
-                    while i < n {
-                        if buf[i] == IAC && i + 1 < n && buf[i + 1] == SE {
+                    while i < len {
+                        if data[i] == IAC && i + 1 < len && data[i + 1] == SE {
                             i += 2;
                             break;
                         }
@@ -257,7 +335,7 @@ fn process_telnet_bytes(buf: &[u8], n: usize) -> (Vec<u8>, Vec<u8>) {
                 }
             }
         } else {
-            filtered.push(buf[i]);
+            filtered.push(data[i]);
             i += 1;
         }
     }
@@ -337,6 +415,9 @@ async fn telnet_connect(
     let read_task = tokio::spawn(async move {
         let mut reader = read_half;
         let mut buf = [0u8; 4096];
+        // Per-session residue carries any IAC sequence that straddles a TCP
+        // read boundary into the next read so it is reassembled, not corrupted.
+        let mut residue: Vec<u8> = Vec::new();
         loop {
             match reader.read(&mut buf).await {
                 Ok(0) => {
@@ -344,7 +425,7 @@ async fn telnet_connect(
                     break;
                 }
                 Ok(n) => {
-                    let (filtered, responses) = process_telnet_bytes(&buf, n);
+                    let (filtered, responses) = process_telnet_bytes(&buf, n, &mut residue);
 
                     // Send negotiation responses back to server
                     if !responses.is_empty() {
@@ -900,4 +981,138 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Feed an entire byte stream in a single call (baseline / "all at once").
+    fn process_whole(stream: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        let mut residue = Vec::new();
+        let (filtered, responses) = process_telnet_bytes(stream, stream.len(), &mut residue);
+        // A well-formed complete stream must leave no residue.
+        assert!(residue.is_empty(), "unexpected leftover residue: {:?}", residue);
+        (filtered, responses)
+    }
+
+    /// Feed the same byte stream one byte per call, threading residue across
+    /// calls exactly like the read loop does. Reassembled output and
+    /// negotiation responses MUST match the all-at-once result.
+    fn process_byte_at_a_time(stream: &[u8]) -> (Vec<u8>, Vec<u8>) {
+        let mut residue = Vec::new();
+        let mut filtered_all = Vec::new();
+        let mut responses_all = Vec::new();
+        for &b in stream {
+            let one = [b];
+            let (f, r) = process_telnet_bytes(&one, 1, &mut residue);
+            filtered_all.extend_from_slice(&f);
+            responses_all.extend_from_slice(&r);
+        }
+        // After the final byte the stream is complete; nothing should be left.
+        assert!(residue.is_empty(), "residue not flushed: {:?}", residue);
+        (filtered_all, responses_all)
+    }
+
+    fn assert_straddle_equivalent(stream: &[u8]) {
+        let whole = process_whole(stream);
+        let drip = process_byte_at_a_time(stream);
+        assert_eq!(
+            whole, drip,
+            "byte-at-a-time parse diverged from all-at-once for stream {:?}",
+            stream
+        );
+    }
+
+    #[test]
+    fn iac_do_straddles_boundary() {
+        // IAC DO <opt=99> -> we reject unsupported DO with IAC WONT <opt>.
+        let stream = [IAC, DO, 99u8];
+        let (filtered, responses) = process_whole(&stream);
+        assert!(filtered.is_empty());
+        assert_eq!(responses, vec![IAC, WONT, 99u8]);
+        assert_straddle_equivalent(&stream);
+    }
+
+    #[test]
+    fn iac_will_negotiation_straddles() {
+        // IAC WILL ECHO -> IAC DO ECHO ; IAC WILL <unsupported> -> IAC DONT.
+        let stream = [IAC, WILL, OPT_ECHO, IAC, WILL, 77u8];
+        let (filtered, responses) = process_whole(&stream);
+        assert!(filtered.is_empty());
+        assert_eq!(responses, vec![IAC, DO, OPT_ECHO, IAC, DONT, 77u8]);
+        assert_straddle_equivalent(&stream);
+    }
+
+    #[test]
+    fn subnegotiation_block_straddles() {
+        // Data, then IAC SB <opt> <payload...> IAC SE, then more data.
+        // Payload deliberately contains a lone 0xF0 (SE) that is NOT preceded
+        // by IAC, to ensure only IAC SE terminates the block.
+        let stream = [
+            b'A', b'B',
+            IAC, SB, 24u8, b'x', SE, b'y', IAC, SE,
+            b'C', b'D',
+        ];
+        let (filtered, responses) = process_whole(&stream);
+        assert_eq!(filtered, vec![b'A', b'B', b'C', b'D']);
+        assert!(responses.is_empty());
+        assert_straddle_equivalent(&stream);
+    }
+
+    #[test]
+    fn escaped_iac_iac_is_literal_ff() {
+        // IAC IAC is an escaped literal 0xFF; the second 0xFF must NOT start a
+        // new command. Surround with data and a real command.
+        let stream = [
+            b'h', b'i',
+            IAC, IAC,            // -> single 0xFF in output
+            b'!',
+            IAC, DO, OPT_SGA,    // -> IAC WONT SGA (server DO is rejected)
+        ];
+        let (filtered, responses) = process_whole(&stream);
+        assert_eq!(filtered, vec![b'h', b'i', 0xFF, b'!']);
+        assert_eq!(responses, vec![IAC, WONT, OPT_SGA]);
+        assert_straddle_equivalent(&stream);
+    }
+
+    #[test]
+    fn mixed_stream_byte_at_a_time_matches() {
+        // A realistic mixed stream exercising every branch together, fed one
+        // byte at a time across many calls — the core straddle regression.
+        let stream = [
+            b'l', b'o', b'g', b'i', b'n', b':', b' ',
+            IAC, WILL, OPT_ECHO,           // -> IAC DO ECHO
+            IAC, DO, OPT_SGA,              // -> IAC WONT SGA
+            IAC, IAC,                      // -> literal 0xFF
+            IAC, SB, 1u8, 2u8, 3u8, IAC, SE, // subnegotiation, no output
+            b'd', b'o', b'n', b'e',
+            IAC, DONT, OPT_ECHO,          // ack, no response
+            b'\r', b'\n',
+        ];
+        assert_straddle_equivalent(&stream);
+
+        // Spot-check the concrete expectation as well.
+        let (filtered, responses) = process_whole(&stream);
+        assert_eq!(filtered, b"login: \xffdone\r\n");
+        assert_eq!(responses, vec![IAC, DO, OPT_ECHO, IAC, WONT, OPT_SGA]);
+    }
+
+    #[test]
+    fn bare_trailing_iac_carries_over() {
+        // A read ending on a lone IAC must stash it, not emit it literally.
+        let mut residue = Vec::new();
+        let first = [b'x', IAC];
+        let (filtered, responses) = process_telnet_bytes(&first, first.len(), &mut residue);
+        assert_eq!(filtered, vec![b'x']);
+        assert!(responses.is_empty());
+        assert_eq!(residue, vec![IAC]); // carried over, NOT pushed as 0xFF
+
+        // Next read completes it as IAC NOP (no option, no output, no response).
+        let second = [241u8 /* NOP */, b'y'];
+        let (filtered, responses) = process_telnet_bytes(&second, second.len(), &mut residue);
+        assert_eq!(filtered, vec![b'y']);
+        assert!(responses.is_empty());
+        assert!(residue.is_empty());
+    }
 }

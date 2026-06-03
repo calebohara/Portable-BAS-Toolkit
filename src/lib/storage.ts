@@ -147,6 +147,27 @@ export async function deleteFromStorage(storagePath: string): Promise<void> {
 }
 
 /**
+ * Best-effort batch delete of multiple storage paths in a single round-trip.
+ * Empty/falsy paths are filtered out. Returns the number of paths attempted.
+ * Throws only if the underlying Storage API errors — callers that want a
+ * best-effort cleanup (e.g. project deletion) should catch and swallow.
+ */
+export async function deleteManyFromStorage(paths: string[]): Promise<number> {
+  const cleaned = paths.filter((p): p is string => typeof p === 'string' && p.length > 0);
+  if (cleaned.length === 0) return 0;
+
+  const client = getSupabaseClient();
+  if (!client) throw new Error('Supabase is not configured');
+
+  const { error } = await client.storage
+    .from(PROJECT_FILES_BUCKET)
+    .remove(cleaned);
+
+  if (error) throw new Error(error.message);
+  return cleaned.length;
+}
+
+/**
  * Format file size for display.
  */
 export function formatBytes(bytes: number): string {
