@@ -105,7 +105,12 @@
       "Bash(grep -E \"^\\(create table|CREATE TABLE\\).*\\\\\\\\s+\\(devices|notes|ip_plan|dxrs|daily_reports\\)\\\\\\\\s*\\\\\\\\\\(\" supabase/schema.sql supabase/global-projects-schema.sql)",
       "Bash(curl -sI -L --max-time 15 https://www.rsssafety.com)",
       "Bash(curl -s -D - -o /dev/null -L --max-time 20 -A \"Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120 Safari/537.36\" https://www.rsssafety.com)",
-      "Bash(curl -s -D - -o /dev/null --max-time 25 -A \"Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120 Safari/537.36\" \"https://forms.office.com/Pages/ResponsePage.aspx?id=zTuuOHmV1E-t2rQuFJXVWrqlf-kYGPpGmQwEjPzuQMxUOVkxNzZYSVpPTjlTMElQWVZKNUxVWU8xMS4u&embed=true\")"
+      "Bash(curl -s -D - -o /dev/null --max-time 25 -A \"Mozilla/5.0 \\(Macintosh; Intel Mac OS X 10_15_7\\) AppleWebKit/537.36 \\(KHTML, like Gecko\\) Chrome/120 Safari/537.36\" \"https://forms.office.com/Pages/ResponsePage.aspx?id=zTuuOHmV1E-t2rQuFJXVWrqlf-kYGPpGmQwEjPzuQMxUOVkxNzZYSVpPTjlTMElQWVZKNUxVWU8xMS4u&embed=true\")",
+      "Bash(sed -n '36,40p' src/store/app-store.ts)",
+      "Bash(sed -n '94,97p' src/store/app-store.ts)",
+      "Bash(sed -i '' 's/\"version\": \"4.10.2\"/\"version\": \"4.11.0\"/' package.json src-tauri/tauri.conf.json)",
+      "Bash(sed -i '' 's/^version = \"4.10.2\"/version = \"4.11.0\"/' src-tauri/Cargo.toml)",
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.10.2\"/name = \"bau-suite\"\\\\nversion = \"4.11.0\"/' src-tauri/Cargo.lock)"
     ]
   }
 }

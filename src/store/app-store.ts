@@ -33,6 +33,11 @@ interface AppState {
   // Conflicts
   syncConflictCount: number;
   setSyncConflictCount: (count: number) => void;
+  // Consistency check
+  lastConsistencyCheckAt: string | null;
+  setLastConsistencyCheckAt: (ts: string | null) => void;
+  consistencyBehindCount: number;
+  setConsistencyBehindCount: (n: number) => void;
   // Onboarding
   hasCompletedTour: boolean;
   tourActive: boolean;
@@ -85,6 +90,11 @@ export const useAppStore = create<AppState>()(
       // Conflicts
       syncConflictCount: 0,
       setSyncConflictCount: (count) => set({ syncConflictCount: count }),
+      // Consistency check
+      lastConsistencyCheckAt: null,
+      setLastConsistencyCheckAt: (ts) => set({ lastConsistencyCheckAt: ts }),
+      consistencyBehindCount: 0,
+      setConsistencyBehindCount: (n) => set({ consistencyBehindCount: n }),
       // Onboarding
       hasCompletedTour: false,
       tourActive: false,
@@ -123,6 +133,8 @@ export const useAppStore = create<AppState>()(
         hasCompletedTour: state.hasCompletedTour,
         lastSyncedAt: state.lastSyncedAt,
         lastPulledAt: state.lastPulledAt,
+        lastConsistencyCheckAt: state.lastConsistencyCheckAt,
+        consistencyBehindCount: state.consistencyBehindCount,
         pwslRemindOnLoad: state.pwslRemindOnLoad,
       }),
     }

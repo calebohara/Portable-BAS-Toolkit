@@ -5,7 +5,7 @@ import {
   Palette, HardDrive, Info, Trash2, Download, PlayCircle,
   Cloud, Upload, AlertTriangle, Monitor, KeyRound, Mail, Database,
   RefreshCw, Camera, Loader2, LogOut, Crown, ExternalLink,
-  User, Settings2, Shield,
+  User, Settings2, Shield, DatabaseZap,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
@@ -13,6 +13,7 @@ import { ThemeSwitcher } from '@/components/theme/theme-switcher';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { BackupDialog } from '@/components/settings/backup-dialog';
 import { RestoreDialog } from '@/components/settings/restore-dialog';
+import { ConsistencyCheckDialog } from '@/components/settings/consistency-check-dialog';
 import { DataCleanupDialog } from '@/components/settings/data-cleanup-dialog';
 import { ChangePasswordDialog } from '@/components/settings/change-password-dialog';
 import { ChangeEmailDialog } from '@/components/settings/change-email-dialog';
@@ -56,10 +57,13 @@ export default function SettingsPage() {
   const pendingSyncCount = useAppStore((s) => s.pendingSyncCount);
   const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
   const lastPulledAt = useAppStore((s) => s.lastPulledAt);
+  const lastConsistencyCheckAt = useAppStore((s) => s.lastConsistencyCheckAt);
+  const consistencyBehindCount = useAppStore((s) => s.consistencyBehindCount);
   const [storage, setStorage] = useState({ used: 0, quota: 0 });
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [showBackupDialog, setShowBackupDialog] = useState(false);
   const [showRestoreDialog, setShowRestoreDialog] = useState(false);
+  const [showConsistencyDialog, setShowConsistencyDialog] = useState(false);
   const [showCleanupDialog, setShowCleanupDialog] = useState(false);
   const [showPasswordDialog, setShowPasswordDialog] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
@@ -557,6 +561,40 @@ export default function SettingsPage() {
                         </Button>
                       </div>
                     </ActionCard>
+
+                    {/* Database Consistency */}
+                    <ActionCard
+                      icon={DatabaseZap}
+                      iconColor="text-primary"
+                      iconBg="bg-primary/10"
+                      title="Database Consistency"
+                      description={lastConsistencyCheckAt
+                        ? `Last checked ${new Date(lastConsistencyCheckAt).toLocaleString()}`
+                        : 'Verify your local data matches the cloud.'}
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        {consistencyBehindCount > 0 ? (
+                          <span className="inline-flex items-center gap-1.5 rounded-full bg-field-warning/10 border border-field-warning/20 px-2 py-0.5 text-xs text-field-warning">
+                            <AlertTriangle className="h-3 w-3" />
+                            {consistencyBehindCount} out of date
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <div className="h-2 w-2 rounded-full bg-field-success" />
+                            <span className="text-xs text-muted-foreground">Up to date</span>
+                          </div>
+                        )}
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1.5 shrink-0"
+                          disabled={syncStatus === 'offline'}
+                          onClick={() => setShowConsistencyDialog(true)}
+                        >
+                          <DatabaseZap className="h-3.5 w-3.5" /> Check now
+                        </Button>
+                      </div>
+                    </ActionCard>
                   </div>
                 )}
               </TabsContent>
@@ -837,6 +875,11 @@ export default function SettingsPage() {
         onOpenChange={setShowRestoreDialog}
         lastPulledAt={lastPulledAt}
         triggerPullSync={triggerPullSync}
+      />
+
+      <ConsistencyCheckDialog
+        open={showConsistencyDialog}
+        onOpenChange={setShowConsistencyDialog}
       />
 
       <DataCleanupDialog

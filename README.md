@@ -6,7 +6,7 @@
 
 *Manage projects, run diagnostics, document fieldwork, and collaborate — online or offline.*
 
-[![Version](https://img.shields.io/badge/Version-4.10.2-00BCD4?style=flat-square)](#versioning)
+[![Version](https://img.shields.io/badge/Version-4.11.0-00BCD4?style=flat-square)](#versioning)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?style=flat-square&logo=next.js)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com)
@@ -18,6 +18,10 @@
 ---
 
 ## What's New
+
+### v4.11.0
+
+- **Database Consistency Check** — A read-only check that compares this device's local data against the cloud, per data type (projects, files, field notes, devices, IP plan, daily reports, DXRs, and 10 more). It runs automatically once after login on already-synced devices — so when you've edited on one device and open the app on another with stale local data, a toast warns "Your local data is behind the cloud" with a one-tap **Update**. A new **Database Consistency** card in **Settings → Cloud & Sync** runs it on demand and opens a results dialog showing exactly what's out of date (local vs cloud counts) with an **Update from cloud** action. The check is strictly read-only and conservative — pending local edits are never mis-flagged as "behind," and a single table failing degrades gracefully rather than failing the whole check. Only the user-initiated update pulls cloud→local (respecting remote deletes), reusing the existing sync engine.
 
 ### v4.10.2
 
@@ -181,6 +185,7 @@
 - **Offline-first** — all data in IndexedDB, works without Wi-Fi
 - **Background cloud sync** — automatic push/pull to Supabase with real-time status indicator
 - **Conflict resolution** — detects local/remote edit divergence with UI to choose which version to keep
+- **Consistency check** — read-only local-vs-cloud comparison per data type; auto-runs on login and on demand from Cloud & Sync, with a one-tap pull to update a stale device
 - **Online presence** — real-time indicator of active users in the sidebar
 - **Account approval** — admin gate for new user registrations
 
@@ -300,7 +305,7 @@ Supabase-powered authentication is **optional**. Without it, the app runs fully 
 
 ## Versioning
 
-**Current: v4.10.2** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
+**Current: v4.11.0** — synchronized across `package.json`, `tauri.conf.json`, `Cargo.toml`, and the app UI.
 
 Follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`).
 

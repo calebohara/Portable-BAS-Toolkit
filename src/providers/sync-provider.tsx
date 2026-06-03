@@ -8,12 +8,16 @@ import { SyncManager } from '@/lib/sync/sync-manager';
 import { registerSyncManager, unregisterSyncManager, emitPullComplete } from '@/lib/sync/sync-bridge';
 import { hasSyncAccess, isInGracePeriod } from '@/lib/paywall';
 import { GLOBAL_MEMBERSHIP_CHANGED_EVENT } from '@/hooks/use-global-projects';
+import { runConsistencyCheck, type ConsistencyReport } from '@/lib/sync/consistency-check';
+import { toast } from 'sonner';
 
 interface SyncContextValue {
   triggerFullSync: () => Promise<{ enqueued: number; errors: string[] } | null>;
   triggerPullSync: () => Promise<{ pulled: number; deleted: number; errors: string[] } | null>;
   getConflicts: () => Promise<import('@/types').SyncConflict[]>;
   resolveConflict: (id: string, resolution: 'local' | 'remote' | 'delete') => Promise<void>;
+  checkConsistency: () => Promise<ConsistencyReport>;
+  triggerFullPull: () => Promise<{ pulled: number; deleted: number; errors: string[] } | null>;
 }
 
 const SyncContext = createContext<SyncContextValue>({
@@ -21,6 +25,8 @@ const SyncContext = createContext<SyncContextValue>({
   triggerPullSync: async () => null,
   getConflicts: async () => [],
   resolveConflict: async () => {},
+  checkConsistency: () => runConsistencyCheck(),
+  triggerFullPull: async () => null,
 });
 
 export function useSyncContext() {
@@ -31,6 +37,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   const { mode, user, profile: authProfile } = useAuth();
   const managerRef = useRef<SyncManager | null>(null);
   const autoPullFiredRef = useRef(false);
+  const autoConsistencyFiredRef = useRef(false);
   const realtimeCleanupRef = useRef<(() => void) | null>(null);
   const setSyncStatus = useAppStore((s) => s.setSyncStatus);
   const setPendingSyncCount = useAppStore((s) => s.setPendingSyncCount);
@@ -40,6 +47,26 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
   // Stabilise identity: only re-run when the user ID actually changes
   const userId = user?.id ?? null;
+
+  const checkConsistency = useCallback(async () => {
+    const report = await runConsistencyCheck();
+    useAppStore.getState().setLastConsistencyCheckAt(report.checkedAt);
+    useAppStore.getState().setConsistencyBehindCount(report.behindEntities);
+    return report;
+  }, []);
+
+  const triggerFullPull = useCallback(async () => {
+    if (!managerRef.current) return null;
+    // Full pull = non-incremental pull that RESPECTS remote soft-deletes
+    // (unlike restoreFromCloud, which undeletes). Used to bring a device that
+    // is behind the cloud back up to date.
+    const result = await managerRef.current.pullSync(null);
+    if (result.errors.length === 0) {
+      useAppStore.getState().setLastPulledAt(result.newPulledAt);
+    }
+    emitPullComplete();
+    return { pulled: result.pulled, deleted: result.deleted, errors: result.errors };
+  }, []);
 
   useEffect(() => {
     if (mode !== 'authenticated' || !userId) {
@@ -52,6 +79,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
         managerRef.current = null;
       }
       autoPullFiredRef.current = false;
+      autoConsistencyFiredRef.current = false;
       setSyncStatus('disabled');
       setPendingSyncCount(0);
       return;
@@ -154,6 +182,43 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }).catch((err) => {
         console.error('[sync] Auto-pull failed:', err);
       });
+    } else if (storedLastPulledAt && !autoConsistencyFiredRef.current) {
+      // Existing device (already hydrated): run a one-shot, read-only
+      // consistency check against the cloud. New devices are skipped because
+      // the first-login auto-pull above already brings them fully up to date.
+      autoConsistencyFiredRef.current = true;
+      checkConsistency().then((report) => {
+        if (report.behindEntities > 0) {
+          toast.warning('Your local data is behind the cloud', {
+            description: `${report.behindEntities} item type(s) are out of date on this device.`,
+            duration: 12000,
+            action: {
+              label: 'Update',
+              onClick: () => {
+                triggerFullPull().then((result) => {
+                  if (!result) return;
+                  if (result.errors.length > 0) {
+                    toast.error('Update failed', {
+                      description: 'Some items could not be pulled from the cloud.',
+                    });
+                  } else {
+                    toast.success('Local data updated from cloud', {
+                      description: `${result.pulled} item(s) pulled, ${result.deleted} removed.`,
+                    });
+                  }
+                }).catch((err) => {
+                  console.warn('[sync] Consistency update pull failed:', err);
+                  toast.error('Update failed', {
+                    description: 'Could not pull from the cloud. Please try again.',
+                  });
+                });
+              },
+            },
+          });
+        }
+      }).catch((err) => {
+        console.warn('[sync] Auto consistency check failed:', err);
+      });
     }
 
     return () => {
@@ -168,7 +233,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       unregisterSyncManager();
       managerRef.current = null;
     };
-  }, [mode, userId, authProfile?.subscriptionTier, authProfile?.subscriptionExpiresAt, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt, setSyncConflictCount]);
+  }, [mode, userId, authProfile?.subscriptionTier, authProfile?.subscriptionExpiresAt, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt, setSyncConflictCount, checkConsistency, triggerFullPull]);
 
   const triggerFullSync = useCallback(async () => {
     if (managerRef.current) {
@@ -206,7 +271,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <SyncContext.Provider value={{ triggerFullSync, triggerPullSync, getConflicts, resolveConflict }}>
+    <SyncContext.Provider value={{ triggerFullSync, triggerPullSync, getConflicts, resolveConflict, checkConsistency, triggerFullPull }}>
       {children}
     </SyncContext.Provider>
   );
