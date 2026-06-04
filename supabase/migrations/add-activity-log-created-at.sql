@@ -5,3 +5,10 @@
 
 alter table activity_log
   add column if not exists created_at timestamptz not null default now();
+
+-- Record this migration in the ledger (see docs/MIGRATIONS.md). No-op if the
+-- ledger table doesn't exist yet — apply add-schema-migrations-ledger.sql first.
+insert into schema_migrations (id) values ('add-activity-log-created-at.sql')
+  on conflict (id) do nothing;
+
+notify pgrst, 'reload schema';
