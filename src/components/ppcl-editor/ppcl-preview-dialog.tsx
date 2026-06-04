@@ -1,12 +1,13 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { Download, ExternalLink, FileCode } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Check, Copy, Download, ExternalLink, FileCode } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogBody, DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { sanitizeFilename } from '@/lib/utils';
+import { copyToClipboard, sanitizeFilename } from '@/lib/utils';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { toast } from 'sonner';
 import type { PpclDocument } from '@/types';
@@ -32,12 +33,16 @@ interface Props {
 }
 
 function ensurePclExtension(name: string): string {
-  return name.toLowerCase().endsWith('.pcl') ? name : `${name}.pcl`;
+  // Strip a trailing `.txt` (belt-and-suspenders) before ensuring `.pcl`.
+  const base = name.replace(/\.txt$/i, '');
+  return base.toLowerCase().endsWith('.pcl') ? base : `${base}.pcl`;
 }
 
 function downloadPpcl(doc: PpclDocument) {
   try {
-    const blob = new Blob([doc.content], { type: 'text/plain;charset=utf-8' });
+    // application/octet-stream makes the browser honor the `download` filename
+    // verbatim (text/plain would append `.txt` since `.pcl` isn't registered).
+    const blob = new Blob([doc.content], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = window.document.createElement('a');
     a.href = url;
@@ -58,6 +63,25 @@ export function PpclPreviewDialog({ open, onOpenChange, document: doc, onOpenInE
   const byteSize = doc ? new Blob([doc.content]).size : 0;
   const isEmpty = doc ? doc.content.trim().length === 0 : true;
   const charLimit = doc?.firmware === 'ptec' ? 80 : 198;
+
+  const [copied, setCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
+
+  const handleCopy = async (d: PpclDocument) => {
+    try {
+      await copyToClipboard(d.content);
+      toast.success('Copied to clipboard');
+      setCopied(true);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error('Copy failed');
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -103,6 +127,15 @@ export function PpclPreviewDialog({ open, onOpenChange, document: doc, onOpenInE
             <DialogFooter>
               <Button variant="ghost" onClick={() => onOpenChange(false)}>
                 Close
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleCopy(doc)}
+                className="gap-1.5"
+                aria-label={`Copy ${doc.name} to clipboard`}
+              >
+                {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {copied ? 'Copied' : 'Copy'}
               </Button>
               <Button
                 variant="outline"

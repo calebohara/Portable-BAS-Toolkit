@@ -217,7 +217,9 @@ function PpclEditorPageInner() {
   const handleExportDocument = useCallback(() => {
     if (!activeDoc) return;
     const name = activeDoc.name.endsWith('.pcl') ? activeDoc.name : activeDoc.name + '.pcl';
-    const blob = new Blob([localContent], { type: 'text/plain;charset=utf-8' });
+    // application/octet-stream makes the browser honor the `download` filename
+    // verbatim (text/plain would append `.txt` since `.pcl` isn't registered).
+    const blob = new Blob([localContent], { type: 'application/octet-stream' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
