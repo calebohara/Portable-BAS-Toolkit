@@ -6,9 +6,15 @@
 alter table activity_log
   add column if not exists created_at timestamptz not null default now();
 
--- Record this migration in the ledger (see docs/MIGRATIONS.md). No-op if the
--- ledger table doesn't exist yet — apply add-schema-migrations-ledger.sql first.
-insert into schema_migrations (id) values ('add-activity-log-created-at.sql')
-  on conflict (id) do nothing;
+-- Record this migration in the ledger (see docs/MIGRATIONS.md). Guarded so it's
+-- a true no-op if the ledger table doesn't exist yet — apply order doesn't matter;
+-- the backfill will pick this up later if the ledger is created afterward.
+do $$
+begin
+  if to_regclass('public.schema_migrations') is not null then
+    insert into schema_migrations (id) values ('add-activity-log-created-at.sql')
+      on conflict (id) do nothing;
+  end if;
+end $$;
 
 notify pgrst, 'reload schema';

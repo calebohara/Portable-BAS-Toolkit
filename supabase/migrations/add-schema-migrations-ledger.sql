@@ -37,6 +37,13 @@ insert into schema_migrations (id) values ('add-schema-migrations-ledger.sql')
 notify pgrst, 'reload schema';
 
 -- ─── TEMPLATE for every future migration (paste at the END of the file) ──────
--- insert into schema_migrations (id) values ('<this-filename>.sql')
---   on conflict (id) do nothing;
+-- Guarded so the migration still applies cleanly even if the ledger table does
+-- not exist yet (apply order is then irrelevant; the backfill catches it later).
+-- do $$
+-- begin
+--   if to_regclass('public.schema_migrations') is not null then
+--     insert into schema_migrations (id) values ('<this-filename>.sql')
+--       on conflict (id) do nothing;
+--   end if;
+-- end $$;
 -- notify pgrst, 'reload schema';

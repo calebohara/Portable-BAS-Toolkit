@@ -130,10 +130,15 @@ $$;
 -- pass can layer the WHERE-guard on top once a dedicated update RPC exists.
 -- ──────────────────────────────────────────────────────────────────────────────
 
--- Record this migration in the ledger (see docs/MIGRATIONS.md). No-op if the
--- ledger table doesn't exist yet — apply add-schema-migrations-ledger.sql first.
-insert into schema_migrations (id) values ('add-sync-version-auto-increment.sql')
-  on conflict (id) do nothing;
+-- Record this migration in the ledger (see docs/MIGRATIONS.md). Guarded so it's
+-- a true no-op if the ledger table doesn't exist yet — apply order doesn't matter.
+do $$
+begin
+  if to_regclass('public.schema_migrations') is not null then
+    insert into schema_migrations (id) values ('add-sync-version-auto-increment.sql')
+      on conflict (id) do nothing;
+  end if;
+end $$;
 
 -- Reload PostgREST schema cache so the new function/trigger are picked up.
 notify pgrst, 'reload schema';

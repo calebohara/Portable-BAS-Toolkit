@@ -147,10 +147,17 @@ Supabase CLI, no `db push`, no timestamped filenames. Applied migrations are
 recorded in the `schema_migrations` ledger table. **Whenever you add a new
 migration under `supabase/migrations/`, you MUST also:**
 
-1. **End the migration file** with the self-recording footer:
+1. **End the migration file** with the self-recording footer (guarded with
+   `to_regclass` so it's a no-op — not a `42P01` error — if the ledger doesn't
+   exist yet, keeping apply-order irrelevant):
    ```sql
-   insert into schema_migrations (id) values ('<this-filename>.sql')
-     on conflict (id) do nothing;
+   do $$
+   begin
+     if to_regclass('public.schema_migrations') is not null then
+       insert into schema_migrations (id) values ('<this-filename>.sql')
+         on conflict (id) do nothing;
+     end if;
+   end $$;
    notify pgrst, 'reload schema';
    ```
 2. **Add a probe block** for it to `supabase/check-migrations.sql` (one
