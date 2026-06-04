@@ -1,552 +1,374 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import {
-  HelpCircle, PlayCircle, FolderKanban, Upload, Search, Pin,
-  Database, Network, StickyNote, FileText, Download, Settings,
-  ChevronDown, ChevronRight, WifiOff, Palette, Share2,
-  Monitor, Smartphone, Shield, Activity, BookmarkPlus,
-  Users2, BookOpen, Cloud, Calculator, RefreshCw, Gauge,
-  ClipboardList, TerminalSquare, Globe, FileCode, Thermometer,
+  PlayCircle, Search, ChevronDown, X, SearchX,
+  type LucideIcon,
 } from 'lucide-react';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { useAppStore } from '@/store/app-store';
 import { APP_VERSION } from '@/lib/version';
+import { cn } from '@/lib/utils';
+import {
+  helpCategories,
+  gettingStartedSteps,
+  featureGuides,
+  faqItems,
+  troubleshootingItems,
+  shortcutGroups,
+  type CategoryId,
+  type FeatureGuide,
+  type QaItem,
+} from './help-content';
 
-// ─── Getting Started ───────────────────────────────────────────────────────────
+// ─── Search helpers ──────────────────────────────────────────────────────────────
 
-const gettingStartedSteps = [
-  {
-    icon: FolderKanban,
-    title: 'Create a Project',
-    description: 'Go to Projects and click "New Project". Enter the project name, number (44OP-XXXXXX format), customer, and site address. Add contacts, tags, and notes as needed.',
-  },
-  {
-    icon: Upload,
-    title: 'Upload Documents',
-    description: 'Use the Upload button in the top bar from anywhere in the app. Choose a destination project or leave it in the Uploads Inbox for later. Supports any file type up to 100MB.',
-  },
-  {
-    icon: Network,
-    title: 'Build Your IP Plan',
-    description: 'Open a project and go to the IP Plan tab. Add each controller with IP address, hostname, VLAN, subnet, and device role. Duplicate IPs are automatically flagged.',
-  },
-  {
-    icon: Database,
-    title: 'Track Your Devices',
-    description: 'Use the Devices tab to log every BAS controller, sensor, and actuator. Record BACnet instance numbers, MAC addresses, floor/area locations, and status.',
-  },
-  {
-    icon: StickyNote,
-    title: 'Record Field Notes',
-    description: 'Use the Notes tab to document issues, fixes, punch items, startup observations, and network changes. Notes are categorized and searchable.',
-  },
-  {
-    icon: Pin,
-    title: 'Go Offline',
-    description: 'Pin projects for offline access before heading to the job site. All data is stored locally in your browser — no Wi-Fi needed.',
-  },
-];
+function normalize(s: string) {
+  return s.toLowerCase();
+}
 
-// ─── Feature Guides ────────────────────────────────────────────────────────────
+function guideMatches(guide: FeatureGuide, q: string) {
+  if (!q) return true;
+  const hay = normalize(
+    guide.title + ' ' + guide.summary + ' ' + guide.items.join(' '),
+  );
+  return hay.includes(q);
+}
 
-const featureGuides = [
-  {
-    icon: FolderKanban,
-    title: 'Project Management',
-    items: [
-      'Create, edit, and delete projects with cascading cleanup of all related data',
-      'Track project status: Active, On Hold, Completed, Archived',
-      'Add site contacts with role, company, phone, and email',
-      'Use tags to categorize and quickly filter projects',
-      'Edit panel roster and network summary inline on the Overview tab',
-    ],
-  },
-  {
-    icon: ClipboardList,
-    title: 'Daily Reports',
-    items: [
-      'Record structured daily field reports tied to a project',
-      'Track work completed, issues encountered, coordination notes, and equipment status',
-      'Export via Teams (markdown), Outlook (email), PDF, or as a share package',
-      'Reports are stored per project and provide a chronological field history',
-    ],
-  },
-  {
-    icon: Upload,
-    title: 'Document Upload & Management',
-    items: [
-      'Quick Upload button in the top bar works from any page',
-      'Drag-and-drop or click to browse — supports all file types up to 100MB',
-      'Assign to a project or send to the Uploads Inbox for later',
-      'Categories: Panel DBs, Wiring, Sequences, Backups, General Docs, Other',
-      'Preview PDFs, images, and text files directly in the app',
-      'Pin and favorite documents for quick access',
-    ],
-  },
-  {
-    icon: Network,
-    title: 'IP Plan Management',
-    items: [
-      'Full IP addressing table with IPv4 validation',
-      'Track VLAN, subnet, hostname, device role, and MAC address',
-      'Automatic duplicate IP detection with visual warnings',
-      'Status tracking: Active, Reserved, Available, Conflict',
-      'Add, edit, and delete entries inline',
-    ],
-  },
-  {
-    icon: Database,
-    title: 'Device Inventory',
-    items: [
-      'Track controllers, sensors, actuators, and other BAS devices',
-      'Record controller type (e.g., PXC36.1-E.D), BACnet instance, IP, MAC',
-      'System assignment (HVAC, Lighting, Fire, etc.)',
-      'Floor and area location for physical mapping',
-      'Status tracking: Online, Offline, Issue, Not Commissioned',
-    ],
-  },
-  {
-    icon: Search,
-    title: 'Global Search',
-    items: [
-      'Search across all projects, files, devices, IP entries, and notes',
-      'Results grouped by type with highlighted matches',
-      'Use Cmd+K (Mac) or Ctrl+K (Windows) as a keyboard shortcut',
-      'Recent searches saved for quick re-access',
-    ],
-  },
-  {
-    icon: Share2,
-    title: 'Share & Export',
-    items: [
-      'Share project data via Teams (markdown), Outlook (email), or PDF (print)',
-      'Export as JSON package for backup or transfer',
-      'Audience presets for field techs, project managers, and custom',
-      'Sensitive data masking for safe external sharing',
-    ],
-  },
-  {
-    icon: Network,
-    title: 'Network Diagram Builder',
-    items: [
-      'Create visual BAS network topology maps per project',
-      'Drag-and-drop nodes: controllers, routers, switches, servers, sensors, actuators, panels, workstations, gateways',
-      'Draw connections between nodes with solid, dashed, or dotted styles',
-      'Edit node properties: label, type, IP address, MAC address, color, and notes',
-      'Label connections (e.g., "BACnet/IP", "Ethernet", "MSTP")',
-      'Pan and zoom the canvas with scroll wheel or toolbar buttons',
-      'Export diagrams as PNG or SVG for documentation',
-      'Save multiple diagrams per project',
-    ],
-  },
-  {
-    icon: TerminalSquare,
-    title: 'Telnet HMI Tool',
-    items: [
-      'Connect to BAS controllers via a browser-based terminal (Telnet/HMI)',
-      'Character mode for accurate HMI interaction with controllers that expect raw input',
-      'Session logging with timestamps — export logs as .txt',
-      'Attach session logs to projects for documentation',
-      'Save frequently used commands as reusable snippets',
-      'Categorize snippets: BACnet, LonWorks, Modbus, Niagara, Siemens, Johnson, Honeywell, and more',
-      'Insert snippets directly into the command line with one click',
-    ],
-  },
-  {
-    icon: Globe,
-    title: 'Web Interface',
-    items: [
-      'Access BAS controller web panels directly without leaving the app',
-      'Save controller endpoints and organize them by project',
-      'Launch panels embedded in the app or open in a new tab',
-      'Handles browser security restrictions (X-Frame-Options) honestly — opens in new tab when embedding is blocked',
-    ],
-  },
-  {
-    icon: Activity,
-    title: 'Ping Tool (Reachability Test)',
-    items: [
-      'Test HTTP/TCP reachability of BAS controllers and network devices',
-      'Three modes: Single Check, Repeated (configurable count and interval), Multi-Target (parallel)',
-      'Browser-based — uses fetch() for honest HTTP reachability testing (not ICMP ping)',
-      'Response time measurement for each check',
-      'Expandable per-target result history with latency statistics',
-      'Save results to a project for documentation',
-      'Export results as .txt file with full statistics',
-    ],
-  },
-  {
-    icon: Calculator,
-    title: 'Register Tool',
-    items: [
-      'Quick Converter: convert values between decimal, hex, binary, and octal instantly',
-      'Register Interpreter: decode 16-bit and 32-bit register values as signed/unsigned int or float',
-      'Byte Order Tool: visualize and swap byte/word order for Modbus and BACnet registers',
-      'Float Decoder: decode IEEE 754 single and double-precision floating point values',
-      'Bitmask Tool: AND, OR, XOR, NOT operations with visual bit-level display',
-      'Scaling Calculator: compute linear scaling between raw counts and engineering units',
-      'Modbus Builder: construct and decode Modbus RTU/TCP frames',
-      'Save calculations to history for later reference',
-    ],
-  },
-  {
-    icon: Gauge,
-    title: 'PID Tuning Tool',
-    items: [
-      'Diagnose PID control loop issues with 11 field-observed symptoms',
-      'Rule-based tuning recommendations with confidence levels and explanations',
-      'Supports all common BAS loop types: SAT, DAT, static pressure, room temp, humidity, VFD, and more',
-      'Gain / Proportional Band live conversion (PB% = 100/Kp)',
-      'Ziegler-Nichols calculator: ultimate gain method and open-loop step response method',
-      'Cohen-Coon calculator: better suited for high dead-time processes (VAV, chilled water, SAT) — shows θ/τ ratio',
-      'Before vs After comparison with percentage deltas',
-      'Flags non-tuning issues (mechanical sticking, sensor lag) honestly',
-      'Save tuning sessions to projects for documentation',
-      'BAS-specific PID reference guide with typical ranges by loop type',
-      'Export as clipboard text, print/PDF, or JSON',
-    ],
-  },
-  {
-    icon: FileCode,
-    title: 'PPCL Editor',
-    items: [
-      'Code editor for Siemens PPCL (Powers Process Control Language)',
-      'Syntax highlighting for PPCL keywords, operators, and comments',
-      'Multi-tab support for working on multiple files simultaneously',
-      'Cloud sync to save editor content and associate files with projects',
-    ],
-  },
-  {
-    icon: Thermometer,
-    title: 'Psychrometric Calculator',
-    items: [
-      'Calculate all moist air properties from any two known values',
-      'Five input modes: DB + RH, DB + Wet Bulb, DB + Dew Point, DB + Humidity Ratio, DB + Enthalpy',
-      'Outputs: dry bulb, wet bulb, dew point, RH, humidity ratio, enthalpy, specific volume, vapor pressure',
-      'IP and SI unit systems with one-click toggle — values convert automatically',
-      'Altitude correction for accurate high-elevation results',
-      'ASHRAE 55 comfort zone indicator',
-      'AHU Mixed Air Calculator: compute mixed air conditions from OA and RA states at any OA fraction',
-      'Coil Load Calculator: sensible, latent, total load (BTU/hr or kW), and SHR from entering/leaving conditions and airflow',
-      'Save calculation sessions to projects with labels and notes',
-      'Reference guide with ASHRAE equations and BAS field applications',
-    ],
-  },
-  {
-    icon: Users2,
-    title: 'Global Projects (Shared)',
-    items: [
-      'Cloud-hosted projects shared across your team in real time',
-      'Direct messaging between team members within each project',
-      'Real-time presence indicators show who is currently online',
-      'All team members see the same project data with live updates',
-      'Requires Supabase authentication and an approved account',
-    ],
-  },
-  {
-    icon: BookOpen,
-    title: 'Knowledge Base',
-    items: [
-      'Shared article library for technical documentation and guides',
-      'Create articles with rich text, categories, and file attachments',
-      'Search and filter articles by category or keyword',
-      'Reply to articles with threaded comments and discussions',
-      'Upload attachments stored in Supabase cloud storage',
-      'Full-text search powered by PostgreSQL',
-    ],
-  },
-  {
-    icon: Cloud,
-    title: 'Cloud Sync & Offline',
-    items: [
-      'Automatic two-way sync between local IndexedDB and Supabase cloud',
-      'Offline-first — all data works without internet, syncs when reconnected',
-      'Conflict resolution UI when local and cloud data diverge',
-      'Sync status indicator shows pending changes, errors, and conflicts',
-      'File uploads stored in Supabase Storage with project organization',
-      'Realtime subscriptions push live updates to all connected clients',
-    ],
-  },
-  {
-    icon: Shield,
-    title: 'Authentication & Account Management',
-    items: [
-      'Optional Supabase-based sign-in for cloud features',
-      'Account approval gate — new accounts require admin approval before access',
-      'User inbox for system notifications and account status updates',
-      'Online presence tracking shows active users in the sidebar',
-      'Account deletion with full data cleanup',
-      'Works fully offline without an account — cloud features are opt-in',
-    ],
-  },
-];
+function qaMatches(item: QaItem, q: string) {
+  if (!q) return true;
+  return normalize(item.q + ' ' + item.a).includes(q);
+}
 
-// ─── FAQ ────────────────────────────────────────────────────────────────────────
-
-const faqItems = [
-  {
-    q: 'Where is my data stored?',
-    a: 'All data is stored locally in your browser using IndexedDB. If you sign in and enable cloud sync, data is also synced to Supabase. Local data always works offline — cloud sync is optional.',
-  },
-  {
-    q: 'Will I lose my data if I clear my browser?',
-    a: 'Yes — clearing browser data or site data will remove all stored projects, files, and notes. Install the app as a PWA for more persistent storage. Export important projects as JSON backups regularly.',
-  },
-  {
-    q: 'How do I install the app?',
-    a: 'On Chrome/Edge: look for the install icon in the address bar. On iOS Safari: tap Share then "Add to Home Screen". On Android: tap the install banner or use the browser menu. Once installed, the app works offline and opens like a native app.',
-  },
-  {
-    q: 'What file types are supported?',
-    a: 'Any file type up to 100MB can be uploaded. Preview is supported for PDFs, images (PNG, JPG, SVG, WebP, GIF), and text files (TXT, CSV, JSON, XML). Other file types can be downloaded.',
-  },
-  {
-    q: 'Can I use this on my phone?',
-    a: 'Yes — BAU Suite is fully responsive and works on phones, tablets, and desktops. Install it as a PWA for the best mobile experience.',
-  },
-  {
-    q: 'What is the project number format?',
-    a: 'The default format is 44OP-XXXXXX (Siemens convention). A warning appears for non-matching formats, but any format is accepted.',
-  },
-  {
-    q: 'How does offline mode work?',
-    a: 'All your data is stored locally in IndexedDB and works without internet. Pin projects from the Offline / Pinned page for priority access. When you reconnect, pending changes sync automatically to the cloud if you\'re signed in.',
-  },
-  {
-    q: 'Can I share data between devices?',
-    a: 'Yes — sign in with your account and enable cloud sync. Your projects, devices, IP plans, and notes sync automatically across all your devices. You can also export project data as JSON from the Share menu.',
-  },
-  {
-    q: 'Do I need to sign in?',
-    a: 'No — signing in is completely optional. The app works fully without an account. Sign in to unlock cloud sync, global projects, knowledge base, and team messaging. If Supabase is not configured, the sign-in option won\'t appear at all.',
-  },
-  {
-    q: 'What happens to my data when I sign in?',
-    a: 'Your local data stays in IndexedDB. When cloud sync is enabled, data syncs bidirectionally with Supabase. If there are conflicts (e.g., same record edited on two devices), the sync conflict resolver lets you choose which version to keep.',
-  },
-  {
-    q: 'What is the account approval process?',
-    a: 'After signing up, your account must be approved by an administrator before you can access cloud features like global projects, knowledge base, and team messaging. You\'ll receive a notification in your inbox when approved.',
-  },
-];
-
-// ─── Troubleshooting ────────────────────────────────────────────────────────────
-
-const troubleshootingItems = [
-  {
-    q: 'Files are not showing after upload',
-    a: 'Try refreshing the page. If the issue persists, check that your browser has sufficient storage space (Settings > Offline Storage). Some browsers limit IndexedDB storage.',
-  },
-  {
-    q: 'The app is running slowly',
-    a: 'Clear the file cache from Settings > Offline Storage > Clear Cache. If you have many large files, consider removing unused ones. Try closing other browser tabs.',
-  },
-  {
-    q: 'PDF preview is not loading',
-    a: 'PDF preview uses an iframe. Some browsers block this for certain PDFs. Try downloading the file instead. Ensure the file is not corrupted by re-uploading.',
-  },
-  {
-    q: 'I accidentally deleted a project',
-    a: 'Project deletion is permanent and includes all related files, notes, devices, and IP entries. There is no undo. For important projects, export as JSON regularly from the Share menu.',
-  },
-  {
-    q: 'The app won\'t install as a PWA',
-    a: 'PWA installation requires HTTPS (or localhost). Make sure you\'re using Chrome, Edge, or Safari. Check that the manifest.json is loading correctly (DevTools > Application > Manifest).',
-  },
-  {
-    q: 'Storage quota exceeded',
-    a: 'Clear cached file blobs from Settings > Clear File Cache. Remove old or unnecessary files from projects. Some browsers allocate more storage for installed PWAs.',
-  },
-];
-
-// ─── Keyboard Shortcuts ─────────────────────────────────────────────────────────
-
-const shortcuts = [
-  { keys: ['Cmd+K', 'Ctrl+K'], action: 'Open global search' },
-  { keys: ['Esc'], action: 'Close dialogs and panels' },
-  { keys: ['Arrow keys'], action: 'Navigate tour steps (during guided tour)' },
-];
-
-// ─── Component ──────────────────────────────────────────────────────────────────
+// ─── Page ─────────────────────────────────────────────────────────────────────────
 
 export default function HelpPage() {
   const startTour = useAppStore((s) => s.startTour);
+  const [rawQuery, setRawQuery] = useState('');
+  const query = normalize(rawQuery.trim());
+  const searching = query.length > 0;
+
+  const filteredGuides = useMemo(
+    () => featureGuides.filter((g) => guideMatches(g, query)),
+    [query],
+  );
+  const filteredFaq = useMemo(
+    () => faqItems.filter((i) => qaMatches(i, query)),
+    [query],
+  );
+  const filteredTrouble = useMemo(
+    () => troubleshootingItems.filter((i) => qaMatches(i, query)),
+    [query],
+  );
+
+  // Getting Started matches if the query hits any step title/description.
+  const gettingStartedVisible = useMemo(() => {
+    if (!searching) return true;
+    return gettingStartedSteps.some((s) =>
+      normalize(s.title + ' ' + s.description).includes(query),
+    );
+  }, [query, searching]);
+
+  const shortcutsVisible = useMemo(() => {
+    if (!searching) return true;
+    return (
+      'keyboard shortcuts'.includes(query) ||
+      shortcutGroups.some((g) =>
+        g.shortcuts.some((s) =>
+          normalize(g.scope + ' ' + s.action + ' ' + s.keys.join(' ')).includes(query),
+        ),
+      )
+    );
+  }, [query, searching]);
+
+  // Which categories have any visible content under the current search?
+  const guidesByCategory = useMemo(() => {
+    const map = new Map<CategoryId, FeatureGuide[]>();
+    for (const g of filteredGuides) {
+      const arr = map.get(g.category) ?? [];
+      arr.push(g);
+      map.set(g.category, arr);
+    }
+    return map;
+  }, [filteredGuides]);
+
+  const visibleCategoryIds = useMemo(() => {
+    const ids = new Set<CategoryId>();
+    if (gettingStartedVisible) ids.add('getting-started');
+    for (const id of guidesByCategory.keys()) ids.add(id);
+    if (filteredFaq.length || filteredTrouble.length || shortcutsVisible) ids.add('faq');
+    return ids;
+  }, [gettingStartedVisible, guidesByCategory, filteredFaq, filteredTrouble, shortcutsVisible]);
+
+  const totalResults =
+    filteredGuides.length +
+    filteredFaq.length +
+    filteredTrouble.length +
+    (gettingStartedVisible ? 1 : 0);
+
+  const noResults = searching && totalResults === 0 && !shortcutsVisible;
+
+  const jumpTo = useCallback((id: CategoryId) => {
+    const el = document.getElementById(`help-cat-${id}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
 
   return (
     <>
       <TopBar title="Help & Guides" />
-      <div className="p-4 md:p-6 space-y-6 max-w-3xl">
-        {/* Header with replay tour */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-semibold">Help Center</h2>
-            <p className="text-sm text-muted-foreground">
-              Guides, tips, and troubleshooting for BAU Suite.
-            </p>
+
+      <div className="mx-auto w-full max-w-7xl p-4 md:p-6 lg:p-8">
+        {/* ── Hero header ───────────────────────────────────────────── */}
+        <header className="rounded-xl border border-border bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-5 sm:p-7">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="space-y-1.5">
+              <h1 className="text-2xl font-semibold tracking-tight">Help Center</h1>
+              <p className="text-sm text-muted-foreground">
+                Guides, tips, and troubleshooting for every BAU Suite tool — searchable and offline-ready.
+              </p>
+            </div>
+            <Button onClick={startTour} className="gap-1.5 self-start shrink-0">
+              <PlayCircle className="h-4 w-4" />
+              Replay Tour
+            </Button>
           </div>
-          <Button onClick={startTour} className="gap-1.5 shrink-0">
-            <PlayCircle className="h-4 w-4" />
-            Replay Tour
-          </Button>
+
+          {/* Search box */}
+          <div className="relative mt-5 max-w-xl">
+            <Search
+              className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden
+            />
+            <label htmlFor="help-search" className="sr-only">
+              Search help articles
+            </label>
+            <Input
+              id="help-search"
+              size="lg"
+              type="search"
+              role="searchbox"
+              value={rawQuery}
+              onChange={(e) => setRawQuery(e.target.value)}
+              placeholder="Search guides, FAQs, and troubleshooting…"
+              className="bg-background pl-9 pr-9"
+            />
+            {rawQuery && (
+              <button
+                type="button"
+                onClick={() => setRawQuery('')}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          {searching && !noResults && (
+            <p className="mt-2 text-xs text-muted-foreground" aria-live="polite">
+              {totalResults} matching {totalResults === 1 ? 'result' : 'results'}
+            </p>
+          )}
+        </header>
+
+        {/* ── Body: nav rail + content ──────────────────────────────── */}
+        <div className="mt-6 lg:grid lg:grid-cols-[15rem_minmax(0,1fr)] lg:gap-8">
+          {/* Category nav — sticky rail on desktop, scroll chips on mobile */}
+          <nav aria-label="Help categories" className="mb-5 lg:mb-0">
+            <div className="lg:sticky lg:top-20">
+              <p className="mb-2 hidden px-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground lg:block">
+                Categories
+              </p>
+              {/* Mobile: horizontal scroll chips */}
+              <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
+                {helpCategories.map((c) => {
+                  const enabled = visibleCategoryIds.has(c.id);
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      disabled={!enabled}
+                      onClick={() => jumpTo(c.id)}
+                      className={cn(
+                        'flex shrink-0 items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs font-medium whitespace-nowrap transition-colors',
+                        enabled
+                          ? 'hover:bg-accent text-foreground'
+                          : 'opacity-40 cursor-not-allowed',
+                      )}
+                    >
+                      <c.icon className="h-3.5 w-3.5" />
+                      {c.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Desktop: vertical rail */}
+              <ul className="hidden space-y-0.5 lg:block">
+                {helpCategories.map((c) => {
+                  const enabled = visibleCategoryIds.has(c.id);
+                  return (
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        disabled={!enabled}
+                        onClick={() => jumpTo(c.id)}
+                        className={cn(
+                          'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition-colors',
+                          enabled
+                            ? 'text-muted-foreground hover:bg-accent hover:text-foreground'
+                            : 'opacity-40 cursor-not-allowed',
+                        )}
+                      >
+                        <c.icon className="h-4 w-4 shrink-0" />
+                        <span className="leading-tight">{c.label}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </nav>
+
+          {/* Content column */}
+          <div className="min-w-0 space-y-10">
+            {noResults && (
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
+                <SearchX className="h-8 w-8 text-muted-foreground" />
+                <p className="mt-3 text-sm font-medium">No results for “{rawQuery}”</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Try a different keyword, or clear the search to browse all topics.
+                </p>
+                <Button variant="outline" size="sm" className="mt-4" onClick={() => setRawQuery('')}>
+                  Clear search
+                </Button>
+              </div>
+            )}
+
+            {/* Getting Started */}
+            {gettingStartedVisible && (
+              <CategorySection id="getting-started" title="Getting Started"
+                blurb="Follow these steps to set up your first project.">
+                <ol className="grid gap-4 sm:grid-cols-2">
+                  {gettingStartedSteps.map(({ icon: Icon, title, description }, i) => (
+                    <li
+                      key={title}
+                      className="flex gap-3 rounded-lg border border-border bg-card p-4"
+                    >
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                        {i + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                          <h3 className="text-sm font-semibold">{title}</h3>
+                        </div>
+                        <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                          {description}
+                        </p>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              </CategorySection>
+            )}
+
+            {/* Feature-guide categories */}
+            {helpCategories
+              .filter((c) => c.id !== 'getting-started' && c.id !== 'faq')
+              .map((cat) => {
+                const guides = guidesByCategory.get(cat.id) ?? [];
+                if (!guides.length) return null;
+                return (
+                  <CategorySection key={cat.id} id={cat.id} title={cat.label} blurb={cat.blurb}>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {guides.map((g) => (
+                        <GuideCard key={g.title} guide={g} defaultOpen={searching} />
+                      ))}
+                    </div>
+                  </CategorySection>
+                );
+              })}
+
+            {/* FAQ / Troubleshooting / Shortcuts */}
+            {(filteredFaq.length > 0 || filteredTrouble.length > 0 || shortcutsVisible) && (
+              <CategorySection
+                id="faq"
+                title="FAQ, Troubleshooting & Shortcuts"
+                blurb="Answers, fixes, and keyboard shortcuts."
+              >
+                <div className="space-y-6">
+                  {filteredFaq.length > 0 && (
+                    <div>
+                      <h3 className="mb-2 text-sm font-semibold">Frequently Asked Questions</h3>
+                      <div className="grid gap-2 lg:grid-cols-2">
+                        {filteredFaq.map((item) => (
+                          <Accordion key={item.q} title={item.q} defaultOpen={searching}>
+                            {item.a}
+                          </Accordion>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {filteredTrouble.length > 0 && (
+                    <div>
+                      <h3 className="mb-2 text-sm font-semibold">Troubleshooting</h3>
+                      <div className="grid gap-2 lg:grid-cols-2">
+                        {filteredTrouble.map((item) => (
+                          <Accordion key={item.q} title={item.q} defaultOpen={searching}>
+                            {item.a}
+                          </Accordion>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {shortcutsVisible && (
+                    <div>
+                      <h3 className="mb-2 text-sm font-semibold">Keyboard Shortcuts</h3>
+                      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                        {shortcutGroups.map((group) => (
+                          <div
+                            key={group.scope}
+                            className="rounded-lg border border-border bg-card p-4"
+                          >
+                            <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                              {group.scope}
+                            </p>
+                            <ul className="space-y-2">
+                              {group.shortcuts.map((s) => (
+                                <li
+                                  key={s.action}
+                                  className="flex items-center justify-between gap-3 text-sm"
+                                >
+                                  <span className="text-muted-foreground">{s.action}</span>
+                                  <span className="flex shrink-0 gap-1">
+                                    {s.keys.map((key) => (
+                                      <kbd
+                                        key={key}
+                                        className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px] text-muted-foreground"
+                                      >
+                                        {key}
+                                      </kbd>
+                                    ))}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CategorySection>
+            )}
+          </div>
         </div>
 
-        {/* Getting Started */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <HelpCircle className="h-4 w-4" /> Getting Started
-            </CardTitle>
-            <CardDescription>Follow these steps to set up your first project.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {gettingStartedSteps.map(({ icon: Icon, title, description }, i) => (
-                <div key={title} className="flex gap-3">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                    {i + 1}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
-                      <h4 className="text-sm font-semibold">{title}</h4>
-                    </div>
-                    <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Feature Guides */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <FileText className="h-4 w-4" /> Feature Guides
-            </CardTitle>
-            <CardDescription>Detailed guides for each major feature.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {featureGuides.map((guide) => (
-              <CollapsibleSection
-                key={guide.title}
-                icon={guide.icon}
-                title={guide.title}
-              >
-                <ul className="space-y-1.5 pl-6">
-                  {guide.items.map((item, i) => (
-                    <li key={i} className="text-xs text-muted-foreground list-disc leading-relaxed">{item}</li>
-                  ))}
-                </ul>
-              </CollapsibleSection>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Keyboard Shortcuts */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Monitor className="h-4 w-4" /> Keyboard Shortcuts
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {shortcuts.map(({ keys, action }) => (
-                <div key={action} className="flex items-center justify-between text-sm">
-                  <span className="text-muted-foreground">{action}</span>
-                  <div className="flex gap-1">
-                    {keys.map((key) => (
-                      <kbd key={key} className="rounded border border-border bg-muted px-2 py-0.5 text-xs font-mono text-muted-foreground">
-                        {key}
-                      </kbd>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* FAQ */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <HelpCircle className="h-4 w-4" /> Frequently Asked Questions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {faqItems.map(({ q, a }) => (
-              <CollapsibleSection key={q} title={q}>
-                <p className="text-xs text-muted-foreground leading-relaxed pl-1">{a}</p>
-              </CollapsibleSection>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Troubleshooting */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Settings className="h-4 w-4" /> Troubleshooting
-            </CardTitle>
-            <CardDescription>Common issues and how to resolve them.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {troubleshootingItems.map(({ q, a }) => (
-              <CollapsibleSection key={q} title={q}>
-                <p className="text-xs text-muted-foreground leading-relaxed pl-1">{a}</p>
-              </CollapsibleSection>
-            ))}
-          </CardContent>
-        </Card>
-
-        {/* Tips */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Shield className="h-4 w-4" /> Tips & Best Practices
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ul className="space-y-2 text-xs text-muted-foreground">
-              <li className="flex gap-2">
-                <Download className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-                <span><strong className="text-foreground">Export regularly.</strong> Use Share/Export to back up important projects as JSON.</span>
-              </li>
-              <li className="flex gap-2">
-                <Pin className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-                <span><strong className="text-foreground">Pin before you go.</strong> Mark projects for offline before heading to the job site.</span>
-              </li>
-              <li className="flex gap-2">
-                <Smartphone className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-                <span><strong className="text-foreground">Install as PWA.</strong> The installed app is faster, works offline, and feels native.</span>
-              </li>
-              <li className="flex gap-2">
-                <Palette className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-                <span><strong className="text-foreground">Use dark mode.</strong> Great for mechanical rooms and low-light environments.</span>
-              </li>
-              <li className="flex gap-2">
-                <WifiOff className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-                <span><strong className="text-foreground">No internet needed.</strong> All data stays local. The app works fully offline after first load.</span>
-              </li>
-              <li className="flex gap-2">
-                <Cloud className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-                <span><strong className="text-foreground">Enable cloud sync.</strong> Sign in to sync your data across devices and collaborate with your team.</span>
-              </li>
-              <li className="flex gap-2">
-                <RefreshCw className="h-3.5 w-3.5 shrink-0 mt-0.5 text-primary" />
-                <span><strong className="text-foreground">Check sync status.</strong> The sync indicator in the sidebar shows pending changes, errors, and conflicts.</span>
-              </li>
-            </ul>
-          </CardContent>
-        </Card>
-
-        {/* Version info */}
-        <p className="text-center text-xs text-muted-foreground/50 pb-4">
+        {/* Version footer */}
+        <p className="mt-12 text-center text-xs text-muted-foreground/50">
           BAU Suite v{APP_VERSION}
         </p>
       </div>
@@ -554,34 +376,115 @@ export default function HelpPage() {
   );
 }
 
-// ─── Collapsible Section ────────────────────────────────────────────────────────
+// ─── Category section wrapper ─────────────────────────────────────────────────────
 
-function CollapsibleSection({
-  icon: Icon,
+function CategorySection({
+  id,
   title,
+  blurb,
   children,
 }: {
-  icon?: typeof HelpCircle;
+  id: CategoryId;
   title: string;
+  blurb: string;
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState(false);
+  return (
+    <section id={`help-cat-${id}`} aria-labelledby={`help-cat-${id}-h`} className="scroll-mt-20">
+      <div className="mb-4">
+        <h2 id={`help-cat-${id}-h`} className="text-lg font-semibold tracking-tight">
+          {title}
+        </h2>
+        <p className="mt-0.5 text-sm text-muted-foreground">{blurb}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+// ─── Feature guide card ───────────────────────────────────────────────────────────
+
+function GuideCard({ guide, defaultOpen }: { guide: FeatureGuide; defaultOpen: boolean }) {
+  const Icon = guide.icon as LucideIcon;
+  const [open, setOpen] = useState(defaultOpen);
+  const detailsId = `guide-${guide.title.replace(/\s+/g, '-').toLowerCase()}`;
 
   return (
-    <div className="rounded-lg border border-border">
+    <div className="flex flex-col rounded-xl border border-border bg-card transition-colors hover:border-primary/40">
       <button
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-medium hover:bg-accent/50 rounded-lg transition-colors"
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={detailsId}
+        className="flex items-start gap-3 p-4 text-left"
       >
-        {Icon && <Icon className="h-4 w-4 text-muted-foreground shrink-0" />}
-        <span className="flex-1">{title}</span>
-        {open ? (
-          <ChevronDown className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        ) : (
-          <ChevronRight className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        )}
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold leading-tight">{guide.title}</span>
+          <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
+            {guide.summary}
+          </span>
+        </span>
+        <ChevronDown
+          className={cn(
+            'mt-0.5 h-4 w-4 shrink-0 text-muted-foreground transition-transform',
+            open && 'rotate-180',
+          )}
+          aria-hidden
+        />
       </button>
-      {open && <div className="px-3 pb-3">{children}</div>}
+      {open && (
+        <ul id={detailsId} className="space-y-1.5 border-t border-border px-4 py-3.5 pl-7">
+          {guide.items.map((item, i) => (
+            <li key={i} className="list-disc text-xs leading-relaxed text-muted-foreground marker:text-primary/50">
+              {item}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ─── Accordion (FAQ / troubleshooting) ────────────────────────────────────────────
+
+function Accordion({
+  title,
+  defaultOpen,
+  children,
+}: {
+  title: string;
+  defaultOpen: boolean;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  const bodyId = `acc-${title.replace(/\s+/g, '-').toLowerCase()}`;
+
+  return (
+    <div className="h-fit rounded-lg border border-border bg-card">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={bodyId}
+        className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-colors hover:bg-accent/50"
+      >
+        <span className="flex-1">{title}</span>
+        <ChevronDown
+          className={cn(
+            'h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform',
+            open && 'rotate-180',
+          )}
+          aria-hidden
+        />
+      </button>
+      {open && (
+        <p id={bodyId} className="px-3 pb-3 text-xs leading-relaxed text-muted-foreground">
+          {children}
+        </p>
+      )}
     </div>
   );
 }
