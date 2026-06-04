@@ -68,3 +68,5 @@ docs/**/*.md
 !docs/ShareAgents-fixes-*.md
 !docs/ShareAgents-plan-*.md
 !docs/MIGRATIONS.md
+!docs/ReviewAgents-findings-*.md
+!docs/PXC7-CONNECTIVITY-FINDINGS.md
