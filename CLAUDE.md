@@ -137,3 +137,33 @@ When fixes are subsequently applied by a different team (typically BASAgents), t
 
 - Agent team definition: `.claude/ReviewAgents.md`
 - Findings doc archive: `docs/ReviewAgents-findings-*.md`
+
+---
+
+## Supabase Migration Tracking Rule
+
+Migrations are applied **manually via the Supabase SQL Editor** — there is no
+Supabase CLI, no `db push`, no timestamped filenames. Applied migrations are
+recorded in the `schema_migrations` ledger table. **Whenever you add a new
+migration under `supabase/migrations/`, you MUST also:**
+
+1. **End the migration file** with the self-recording footer:
+   ```sql
+   insert into schema_migrations (id) values ('<this-filename>.sql')
+     on conflict (id) do nothing;
+   notify pgrst, 'reload schema';
+   ```
+2. **Add a probe block** for it to `supabase/check-migrations.sql` (one
+   `union all select … exists(…)` line with a unique sentinel object).
+3. **Add a backfill line** to `supabase/backfill-schema-migrations.sql`.
+4. **Add a row** to the Migration index table in `docs/MIGRATIONS.md`.
+
+Never silently add a migration without these four updates — the ledger and the
+drift checker are the only defense against "is this applied to prod?" guesswork.
+
+### Reference
+
+- Runbook + migration index: `docs/MIGRATIONS.md`
+- Ledger table: `supabase/migrations/add-schema-migrations-ledger.sql`
+- Drift checker (read-only): `supabase/check-migrations.sql`
+- One-time backfill: `supabase/backfill-schema-migrations.sql`
