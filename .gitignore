@@ -67,3 +67,4 @@ docs/**/*.md
 !docs/SyncAgents-plan-*.md
 !docs/ShareAgents-fixes-*.md
 !docs/ShareAgents-plan-*.md
+!docs/MIGRATIONS.md
