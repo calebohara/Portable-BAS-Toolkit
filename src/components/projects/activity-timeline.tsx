@@ -10,21 +10,24 @@ interface Props {
   activity: ActivityLogEntry[];
 }
 
+// Keyed by the exact `action` strings emitted via `db.addActivity`. Any action
+// not listed here falls back to the FileText icon in the render below, so only
+// actions that warrant a distinct icon need an entry.
 export const actionIcons: Record<string, typeof History> = {
-  'File uploaded': Upload,
   'file_uploaded': Upload,
-  'Note added': StickyNote,
-  'note_added': StickyNote,
-  'Status changed': Settings,
-  'status_changed': Settings,
   'Project created': FolderPlus,
-  'project_created': FolderPlus,
+  'Project imported': FolderPlus,
+  'Project updated': Settings,
+  'Note added': StickyNote,
+  'Note updated': StickyNote,
   'Device added': Settings,
   'Device updated': Settings,
   'IP entry added': Settings,
   'IP entry updated': Settings,
   'Diagram created': Settings,
   'Terminal log attached': Settings,
+  'Daily report created': FileText,
+  'Daily report updated': FileText,
 };
 
 export function ActivityTimeline({ activity }: Props) {

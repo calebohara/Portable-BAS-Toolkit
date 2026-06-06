@@ -1,19 +1,15 @@
 'use client';
 
-import { useState, useMemo, use, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, use, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
   ArrowLeft, LayoutGrid, StickyNote, Server, Network, FileText, FolderOpen,
   History, Users, Plus, Trash2, Edit2, MapPin, Hash, Building2,
   Copy, Check, Clock, User, ChevronDown, ChevronUp, Pencil, FolderKanban,
-  Upload, X, ExternalLink, FileCode, Terminal, GitBranch, Pin, PinOff,
+  FileCode, Terminal, Pin, PinOff,
   Download, CloudOff, Phone, Mail, Eye, Database, ChevronRight, HardDrive, Cpu,
 } from 'lucide-react';
-import {
-  validateFileSize, isImageFile, buildStoragePath, uploadProjectFile,
-  getPublicUrl, formatBytes,
-} from '@/lib/storage';
 import {
   useGlobalProject,
   useGlobalProjectMembers,
@@ -82,7 +78,6 @@ const tabs = [
   { id: 'reports', label: 'Reports', icon: FileText },
   { id: 'ppcl-programs', label: 'PPCL', icon: FileCode },
   { id: 'terminal-logs', label: 'Terminal Logs', icon: Terminal },
-  { id: 'network-diagrams', label: 'Diagrams', icon: GitBranch },
   { id: 'activity', label: 'Activity', icon: History },
   { id: 'members', label: 'Members', icon: Users },
 ] as const;
@@ -427,17 +422,12 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
             />
           )}
 
-          {activeTab === 'network-diagrams' && (
-            <GlobalNetworkDiagramsTab />
-          )}
-
           {activeTab === 'activity' && (
             <ActivityTab activity={activity} getMemberName={getMemberName} />
           )}
 
           {activeTab === 'members' && (
             <MemberManagement
-              projectId={id}
               members={members}
               currentUserId={currentUserId}
               userRole={userRole}
@@ -2876,22 +2866,5 @@ function GlobalTerminalLogsTab({
         })}
       </div>
     </div>
-  );
-}
-
-// ─── Global Network Diagrams Tab (placeholder) ───────────────────────────────
-//
-// The `global_network_diagrams` table exists in the schema, but Step 3 did not
-// land a hook (`useGlobalProjectNetworkDiagrams`) or CRUD API for it. Until the
-// Hooks & API agent fills that gap, this tab shows an "in development" empty
-// state so the menu item is discoverable but doesn't lie about working.
-
-function GlobalNetworkDiagramsTab() {
-  return (
-    <EmptyState
-      icon={GitBranch}
-      title="Network Diagrams"
-      description="Shared network diagrams are coming soon. The schema is in place but the API / hook layer hasn't been wired up yet — file a SyncAgents follow-up if you need this now."
-    />
   );
 }

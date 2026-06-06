@@ -196,9 +196,9 @@ export function getValueRangeWarnings(n: number): string[] {
     warnings.push("Value is not finite");
     return warnings;
   }
-  if (!Number.isInteger(n)) {
-    warnings.push("Value is not an integer -- register values are whole numbers");
-  }
+  // Non-integer values are accepted by QuickConverter (it truncates below), so
+  // they are not flagged here — warning on every float just trains users to
+  // ignore warnings. Integer-typed views enforce wholeness elsewhere.
   const intN = Math.trunc(n);
   if (intN < 0) {
     warnings.push("Negative value -- will be interpreted as two's complement");

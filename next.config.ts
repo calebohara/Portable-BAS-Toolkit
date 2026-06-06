@@ -1,6 +1,12 @@
 import type { NextConfig } from "next";
+import pkg from "./package.json";
 
 const isStaticExport = process.env.TAURI_BUILD === '1';
+
+// Prefer the npm-injected version, but fall back to reading package.json
+// directly so non-npm builds (e.g. `next build` via pnpm/docker) still get the
+// real version instead of labeling everything as '1.0.0'.
+const appVersion = process.env.npm_package_version || pkg.version || '1.0.0';
 
 const nextConfig: NextConfig = {
   // Static export for Tauri desktop builds
@@ -11,7 +17,7 @@ const nextConfig: NextConfig = {
   } : {}),
 
   env: {
-    NEXT_PUBLIC_APP_VERSION: process.env.npm_package_version || '1.0.0',
+    NEXT_PUBLIC_APP_VERSION: appVersion,
   },
 
   // Security headers (only apply in server mode, not static export)

@@ -12,6 +12,7 @@ import { useKbCategories, useKbArticles } from '@/hooks/use-knowledge-base';
 import { useAuth } from '@/providers/auth-provider';
 import { TopBar } from '@/components/layout/top-bar';
 import { EmptyState } from '@/components/shared/empty-state';
+import { formatFileSize } from '@/components/shared/file-icon';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,15 +24,6 @@ import { cn } from '@/lib/utils';
 import type { KbArticle, KbReply } from '@/types/knowledge-base';
 import { isPaywallEnabled, hasCollabAccess } from '@/lib/paywall';
 import { UpgradeRequiredPage } from '@/components/shared/upgrade-required-page';
-
-// ─── Constants ───────────────────────────────────────────────────────────────
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1048576).toFixed(1)} MB`;
-}
 
 // ─── Simple Markdown Renderer ────────────────────────────────────────────────
 

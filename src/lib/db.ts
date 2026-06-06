@@ -433,7 +433,15 @@ function getDB() {
         }
 
         if (oldVersion < 10) {
-          // Project Notepad Entries (legacy — store kept for migration compat)
+          // LEGACY/ORPHANED STORE — `projectNotepadEntries` is no longer read or
+          // written by any repository. It is intentionally still created here (and
+          // NOT removed) because: (1) deleting an object store requires a new DB
+          // version bump and an explicit `db.deleteObjectStore(...)` in that
+          // upgrade block, which would run against every existing install; and
+          // (2) some old installs may still hold rows here, so dropping it risks
+          // silent data loss. It is deliberately absent from `BasToolkitStoreName`
+          // and `clearAllData()`. Leave it untouched unless a dedicated cleanup
+          // migration is planned. See ReviewAgents-findings-2026-05-20 P3-1.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const notepadStore = (db as any).createObjectStore('projectNotepadEntries', { keyPath: 'id' });
           notepadStore.createIndex('by-project', 'projectId');
@@ -447,7 +455,10 @@ function getDB() {
         }
 
         if (oldVersion < 12) {
-          // Notepad Documents (legacy — store kept for migration compat)
+          // LEGACY/ORPHANED STORE — `notepadDocuments` is unused (see the P3-1
+          // note on `projectNotepadEntries` above). Intentionally still created
+          // and intentionally NOT in `BasToolkitStoreName`/`clearAllData()`.
+          // Removing it needs a dedicated version-bumped cleanup migration.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const notepadDocStore = (db as any).createObjectStore('notepadDocuments', { keyPath: 'id' });
           notepadDocStore.createIndex('by-updated', 'updatedAt');
@@ -455,8 +466,11 @@ function getDB() {
         }
 
         if (oldVersion < 14) {
-          // Field Panels (legacy — store kept for migration compat)
-          // v13 and v14 were identical; consolidated into a single guard.
+          // LEGACY/ORPHANED STORE — `fieldPanels` is unused (see the P3-1 note on
+          // `projectNotepadEntries` above). v13 and v14 were identical; the create
+          // is consolidated into a single guard. Intentionally still created and
+          // intentionally NOT in `BasToolkitStoreName`/`clearAllData()`. Removing
+          // it needs a dedicated version-bumped cleanup migration.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           if (!(db as any).objectStoreNames.contains('fieldPanels')) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -743,9 +757,7 @@ export async function cascadeDeleteProject(id: string): Promise<void> {
   }
   const reports = await db.getAllFromIndex('dailyReports', 'by-project', id);
   for (const report of reports) {
-    for (const att of (report.attachments ?? [])) {
-      if (att.blobKey) blobKeys.push(att.blobKey);
-    }
+    blobKeys.push(...collectReportBlobKeys(report));
   }
 
   // ── Step 2: WRITE phase — one transaction, all deletes enqueued synchronously
@@ -1174,6 +1186,35 @@ export const addActivity        = activityRepo.save;
 
 // ─── Daily Reports ──────────────────────────────────────────
 
+/**
+ * Collect the `fileBlobs` keys referenced by a daily report's attachments.
+ * Returning keys (rather than deleting here) keeps callers in control of the
+ * transaction shape: `deleteDailyReport` deletes them one-by-one, while
+ * `cascadeDeleteProject` accumulates them for a single batched write tx.
+ * Shared so the attachment-blob cleanup logic lives in exactly one place.
+ */
+function collectReportBlobKeys(report: DailyReport | undefined | null): string[] {
+  if (!report) return [];
+  const keys: string[] = [];
+  for (const att of (report.attachments ?? [])) {
+    if (att.blobKey) keys.push(att.blobKey);
+  }
+  return keys;
+}
+
+/**
+ * Delete every attachment blob owned by a daily report from `fileBlobs`.
+ * Safe to call outside a shared transaction (each delete is its own request).
+ */
+async function removeReportBlobs(report: DailyReport | undefined | null): Promise<void> {
+  const keys = collectReportBlobKeys(report);
+  if (keys.length === 0) return;
+  const db = await getDB();
+  for (const key of keys) {
+    await db.delete('fileBlobs', key);
+  }
+}
+
 const dailyReportSort = (items: DailyReport[]) =>
   items.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 
@@ -1193,11 +1234,7 @@ export const saveDailyReport = dailyReportRepo.save;
 export async function deleteDailyReport(id: string): Promise<void> {
   const db = await getDB();
   const report = await db.get('dailyReports', id);
-  if (report) {
-    for (const att of (report.attachments ?? [])) {
-      if (att.blobKey) await db.delete('fileBlobs', att.blobKey);
-    }
-  }
+  await removeReportBlobs(report);
   await db.delete('dailyReports', id);
   notifySync('delete', 'dailyReports', id, null);
 }

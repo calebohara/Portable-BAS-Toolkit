@@ -1,6 +1,12 @@
 /**
  * Tauri Bridge — Detects desktop vs browser mode and provides
  * native command wrappers with automatic browser fallback.
+ *
+ * NOTE: invoke() args below are camelCase (sessionId, portName, timeoutMs, …)
+ * to match the Rust command signatures verbatim. The Rust side keeps camelCase
+ * parameter names (with `#[allow(non_snake_case)]`) rather than relying on
+ * Tauri's snake_case↔camelCase arg coercion, so the JS payload keys here MUST
+ * stay camelCase and line up 1:1 with the `#[tauri::command]` fn arguments.
  */
 
 import type { Event } from '@tauri-apps/api/event';

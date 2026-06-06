@@ -7,6 +7,7 @@
  */
 
 import { toast } from 'sonner';
+import { sanitizeForLog } from '@/lib/sync/sync-error-utils';
 
 /**
  * Report an error with context. Logs to console and optionally shows a toast.
@@ -20,8 +21,14 @@ export function reportError(
   error: unknown,
   options?: { silent?: boolean },
 ): void {
-  const message = error instanceof Error ? error.message : String(error);
-  console.error(`[error] ${operation}:`, error);
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  // Scrub tokens / secrets / passwords / long blobs out of the message before it
+  // is logged or surfaced to the user. `sanitizeForLog` returns a string when
+  // given a string. This matters because the same class of error messages also
+  // flows into persisted `addSyncError` payloads rendered in the Sync Error
+  // Inspector. See ReviewAgents-findings-2026-05-20 P3-4.
+  const message = String(sanitizeForLog(rawMessage));
+  console.error(`[error] ${operation}:`, message);
 
   if (!options?.silent) {
     toast.error(`Failed to ${operation}`, {

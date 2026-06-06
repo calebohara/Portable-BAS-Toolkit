@@ -5,7 +5,9 @@
 
 // ─── Canonical Current Version ──────────────────────────────
 // Single source of truth: package.json → next.config.ts → build-time env var.
-// Tauri conf and Cargo.toml must be kept in sync manually (enforced by release workflow).
+// Tauri conf and Cargo.toml are synced from package.json by
+// `scripts/sync-version.js` (run via `npm run sync-version`, and automatically
+// on the `version` lifecycle hook when you `npm version`).
 export const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION || '0.0.0';
 
 // ─── Semver Comparison ──────────────────────────────────────

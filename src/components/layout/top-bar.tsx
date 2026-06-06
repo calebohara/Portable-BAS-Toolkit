@@ -1,11 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Search, WifiOff, Menu, RefreshCw, Upload, Mail, Bug } from 'lucide-react';
 import { useAuth } from '@/providers/auth-provider';
 import { useAppStore } from '@/store/app-store';
-import { useKeyboardShortcut } from '@/hooks/use-keyboard-shortcut';
 import { useInbox } from '@/hooks/use-inbox';
 import { usePendingApprovals } from '@/hooks/use-pending-approvals';
 import { useNewBugReports } from '@/hooks/use-new-bug-reports';
@@ -43,7 +42,24 @@ export function TopBar({ title, children }: { title?: string; children?: React.R
       window.location.reload();
     }
   }, [pathname, router]);
-  useKeyboardShortcut('k', goToSearch);
+
+  // Cmd/Ctrl-K opens search, unless focus is in an editable field.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable
+      ) return;
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        goToSearch();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [goToSearch]);
 
   return (
     <>

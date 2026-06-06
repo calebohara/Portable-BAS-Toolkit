@@ -79,6 +79,9 @@ export function AhuProcessesPanel({ unitSystem, altitude, calculatorResults }: A
     return calculateCoilLoad({ airflowCfm: cfm, enteringState: enterState, leavingState: leaveState });
   }, [enterState, leaveState, airflow, unitSystem]);
 
+  // Dispatches the current calculator result into one of three DB/RH setter
+  // pairs. Kept as a stringly-typed switch (rather than passing the setter pair)
+  // since each branch sets a distinct field pair and the call sites stay terse.
   function useCalcAs(setter: 'oa' | 'ra' | 'enter') {
     if (!calculatorResults) return;
     const s = unitSystem === 'si' ? ipToSi(calculatorResults) : calculatorResults;
@@ -156,7 +159,12 @@ export function AhuProcessesPanel({ unitSystem, altitude, calculatorResults }: A
             <Input
               type="number" step="0.05" min="0" max="1"
               value={oaFraction}
-              onChange={(e) => setOaFraction(Math.min(1, Math.max(0, parseFloat(e.target.value) || 0)))}
+              onChange={(e) => {
+                const parsed = parseFloat(e.target.value);
+                // Keep the last valid value while the field is empty/mid-edit
+                // rather than snapping to 0 (full RA, no OA).
+                if (!isNaN(parsed)) setOaFraction(Math.min(1, Math.max(0, parsed)));
+              }}
               className="font-mono h-8 text-sm"
             />
             <div className="flex flex-wrap gap-1">

@@ -30,7 +30,7 @@ import type { GlobalProjectFile } from '@/types/global-projects';
 import { cn, sanitizeFilename } from '@/lib/utils';
 import {
   buildStoragePath, uploadProjectFile, getPublicUrl, validateFileSize,
-  isImageFile, formatBytes,
+  isImageFile,
 } from '@/lib/storage';
 import { toast } from 'sonner';
 
@@ -500,7 +500,7 @@ function GlobalUploadFileDialog({
                 <div className="text-center">
                   {isImageFile(file.type) && <FilePreviewImage file={file} />}
                   <p className="text-sm font-medium truncate max-w-[280px]">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">{formatBytes(file.size)}</p>
+                  <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
                   <button
                     type="button"
                     className="absolute top-2 right-2 rounded p-1 hover:bg-muted"

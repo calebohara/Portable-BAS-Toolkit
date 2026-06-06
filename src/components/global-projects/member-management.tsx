@@ -12,7 +12,6 @@ import { toast } from 'sonner';
 import type { GlobalProjectMember, GlobalProjectRole } from '@/types/global-projects';
 
 interface MemberManagementProps {
-  projectId: string;
   members: GlobalProjectMember[];
   currentUserId: string;
   userRole: GlobalProjectRole;
@@ -24,7 +23,6 @@ interface MemberManagementProps {
 }
 
 export function MemberManagement({
-  projectId,
   members,
   currentUserId,
   userRole,

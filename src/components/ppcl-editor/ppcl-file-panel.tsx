@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Search, Plus, Upload, Trash2, FileCode, Pencil, Check, X, Replace } from 'lucide-react';
+import { Search, Plus, Upload, Trash2, FileCode, Pencil, Check, X } from 'lucide-react';
 import { usePpclEditorStore } from '@/store/ppcl-editor-store';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';

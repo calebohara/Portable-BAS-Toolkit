@@ -15,6 +15,9 @@ interface AppState {
   sidebarOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   toggleSidebar: () => void;
+  // Sidebar collapsible nav groups (keyed by group label)
+  collapsedNavGroups: Record<string, boolean>;
+  toggleNavGroup: (label: string) => void;
   recentProjectIds: string[];
   addRecentProject: (id: string) => void;
   removeRecentProject: (id: string) => void;
@@ -62,6 +65,11 @@ export const useAppStore = create<AppState>()(
       sidebarOpen: true,
       setSidebarOpen: (open) => set({ sidebarOpen: open }),
       toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
+      collapsedNavGroups: {},
+      toggleNavGroup: (label) =>
+        set((s) => ({
+          collapsedNavGroups: { ...s.collapsedNavGroups, [label]: !s.collapsedNavGroups[label] },
+        })),
       recentProjectIds: [],
       addRecentProject: (id) => {
         const current = get().recentProjectIds.filter((pid) => pid !== id);
@@ -101,10 +109,7 @@ export const useAppStore = create<AppState>()(
       tourStep: 0,
       startTour: () => {
         // Force-expand all sidebar nav groups so data-tour targets are visible
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('bau-suite-collapsed-groups', JSON.stringify({}));
-        }
-        set({ tourActive: true, tourStep: 0, sidebarOpen: false });
+        set({ tourActive: true, tourStep: 0, sidebarOpen: false, collapsedNavGroups: {} });
       },
       endTour: () =>
         set({
@@ -128,6 +133,7 @@ export const useAppStore = create<AppState>()(
       partialize: (state) => ({
         theme: state.theme,
         sidebarOpen: state.sidebarOpen,
+        collapsedNavGroups: state.collapsedNavGroups,
         recentProjectIds: state.recentProjectIds,
         recentSearches: state.recentSearches,
         hasCompletedTour: state.hasCompletedTour,

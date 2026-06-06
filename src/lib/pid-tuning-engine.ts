@@ -378,7 +378,10 @@ export function generateRecommendation(
   }
 
   if (responseData.deadTimeSeconds !== null && responseData.deadTimeSeconds > 30) {
-    if (recIntegral < responseData.deadTimeSeconds * 4) {
+    // Integral adjustment only applies when there is integral action — for
+    // P-only loops integralTime is nulled below, so skip generating an
+    // explanation the UI would otherwise render misleadingly.
+    if (controlMode !== 'p' && recIntegral < responseData.deadTimeSeconds * 4) {
       recIntegral = Math.round(responseData.deadTimeSeconds * 4);
       explanations.integralTime = `Set to ${recIntegral}s (4x dead time of ${responseData.deadTimeSeconds}s). Long dead time requires slow integral action.`;
     }

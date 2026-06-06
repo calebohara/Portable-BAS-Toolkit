@@ -15,7 +15,17 @@
  * In web/dev mode, normal router.push works fine.
  */
 
-import { isTauri } from './tauri-bridge';
+import { isTauri as isTauriRaw } from './tauri-bridge';
+
+// isTauri() is a runtime constant once the app has hydrated (Tauri injects
+// __TAURI_INTERNALS__ before any JS runs). Memoize the first client-side answer
+// so each navigation does a single lookup instead of re-probing window.
+let tauriCache: boolean | undefined;
+function isTauri(): boolean {
+  if (typeof window === 'undefined') return false; // don't cache during SSR
+  if (tauriCache === undefined) tauriCache = isTauriRaw();
+  return tauriCache;
+}
 
 // ─── App-shell routing config ───────────────────────────────
 // Single source of truth for which routes render without sidebar chrome
@@ -83,31 +93,26 @@ export function reportEditHref(id: string): string {
 
 type RouterLike = { push: (url: string) => void };
 
-export function navigateToProject(router: RouterLike, id: string, tab?: string): void {
-  const href = projectDetailHref(id, tab);
-  if (isTauri()) {
+// Resolve isTauri() once per navigation so the href builder and the
+// push-vs-window.location decision share a single __TAURI_INTERNALS__ lookup.
+function go(router: RouterLike, href: string, tauri: boolean): void {
+  if (tauri) {
     window.location.href = href;
   } else {
     router.push(href);
   }
+}
+
+export function navigateToProject(router: RouterLike, id: string, tab?: string): void {
+  go(router, projectDetailHref(id, tab), isTauri());
 }
 
 export function navigateToReport(router: RouterLike, id: string): void {
-  const href = reportDetailHref(id);
-  if (isTauri()) {
-    window.location.href = href;
-  } else {
-    router.push(href);
-  }
+  go(router, reportDetailHref(id), isTauri());
 }
 
 export function navigateToReportEdit(router: RouterLike, id: string): void {
-  const href = reportEditHref(id);
-  if (isTauri()) {
-    window.location.href = href;
-  } else {
-    router.push(href);
-  }
+  go(router, reportEditHref(id), isTauri());
 }
 
 // ─── Global Project route helpers ──────────────────────────

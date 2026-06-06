@@ -202,8 +202,8 @@ export default function HomePage() {
               </div>
 
               <h1
-                className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-balance"
-                style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.2s', opacity: 0, lineHeight: '1.05' }}
+                className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-balance leading-[1.05]"
+                style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.2s', opacity: 0 }}
               >
                 Stop carrying <span className="text-primary whitespace-nowrap">five apps</span> into the field
               </h1>
@@ -544,7 +544,7 @@ export default function HomePage() {
                     </p>
                     <Button
                       size="lg"
-                      onClick={() => window.open('/api/download', '_blank', 'noopener,noreferrer')}
+                      onClick={() => window.open('/api/download?format=msi', '_blank', 'noopener,noreferrer')}
                       className="mt-6 gap-2 bg-white/15 text-white border-white/20 hover:bg-white/25 backdrop-blur-sm"
                       variant="outline"
                     >

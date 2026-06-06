@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { Download, RefreshCw, CheckCircle2, AlertCircle, ExternalLink } from 'lucide-react';
+import { Download, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

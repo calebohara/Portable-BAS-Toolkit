@@ -52,34 +52,37 @@ export async function exportChartAsPng(chartContainer: HTMLDivElement, filename 
   const img = new Image();
   const scale = 2; // High-DPI export
 
-  await new Promise<void>((resolve, reject) => {
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = svgElement.clientWidth * scale;
-      canvas.height = svgElement.clientHeight * scale;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = svgElement.clientWidth * scale;
+        canvas.height = svgElement.clientHeight * scale;
 
-      const ctx = canvas.getContext('2d');
-      if (!ctx) { reject(new Error('Canvas context failed')); return; }
+        const ctx = canvas.getContext('2d');
+        if (!ctx) { reject(new Error('Canvas context failed')); return; }
 
-      ctx.fillStyle = 'white';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.scale(scale, scale);
-      ctx.drawImage(img, 0, 0);
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.scale(scale, scale);
+        ctx.drawImage(img, 0, 0);
 
-      canvas.toBlob(blob => {
-        if (blob) {
-          downloadBlob(blob, filename);
-          resolve();
-        } else {
-          reject(new Error('Canvas to blob failed'));
-        }
-      }, 'image/png');
-
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => reject(new Error('Failed to load SVG as image'));
-    img.src = url;
-  });
+        canvas.toBlob(blob => {
+          if (blob) {
+            downloadBlob(blob, filename);
+            resolve();
+          } else {
+            reject(new Error('Canvas to blob failed'));
+          }
+        }, 'image/png');
+      };
+      img.onerror = () => reject(new Error('Failed to load SVG as image'));
+      img.src = url;
+    });
+  } finally {
+    // Revoke on success and failure alike — onerror used to leak the URL.
+    URL.revokeObjectURL(url);
+  }
 }
 
 // ─── Print Report ────────────────────────────────────────────

@@ -596,6 +596,7 @@ export function formatProperty(
     case 'dewPoint':
       return { value: value.toFixed(1), unit: units === 'ip' ? '°F' : '°C' };
     case 'relativeHumidity':
+      // Stored 0-100 (already a percentage), so display as-is.
       return { value: value.toFixed(1), unit: '%' };
     case 'humidityRatio':
       if (units === 'ip') {
@@ -610,6 +611,7 @@ export function formatProperty(
     case 'saturationPressure':
       return { value: value.toFixed(units === 'ip' ? 4 : 3), unit: units === 'ip' ? 'psi' : 'kPa' };
     case 'degreeOfSaturation':
+      // Stored 0-1 (a ratio, unlike relativeHumidity above), so scale to %.
       return { value: (value * 100).toFixed(1), unit: '%' };
     default:
       return { value: value.toFixed(2), unit: '' };

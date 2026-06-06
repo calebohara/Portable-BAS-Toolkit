@@ -53,11 +53,18 @@ export function sanitizeFilename(name: string): string {
 }
 
 /**
- * Trigger a browser download for a Blob.
+ * Trigger a browser download for a Blob or raw string content.
+ *
+ * Pass a `Blob` for pre-built payloads (e.g. canvas.toBlob output), or pass a
+ * string plus a `mime` type to download text/JSON/SVG content directly — this
+ * collapses the repeated `new Blob([...]) → createObjectURL → <a>.click() →
+ * setTimeout(revoke)` boilerplate to a single call.
+ *
  * Sanitizes the filename and delays revoke so the browser has time to kick off
  * the download (revoking immediately can cancel it on some browsers).
  */
-export function downloadBlob(blob: Blob, filename: string): void {
+export function downloadBlob(content: Blob | string, filename: string, mime = 'text/plain'): void {
+  const blob = typeof content === 'string' ? new Blob([content], { type: mime }) : content;
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

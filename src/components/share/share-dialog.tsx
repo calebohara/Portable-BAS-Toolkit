@@ -15,7 +15,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import { cn, escapeHtml, copyToClipboard, sanitizeFilename } from '@/lib/utils';
+import { cn, copyToClipboard, sanitizeFilename } from '@/lib/utils';
 import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import {

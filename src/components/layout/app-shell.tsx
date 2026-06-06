@@ -9,7 +9,7 @@ import { InstallPrompt } from '@/components/pwa/install-prompt';
 import { TourOverlay } from '@/components/onboarding/tour-overlay';
 import { GlobalNotepad } from '@/components/notepad/global-notepad';
 import { WebUpdateBanner } from './web-update-banner';
-import { MaintenancePage } from '@/components/maintenance/maintenance-page';
+import { MaintenancePage } from '@/components/maintenance/maintenance-page-lazy';
 import { isMaintenanceMode } from '@/lib/maintenance';
 import { isTauri } from '@/lib/tauri-bridge';
 import { cn } from '@/lib/utils';

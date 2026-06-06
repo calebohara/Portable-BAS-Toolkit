@@ -7,6 +7,13 @@ import { NextResponse } from 'next/server';
  * so this limits per-instance, not globally. For global rate limiting,
  * use an external store (Redis, Upstash, etc.). This still prevents
  * basic abuse like rapid-fire requests hitting the same instance.
+ *
+ * TODO(multi-instance): the in-memory `store` below is per-instance and resets
+ * on every cold start. Under serverless fan-out (many concurrent edges/lambdas)
+ * an adversary can bypass the limit by spreading requests across instances.
+ * Upgrade path: replace the `Map` with `@upstash/ratelimit` + `@upstash/redis`
+ * (sliding-window algorithm, same semantics) so counters are shared globally.
+ * Keep `checkRateLimit`'s signature stable so call sites need no changes.
  */
 
 interface RateLimitEntry {
@@ -94,6 +101,16 @@ export function checkRateLimit(key: string, config: RateLimitConfig): RateLimitR
 /**
  * Extract a rate-limit key from a request (IP-based).
  * Falls back to 'unknown' if no IP can be determined.
+ *
+ * SECURITY ASSUMPTION — must run behind a TRUSTED proxy. This reads the client
+ * IP from the `x-forwarded-for` (then `x-real-ip`) header and takes the FIRST
+ * value in the chain. Those headers are client-supplied and trivially spoofable,
+ * so an attacker can forge an arbitrary IP and evade per-IP limits UNLESS a
+ * trusted proxy/load balancer (e.g. Vercel's edge, which overwrites
+ * `x-forwarded-for`) sits in front and rewrites the header. On a self-hosted
+ * deploy that is NOT behind such a proxy this limiter is effectively
+ * bypassable. If your platform exposes a verified client IP (e.g. `request.ip`),
+ * prefer that source over the headers.
  */
 export function getRateLimitKey(request: Request): string {
   const forwarded = request.headers.get('x-forwarded-for');

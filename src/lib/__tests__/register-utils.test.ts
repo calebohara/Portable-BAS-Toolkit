@@ -163,9 +163,9 @@ describe('getValueRangeWarnings', () => {
     expect(getValueRangeWarnings(Infinity)).toContain('Value is not finite');
   });
 
-  it('warns for non-integer values', () => {
+  it('does not warn for non-integer values (floats are accepted)', () => {
     const warnings = getValueRangeWarnings(3.14);
-    expect(warnings).toContain('Value is not an integer -- register values are whole numbers');
+    expect(warnings.some(w => w.includes('not an integer'))).toBe(false);
   });
 
   it('warns for negative values', () => {

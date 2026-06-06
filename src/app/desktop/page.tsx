@@ -99,8 +99,8 @@ export default function DesktopAppPage() {
           </div>
 
           <h1
-            className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight"
-            style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.2s', opacity: 0, lineHeight: '1.1' }}
+            className="text-3xl sm:text-4xl lg:text-5xl font-bold tracking-tight leading-[1.1]"
+            style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.2s', opacity: 0 }}
           >
             Desktop App
           </h1>

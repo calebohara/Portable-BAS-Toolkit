@@ -18,7 +18,7 @@ import { Switch } from '@/components/ui/switch';
 import {
   Select, SelectTrigger, SelectContent, SelectItem, SelectValue,
 } from '@/components/ui/select';
-import { cn, sanitizeFilename, copyToClipboard } from '@/lib/utils';
+import { cn, sanitizeFilename, copyToClipboard, downloadBlob } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
   useTerminalStore,
@@ -1375,13 +1375,7 @@ export default function TelnetPage() {
   // ─── Export ──────────────────────────────────────────────
   const handleExport = useCallback(() => {
     const content = generateExportText(session);
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = generateFileName(session);
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    downloadBlob(content, generateFileName(session), 'text/plain');
     toast.success('Session log exported');
   }, [session]);
 

@@ -144,25 +144,15 @@ export function useProject(id: string) {
     }
   }, [id]);
 
-  // Guard against stale async results when id changes rapidly
+  // Mount / id-change fetch. The `stale` guard discards results from a previous
+  // id when it changes rapidly; the single fetch body lives in `refresh`.
   useEffect(() => {
     let stale = false;
     (async () => {
-      try {
-          const p = await db.getProject(id);
-        if (!stale) {
-          setProject(p || null);
-          setLoading(false);
-        }
-      } catch (e) {
-        if (!stale) {
-          console.error('Failed to load project:', e);
-          setLoading(false);
-        }
-      }
+      if (!stale) await refresh();
     })();
     return () => { stale = true; };
-  }, [id]);
+  }, [refresh]);
   usePullRefresh(refresh);
 
   const update = useCallback(async (data: Partial<Project>) => {

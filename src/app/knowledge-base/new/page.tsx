@@ -9,6 +9,7 @@ import {
 import { useKbCategories } from '@/hooks/use-knowledge-base';
 
 import { TopBar } from '@/components/layout/top-bar';
+import { formatFileSize } from '@/components/shared/file-icon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,13 +24,6 @@ import type { KbAttachment } from '@/types/knowledge-base';
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const KB_MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
-
-function formatFileSize(bytes: number): string {
-  if (bytes === 0) return '0 B';
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / 1048576).toFixed(1)} MB`;
-}
 
 // ─── Markdown Toolbar ────────────────────────────────────────────────────────
 

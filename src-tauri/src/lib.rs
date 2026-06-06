@@ -28,7 +28,9 @@ async fn icmp_ping(host: String, count: Option<u32>, timeoutMs: Option<u32>) -> 
         return Err(format!("Invalid host: contains disallowed characters"));
     }
 
-    let count = count.unwrap_or(4);
+    // Clamp count so a malformed/hostile frontend payload can't pin a thread
+    // spawning hundreds of ping subprocesses. The UI sends 1; 100 is generous.
+    let count = count.unwrap_or(4).clamp(1, 100);
     let timeout_ms = timeoutMs.unwrap_or(5000);
     let timeout_secs = (timeout_ms / 1000).max(1);
 
@@ -87,24 +89,37 @@ async fn icmp_ping(host: String, count: Option<u32>, timeoutMs: Option<u32>) -> 
     Ok(results)
 }
 
-fn parse_ttl(output: &str) -> Option<u32> {
-    let lower = output.to_lowercase();
-    if let Some(pos) = lower.find("ttl=") {
-        let after = &lower[pos + 4..];
-        let num_str: String = after.chars().take_while(|c| c.is_ascii_digit()).collect();
-        num_str.parse().ok()
-    } else {
-        None
+/// Case-insensitive search for `needle` in `haystack`, returning the byte index
+/// just past the match. Ping output is plain ASCII, so we compare bytes with
+/// `eq_ignore_ascii_case` rather than allocating a lowercased copy of stdout.
+fn find_after_ci(haystack: &str, needle: &str) -> Option<usize> {
+    let hb = haystack.as_bytes();
+    let nb = needle.as_bytes();
+    if nb.is_empty() || hb.len() < nb.len() {
+        return None;
     }
+    hb.windows(nb.len())
+        .position(|w| w.eq_ignore_ascii_case(nb))
+        .map(|pos| pos + nb.len())
+}
+
+fn parse_ttl(output: &str) -> Option<u32> {
+    let start = find_after_ci(output, "ttl=")?;
+    let num_str: String = output[start..]
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .collect();
+    num_str.parse().ok()
 }
 
 fn parse_rtt(output: &str) -> Option<u64> {
-    let lower = output.to_lowercase();
-    if let Some(pos) = lower.find("time=") {
-        let after = &lower[pos + 5..];
-        let num_str: String = after.chars().take_while(|c| c.is_ascii_digit() || *c == '.').collect();
+    if let Some(start) = find_after_ci(output, "time=") {
+        let num_str: String = output[start..]
+            .chars()
+            .take_while(|c| c.is_ascii_digit() || *c == '.')
+            .collect();
         num_str.parse::<f64>().ok().map(|v| v.round() as u64)
-    } else if lower.contains("time<1ms") {
+    } else if find_after_ci(output, "time<1ms").is_some() {
         Some(0)
     } else {
         None
@@ -138,6 +153,10 @@ async fn check_port(host: String, port: u16, timeoutMs: Option<u64>) -> Result<P
     let sock_addr: std::net::SocketAddr = addr.parse()
         .map_err(|_| format!("Invalid address: {}", addr))?;
 
+    // NOTE: if the caller (frontend) is dropped mid-check this blocking task is
+    // not aborted — it runs to completion. That's acceptable here because it's
+    // hard-bounded by `connect_timeout` (the caller-supplied `timeoutMs`, ≤ a
+    // few seconds), so at worst one blocking-pool thread is briefly occupied.
     let connect_result = tokio::task::spawn_blocking(move || {
         std::net::TcpStream::connect_timeout(&sock_addr, timeout)
     })
@@ -629,11 +648,14 @@ async fn serial_connect(
     let app_handle = app.clone();
 
     let read_task = tokio::spawn(async move {
-        let mut buf = [0u8; 4096];
         loop {
-            // Read in a blocking thread since serialport is synchronous
+            // Read in a blocking thread since serialport is synchronous.
+            // `buf` lives inside the closure: each blocking read owns its own
+            // 4 KiB stack buffer, making it clear it is not shared across the
+            // outer task's iterations.
             let read_port_inner = read_port.clone();
             let result = tokio::task::spawn_blocking(move || {
+                let mut buf = [0u8; 4096];
                 let mut port = read_port_inner.lock().unwrap();
                 match port.read(&mut buf) {
                     Ok(n) if n > 0 => Ok(Some(buf[..n].to_vec())),
@@ -868,7 +890,11 @@ async fn proxy_fetch(url: String, allow_invalid_certs: Option<bool>) -> Result<P
         .unwrap_or("text/html")
         .to_string();
 
-    // For HTML content, return as string. For binary, base64 encode.
+    // Only text-ish responses are embeddable. The frontend's embedded workspace
+    // (embedded-workspace.tsx) checks `is_binary` and treats binary as "blocked"
+    // — it never renders the body — so there is no point reading and encoding
+    // the bytes. Return an empty body with the flag set and let the caller fall
+    // back to opening the controller UI in a new tab.
     let is_text = content_type.contains("text") || content_type.contains("json")
         || content_type.contains("xml") || content_type.contains("javascript")
         || content_type.contains("css") || content_type.contains("svg");
@@ -883,34 +909,13 @@ async fn proxy_fetch(url: String, allow_invalid_certs: Option<bool>) -> Result<P
             is_binary: false,
         })
     } else {
-        let bytes = response.bytes().await
-            .map_err(|e| format!("Failed to read response: {}", e))?;
-        use serde::ser::Error;
-        let base64 = base64_encode(&bytes);
         Ok(ProxyResponse {
             status,
             content_type,
-            body: base64,
+            body: String::new(),
             is_binary: true,
         })
     }
-}
-
-/// Simple base64 encoding (no external dep needed)
-fn base64_encode(data: &[u8]) -> String {
-    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut result = String::with_capacity((data.len() + 2) / 3 * 4);
-    for chunk in data.chunks(3) {
-        let b0 = chunk[0] as u32;
-        let b1 = if chunk.len() > 1 { chunk[1] as u32 } else { 0 };
-        let b2 = if chunk.len() > 2 { chunk[2] as u32 } else { 0 };
-        let n = (b0 << 16) | (b1 << 8) | b2;
-        result.push(CHARS[(n >> 18 & 63) as usize] as char);
-        result.push(CHARS[(n >> 12 & 63) as usize] as char);
-        if chunk.len() > 1 { result.push(CHARS[(n >> 6 & 63) as usize] as char); } else { result.push('='); }
-        if chunk.len() > 2 { result.push(CHARS[(n & 63) as usize] as char); } else { result.push('='); }
-    }
-    result
 }
 
 // ─── Tauri App ──────────────────────────────────────────────
@@ -936,57 +941,13 @@ pub fn run() {
             // This handles hard refreshes on dynamic routes in the static export.
             // When the webview hard-refreshes on /projects/{uuid}, the static file
             // doesn't exist — we detect this and redirect to the catch-all fallback.
+            // JS source lives in public/spa-fallback.js so it is lintable and
+            // testable as a real file rather than an inline string literal.
+            // include_str! embeds it at compile time (path is relative to this
+            // source file: src-tauri/src/lib.rs → ../../public/spa-fallback.js).
             let main_window = app.get_webview_window("main");
             if let Some(window) = main_window {
-                let _ = window.eval(r#"
-                    (function() {
-                        function checkSpaFallback() {
-                            const path = window.location.pathname;
-                            const parts = path.replace(/\/$/, '').split('/');
-
-                            // Check if this is a dynamic route (projects/{id} or reports/{id}[/edit])
-                            const isDynamic = (
-                                (parts[1] === 'projects' && parts.length === 3 && parts[2] !== '_') ||
-                                (parts[1] === 'reports' && parts.length >= 3 && parts[2] !== '_' && parts[2] !== 'new')
-                            );
-
-                            if (!isDynamic) return;
-
-                            // Detect if the page failed to load. The App Router
-                            // shell renders <main id="main-content">; if that's
-                            // absent the static file for this dynamic route didn't
-                            // load. (The old '#__next' check never matched in the
-                            // App Router, so the fallback fired on every nav.)
-                            const hasAppShell = document.querySelector('main#main-content');
-                            const bodyEmpty = document.body && document.body.innerHTML.trim() === '';
-                            const isErrorPage = document.title === '' || document.title === '404';
-
-                            if (bodyEmpty || !hasAppShell || isErrorPage) {
-                                const id = parts[2];
-                                const isEdit = parts[3] === 'edit';
-                                // Preserve existing query params (e.g. ?tab=notes) through the fallback redirect
-                                const existingParams = new URLSearchParams(window.location.search);
-                                existingParams.set('_id', id);
-                                let fallbackUrl;
-                                if (parts[1] === 'projects') {
-                                    fallbackUrl = '/projects/_/?' + existingParams.toString();
-                                } else if (isEdit) {
-                                    fallbackUrl = '/reports/_/edit/?' + existingParams.toString();
-                                } else {
-                                    fallbackUrl = '/reports/_/?' + existingParams.toString();
-                                }
-                                window.location.replace(fallbackUrl);
-                            }
-                        }
-
-                        // Wait for the page to fully load before checking
-                        if (document.readyState === 'complete') {
-                            checkSpaFallback();
-                        } else {
-                            window.addEventListener('load', checkSpaFallback);
-                        }
-                    })();
-                "#);
+                let _ = window.eval(include_str!("../../public/spa-fallback.js"));
             }
 
             Ok(())

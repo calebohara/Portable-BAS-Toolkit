@@ -18,7 +18,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogBody,
 } from '@/components/ui/dialog';
-import { cn, sanitizeFilename } from '@/lib/utils';
+import { cn, downloadBlob } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useNetworkDiagrams } from '@/hooks/use-projects';
 import { useProjects } from '@/hooks/use-projects';
@@ -326,12 +326,7 @@ export default function NetworkDiagramPage() {
 
       canvas.toBlob(blob => {
         if (!blob) return;
-        const dl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = dl;
-        a.download = `${sanitizeFilename(diagramName)}_diagram.png`;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(dl), 5000);
+        downloadBlob(blob, `${diagramName}_diagram.png`);
         toast.success('Diagram exported as PNG');
       });
     };
@@ -361,13 +356,7 @@ export default function NetworkDiagramPage() {
 
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(cloned);
-    const blob = new Blob([svgString], { type: 'image/svg+xml' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${sanitizeFilename(diagramName)}_diagram.svg`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    downloadBlob(svgString, `${diagramName}_diagram.svg`, 'image/svg+xml');
     toast.success('Diagram exported as SVG');
   }, [diagramName]);
 

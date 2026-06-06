@@ -112,7 +112,7 @@ export interface ReconcileResult {
  *   - bugReports / reviews / commandSnippets — user-personal, no global twin.
  *   - globalMessages — global-only (no local twin).
  *   - globalProjectPreferences — per-user UI state (pin / offline-cache);
- *     handled by the per-user toggle code path in Step 4, not data mirroring.
+ *     handled by the per-user preference toggles, not data mirroring.
  *   - globalFieldPanels — no local TS `FieldPanel` interface exists yet
  *     (the local `fieldPanels` IndexedDB store is typed loosely with `any`
  *     and isn't in the `SyncEntityType` union for the LOCAL side). Flag and
@@ -203,26 +203,6 @@ async function nextAccessCode(): Promise<string> {
   return generateAccessCode();
 }
 
-/** snake_case helper used when stamping known-mapped row payloads. */
-function snake(str: string): string {
-  return str.replace(/[A-Z]/g, (c) => '_' + c.toLowerCase());
-}
-
-/**
- * Recursively snake-case the keys of a payload before sending to Supabase.
- * Used for jsonb columns where we want to preserve nested camelCase as-is —
- * SO WE DELIBERATELY DO NOT recurse into arrays/objects here; only top-level
- * keys get converted. Nested structures are persisted as-is in jsonb.
- */
-function snakeKeysShallow(obj: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(obj)) {
-    if (v === undefined) continue;
-    out[snake(k)] = v;
-  }
-  return out;
-}
-
 /** camelCase helper. */
 function camel(str: string): string {
   return str.replace(/_([a-z])/g, (_, c) => (c as string).toUpperCase());
@@ -242,16 +222,6 @@ async function upsertGlobalRow(
 ): Promise<void> {
   const { error } = await client().from(table).upsert(row, { onConflict: 'id' });
   if (error) throw new Error(`${table} upsert failed: ${error.message}`);
-}
-
-async function fetchGlobalChildRows<T>(table: string, globalProjectId: string): Promise<T[]> {
-  const { data, error } = await client()
-    .from(table)
-    .select('*')
-    .eq('global_project_id', globalProjectId)
-    .is('deleted_at', null);
-  if (error) throw new Error(`${table} fetch failed: ${error.message}`);
-  return ((data ?? []) as Record<string, unknown>[]).map((r) => camelKeysShallow<T>(r));
 }
 
 // ─── Local → Global field mappers ───────────────────────────────────────────
@@ -1614,8 +1584,3 @@ async function convertGlobalToLocal(
     }
   }
 }
-
-// ─── Unused-but-exported helper exports ─────────────────────────────────────
-// `snakeKeysShallow` is retained for future jsonb payload work; mark as used.
-void snakeKeysShallow;
-void fetchGlobalChildRows;

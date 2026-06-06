@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useState, useCallback } from 'react';
 import {
   LayoutDashboard, FolderKanban, Search, WifiOff, Settings, Pin,
   ChevronLeft, ChevronRight, ChevronDown, X, FolderOpen, HelpCircle, ClipboardList, TerminalSquare, Globe,
@@ -73,22 +72,9 @@ export function Sidebar() {
   const { profile } = useAuth();
   const showOnlineUsers = hasSyncAccess(profile?.subscriptionTier);
 
-  // Collapsible group state — initialize from localStorage
-  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
-    if (typeof window === 'undefined') return {};
-    try {
-      const saved = localStorage.getItem('bau-suite-collapsed-groups');
-      return saved ? JSON.parse(saved) : {};
-    } catch { return {}; }
-  });
-
-  const toggleGroup = useCallback((label: string) => {
-    setCollapsedGroups(prev => {
-      const next = { ...prev, [label]: !prev[label] };
-      try { localStorage.setItem('bau-suite-collapsed-groups', JSON.stringify(next)); } catch {}
-      return next;
-    });
-  }, []);
+  // Collapsible group state — persisted via the app store (bau-suite-app).
+  const collapsedGroups = useAppStore((s) => s.collapsedNavGroups);
+  const toggleGroup = useAppStore((s) => s.toggleNavGroup);
 
   return (
     <aside

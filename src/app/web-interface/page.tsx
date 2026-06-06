@@ -14,14 +14,14 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
+import { cn, downloadBlob } from '@/lib/utils';
 import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
 import {
   useWebInterfaceStore,
   buildUrl, isSafeUrl, isValidHost, isValidPort,
   SIEMENS_PRESETS,
-  type Protocol, type OpenMode, type WebEndpoint,
+  type Protocol, type OpenMode, type WebEndpoint, type AccessMethod,
 } from '@/store/web-interface-store';
 import { useProjects } from '@/hooks/use-projects';
 import { EmbeddedWorkspace } from '@/components/web-interface/embedded-workspace';
@@ -49,6 +49,8 @@ export default function WebInterfacePage() {
   const [port, setPort] = useState('');
   const [path, setPath] = useState('');
   const [openMode, setOpenMode] = useState<OpenMode>('auto');
+  // Carried from a quick-connect preset so the Save dialog pre-fills it.
+  const [accessMethod, setAccessMethod] = useState<AccessMethod>('');
 
   // UI state
   const [editEndpoint, setEditEndpoint] = useState<WebEndpoint | null>(null);
@@ -119,9 +121,9 @@ export default function WebInterfacePage() {
       return;
     }
     const blank = createBlankEndpoint();
-    setSaveFrom({ ...blank, host: host.trim(), protocol, port, path });
+    setSaveFrom({ ...blank, host: host.trim(), protocol, port, path, accessMethod });
     setShowSaveDialog(true);
-  }, [host, protocol, port, path]);
+  }, [host, protocol, port, path, accessMethod]);
 
   // ─── Export ────────────────────────────────────────────────
   const handleExportEndpoints = useCallback(() => {
@@ -138,13 +140,11 @@ export default function WebInterfacePage() {
       favorite: ep.favorite,
       lastOpened: ep.lastOpenedAt,
     }));
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `panel-endpoints-${format(new Date(), 'yyyy-MM-dd')}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    downloadBlob(
+      JSON.stringify(data, null, 2),
+      `panel-endpoints-${format(new Date(), 'yyyy-MM-dd')}.json`,
+      'application/json',
+    );
     toast.success('Endpoints exported');
   }, [endpoints]);
 
@@ -183,6 +183,7 @@ export default function WebInterfacePage() {
                     setProtocol(preset.protocol);
                     setPort('');
                     setPath('');
+                    setAccessMethod(preset.accessMethod);
                   }}
                   className={cn(
                     'flex items-start gap-2.5 w-full rounded-lg border border-border px-3 py-2.5 text-left transition-all',

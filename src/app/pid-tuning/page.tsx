@@ -890,7 +890,7 @@ function PidTuningPageInner() {
                   <div className="flex items-end pb-1">
                     <p className="text-[10px] text-muted-foreground">
                       {currentValues.gainMode === 'gain'
-                        ? currentValues.gain ? `= ${gainToProportionalBand(currentValues.gain)}% PB` : ''
+                        ? currentValues.gain ? `= ${currentValues.proportionalBand}% PB` : ''
                         : currentValues.proportionalBand ? `= Kp ${proportionalBandToGain(currentValues.proportionalBand)}` : ''
                       }
                     </p>

@@ -66,13 +66,24 @@ export interface RecentConnection {
 
 // ─── Helpers ────────────────────────────────────────────────
 
+/** Matches a bracketed IPv6 literal host, e.g. `[2001:db8::1]` or `[::1]`. */
+const BRACKETED_IPV6 = /^\[[0-9a-f:]+\]$/i;
+
 /** Validate that a host string is safe (no protocol injection, no script vectors) */
 export function isValidHost(host: string): boolean {
   const trimmed = host.trim();
   if (!trimmed) return false;
+  // Allow bracketed IPv6 literals up front — the Rust socket path brackets IPv6
+  // hosts (build_socket_addr_str) and reqwest emits them bracketed, so a host
+  // like `[2001:db8::1]` is valid even though `[` `]` are blocked below. The
+  // strict char class (hex digits + colons only) keeps this from being an
+  // injection vector.
+  if (BRACKETED_IPV6.test(trimmed)) return true;
   // Block protocol-like patterns in host field
   if (/^[a-z]+:/i.test(trimmed)) return false;
-  // Block characters that could break URL parsing or enable injection
+  // Block characters that could break URL parsing or enable injection.
+  // (The legitimate bracketed-IPv6 case already returned true above, so the
+  // remaining `[` `]` block only rejects stray/unbalanced brackets.)
   if (/[<>"'`{}|\\^~\[\]]/.test(trimmed)) return false;
   // Block javascript-like content
   if (/javascript|data:|vbscript|blob:/i.test(trimmed)) return false;
