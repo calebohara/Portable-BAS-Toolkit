@@ -8,6 +8,7 @@ import {
   ChevronRight, HardDrive, Cloud, FileText, Settings,
   AlertTriangle, CheckCircle, History, Zap, RefreshCw,
   Clock, ClipboardList, TerminalSquare, ShieldAlert,
+  ExternalLink, FlaskConical,
 } from 'lucide-react';
 import { useProjects, useRecentActivity, useProjectCounts, useRecentNotes, useDailyReports } from '@/hooks/use-projects';
 import { useAppStore } from '@/store/app-store';
@@ -20,6 +21,7 @@ import { formatFileSize } from '@/components/shared/file-icon';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { navigateToProject } from '@/lib/routes';
+import { openUrl } from '@/lib/tauri-bridge';
 import { useAuth } from '@/providers/auth-provider';
 import { useSyncContext } from '@/providers/sync-provider';
 import { isPaywallEnabled, hasSyncAccess } from '@/lib/paywall';
@@ -292,6 +294,33 @@ export default function DashboardPage() {
               </button>
             ))}
           </div>
+        </section>
+
+        {/* External Tools — partner/community tools that open outside the app. */}
+        <section aria-labelledby="external-tools-heading">
+          <h2 id="external-tools-heading" className="mb-3 text-sm font-semibold text-muted-foreground uppercase tracking-wider">External Tools</h2>
+          <button
+            type="button"
+            onClick={() => { void openUrl('https://ppclsimulator.app'); }}
+            aria-label="Open PPCL Simulator (external site, built by Samuel Henderson)"
+            className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-4 py-3 text-left transition-all hover:bg-accent hover:border-primary/20 hover:shadow-sm active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <FlaskConical className="size-5" aria-hidden="true" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <p className="text-sm font-semibold">PPCL Simulator</p>
+                <ExternalLink className="size-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+              </div>
+              <p className="truncate text-xs text-muted-foreground">Interactive Siemens PPCL simulator — opens in your browser.</p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">Built by Samuel Henderson</p>
+            </div>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+              Open
+              <ExternalLink className="size-3.5" aria-hidden="true" />
+            </span>
+          </button>
         </section>
 
         {/* Pinned Projects */}
