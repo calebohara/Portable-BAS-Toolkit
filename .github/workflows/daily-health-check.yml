@@ -1,0 +1,105 @@
+name: Daily Health Check
+
+# Runs the functionality + regression checks every day and regenerates the
+# machine-managed sections of docs/ACTIVE-BUGS.md (check status + open user bug
+# reports pulled from Supabase). Commits the registry back when it changes.
+#
+# Required repo secrets for the Supabase user-bug pull (optional — the run still
+# works without them, it just notes "not configured"):
+#   SUPABASE_URL                 e.g. https://xxxx.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY    service-role key (read-only use here; keep secret)
+
+on:
+  schedule:
+    - cron: '0 13 * * *' # 13:00 UTC daily
+  workflow_dispatch: {} # allow manual "Run workflow" from the Actions tab
+
+# Avoid overlapping daily runs.
+concurrency:
+  group: daily-health-check
+  cancel-in-progress: false
+
+permissions:
+  contents: write # to commit docs/ACTIVE-BUGS.md back
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install deps
+        run: npm ci
+
+      # ── Functionality / regression checks (continue-on-error so we always
+      #    reach the registry-update step and capture every outcome) ──────────
+      - name: TypeScript
+        id: tsc
+        continue-on-error: true
+        run: npx tsc --noEmit
+
+      - name: Lint
+        id: lint
+        continue-on-error: true
+        run: npm run lint
+
+      - name: Unit tests
+        id: test
+        continue-on-error: true
+        run: npm run test:run
+
+      - name: Production build
+        id: build
+        continue-on-error: true
+        run: npm run build:static
+
+      # ── Rust / Tauri check (needs Linux Tauri system deps) ──────────────────
+      - name: Install Tauri system deps
+        continue-on-error: true
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libgtk-3-dev
+
+      - name: Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Rust check + tests
+        id: cargo
+        continue-on-error: true
+        working-directory: src-tauri
+        run: |
+          cargo check
+          cargo test --lib
+
+      # ── Regenerate docs/ACTIVE-BUGS.md ──────────────────────────────────────
+      - name: Update active-bugs registry
+        run: node scripts/update-active-bugs.mjs
+        env:
+          TSC_RESULT: ${{ steps.tsc.outcome }}
+          LINT_RESULT: ${{ steps.lint.outcome }}
+          TEST_RESULT: ${{ steps.test.outcome }}
+          BUILD_RESULT: ${{ steps.build.outcome }}
+          CARGO_RESULT: ${{ steps.cargo.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      - name: Commit registry if changed
+        run: |
+          git config user.name "bau-suite-bot"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/ACTIVE-BUGS.md
+          if git diff --staged --quiet; then
+            echo "No registry changes."
+          else
+            git commit -m "chore(health): daily bug registry update [skip ci]"
+            git push
+          fi

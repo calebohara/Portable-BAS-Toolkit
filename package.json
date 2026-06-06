@@ -11,6 +11,8 @@
     "icons": "node scripts/generate-icons.mjs",
     "start": "next start",
     "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "health": "npm run typecheck && npm run lint && npm run test:run",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",

@@ -162,7 +162,14 @@
       "Bash(sed -i '' 's/\"version\": \"4.19.0\"/\"version\": \"4.20.0\"/' package.json src-tauri/tauri.conf.json)",
       "Bash(sed -i '' 's/^version = \"4.19.0\"/version = \"4.20.0\"/' src-tauri/Cargo.toml)",
       "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.19.0\"/name = \"bau-suite\"\\\\nversion = \"4.20.0\"/' src-tauri/Cargo.lock)",
-      "Bash(echo \"fix-log tracked? $\\(git check-ignore docs/DesignAgents-fixes-2026-06-06-2.md 2>&1 && echo IGNORED || echo OK\\)\")"
+      "Bash(echo \"fix-log tracked? $\\(git check-ignore docs/DesignAgents-fixes-2026-06-06-2.md 2>&1 && echo IGNORED || echo OK\\)\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000/)",
+      "Bash(node -e \"const s=require\\('./package.json'\\).scripts; console.log\\(JSON.stringify\\(s,null,1\\)\\)\")",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\('deps:', p.dependencies?.xlsx||'\\(none\\)'\\); console.log\\('devDeps:', p.devDependencies?.xlsx||'\\(none\\)'\\)\")",
+      "Bash(echo \"total: $\\(npx tsc --noEmit 2>&1)",
+      "Bash(TSC_RESULT=success LINT_RESULT=success TEST_RESULT=success BUILD_RESULT=success CARGO_RESULT=failure RUN_URL=\"https://example/run/1\" node scripts/update-active-bugs.mjs)",
+      "Bash(sed -n '/AUTOMATED-CHECKS:START/,/AUTOMATED-CHECKS:END/p' docs/ACTIVE-BUGS.md)",
+      "Bash(sed -n '/USER-REPORTS:START/,/USER-REPORTS:END/p' docs/ACTIVE-BUGS.md)"
     ]
   }
 }
