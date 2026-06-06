@@ -640,7 +640,7 @@ function NotepadPanel() {
           'fixed z-50 flex flex-col',
           'rounded-xl border border-border bg-background shadow-2xl',
           // Mobile: full-width bottom sheet
-          'max-sm:!left-2 max-sm:!right-2 max-sm:!bottom-2 max-sm:!top-auto max-sm:w-[calc(100%-1rem)] max-sm:h-[60vh]',
+          'max-sm:!left-2 max-sm:!right-2 max-sm:!bottom-2 max-sm:!top-auto max-sm:w-[calc(100%-1rem)] notepad-mobile-h',
           (dragging || isResizing) && 'select-none',
           dragging && 'cursor-grabbing',
         )}

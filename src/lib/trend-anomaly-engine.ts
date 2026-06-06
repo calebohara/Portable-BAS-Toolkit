@@ -43,11 +43,19 @@ export function computeSeriesStats(data: TrendDataPoint[], seriesId: string): Tr
   const intervals: number[] = [];
   let prevTs: number | null = null;
 
+  // For binary runtime accumulation — the prior non-null sample's value/timestamp.
+  // Runtime is only meaningful for binary (on/off) series, so track whether every
+  // sample is 0 or 1; non-binary numeric series report null runtimeHours.
+  let lastVal: number | null = null;
+  let lastTsForRuntime = 0;
+  let isBinary = true;
+
   for (const point of data) {
     const val = point.values[seriesId];
     if (val === null || val === undefined) continue;
 
     values.push(val);
+    if (val !== 0 && val !== 1) isBinary = false;
     sum += val;
     if (val < min) min = val;
     if (val > max) max = val;
@@ -66,16 +74,14 @@ export function computeSeriesStats(data: TrendDataPoint[], seriesId: string): Tr
     }
     prevTs = point.timestamp;
 
-    // Runtime for binary series (value >= 0.5 = ON)
-    if (val >= 0.5 && prevTs !== null) {
-      const prevPoint = data.find(p => p.timestamp === prevTs);
-      if (prevPoint) {
-        const prevVal = prevPoint.values[seriesId];
-        if (prevVal !== null && prevVal >= 0.5) {
-          runtimeMs += point.timestamp - prevTs;
-        }
-      }
+    // Runtime for binary series (value >= 0.5 = ON). Accumulate the dwell time
+    // between two consecutive ON samples using the explicitly tracked prior
+    // sample — updated AFTER this block so it never references the current point.
+    if (val >= 0.5 && lastVal !== null && lastVal >= 0.5) {
+      runtimeMs += point.timestamp - lastTsForRuntime;
     }
+    lastVal = val;
+    lastTsForRuntime = point.timestamp;
   }
 
   // Median
@@ -106,7 +112,7 @@ export function computeSeriesStats(data: TrendDataPoint[], seriesId: string): Tr
     stdDev,
     sampleCount: n,
     gapCount,
-    runtimeHours: runtimeMs > 0 ? runtimeMs / 3600000 : null,
+    runtimeHours: isBinary && runtimeMs > 0 ? runtimeMs / 3600000 : null,
     firstTimestamp: firstTs,
     lastTimestamp: lastTs,
   };

@@ -38,16 +38,15 @@ const BAS_PORTS = [
 // This is a legitimate reachability test, NOT a fake ping.
 async function tryFetch(url: string, timeoutMs: number = 5000): Promise<{ ok: boolean; elapsed: number; error?: string }> {
   const start = performance.now();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
     await fetch(url, {
       method: 'HEAD',
       mode: 'no-cors',
       signal: controller.signal,
       cache: 'no-store',
     });
-    clearTimeout(timeout);
     return { ok: true, elapsed: Math.round(performance.now() - start) };
   } catch (err: unknown) {
     const elapsed = Math.round(performance.now() - start);
@@ -55,6 +54,10 @@ async function tryFetch(url: string, timeoutMs: number = 5000): Promise<{ ok: bo
       return { ok: false, elapsed, error: 'Timed out' };
     }
     return { ok: false, elapsed, error: err instanceof Error ? err.message : 'Unknown error' };
+  } finally {
+    // Always clear the abort timer — on the error path it would otherwise leak
+    // a pending timer for the full timeout duration on every iteration.
+    clearTimeout(timeout);
   }
 }
 

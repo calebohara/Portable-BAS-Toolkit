@@ -200,6 +200,15 @@
   .scrollbar-thin::-webkit-scrollbar-track {
     background: transparent;
   }
+  /* Mobile notepad bottom-sheet height. Done via a real CSS media query rather
+     than a Tailwind `max-sm:h-[60vh]` arbitrary value, which can fail to compile
+     in Tailwind v4 (project-known footgun). `!important` is required to win over
+     the element's inline `height` style. */
+  @media (max-width: 639px) {
+    .notepad-mobile-h {
+      height: 60vh !important;
+    }
+  }
 }
 
 /* ─── Homepage Premium Animations ─────────────────────────────────────────── */

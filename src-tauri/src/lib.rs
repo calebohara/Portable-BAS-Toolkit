@@ -351,9 +351,12 @@ async fn telnet_connect(
     sessionId: String,
     host: String,
     port: u16,
+    timeoutMs: Option<u64>,
 ) -> Result<(), String> {
     let addr = format!("{}:{}", host, port);
-    let timeout = std::time::Duration::from_secs(15);
+    // Honour a caller-supplied timeout; fall back to 15s when not provided.
+    let timeout = std::time::Duration::from_millis(timeoutMs.unwrap_or(15_000));
+    let timeout_secs = timeout.as_secs();
 
     // Parse as SocketAddr directly to avoid async DNS resolution issues
     let sock_addr: std::net::SocketAddr = addr.parse()
@@ -371,12 +374,12 @@ async fn telnet_connect(
                 let detail = e.to_string();
                 if detail.contains("timed out") || detail.contains("timeout") {
                     format!(
-                        "Connection to {} timed out (15s). Troubleshooting:\n\
+                        "Connection to {} timed out ({}s). Troubleshooting:\n\
                          • Verify the device is powered on and reachable (try the Ping Tool)\n\
                          • Check Windows Firewall — BAU Suite may need an inbound/outbound exception\n\
                          • Confirm you're on the correct network/VLAN for BAS devices\n\
                          • Try port {} in the Port Scanner tool first",
-                        addr_str, port_val
+                        addr_str, timeout_secs, port_val
                     )
                 } else if detail.contains("refused") {
                     format!("Connection refused by {}. The host is reachable but port {} is not accepting connections.", addr_str, port_val)
@@ -928,13 +931,16 @@ pub fn run() {
 
                             if (!isDynamic) return;
 
-                            // Detect if the page failed to load: check for empty body OR
-                            // missing Next.js root element (more reliable than empty body check)
-                            const hasNextRoot = document.getElementById('__next');
+                            // Detect if the page failed to load. The App Router
+                            // shell renders <main id="main-content">; if that's
+                            // absent the static file for this dynamic route didn't
+                            // load. (The old '#__next' check never matched in the
+                            // App Router, so the fallback fired on every nav.)
+                            const hasAppShell = document.querySelector('main#main-content');
                             const bodyEmpty = document.body && document.body.innerHTML.trim() === '';
                             const isErrorPage = document.title === '' || document.title === '404';
 
-                            if (bodyEmpty || !hasNextRoot || isErrorPage) {
+                            if (bodyEmpty || !hasAppShell || isErrorPage) {
                                 const id = parts[2];
                                 const isEdit = parts[3] === 'edit';
                                 // Preserve existing query params (e.g. ?tab=notes) through the fallback redirect

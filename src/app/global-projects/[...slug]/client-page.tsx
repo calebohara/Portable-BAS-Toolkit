@@ -354,6 +354,7 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
           {activeTab === 'notes' && (
             <NotesTab
               notes={notes}
+              files={files}
               getMemberName={getMemberName}
               onAdd={addNote}
               onUpdate={updateNote}
@@ -466,9 +467,16 @@ export default function GlobalProjectDetailPage({ params }: { params: Promise<{ 
         project={editingProject ? project : null}
         onOpenChange={(open) => { if (!open) setEditingProject(false); }}
         onSubmit={async (data) => {
-          await updateProject(data);
-          toast.success('Project updated');
-          setEditingProject(false);
+          // Parent owns both success and error toasts; inner dialog only
+          // surfaces saving state and keeps the form open on failure.
+          try {
+            await updateProject(data);
+            toast.success('Project updated');
+            setEditingProject(false);
+          } catch {
+            toast.error('Failed to update project');
+            throw new Error('update-failed');
+          }
         }}
       />
 
@@ -1070,7 +1078,8 @@ function EditProjectDialog({ project, onOpenChange, onSubmit }: {
         tags: form.tags.split(',').map((t) => t.trim()).filter(Boolean),
       });
     } catch {
-      toast.error('Failed to update project');
+      // Error toast is owned by the parent onSubmit wrapper; swallow here so we
+      // don't double-toast. The dialog stays open because we never closed it.
     } finally {
       setSaving(false);
     }
@@ -1174,9 +1183,10 @@ function InfoRow({ icon: Icon, label, value }: { icon: typeof Hash; label: strin
 // ─── Notes Tab ───────────────────────────────────────────────────────────────
 
 function NotesTab({
-  notes, getMemberName, onAdd, onUpdate, onRemove,
+  notes, files, getMemberName, onAdd, onUpdate, onRemove,
 }: {
   notes: GlobalFieldNote[];
+  files: GlobalProjectFile[];
   getMemberName: (id: string) => string;
   onAdd: (data: Omit<GlobalFieldNote, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'globalProjectId'>) => Promise<unknown>;
   onUpdate: (id: string, data: Partial<GlobalFieldNote>) => Promise<void>;
@@ -1187,14 +1197,14 @@ function NotesTab({
   const [editContent, setEditContent] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<GlobalFieldNote | null>(null);
 
-  const handleAdd = async (content: string, category: string) => {
+  const handleAdd = async (content: string, category: string, fileId: string | null) => {
     try {
       await onAdd({
         content,
         category: category as GlobalFieldNote['category'],
         isPinned: false,
         tags: [],
-        fileId: null,
+        fileId,
         updatedBy: null,
         deletedAt: null,
       });
@@ -1307,7 +1317,7 @@ function NotesTab({
         </div>
       )}
 
-      <AddNoteDialog open={showAdd} onOpenChange={setShowAdd} onSubmit={handleAdd} />
+      <AddNoteDialog open={showAdd} onOpenChange={setShowAdd} files={files} onSubmit={handleAdd} />
 
       <ConfirmDialog
         open={deleteTarget !== null}
@@ -1322,9 +1332,10 @@ function NotesTab({
   );
 }
 
-function AddNoteDialog({ open, onOpenChange, onSubmit }: { open: boolean; onOpenChange: (v: boolean) => void; onSubmit: (content: string, category: string) => Promise<void> }) {
+function AddNoteDialog({ open, onOpenChange, files, onSubmit }: { open: boolean; onOpenChange: (v: boolean) => void; files: GlobalProjectFile[]; onSubmit: (content: string, category: string, fileId: string | null) => Promise<void> }) {
   const [content, setContent] = useState('');
   const [category, setCategory] = useState('general');
+  const [fileId, setFileId] = useState('');
   const [saving, setSaving] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1332,9 +1343,10 @@ function AddNoteDialog({ open, onOpenChange, onSubmit }: { open: boolean; onOpen
     if (!content.trim()) return;
     setSaving(true);
     try {
-      await onSubmit(content.trim(), category);
+      await onSubmit(content.trim(), category, fileId || null);
       setContent('');
       setCategory('general');
+      setFileId('');
     } finally {
       setSaving(false);
     }
@@ -1366,6 +1378,22 @@ function AddNoteDialog({ open, onOpenChange, onSubmit }: { open: boolean; onOpen
                 <option value="customer-request">Customer Request</option>
               </select>
             </div>
+            {files.length > 0 && (
+              <div className="space-y-2">
+                <Label htmlFor="note-file">Attach to file (optional)</Label>
+                <select
+                  id="note-file"
+                  value={fileId}
+                  onChange={(e) => setFileId(e.target.value)}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  <option value="">— None (project-level note) —</option>
+                  {files.map((f) => (
+                    <option key={f.id} value={f.id}>{f.title || f.fileName}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="space-y-2">
               <Label htmlFor="note-content">Content</Label>
               <Textarea
@@ -1507,9 +1535,14 @@ function DevicesTab({
         onOpenChange={(open) => { if (!open) setEditTarget(null); }}
         onSubmit={async (data) => {
           if (!editTarget) return;
-          await onUpdate(editTarget.id, data);
-          setEditTarget(null);
-          toast.success('Device updated');
+          try {
+            await onUpdate(editTarget.id, data);
+            setEditTarget(null);
+            toast.success('Device updated');
+          } catch {
+            toast.error('Failed to update device');
+            throw new Error('update-failed');
+          }
         }}
       />
 
@@ -1674,7 +1707,7 @@ function EditDeviceDialog({ device, onOpenChange, onSubmit }: {
         notes: form.notes.trim(),
       });
     } catch {
-      toast.error('Failed to update device');
+      // Error toast owned by parent onSubmit wrapper; swallow to avoid double-toast.
     } finally {
       setSaving(false);
     }
@@ -1871,9 +1904,14 @@ function IpPlanTab({
         onOpenChange={(open) => { if (!open) setEditTarget(null); }}
         onSubmit={async (data) => {
           if (!editTarget) return;
-          await onUpdate(editTarget.id, data);
-          setEditTarget(null);
-          toast.success('IP entry updated');
+          try {
+            await onUpdate(editTarget.id, data);
+            setEditTarget(null);
+            toast.success('IP entry updated');
+          } catch {
+            toast.error('Failed to update IP entry');
+            throw new Error('update-failed');
+          }
         }}
       />
 
@@ -2027,7 +2065,7 @@ function EditIpEntryDialog({ entry, onOpenChange, onSubmit }: {
         status: form.status as GlobalIpPlanEntry['status'],
       });
     } catch {
-      toast.error('Failed to update IP entry');
+      // Error toast owned by parent onSubmit wrapper; swallow to avoid double-toast.
     } finally {
       setSaving(false);
     }
@@ -2132,12 +2170,14 @@ function ReportsTab({ reports, getMemberName, currentUserId, onUpdate, onRemove 
     });
 
   const handleEditSubmit = async (id: string, data: Partial<GlobalDailyReport>) => {
+    // Parent owns both toasts; rethrow so the inner dialog stays open on failure.
     try {
       await onUpdate(id, data);
       setEditTarget(null);
       toast.success('Report updated');
     } catch {
       toast.error('Failed to update report');
+      throw new Error('update-failed');
     }
   };
 
@@ -2368,7 +2408,7 @@ function EditReportDialog({ report, onOpenChange, onSubmit }: {
         generalNotes: form.generalNotes.trim(),
       });
     } catch {
-      toast.error('Failed to update report');
+      // Error toast owned by parent onSubmit wrapper; swallow to avoid double-toast.
     } finally {
       setSaving(false);
     }

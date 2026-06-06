@@ -25,6 +25,7 @@ import {
   DropdownMenuSeparator, DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { FILE_CATEGORY_LABELS, type FileCategory, type FileStatus } from '@/types';
+import { ACCEPTED_TYPES, validateFileForCategory } from '@/components/files/accepted-file-types';
 import type { GlobalProjectFile } from '@/types/global-projects';
 import { cn, sanitizeFilename } from '@/lib/utils';
 import {
@@ -395,6 +396,10 @@ function GlobalUploadFileDialog({
     if (!selected) return;
     const sizeError = validateFileSize(selected);
     if (sizeError) { toast.error(sizeError); return; }
+    // Mirror the local upload dialog's extension/category check so a .exe can't
+    // be dropped into a .p2-only category on the global side.
+    const typeError = validateFileForCategory(selected.name, category);
+    if (typeError) { toast.error(typeError); return; }
     setFile(selected);
     if (!form.title) {
       setForm((f) => ({ ...f, title: selected.name.replace(/\.[^.]+$/, '') }));
@@ -487,7 +492,7 @@ function GlobalUploadFileDialog({
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="*"
+                accept={ACCEPTED_TYPES[category]?.accept ?? '*'}
                 className="hidden"
                 onChange={(e) => { handleFileSelect(e.target.files?.[0] || null); if (e.target) e.target.value = ''; }}
               />

@@ -18,16 +18,19 @@ interface SessionSaveDialogProps {
   onOpenChange: (open: boolean) => void;
   onSave: (metadata: { name: string; description: string; sourceSystem: TrendSourceSystem; projectId: string }) => void;
   defaultName?: string;
+  /** Selectable projects (local mode). When omitted/empty, no picker is shown. */
+  projects?: { id: string; name: string; projectNumber?: string }[];
 }
 
-export function SessionSaveDialog({ open, onOpenChange, onSave, defaultName }: SessionSaveDialogProps) {
+export function SessionSaveDialog({ open, onOpenChange, onSave, defaultName, projects = [] }: SessionSaveDialogProps) {
   const [name, setName] = useState(defaultName || `Trend ${format(new Date(), 'MMM d HH:mm')}`);
   const [description, setDescription] = useState('');
   const [sourceSystem, setSourceSystem] = useState<TrendSourceSystem>('generic');
+  const [projectId, setProjectId] = useState('');
 
   const handleSave = () => {
     if (!name.trim()) return;
-    onSave({ name: name.trim(), description: description.trim(), sourceSystem, projectId: '' });
+    onSave({ name: name.trim(), description: description.trim(), sourceSystem, projectId });
     onOpenChange(false);
   };
 
@@ -57,6 +60,22 @@ export function SessionSaveDialog({ open, onOpenChange, onSave, defaultName }: S
               </SelectContent>
             </Select>
           </div>
+          {projects.length > 0 && (
+            <div>
+              <Label className="text-xs">Project (optional)</Label>
+              <Select value={projectId || '_none'} onValueChange={v => v && setProjectId(v === '_none' ? '' : v)}>
+                <SelectTrigger className="mt-1"><SelectValue placeholder="No project" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">No project</SelectItem>
+                  {projects.map(p => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.projectNumber ? `${p.projectNumber} — ${p.name}` : p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>

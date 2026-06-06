@@ -219,29 +219,32 @@ export function useInbox() {
     }
   }, []);
 
-  // Purge all inbox messages (hard delete)
+  // Purge all inbox messages (soft delete — flips deleted_by_recipient so the
+  // counterparty still sees their copy and the row stays recoverable by admin).
   const purgeInbox = useCallback(async () => {
     const client = getSupabaseClient();
     if (!client || !user) return;
 
     await client
       .from('direct_messages')
-      .delete()
-      .eq('recipient_id', user.id);
+      .update({ deleted_by_recipient: true })
+      .eq('recipient_id', user.id)
+      .eq('deleted_by_recipient', false);
 
     setMessages([]);
     setUnreadCount(0);
   }, [user]);
 
-  // Purge all sent messages (hard delete)
+  // Purge all sent messages (soft delete — flips deleted_by_sender).
   const purgeSent = useCallback(async () => {
     const client = getSupabaseClient();
     if (!client || !user) return;
 
     await client
       .from('direct_messages')
-      .delete()
-      .eq('sender_id', user.id);
+      .update({ deleted_by_sender: true })
+      .eq('sender_id', user.id)
+      .eq('deleted_by_sender', false);
 
     setSentMessages([]);
   }, [user]);

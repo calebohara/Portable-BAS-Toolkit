@@ -11,6 +11,7 @@ import {
 import { toast } from 'sonner';
 import { useProjects } from '@/hooks/use-projects';
 import { useRegisterCalculations } from '@/hooks/use-register-calculations';
+import { getModuleSnapshot } from './snapshot-registry';
 import type { RegisterToolModule, SavedCalcCategory } from '@/types';
 import { SAVED_CALC_CATEGORY_LABELS } from '@/types';
 
@@ -27,14 +28,21 @@ export function SaveDialog({ open, onOpenChange, activeModule }: {
 
   const handleSave = async () => {
     if (!label.trim()) { toast.error('Label is required'); return; }
+    // Capture the active module's live snapshot so the saved calc actually
+    // carries its inputs/result instead of empty records.
+    const { inputs, result } = getModuleSnapshot(activeModule);
+    if (Object.keys(result).length === 0) {
+      toast.error('Nothing to save — enter values in this module first');
+      return;
+    }
     setSaving(true);
     try {
       await addCalculation({
         label: label.trim(),
         module: activeModule as RegisterToolModule,
         category,
-        inputs: {},
-        result: {},
+        inputs,
+        result,
         notes,
         tags: [],
         projectId: projectId || '',

@@ -99,6 +99,8 @@ with probe(seq, migration, probe_desc, applied) as (
     exists(select 1 from pg_policies where schemaname='public' and tablename='direct_messages' and policyname='Senders can delete sent messages')
   union all select 43, 'hotfix-global-register-calculations-not-null.sql', 'global_register_calculations.global_project_id is NOT NULL',
     exists(select 1 from information_schema.columns where table_schema='public' and table_name='global_register_calculations' and column_name='global_project_id' and is_nullable='NO')
+  union all select 44, 'enforce-storage-bucket-size-limits.sql', 'project-files bucket file_size_limit = 50MB',
+    exists(select 1 from storage.buckets where id='project-files' and file_size_limit=52428800)
 )
 select
   seq            as "#",

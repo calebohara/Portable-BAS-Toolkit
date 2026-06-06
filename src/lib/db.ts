@@ -1756,8 +1756,35 @@ export async function exportAllData(): Promise<Record<string, unknown[]>> {
 /**
  * Import data from a snapshot created by exportAllData.
  * Merges into existing data (put semantics — overwrites by ID).
+ *
+ * Refuses to import a snapshot whose `_dbVersion` is older than the current
+ * `DB_VERSION` — a stale-schema backup can be missing keys/indices the current
+ * code expects, which surfaces later as cryptic IndexedDB errors during sync.
+ * Pass `{ allowStaleSchema: true }` to import anyway (caller accepts the risk).
  */
-export async function importSnapshot(snapshot: Record<string, unknown[]>): Promise<number> {
+export async function importSnapshot(
+  snapshot: Record<string, unknown[]>,
+  options?: { allowStaleSchema?: boolean },
+): Promise<number> {
+  // Version guard: `_dbVersion` is written as a single-element array by
+  // exportAllData. A missing value (older/hand-built snapshot) is treated as
+  // unknown and allowed through.
+  const snapshotVersion = Array.isArray(snapshot._dbVersion)
+    ? Number(snapshot._dbVersion[0])
+    : undefined;
+  if (
+    !options?.allowStaleSchema
+    && snapshotVersion !== undefined
+    && Number.isFinite(snapshotVersion)
+    && snapshotVersion < DB_VERSION
+  ) {
+    throw new Error(
+      `This backup was created with an older database version (v${snapshotVersion}) ` +
+      `than the current app (v${DB_VERSION}). Importing it could corrupt local data. ` +
+      `Update the backup or re-export from a current device before importing.`,
+    );
+  }
+
   const db = await getDB();
   let total = 0;
   for (const [storeName, items] of Object.entries(snapshot)) {

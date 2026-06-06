@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRegisterSnapshot } from './snapshot-registry';
 import { Calculator, Info } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -40,6 +41,23 @@ export function FloatDecoder() {
   }, [direction, floatInput, swapWords]);
 
   const breakdown = direction === 'decode' ? decoded?.breakdown : encoded?.breakdown;
+
+  const snapshot = useMemo(() => {
+    if (direction === 'decode' && decoded) {
+      return {
+        inputs: { direction, reg1: reg1Str.trim(), reg2: reg2Str.trim(), swapWords },
+        result: { float32: decoded.float, hex: decoded.breakdown.hex, reasonable: decoded.reasonable },
+      };
+    }
+    if (direction === 'encode' && encoded) {
+      return {
+        inputs: { direction, float: floatInput, swapWords },
+        result: { register1: encoded.words[0], register2: encoded.words[1], hex: encoded.breakdown.hex },
+      };
+    }
+    return { inputs: {}, result: {} };
+  }, [direction, decoded, encoded, reg1Str, reg2Str, floatInput, swapWords]);
+  useRegisterSnapshot('float', snapshot);
 
   return (
     <div className="space-y-4">

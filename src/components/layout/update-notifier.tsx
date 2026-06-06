@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Progress, ProgressLabel } from '@/components/ui/progress';
 import { isTauri } from '@/lib/tauri-bridge';
-import { checkForUpdate, downloadAndInstall, type UpdateStatus } from '@/lib/updater';
+import { checkForUpdate, downloadAndInstall, StaleUpdateError, type UpdateStatus } from '@/lib/updater';
 import {
   APP_VERSION,
   shouldShowUpdate,
@@ -114,6 +114,13 @@ export function UpdateNotifier() {
         }
       });
     } catch (err) {
+      // Cached update was missing or expired: silently re-check so the dialog
+      // re-prompts with the current version rather than showing a dead error.
+      if (err instanceof StaleUpdateError) {
+        logUpdateDebug('cache-stale-recheck', { reason: err.message });
+        await doCheck(false);
+        return;
+      }
       setState('error');
       setError(err instanceof Error ? err.message : 'Download failed');
     }

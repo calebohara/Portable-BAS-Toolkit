@@ -388,8 +388,12 @@ export default function SettingsPage() {
                             try {
                               const res = await fetch('/api/subscribe/portal', {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ stripeCustomerId: '' }),
+                                headers: {
+                                  'Content-Type': 'application/json',
+                                  ...(session?.access_token
+                                    ? { Authorization: `Bearer ${session.access_token}` }
+                                    : {}),
+                                },
                               });
                               const data = await res.json();
                               if (data.url) window.location.href = data.url;

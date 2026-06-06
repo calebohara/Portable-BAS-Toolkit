@@ -38,12 +38,18 @@ export function PpclTabBar({ documents, onNewDocument, onCloseTab, onToggleFileP
 
       <div className="flex-1 flex items-center overflow-x-auto scrollbar-none">
         {openDocs.map(doc => (
-          <button
+          <div
             key={doc.id}
+            role="tab"
+            tabIndex={0}
+            aria-selected={activeTabId === doc.id}
             onClick={() => setActiveTab(doc.id)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setActiveTab(doc.id); }
+            }}
             onMouseDown={(e) => { if (e.button === 1) { e.preventDefault(); onCloseTab(doc.id); } }}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium whitespace-nowrap border-r border-border transition-colors',
+              'flex cursor-pointer items-center gap-1.5 px-3 py-1.5 text-xs font-medium whitespace-nowrap border-r border-border transition-colors',
               activeTabId === doc.id
                 ? 'bg-background text-foreground'
                 : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
@@ -51,18 +57,17 @@ export function PpclTabBar({ documents, onNewDocument, onCloseTab, onToggleFileP
           >
             {dirtyIds.has(doc.id) && <span className="text-primary" title="Unsaved changes">●</span>}
             {doc.name}
-            <span
-              role="button"
-              tabIndex={0}
+            <button
+              type="button"
               onClick={(e) => { e.stopPropagation(); onCloseTab(doc.id); }}
-              onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onCloseTab(doc.id); } }}
+              onKeyDown={(e) => { e.stopPropagation(); }}
               className="ml-1 p-0.5 rounded hover:bg-muted-foreground/20"
               title="Close tab"
               aria-label={`Close ${doc.name}`}
             >
               <X className="h-3 w-3" />
-            </span>
-          </button>
+            </button>
+          </div>
         ))}
       </div>
 

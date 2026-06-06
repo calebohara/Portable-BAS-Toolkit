@@ -1,5 +1,6 @@
 import { deleteManyFromStorage } from '@/lib/storage';
 import { getSupabaseClient } from '@/lib/supabase/client';
+import { bulkPutSilent } from '@/lib/db';
 import type {
   GlobalProject,
   GlobalProjectMember,
@@ -726,38 +727,49 @@ export function fetchGlobalReports(projectId: string): Promise<ApiResult<GlobalD
 
 export async function addGlobalReport(
   projectId: string,
-  data: Partial<Omit<GlobalDailyReport, 'id' | 'globalProjectId' | 'createdBy' | 'createdAt' | 'updatedAt' | 'deletedAt'>>
+  data: Partial<Omit<GlobalDailyReport, 'id' | 'globalProjectId' | 'createdBy' | 'createdAt' | 'updatedAt' | 'deletedAt'>>,
+  /**
+   * Optional deterministic id (typically the local DailyReport.id). When
+   * provided, the row is upserted on its primary key so re-saving the same local
+   * report updates the existing global row instead of inserting a duplicate.
+   */
+  localReportId?: string,
 ): Promise<ApiResult<GlobalDailyReport>> {
   try {
     const supabase = getClient();
     const userId = await getCurrentUserId();
 
-    const { data: report, error } = await supabase
-      .from('global_daily_reports')
-      .insert({
-        global_project_id: projectId,
-        created_by: userId,
-        date: data.date ?? new Date().toISOString().slice(0, 10),
-        report_number: data.reportNumber ?? 1,
-        technician_name: data.technicianName ?? '',
-        status: data.status ?? 'draft',
-        start_time: data.startTime ?? '',
-        end_time: data.endTime ?? '',
-        hours_on_site: data.hoursOnSite ?? '',
-        location: data.location ?? '',
-        weather: data.weather ?? '',
-        work_completed: data.workCompleted ?? '',
-        issues_encountered: data.issuesEncountered ?? '',
-        work_planned_next: data.workPlannedNext ?? '',
-        coordination_notes: data.coordinationNotes ?? '',
-        equipment_worked_on: data.equipmentWorkedOn ?? '',
-        device_ip_changes: data.deviceIpChanges ?? '',
-        safety_notes: data.safetyNotes ?? '',
-        general_notes: data.generalNotes ?? '',
-        attachments: data.attachments ?? [],
-      })
-      .select()
-      .single();
+    const row = {
+      ...(localReportId ? { id: localReportId } : {}),
+      global_project_id: projectId,
+      created_by: userId,
+      date: data.date ?? new Date().toISOString().slice(0, 10),
+      report_number: data.reportNumber ?? 1,
+      technician_name: data.technicianName ?? '',
+      status: data.status ?? 'draft',
+      start_time: data.startTime ?? '',
+      end_time: data.endTime ?? '',
+      hours_on_site: data.hoursOnSite ?? '',
+      location: data.location ?? '',
+      weather: data.weather ?? '',
+      work_completed: data.workCompleted ?? '',
+      issues_encountered: data.issuesEncountered ?? '',
+      work_planned_next: data.workPlannedNext ?? '',
+      coordination_notes: data.coordinationNotes ?? '',
+      equipment_worked_on: data.equipmentWorkedOn ?? '',
+      device_ip_changes: data.deviceIpChanges ?? '',
+      safety_notes: data.safetyNotes ?? '',
+      general_notes: data.generalNotes ?? '',
+      attachments: data.attachments ?? [],
+    };
+
+    // Upsert when an idempotency key is supplied so editing + re-saving the local
+    // report doesn't create duplicate global rows; plain insert otherwise.
+    const builder = localReportId
+      ? supabase.from('global_daily_reports').upsert(row, { onConflict: 'id' })
+      : supabase.from('global_daily_reports').insert(row);
+
+    const { data: report, error } = await builder.select().single();
 
     if (error) return fail(error.message);
     return ok(camelCaseKeys<GlobalDailyReport>(report));
@@ -1005,15 +1017,30 @@ export async function deleteGlobalMessage(messageId: string): Promise<ApiResult<
 
     const supabase = getClient();
     const userId = await getCurrentUserId();
+    const deletedAt = new Date().toISOString();
 
     // Only soft-delete own messages — verify ownership client-side too (RLS enforces server-side)
     const { error } = await supabase
       .from('global_messages')
-      .update({ deleted_at: new Date().toISOString() })
+      .update({ deleted_at: deletedAt })
       .eq('id', messageId)
       .eq('created_by', userId);
 
     if (error) return fail(error.message);
+
+    // Cascade the soft-delete to replies so a refresh matches the optimistic
+    // state (which already drops children). RLS limits this to rows the caller
+    // may update; orphaned others' replies are handled by the threading logic.
+    const { error: replyError } = await supabase
+      .from('global_messages')
+      .update({ deleted_at: deletedAt })
+      .eq('parent_id', messageId)
+      .is('deleted_at', null);
+
+    if (replyError) {
+      console.warn('[deleteGlobalMessage] reply cascade failed (non-fatal):', replyError.message);
+    }
+
     return ok(null);
   } catch (err) {
     return fail((err as Error).message);
@@ -1620,7 +1647,17 @@ export async function upsertGlobalProjectPreferences(
       .select()
       .single();
     if (error) return fail(error.message);
-    return ok(camelCaseKeys<GlobalProjectPreferences>(result));
+    const prefs = camelCaseKeys<GlobalProjectPreferences>(result);
+    // Mirror to IndexedDB immediately so local reads aren't stale until realtime
+    // fires (matches sync-manager's prefKey upsert pattern). Best-effort.
+    try {
+      await bulkPutSilent('globalProjectPreferences', [
+        { ...prefs, prefKey: `${prefs.userId}|${prefs.globalProjectId}` },
+      ]);
+    } catch (e) {
+      console.warn('[upsertGlobalProjectPreferences] local mirror failed (non-fatal):', e);
+    }
+    return ok(prefs);
   } catch (err) {
     return fail((err as Error).message);
   }

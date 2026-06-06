@@ -149,7 +149,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
     'date' | 'technicianName' | 'status' | 'startTime' | 'endTime' | 'hoursOnSite' |
     'location' | 'weather' | 'workCompleted' | 'issuesEncountered' | 'workPlannedNext' |
     'coordinationNotes' | 'equipmentWorkedOn' | 'deviceIpChanges' | 'safetyNotes' | 'generalNotes'
-  >) => {
+  >, localReportId: string) => {
     if (!linkToGlobal || !selectedGlobalProjectId) return;
     try {
       const globalReportData = {
@@ -171,7 +171,9 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
         generalNotes: data.generalNotes,
         attachments: [],
       };
-      const result = await addGlobalReport(selectedGlobalProjectId, globalReportData);
+      // Pass the local report id as an idempotency key so re-saving the same
+      // report upserts the existing global row instead of creating a duplicate.
+      const result = await addGlobalReport(selectedGlobalProjectId, globalReportData, localReportId);
       if (result.error) {
         toast.warning('Report saved locally but failed to link to global project');
       } else {
@@ -197,11 +199,11 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
 
       if (mode === 'create') {
         const report = await onSave(data as Omit<DailyReport, 'id' | 'createdAt' | 'updatedAt' | 'reportNumber'>);
-        await maybeLinkToGlobalProject(data);
+        await maybeLinkToGlobalProject(data, report.id);
         navigateToReport(router, report.id);
       } else if (initial && onUpdate) {
         await onUpdate({ ...initial, ...data, updatedAt: new Date().toISOString() });
-        await maybeLinkToGlobalProject(data);
+        await maybeLinkToGlobalProject(data, initial.id);
         navigateToReport(router, initial.id);
       }
     } finally {

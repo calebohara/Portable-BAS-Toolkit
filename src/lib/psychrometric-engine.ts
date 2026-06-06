@@ -111,7 +111,14 @@ export function humidityRatioFromEnthalpy(T_db_F: number, h: number): number {
   // Solve: W = (h - 0.240 * T_db) / (1061 + 0.444 * T_db)
   const denom = 1061 + 0.444 * T_db_F;
   if (Math.abs(denom) < 1e-10) return 0;
-  return (h - 0.240 * T_db_F) / denom;
+  const W = (h - 0.240 * T_db_F) / denom;
+  // Mirror the upper clamp used by humidityRatioFromRH / humidityRatioFromDewPoint:
+  // unphysical input pairs (e.g. high enthalpy at low dry bulb) overshoot saturation.
+  if (W > 0.03) {
+    console.warn('[psychrometric] Humidity ratio clamped from', W.toFixed(4), 'to 0.03 lb/lb (practical maximum)');
+    return 0.03;
+  }
+  return W;
 }
 
 // ─── Derived Properties ──────────────────────────────────────

@@ -21,12 +21,26 @@ export function CsvUploadPanel({ onFilesLoaded, existingSeriesCount }: CsvUpload
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [pendingFile, setPendingFile] = useState<PendingFile | null>(null);
+  // Files parsed alongside the previewed one in a multi-file drop, awaiting
+  // auto-load after the preview is confirmed. Their series offset already
+  // accounts for the previewed file's series.
+  const [queuedResults, setQueuedResults] = useState<ParseResult[]>([]);
   const [loadedFiles, setLoadedFiles] = useState<{ name: string; rows: number; series: number }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const summarize = (r: ParseResult) => ({
+    name: r.series[0]?.sourceFile || 'Unknown',
+    rows: r.rowCount,
+    series: r.series.length,
+  });
 
   const handleFiles = useCallback(async (files: FileList) => {
     setIsProcessing(true);
     const results: ParseResult[] = [];
+    // The first valid CSV gets a preview; the rest auto-load. Reserve the
+    // previewed file's series slots by parsing it first so subsequent offsets
+    // don't collide.
+    let firstPending: PendingFile | null = null;
     let offset = existingSeriesCount;
 
     for (const file of Array.from(files)) {
@@ -40,40 +54,49 @@ export function CsvUploadPanel({ onFilesLoaded, existingSeriesCount }: CsvUpload
           toast.error(`No data columns found in ${file.name}`);
           continue;
         }
-        // Show preview for first file; auto-load subsequent
-        if (results.length === 0 && loadedFiles.length === 0) {
-          setPendingFile({ file, result });
-          setIsProcessing(false);
-          return;
-        }
-        results.push(result);
         offset += result.series.length;
+        if (!firstPending && loadedFiles.length === 0) {
+          firstPending = { file, result };
+        } else {
+          results.push(result);
+        }
       } catch (e) {
         toast.error(`Failed to parse ${file.name}`);
         console.error(e);
       }
     }
 
-    if (results.length > 0) {
-      setLoadedFiles(prev => [...prev, ...results.map(r => ({
-        name: r.series[0]?.sourceFile || 'Unknown',
-        rows: r.rowCount,
-        series: r.series.length,
-      }))]);
+    if (firstPending) {
+      // Show preview for the first; stash the rest to load on confirm.
+      setQueuedResults(results);
+      setPendingFile(firstPending);
+      if (results.length > 0) {
+        toast.info(`${results.length} more file(s) will load after you confirm the preview`);
+      }
+    } else if (results.length > 0) {
+      // Already have loaded files — no preview; load everything directly.
+      setLoadedFiles(prev => [...prev, ...results.map(summarize)]);
       onFilesLoaded(results);
     }
     setIsProcessing(false);
   }, [existingSeriesCount, loadedFiles.length, onFilesLoaded]);
 
   const handlePreviewConfirm = useCallback((result: ParseResult) => {
-    setLoadedFiles(prev => [...prev, {
-      name: result.series[0]?.sourceFile || 'Unknown',
-      rows: result.rowCount,
-      series: result.series.length,
-    }]);
-    onFilesLoaded([result]);
+    const all = [result, ...queuedResults];
+    setLoadedFiles(prev => [...prev, ...all.map(summarize)]);
+    onFilesLoaded(all);
     setPendingFile(null);
-  }, [onFilesLoaded]);
+    setQueuedResults([]);
+  }, [onFilesLoaded, queuedResults]);
+
+  const handlePreviewCancel = useCallback(() => {
+    // Cancelling the preview discards the whole drop, including queued files.
+    if (queuedResults.length > 0) {
+      toast.info(`Cancelled — ${queuedResults.length} queued file(s) were not loaded`);
+    }
+    setPendingFile(null);
+    setQueuedResults([]);
+  }, [queuedResults.length]);
 
   const handleReparse = useCallback(async (options: ParseOptions) => {
     if (!pendingFile) return;
@@ -153,7 +176,7 @@ export function CsvUploadPanel({ onFilesLoaded, existingSeriesCount }: CsvUpload
           parseResult={pendingFile.result}
           onConfirm={handlePreviewConfirm}
           onReparse={handleReparse}
-          onCancel={() => setPendingFile(null)}
+          onCancel={handlePreviewCancel}
         />
       )}
     </>

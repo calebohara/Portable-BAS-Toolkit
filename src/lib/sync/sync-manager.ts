@@ -79,6 +79,10 @@ export class SyncManager implements SyncManagerInterface {
   // Active realtime channels for global_* tables. Populated by
   // subscribeToGlobalRealtime() and torn down by stop().
   private globalRealtimeChannels: RealtimeChannel[] = [];
+  // Queue item ids for which we've already attempted a session refresh after a
+  // token-expired error this session. Prevents an infinite refresh→retry loop
+  // if the refresh itself doesn't fix the 401.
+  private authRefreshedItemIds = new Set<string>();
 
   constructor(client: SupabaseClient, userId: string) {
     this.client = client;
@@ -375,8 +379,9 @@ export class SyncManager implements SyncManagerInterface {
         if (error) throw error;
       }
 
-      // Success — remove from queue
+      // Success — remove from queue and clear any auth-refresh marker
       await deleteSyncItem(item.id);
+      this.authRefreshedItemIds.delete(item.id);
       return true;
     } catch (err: unknown) {
       // Supabase PostgREST errors are plain objects with { message, code, details, hint }
@@ -429,6 +434,40 @@ export class SyncManager implements SyncManagerInterface {
         await deleteSyncItem(item.id);
         return true; // Don't retry — table doesn't exist
       }
+
+      // ── Token-expired (401 / JWT expired) — refresh and retry once ─────────
+      // Supabase JS captures the access token at request issue time; on a long
+      // push the token can expire mid-batch (1h default), returning a 401 with
+      // "JWT expired". This is a *transient* auth failure, not a data problem —
+      // treat it specially: refresh the session and requeue the item WITHOUT
+      // incrementing retriedCount, so a token blip doesn't permanently fail
+      // legitimate items. Guarded by authRefreshedItemIds so we refresh at most
+      // once per item per session and fall through to the normal retry path if
+      // the refresh doesn't resolve it.
+      const httpStatus = (err && typeof err === 'object' && 'status' in err)
+        ? Number((err as { status: unknown }).status) : NaN;
+      const isTokenExpired =
+        (httpStatus === 401 || errorCode === 'PGRST301' || errorCode === '401')
+        || /jwt expired|token (?:is )?expired|invalid (?:jwt|token)/i.test(errorMsg);
+      if (isTokenExpired && !this.authRefreshedItemIds.has(item.id)) {
+        this.authRefreshedItemIds.add(item.id);
+        console.warn(
+          `${LOG_PREFIX} Auth token expired while syncing ${item.entityType}/${item.entityId} — refreshing session and retrying`,
+        );
+        try {
+          await this.client.auth.refreshSession();
+        } catch (refreshErr) {
+          console.warn(`${LOG_PREFIX} Session refresh failed:`, refreshErr);
+        }
+        // Requeue without incrementing the retry count.
+        await updateSyncItem({
+          ...item,
+          status: 'pending',
+          lastError: errorMsg,
+        });
+        return false;
+      }
+      // ── End token-expired handling ────────────────────────────────────────
 
       const newRetryCount = item.retriedCount + 1;
 
@@ -651,6 +690,12 @@ export class SyncManager implements SyncManagerInterface {
             const timestampCol = isAppendOnlyLog ? 'timestamp' : 'updated_at';
             query = query.gte(timestampCol, lastPulledAt);
           }
+
+          // Explicit, stable ordering so .range() page boundaries are
+          // deterministic. Without it Postgres may return rows in arbitrary
+          // order across pages, causing rows to be duplicated or skipped if a
+          // concurrent insert happens mid-pull (broken audit trail for logs).
+          query = query.order(isAppendOnlyLog ? 'timestamp' : 'id', { ascending: true });
 
           const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
           if (error) throw error;
@@ -1066,12 +1111,17 @@ export class SyncManager implements SyncManagerInterface {
    *
    * Idempotent: calling twice tears down the previous subscriptions first.
    * Returns a cleanup function that unsubscribes everything.
+   *
+   * Pass `force=true` to bypass the membership cache — required when a
+   * membership has *just* changed (e.g. invite accepted) so the new project's
+   * id is included in the realtime `id=in.(…)` / `global_project_id=in.(…)`
+   * filters immediately, rather than after the 30s cache TTL expires.
    */
-  async subscribeToGlobalRealtime(): Promise<() => void> {
+  async subscribeToGlobalRealtime(force = false): Promise<() => void> {
     // Tear down any prior subscriptions before re-subscribing.
     this.unsubscribeFromGlobalRealtime();
 
-    const memberProjectIds = await fetchMyGlobalProjectIds(this.client, this.userId);
+    const memberProjectIds = await fetchMyGlobalProjectIds(this.client, this.userId, force);
     // If the user belongs to no global projects, the IN filters would be
     // empty (Postgres rejects `IN ()`). Subscribe only to the per-user
     // preferences table in that case; the child-tables channel is skipped.

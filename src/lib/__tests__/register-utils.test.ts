@@ -410,6 +410,12 @@ describe('extractBitfield', () => {
   it('extracts from bit 0', () => {
     expect(extractBitfield(0xFF, 0, 4)).toBe(0xF);
   });
+
+  it('extracts a full 32-bit field without 32-bit shift wraparound', () => {
+    // (1 << 32) wraps to 1 in JS, which would make the mask 0 and return 0.
+    expect(extractBitfield(0xDEADBEEF, 0, 32)).toBe(0xDEADBEEF);
+    expect(extractBitfield(0xFFFFFFFF, 0, 32)).toBe(0xFFFFFFFF);
+  });
 });
 
 // ─── 7. Scaling ──────────────────────────────────────────────

@@ -112,7 +112,8 @@ export function PpclPreviewDialog({ open, onOpenChange, document: doc, onOpenInE
                 </div>
               ) : (
                 <div
-                  className="resize-y overflow-hidden h-[50vh] min-h-[250px] max-h-[65vh]"
+                  className="resize-y overflow-hidden min-h-[250px]"
+                  style={{ height: '50vh', maxHeight: '65vh' }}
                   aria-label="Resizable preview area — drag the bottom edge to resize"
                 >
                   <PpclEditorComponent

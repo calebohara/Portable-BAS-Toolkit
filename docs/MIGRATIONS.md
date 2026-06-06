@@ -111,3 +111,4 @@ Status legend: **L** = ledger-tracked once setup is run · **P** = pending (appl
 | 42 | hotfix-global-register-calculations-not-null.sql | `global_register_calculations.global_project_id` NOT NULL | L |
 | 43 | add-sync-version-auto-increment.sql | `bump_sync_version()` trigger fn | L (applied 2026-06-03) |
 | 44 | add-schema-migrations-ledger.sql | `schema_migrations` table | L (applied 2026-06-03) |
+| 45 | enforce-storage-bucket-size-limits.sql | `project-files` bucket `file_size_limit = 50MB` | L |

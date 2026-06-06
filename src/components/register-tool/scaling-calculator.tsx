@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
+import { useRegisterSnapshot } from './snapshot-registry';
 import { TrendingUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +37,26 @@ export function ScalingCalculator() {
     if (isNaN(eng)) return null;
     return inverseScaleLinear(eng, parseFloat(rawMin), parseFloat(rawMax), parseFloat(engMin), parseFloat(engMax));
   }, [engInput, rawMin, rawMax, engMin, engMax]);
+
+  const snapshot = useMemo(() => {
+    const result: Record<string, unknown> = {};
+    if (rawToEng) {
+      result.rawInput = rawInput;
+      result.engineeringValue = Number(rawToEng.value.toFixed(precision));
+      result.slope = rawToEng.slope;
+      result.intercept = rawToEng.intercept;
+    }
+    if (engToRaw) {
+      result.engInput = engInput;
+      result.rawValue = Math.round(engToRaw.value);
+    }
+    if (Object.keys(result).length === 0) return { inputs: {}, result: {} };
+    return {
+      inputs: { rawMin, rawMax, engMin, engMax, precision },
+      result,
+    };
+  }, [rawToEng, engToRaw, rawInput, engInput, rawMin, rawMax, engMin, engMax, precision]);
+  useRegisterSnapshot('scaling', snapshot);
 
   return (
     <div className="space-y-4">

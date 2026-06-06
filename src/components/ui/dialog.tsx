@@ -58,7 +58,10 @@ function DialogContent({
         )}
         {...props}
       >
-        <div className="flex flex-col overflow-hidden rounded-xl max-h-[85vh]">
+        <div
+          className="flex flex-col overflow-hidden rounded-xl"
+          style={{ maxHeight: "85vh" }}
+        >
           {children}
         </div>
         {showCloseButton && (

@@ -10,10 +10,10 @@ import { APP_BASE_URL } from '@/lib/stripe-config';
  * Allows users to update payment method, change plan, or cancel.
  *
  * Requires the user's access token in the Authorization header.
- * Verifies the provided stripeCustomerId matches the authenticated
- * user's profile before creating a portal session.
+ * Looks up the Stripe customer ID server-side from the authenticated
+ * user's profile — the client never supplies it (never trust a
+ * customer ID from the client).
  *
- * Body: { stripeCustomerId: string }
  * Returns: { url: string } — the Stripe Portal URL to redirect to
  */
 export async function POST(request: NextRequest) {
@@ -53,17 +53,8 @@ export async function POST(request: NextRequest) {
   const stripe = new Stripe(secretKey);
 
   try {
-    const body = await request.json();
-    const { stripeCustomerId } = body as { stripeCustomerId: string };
-
-    if (!stripeCustomerId) {
-      return NextResponse.json(
-        { error: 'Missing Stripe customer ID.' },
-        { status: 400 }
-      );
-    }
-
-    // 2. Verify the stripeCustomerId belongs to this user
+    // 2. Look up the Stripe customer ID server-side from the user's profile.
+    //    The client never sends it — we only trust the authenticated session.
     const { data: profile, error: profileError } = await userClient
       .from('profiles')
       .select('stripe_customer_id')
@@ -77,10 +68,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (profile.stripe_customer_id !== stripeCustomerId) {
+    const stripeCustomerId = profile.stripe_customer_id;
+    if (!stripeCustomerId) {
       return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
+        { error: 'No Stripe customer on file for this account.' },
+        { status: 400 }
       );
     }
 

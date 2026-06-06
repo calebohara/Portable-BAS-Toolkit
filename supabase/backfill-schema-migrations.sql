@@ -54,6 +54,7 @@ select migration from (
   union all select 'hotfix-delete-and-admin.sql' where exists(select 1 from pg_policies where schemaname='public' and tablename='profiles' and policyname='Admins can update all profiles')
   union all select 'hotfix-dm-delete-policies.sql' where exists(select 1 from pg_policies where schemaname='public' and tablename='direct_messages' and policyname='Senders can delete sent messages')
   union all select 'hotfix-global-register-calculations-not-null.sql' where exists(select 1 from information_schema.columns where table_schema='public' and table_name='global_register_calculations' and column_name='global_project_id' and is_nullable='NO')
+  union all select 'enforce-storage-bucket-size-limits.sql' where exists(select 1 from storage.buckets where id='project-files' and file_size_limit=52428800)
 ) applied
 on conflict (id) do nothing;
 

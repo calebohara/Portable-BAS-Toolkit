@@ -468,8 +468,10 @@ export function extractBitfield(
   startBit: number,
   length: number,
 ): number {
-  const mask = (1 << length) - 1;
-  return (value >>> startBit) & mask;
+  // JS bitwise ops are 32-bit: `1 << 32` wraps to 1, making the mask 0. Guard the
+  // full-width case explicitly so a 32-bit field returns all bits, not 0.
+  const mask = length >= 32 ? 0xffffffff : (1 << length) - 1;
+  return ((value >>> startBit) & mask) >>> 0;
 }
 
 // ---------------------------------------------------------------------------

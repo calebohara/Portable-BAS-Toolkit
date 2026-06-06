@@ -8,6 +8,14 @@ export interface ParseOptions {
   timestampColumn?: number;
   headerRow?: number;
   timestampFormat?: 'auto' | 'iso' | 'unix-s' | 'unix-ms' | 'us-locale' | 'eu-locale';
+  /**
+   * How to interpret non-ISO date/time strings (US/EU locale formats, which carry
+   * no timezone). 'local' (default) uses the browser timezone; 'utc' treats them as
+   * UTC. ISO strings with an explicit offset/Z are always honoured as written, so
+   * this only affects the locale branches. Set consistently across files before a
+   * multi-file merge so overlays don't drift by the local UTC offset.
+   */
+  timezone?: 'local' | 'utc';
 }
 
 export interface ParseResult {
@@ -54,7 +62,11 @@ const US_DATE_RE = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(
 const EU_DATE_RE = /^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?$/i;
 const ISO_LIKE_RE = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/;
 
-export function parseTimestamp(value: string, format: ParseOptions['timestampFormat'] = 'auto'): number | null {
+export function parseTimestamp(
+  value: string,
+  format: ParseOptions['timestampFormat'] = 'auto',
+  timezone: ParseOptions['timezone'] = 'local',
+): number | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
 
@@ -66,7 +78,8 @@ export function parseTimestamp(value: string, format: ParseOptions['timestampFor
     return null;
   }
 
-  // ISO 8601
+  // ISO 8601 — `new Date` honours an explicit Z / ±offset; a bare ISO string is
+  // local time per the ECMAScript spec for date-time forms with a time part.
   if (format === 'auto' || format === 'iso') {
     if (ISO_LIKE_RE.test(trimmed)) {
       const d = new Date(trimmed);
@@ -78,7 +91,7 @@ export function parseTimestamp(value: string, format: ParseOptions['timestampFor
   if (format === 'auto' || format === 'us-locale') {
     const m = trimmed.match(US_DATE_RE);
     if (m) {
-      const ts = buildDateFromParts(parseInt(m[2]), parseInt(m[1]), m[3], m[4], m[5], m[6], m[7], m[8]);
+      const ts = buildDateFromParts(parseInt(m[2]), parseInt(m[1]), m[3], m[4], m[5], m[6], m[7], m[8], timezone);
       if (ts !== null) return ts;
     }
   }
@@ -87,23 +100,22 @@ export function parseTimestamp(value: string, format: ParseOptions['timestampFor
   if (format === 'eu-locale') {
     const m = trimmed.match(EU_DATE_RE);
     if (m) {
-      const ts = buildDateFromParts(parseInt(m[1]), parseInt(m[2]), m[3], m[4], m[5], m[6], m[7]);
+      const ts = buildDateFromParts(parseInt(m[1]), parseInt(m[2]), m[3], m[4], m[5], m[6], m[7], undefined, timezone);
       if (ts !== null) return ts;
     }
   }
 
-  // Fallback: try Date.parse (catches many formats)
-  if (format === 'auto') {
-    const d = new Date(trimmed);
-    if (!isNaN(d.getTime())) return d.getTime();
-  }
-
+  // No silent `new Date(trimmed)` catch-all: V8 would fabricate timestamps for
+  // ambiguous text ("May 20" → current year, "12:30" → today), placing data at
+  // the wrong time with no signal. Unmatched strings return null so the caller
+  // can surface them as ambiguous/failed rows.
   return null;
 }
 
 function buildDateFromParts(
   day: number, month: number, yearStr: string,
-  hourStr?: string, minStr?: string, secStr?: string, msStr?: string, ampm?: string
+  hourStr?: string, minStr?: string, secStr?: string, msStr?: string, ampm?: string,
+  timezone: ParseOptions['timezone'] = 'local',
 ): number | null {
   let year = parseInt(yearStr);
   if (year < 100) year += 2000;
@@ -119,9 +131,11 @@ function buildDateFromParts(
     if (ampm.toUpperCase() === 'AM' && hour === 12) hour = 0;
   }
 
-  const d = new Date(year, month - 1, day, hour, min, sec, ms);
-  if (isNaN(d.getTime())) return null;
-  return d.getTime();
+  const ts = timezone === 'utc'
+    ? Date.UTC(year, month - 1, day, hour, min, sec, ms)
+    : new Date(year, month - 1, day, hour, min, sec, ms).getTime();
+  if (isNaN(ts)) return null;
+  return ts;
 }
 
 // ─── Locale-Aware Numeric Parsing ────────────────────────────
@@ -352,15 +366,17 @@ export async function parseTrendCSV(
 
   // 7. Parse data rows
   const data: TrendDataPoint[] = [];
-  let failedRows = 0;
+  let missingTsRows = 0;   // empty timestamp cell
+  let ambiguousTsRows = 0; // non-empty but unparseable timestamp
+  const timezone = options.timezone ?? 'local';
 
   for (let i = 0; i < dataRows.length; i++) {
     const row = dataRows[i];
     const tsRaw = row[tsCol];
-    if (!tsRaw) { failedRows++; continue; }
+    if (!tsRaw || !tsRaw.trim()) { missingTsRows++; continue; }
 
-    const timestamp = parseTimestamp(tsRaw, options.timestampFormat);
-    if (timestamp === null) { failedRows++; continue; }
+    const timestamp = parseTimestamp(tsRaw, options.timestampFormat, timezone);
+    if (timestamp === null) { ambiguousTsRows++; continue; }
 
     const values: Record<string, number | null> = {};
     for (let j = 0; j < valueColIndexes.length; j++) {
@@ -385,8 +401,11 @@ export async function parseTrendCSV(
     }
   }
 
-  if (failedRows > 0) {
-    warnings.push(`${failedRows} row(s) could not be parsed (bad timestamp or missing data).`);
+  if (missingTsRows > 0) {
+    warnings.push(`${missingTsRows} row(s) skipped — empty timestamp cell.`);
+  }
+  if (ambiguousTsRows > 0) {
+    warnings.push(`${ambiguousTsRows} row(s) skipped — ambiguous/unrecognized date format. Try setting the Timestamp Format explicitly.`);
   }
 
   // Sort by timestamp

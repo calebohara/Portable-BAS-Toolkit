@@ -38,7 +38,10 @@ export class ErrorBoundary extends Component<Props, State> {
       const error = this.state.error;
 
       return (
-        <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4 p-8 text-center">
+        <div
+          className="flex flex-col items-center justify-center gap-4 p-8 text-center"
+          style={{ minHeight: '50vh' }}
+        >
           <div className="rounded-full bg-field-danger/10 p-4">
             <AlertTriangle className="h-8 w-8 text-field-danger" />
           </div>

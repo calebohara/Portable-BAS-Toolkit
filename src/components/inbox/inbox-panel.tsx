@@ -289,8 +289,8 @@ export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange
   const [selectedType, setSelectedType] = useState<'inbox' | 'sent'>('inbox');
   const [composing, setComposing] = useState(false);
   const [replyTo, setReplyTo] = useState<{ recipientId: string; subject: string } | null>(null);
-  const [confirmPurge, setConfirmPurge] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; type: 'inbox' | 'sent'; subject: string } | null>(null);
+  const [purgeTarget, setPurgeTarget] = useState<'inbox' | 'sent' | null>(null);
 
   const handleSelect = async (msg: DirectMessage, type: 'inbox' | 'sent') => {
     setSelectedMessage(msg);
@@ -378,24 +378,11 @@ export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange
                   <Button
                     variant="ghost"
                     size="sm"
-                    className={cn('h-8 p-0 text-muted-foreground', confirmPurge ? 'w-auto px-2 text-destructive hover:text-destructive hover:bg-destructive/10' : 'w-8')}
-                    onClick={() => {
-                      if (confirmPurge) {
-                        if (tab === 'inbox') purgeInbox();
-                        else purgeSent();
-                        setConfirmPurge(false);
-                      } else {
-                        setConfirmPurge(true);
-                        setTimeout(() => setConfirmPurge(false), 3000);
-                      }
-                    }}
-                    aria-label={confirmPurge ? 'Confirm purge' : 'Purge all'}
+                    className="h-8 w-8 p-0 text-muted-foreground"
+                    onClick={() => setPurgeTarget(tab)}
+                    aria-label="Purge all"
                   >
-                    {confirmPurge ? (
-                      <span className="text-[11px] font-medium">Clear all?</span>
-                    ) : (
-                      <Eraser className="h-4 w-4" />
-                    )}
+                    <Eraser className="h-4 w-4" />
                   </Button>
                 )}
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={handleCompose} aria-label="Compose">
@@ -476,6 +463,23 @@ export function InboxPanel({ open, onOpenChange }: { open: boolean; onOpenChange
             deleteMessage(pendingDelete.id, pendingDelete.type);
             if (selectedMessage?.id === pendingDelete.id) setSelectedMessage(null);
           }
+        }}
+      />
+
+      <ConfirmDialog
+        open={!!purgeTarget}
+        onOpenChange={(open) => { if (!open) setPurgeTarget(null); }}
+        title={purgeTarget === 'sent' ? 'Clear Sent Messages' : 'Clear Inbox'}
+        description={
+          purgeTarget === 'sent'
+            ? 'Remove all sent messages from your view? Recipients keep their copy.'
+            : 'Remove all received messages from your view? Senders keep their copy.'
+        }
+        confirmLabel="Clear All"
+        variant="destructive"
+        onConfirm={() => {
+          if (purgeTarget === 'sent') purgeSent();
+          else if (purgeTarget === 'inbox') purgeInbox();
         }}
       />
     </Sheet>

@@ -102,7 +102,8 @@ export async function nativeTelnetConnect(
   sessionId: string,
   host: string,
   port: number,
-  timeoutMs: number = 10000,
+  // Matches the Rust-side fallback (telnet_connect uses 15s when unset).
+  timeoutMs: number = 15000,
 ): Promise<void> {
   const invoke = await getInvoke();
   await invoke('telnet_connect', { sessionId, host, port, timeoutMs });

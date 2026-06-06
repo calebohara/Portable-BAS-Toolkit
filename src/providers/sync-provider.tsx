@@ -133,10 +133,18 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     });
 
     // Re-subscribe whenever the user joins or leaves a global project so the
-    // 30s membership cache in `api.ts` doesn't keep us subscribed to stale
-    // project ids. Idempotent — safe to fire on every event.
+    // 30s membership cache doesn't keep us subscribed to stale project ids.
+    // Idempotent — safe to fire on every event.
+    //   - Invoke the prior cleanup first so we never overwrite a live channel
+    //     ref without tearing it down (defense-in-depth; the manager also tears
+    //     down internally).
+    //   - Pass force=true so the membership ids are re-fetched fresh, otherwise
+    //     a just-joined project's id wouldn't be in the realtime filter until
+    //     the cache TTL expires (race on invite-accept).
     const handleMembershipChanged = () => {
-      manager.subscribeToGlobalRealtime().then((cleanup) => {
+      realtimeCleanupRef.current?.();
+      realtimeCleanupRef.current = null;
+      manager.subscribeToGlobalRealtime(true).then((cleanup) => {
         realtimeCleanupRef.current = cleanup;
       }).catch((err) => {
         console.warn('[sync] Failed to re-subscribe to global realtime:', err);

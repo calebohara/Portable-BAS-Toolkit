@@ -268,7 +268,12 @@ export function AhuProcessesPanel({ unitSystem, altitude, calculatorResults }: A
                 Coil Load Results
               </div>
               <span className="text-[10px] font-normal">
-                {coilResult.totalLoad > 0 ? 'Heating mode' : 'Cooling mode'}
+                {/* Positive totalLoad = energy removed from air (entering hotter than
+                    leaving) = cooling; negative = heating. Derive from dry-bulb
+                    direction so the label is unambiguous. */}
+                {enterState && leaveState && enterState.dryBulb < leaveState.dryBulb
+                  ? 'Heating mode'
+                  : 'Cooling mode'}
               </span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">

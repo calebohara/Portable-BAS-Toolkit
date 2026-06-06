@@ -21,13 +21,19 @@ interface CsvPreviewDialogProps {
 
 export function CsvPreviewDialog({ open, file, parseResult, onConfirm, onReparse, onCancel }: CsvPreviewDialogProps) {
   const [tsFormat, setTsFormat] = useState<ParseOptions['timestampFormat']>('auto');
+  const [timezone, setTimezone] = useState<ParseOptions['timezone']>('local');
   const [headerRow, setHeaderRow] = useState(parseResult.detectedHeaderRow.toString());
   const [delimiter, setDelimiter] = useState(parseResult.detectedDelimiter);
+
+  // The timezone choice only affects non-ISO (US/EU locale) formats, which carry
+  // no offset. ISO strings with Z / ±offset are always honoured as written.
+  const tzAffectsFormat = tsFormat === 'us-locale' || tsFormat === 'eu-locale' || tsFormat === 'auto';
 
   const handleReparse = () => {
     const delimMap: Record<string, string> = { comma: ',', semicolon: ';', tab: '\t' };
     onReparse({
       timestampFormat: tsFormat,
+      timezone,
       headerRow: parseInt(headerRow) || 0,
       delimiter: delimMap[delimiter] || delimiter,
     });
@@ -81,7 +87,7 @@ export function CsvPreviewDialog({ open, file, parseResult, onConfirm, onReparse
           )}
 
           {/* Override controls */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div>
               <Label className="text-xs">Timestamp Format</Label>
               <Select value={tsFormat} onValueChange={(v) => v && setTsFormat(v as ParseOptions['timestampFormat'])}>
@@ -93,6 +99,16 @@ export function CsvPreviewDialog({ open, file, parseResult, onConfirm, onReparse
                   <SelectItem value="unix-s">Unix seconds</SelectItem>
                   <SelectItem value="us-locale">US (MM/DD/YYYY)</SelectItem>
                   <SelectItem value="eu-locale">EU (DD/MM/YYYY)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Timezone</Label>
+              <Select value={timezone} onValueChange={(v) => v && setTimezone(v as ParseOptions['timezone'])}>
+                <SelectTrigger size="sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="local">Local</SelectItem>
+                  <SelectItem value="utc">UTC</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -127,6 +143,13 @@ export function CsvPreviewDialog({ open, file, parseResult, onConfirm, onReparse
               </div>
             </div>
           </div>
+
+          {/* Timezone assumption note */}
+          <p className="text-[11px] text-muted-foreground">
+            {tzAffectsFormat
+              ? `Dates without a timezone are interpreted as ${timezone === 'utc' ? 'UTC' : 'your local time'}. When merging files from different sources (e.g. a UTC server export and a locally-exported CSV), set this consistently so overlaid trends align.`
+              : 'ISO 8601 timestamps with an explicit offset or Z are honoured as written; the timezone setting does not apply to this format.'}
+          </p>
 
           {/* Data preview table */}
           <div className="max-h-64 overflow-auto rounded-md border">

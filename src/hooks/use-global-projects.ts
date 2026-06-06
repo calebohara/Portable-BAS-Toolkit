@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { cascadeDeleteGlobalProject } from '@/lib/db';
 import type {
@@ -164,11 +164,17 @@ function useRealtimeRefresh(
   refresh: () => void,
   filter?: string,
 ) {
+  // Per-instance suffix so two pages subscribing to the same (table, filter)
+  // don't share a Supabase channel object — otherwise the first unmount's
+  // removeChannel tears down the channel the still-mounted page relies on.
+  const instanceId = useRef<string>(crypto.randomUUID());
+
   useEffect(() => {
     const client = getSupabaseClient();
     if (!client) return;
 
-    const channelName = filter ? `rt-${table}-${filter}` : `rt-${table}`;
+    const base = filter ? `rt-${table}-${filter}` : `rt-${table}`;
+    const channelName = `${base}-${instanceId.current}`;
     const subConfig: {
       event: '*';
       schema: 'public';

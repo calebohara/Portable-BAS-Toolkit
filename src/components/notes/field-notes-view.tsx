@@ -15,24 +15,26 @@ import { Card, CardContent } from '@/components/ui/card';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
-import { NOTE_CATEGORY_LABELS, type FieldNote, type NoteCategory } from '@/types';
+import { NOTE_CATEGORY_LABELS, type FieldNote, type NoteCategory, type ProjectFile } from '@/types';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 
 interface Props {
   projectId: string;
   notes: FieldNote[];
+  files?: ProjectFile[];
   onAddNote: (data: Omit<FieldNote, 'id' | 'createdAt' | 'updatedAt'>) => Promise<FieldNote>;
   onUpdateNote: (note: FieldNote) => Promise<void>;
   onDeleteNote: (id: string) => Promise<void>;
 }
 
-export function FieldNotesView({ projectId, notes, onAddNote, onUpdateNote, onDeleteNote }: Props) {
+export function FieldNotesView({ projectId, notes, files = [], onAddNote, onUpdateNote, onDeleteNote }: Props) {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<NoteCategory | 'all'>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [newNoteContent, setNewNoteContent] = useState('');
   const [newNoteCategory, setNewNoteCategory] = useState<NoteCategory>('general');
+  const [newNoteFileId, setNewNoteFileId] = useState('');
   const [newNoteTags, setNewNoteTags] = useState('');
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -71,9 +73,11 @@ export function FieldNotesView({ projectId, notes, onAddNote, onUpdateNote, onDe
         author: 'Field Tech',
         isPinned: false,
         tags: newNoteTags.split(',').map((t) => t.trim()).filter(Boolean),
+        ...(newNoteFileId ? { fileId: newNoteFileId } : {}),
       });
       setNewNoteContent('');
       setNewNoteTags('');
+      setNewNoteFileId('');
       setShowAddForm(false);
       toast.success('Note added');
     } catch {
@@ -170,6 +174,22 @@ export function FieldNotesView({ projectId, notes, onAddNote, onUpdateNote, onDe
                   </SelectContent>
                 </Select>
               </div>
+              {files.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-xs text-muted-foreground">Attach to file</label>
+                  <Select value={newNoteFileId || 'none'} onValueChange={(v) => setNewNoteFileId(v === 'none' ? '' : (v ?? ''))}>
+                    <SelectTrigger className="w-48 h-8 text-xs">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None (project-level)</SelectItem>
+                      {files.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>{f.title || f.fileName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex-1 space-y-1 min-w-32">
                 <label className="text-xs text-muted-foreground">Tags (comma separated)</label>
                 <Input

@@ -142,6 +142,12 @@ describe('humidityRatioFromEnthalpy', () => {
     const W = humidityRatioFromEnthalpy(75, 18);
     expect(W).toBeCloseTo(0, 4);
   });
+
+  it('clamps unphysical (supersaturated) results to 0.03 lb/lb', () => {
+    // 75°F dry bulb with 80 BTU/lb enthalpy => W ~0.058 lb/lb, well above saturation.
+    const W = humidityRatioFromEnthalpy(75, 80);
+    expect(W).toBe(0.03);
+  });
 });
 
 // ─── Derived Properties ──────────────────────────────────────
@@ -495,5 +501,27 @@ describe('calculateCoilLoad', () => {
     });
 
     expect(result.sensibleHeatRatio).toBeCloseTo(1, 1);
+  });
+
+  // Mode-label convention: positive totalLoad = energy removed = cooling,
+  // negative = heating. The AHU panel derives the label from this convention
+  // (entering.dryBulb > leaving.dryBulb => cooling). These assertions pin the
+  // sign so the UI label (fixed in ahu-processes-panel) cannot silently invert.
+  it('cooling scenario: entering hotter than leaving yields positive totalLoad', () => {
+    const entering = computeAllProperties('db-rh', 80, 50, 0);
+    const leaving = computeAllProperties('db-rh', 55, 90, 0);
+    const result = calculateCoilLoad({ airflowCfm: 10000, enteringState: entering, leavingState: leaving });
+
+    expect(entering.dryBulb).toBeGreaterThan(leaving.dryBulb); // panel => 'Cooling mode'
+    expect(result.totalLoad).toBeGreaterThan(0);
+  });
+
+  it('heating scenario: entering colder than leaving yields negative totalLoad', () => {
+    const entering = computeAllProperties('db-rh', 55, 30, 0);
+    const leaving = computeAllProperties('db-rh', 90, 10, 0);
+    const result = calculateCoilLoad({ airflowCfm: 10000, enteringState: entering, leavingState: leaving });
+
+    expect(entering.dryBulb).toBeLessThan(leaving.dryBulb); // panel => 'Heating mode'
+    expect(result.totalLoad).toBeLessThan(0);
   });
 });

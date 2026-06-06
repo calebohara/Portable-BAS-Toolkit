@@ -47,7 +47,6 @@ function ProjectsPageInner() {
     setDeleting(true);
     try {
       await removeProject(deleteTarget.id);
-      useAppStore.getState().removeRecentProject(deleteTarget.id);
       toast.success(`Deleted "${deleteTarget.name}"`);
       setDeleteTarget(null);
     } catch {

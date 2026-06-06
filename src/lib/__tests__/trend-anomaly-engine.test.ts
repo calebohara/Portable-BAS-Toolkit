@@ -211,13 +211,19 @@ describe('computeSeriesStats', () => {
       expect(computeSeriesStats(data, 'fan').runtimeHours).toBeNull();
     });
 
-    it('returns null runtimeHours for constant-ON sensor due to prevTs overwrite', () => {
-      // The engine overwrites prevTs with the current point before looking it up,
-      // so the "previous" lookup always finds the current point itself (prevVal ===
-      // current val), meaning runtimeMs never accumulates — this tests the actual
-      // observable behaviour of the implementation.
+    it('accumulates runtime across consecutive ON samples', () => {
+      // 4 points at 1-hour spacing, all ON (value 1): three consecutive ON→ON
+      // intervals of 1 hour each = 3 hours of runtime.
       const data = generateData('fan', 4, HOUR, () => 1);
-      expect(computeSeriesStats(data, 'fan').runtimeHours).toBeNull();
+      expect(computeSeriesStats(data, 'fan').runtimeHours).toBeCloseTo(3, 5);
+    });
+
+    it('only counts dwell time between two consecutive ON samples', () => {
+      // ON, ON, OFF, ON, ON at 1-hour spacing (t = 0,1,2,3,4 h).
+      // ON→ON pairs: (0→1) and (3→4) = 2 hours. The OFF at t=2 breaks the run,
+      // so the 1→2 and 2→3 intervals do not count.
+      const data = generateData('fan', 5, HOUR, i => (i === 2 ? 0 : 1));
+      expect(computeSeriesStats(data, 'fan').runtimeHours).toBeCloseTo(2, 5);
     });
   });
 

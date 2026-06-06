@@ -10,7 +10,7 @@ import {
   ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink, Eye, UserPlus, Cpu,
 } from 'lucide-react';
 import {
-  useProject, useProjectFiles, useProjectNotes,
+  useProject, useProjects, useProjectFiles, useProjectNotes,
   useProjectDevices, useProjectIpPlan, useProjectActivity,
   useTerminalLogs, useDailyReports, useProjectDxrs,
 } from '@/hooks/use-projects';
@@ -39,8 +39,6 @@ import { ShareWithUserDialog } from '@/components/global-projects/share-with-use
 import { PpclPreviewDialog } from '@/components/ppcl-editor/ppcl-preview-dialog';
 import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry, type TerminalSessionLog } from '@/types';
 import { cn, sanitizeFilename } from '@/lib/utils';
-import { deleteProject } from '@/lib/db';
-import { useAppStore } from '@/store/app-store';
 import { toast } from 'sonner';
 
 const sections = [
@@ -67,6 +65,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     : paramId;
   const router = useRouter();
   const { project, loading, update: updateProject } = useProject(id);
+  const { removeProject } = useProjects();
   const { files, refresh: refreshFiles } = useProjectFiles(id);
   const { notes, addNote, updateNote, removeNote } = useProjectNotes(id);
   const { devices, addDevice, updateDevice, removeDevice } = useProjectDevices(id);
@@ -130,8 +129,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     if (!project) return;
     setDeleting(true);
     try {
-      await deleteProject(id);
-      useAppStore.getState().removeRecentProject(id);
+      // removeProject also prunes the recent-projects pin (single source).
+      await removeProject(id);
       toast.success(`Deleted "${project.name}"`);
       router.push('/projects');
     } catch {
@@ -296,6 +295,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             <FieldNotesView
               projectId={id}
               notes={notes}
+              files={files}
               onAddNote={addNote}
               onUpdateNote={updateNote}
               onDeleteNote={removeNote}

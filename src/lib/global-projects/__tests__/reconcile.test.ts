@@ -291,8 +291,8 @@ describe('reconcile.ts', () => {
 
   // ─── (a) Entity pair count is locked ──────────────────────────────────────
 
-  it('exports exactly 14 reconciled entity pairs', () => {
-    expect(RECONCILED_ENTITY_PAIRS.length).toBe(14);
+  it('exports exactly 15 reconciled entity pairs', () => {
+    expect(RECONCILED_ENTITY_PAIRS.length).toBe(15);
     // Sanity: every pair has a key, a local store name, and a global store name.
     for (const pair of RECONCILED_ENTITY_PAIRS) {
       expect(typeof pair.key).toBe('string');

@@ -23,6 +23,7 @@ import { detectAnomalies, computeSeriesStats, defaultAnomalyConfig } from '@/lib
 import { exportCleanCSV, downloadCSV, exportChartAsPng, printReport } from '@/lib/trend-export';
 import { useTrendSessions } from '@/hooks/use-trend-sessions';
 import { useGlobalProjectTrendSessions } from '@/hooks/use-global-projects';
+import { useProjects } from '@/hooks/use-projects';
 import { GlobalModeBanner } from '@/components/global-projects/global-mode-banner';
 
 import { CsvUploadPanel } from '@/components/trend-viewer/csv-upload-panel';
@@ -77,6 +78,9 @@ function TrendViewerPageInner() {
   // Both hooks called unconditionally — the unused one short-circuits to []
   const { sessions: localSessions, addSession: addLocalSession, removeSession: removeLocalSession } = useTrendSessions();
   const { sessions: globalSessions, addSession: addGlobalSession, removeSession: removeGlobalSession } = useGlobalProjectTrendSessions(globalProjectId);
+  // Local-mode project picker for the Save dialog. In global mode the project is
+  // implicit (the global project), so the picker is hidden.
+  const { projects } = useProjects();
 
   const sessions = isGlobalMode ? globalSessions : localSessions;
   const addSession = useCallback(
@@ -387,6 +391,7 @@ function TrendViewerPageInner() {
         open={saveOpen}
         onOpenChange={setSaveOpen}
         onSave={handleSave}
+        projects={isGlobalMode ? [] : projects}
       />
       <SessionLoadDialog
         open={loadOpen}

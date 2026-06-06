@@ -6,11 +6,56 @@ import type { DxrImportRow } from '@/lib/dxr/xlsx-parser';
 import * as db from '@/lib/db';
 import { getAllRecentActivity, getAllProjectEntityCounts, getRecentNotes } from '@/lib/db';
 import { onPullComplete } from '@/lib/sync/sync-bridge';
+import { useAppStore } from '@/store/app-store';
 import { v4 as uuid } from 'uuid';
 
 /** Auto-refresh hook data when pull sync writes new data to IndexedDB */
 function usePullRefresh(refresh: () => void) {
   useEffect(() => onPullComplete(refresh), [refresh]);
+}
+
+/** Human-readable labels for project fields we audit in the activity timeline. */
+const PROJECT_FIELD_LABELS: Partial<Record<keyof Project, string>> = {
+  name: 'name',
+  projectNumber: 'project number',
+  customerName: 'customer',
+  status: 'status',
+  siteAddress: 'site address',
+  buildingArea: 'building area',
+  networkSummary: 'network summary',
+  panelRosterSummary: 'panel roster',
+  technicianNotes: 'technician notes',
+};
+
+/**
+ * Builds a short change summary by diffing the previous project against the next
+ * values. Returns null when nothing audit-worthy changed (so callers can skip
+ * emitting an empty activity entry).
+ */
+function buildProjectChangeSummary(prev: Project, next: Partial<Project>): string | null {
+  const parts: string[] = [];
+  for (const key of Object.keys(next) as (keyof Project)[]) {
+    if (key === 'updatedAt' || key === 'id' || key === 'createdAt') continue;
+    const before = prev[key];
+    const after = next[key];
+    if (JSON.stringify(before) === JSON.stringify(after)) continue;
+    if (key === 'contacts') {
+      const beforeLen = Array.isArray(before) ? before.length : 0;
+      const afterLen = Array.isArray(after) ? after.length : 0;
+      if (afterLen > beforeLen) parts.push('contact added');
+      else if (afterLen < beforeLen) parts.push('contact removed');
+      else parts.push('contact edited');
+      continue;
+    }
+    if (key === 'status') {
+      parts.push(`status → ${String(after)}`);
+      continue;
+    }
+    const label = PROJECT_FIELD_LABELS[key];
+    if (label) parts.push(`${label} updated`);
+  }
+  if (parts.length === 0) return null;
+  return parts.join(', ');
 }
 
 export function useProjects() {
@@ -49,9 +94,18 @@ export function useProjects() {
   }, [refresh]);
 
   const updateProject = useCallback(async (project: Project) => {
-    const updated = { ...project, updatedAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const updated = { ...project, updatedAt: now };
+    const prev = await db.getProject(project.id);
     try {
       await db.saveProject(updated);
+      const summary = prev ? buildProjectChangeSummary(prev, project) : null;
+      if (summary) {
+        await db.addActivity({
+          id: uuid(), projectId: project.id, action: 'Project updated',
+          details: summary, timestamp: now, user: 'User',
+        });
+      }
     } catch (e) {
       console.error('Failed to update project:', e);
       throw e;
@@ -62,6 +116,9 @@ export function useProjects() {
   const removeProject = useCallback(async (id: string) => {
     try {
       await db.deleteProject(id);
+      // Single source of truth: prune the recent-projects pin so callers don't
+      // each have to remember (orphan IDs lingered on cascade deletes before).
+      useAppStore.getState().removeRecentProject(id);
     } catch (e) {
       console.error('Failed to delete project:', e);
       throw e;
@@ -110,9 +167,19 @@ export function useProject(id: string) {
 
   const update = useCallback(async (data: Partial<Project>) => {
     if (!project) return;
-    const updated = { ...project, ...data, updatedAt: new Date().toISOString() };
+    const now = new Date().toISOString();
+    const updated = { ...project, ...data, updatedAt: now };
     try {
       await db.saveProject(updated);
+      // Audit trail: status / customer / contact edits etc. were previously
+      // silent. Emit a diff-summary activity entry when something changed.
+      const summary = buildProjectChangeSummary(project, data);
+      if (summary) {
+        await db.addActivity({
+          id: uuid(), projectId: project.id, action: 'Project updated',
+          details: summary, timestamp: now, user: 'User',
+        });
+      }
     } catch (e) {
       console.error('Failed to update project:', e);
       throw e;

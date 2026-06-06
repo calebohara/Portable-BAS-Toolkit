@@ -14,6 +14,7 @@ import { Progress } from '@/components/ui/progress';
 import { saveFile, saveFileBlob, addActivity } from '@/lib/db';
 import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type FileVersion } from '@/types';
 import { formatFileSize, FileIcon } from '@/components/shared/file-icon';
+import { ACCEPTED_TYPES, getFileExtension } from '@/components/files/accepted-file-types';
 import { cn, sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
 
@@ -29,23 +30,7 @@ const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 const MAX_TAGS = 20;
 const MAX_TAG_LENGTH = 50;
 
-const ACCEPTED_TYPES: Record<FileCategory, { extensions: string[]; accept: string; description: string }> = {
-  'panel-databases': { extensions: ['.p2'], accept: '.p2', description: 'P2 files' },
-  'wiring-diagrams': { extensions: ['.pdf'], accept: '.pdf', description: 'PDF files' },
-  'sequences': { extensions: ['.txt', '.pdf'], accept: '.txt,.pdf', description: 'TXT or PDF files' },
-  'backups': { extensions: ['.p2'], accept: '.p2', description: 'P2 files' },
-  'ip-plan': { extensions: ['.xlsx', '.csv', '.pdf'], accept: '.xlsx,.csv,.pdf', description: 'XLSX, CSV, or PDF files' },
-  'device-list': { extensions: ['.xlsx', '.csv'], accept: '.xlsx,.csv', description: 'XLSX or CSV files' },
-  'general-documents': { extensions: [], accept: '*', description: 'Any file (PDF, DOCX, XLSX, images, etc.)' },
-  'other': { extensions: [], accept: '*', description: 'Any file' },
-};
-
 type UploadStage = 'idle' | 'uploading' | 'complete' | 'failed';
-
-function getFileExtension(name: string): string {
-  const dot = name.lastIndexOf('.');
-  return dot >= 0 ? name.substring(dot + 1).toLowerCase() : '';
-}
 
 function sanitizeTags(tagsString: string): string[] {
   return tagsString

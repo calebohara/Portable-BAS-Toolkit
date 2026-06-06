@@ -131,7 +131,13 @@
       "Bash(sed -i '' 's/\"version\": \"4.14.0\"/\"version\": \"4.15.0\"/' package.json src-tauri/tauri.conf.json)",
       "Bash(sed -i '' 's/^version = \"4.14.0\"/version = \"4.15.0\"/' src-tauri/Cargo.toml)",
       "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.14.0\"/name = \"bau-suite\"\\\\nversion = \"4.15.0\"/' src-tauri/Cargo.lock)",
-      "Bash(echo \"---eslint exit $?---\")"
+      "Bash(echo \"---eslint exit $?---\")",
+      "Bash(echo \"EXIT: $?\")",
+      "Bash(echo \"ESLINT EXIT: $?\")",
+      "Bash(grep -c \"Attach to file\\\\|fileId, $\\\\|files: GlobalProjectFile\" \"src/app/global-projects/[...slug]/client-page.tsx\")",
+      "Bash(sed -i '' 's/\"version\": \"4.16.0\"/\"version\": \"4.17.0\"/' package.json src-tauri/tauri.conf.json)",
+      "Bash(sed -i '' 's/^version = \"4.16.0\"/version = \"4.17.0\"/' src-tauri/Cargo.toml)",
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.16.0\"/name = \"bau-suite\"\\\\nversion = \"4.17.0\"/' src-tauri/Cargo.lock)"
     ]
   }
 }

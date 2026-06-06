@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import { useRegisterSnapshot } from './snapshot-registry';
 import { Binary, ArrowLeftRight, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,6 +29,26 @@ export function QuickConverter() {
   }, [input, inputBase]);
 
   const warnings = useMemo(() => parsed?.valid ? getValueRangeWarnings(parsed.value) : [], [parsed]);
+
+  const snapshot = useMemo(() => (
+    parsed?.valid
+      ? {
+          inputs: { input: input.trim(), inputBase },
+          result: {
+            decimal: parsed.value,
+            hex16: toHex(parsed.value, 16),
+            hex32: toHex(parsed.value, 32),
+            binary16: toBinary(parsed.value, 16),
+            octal: toOctal(parsed.value),
+            unsigned16: toUnsigned16(parsed.value),
+            signed16: toSigned16(parsed.value),
+            unsigned32: toUnsigned32(parsed.value),
+            signed32: toSigned32(parsed.value),
+          },
+        }
+      : { inputs: {}, result: {} }
+  ), [parsed, input, inputBase]);
+  useRegisterSnapshot('convert', snapshot);
 
   return (
     <div className="space-y-4">

@@ -19,6 +19,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { getPublicUrl } from '@/lib/storage';
+import { cn } from '@/lib/utils';
 import type { KbArticle, KbReply } from '@/types/knowledge-base';
 import { isPaywallEnabled, hasCollabAccess } from '@/lib/paywall';
 import { UpgradeRequiredPage } from '@/components/shared/upgrade-required-page';
@@ -34,38 +35,55 @@ function formatFileSize(bytes: number): string {
 
 // ─── Simple Markdown Renderer ────────────────────────────────────────────────
 
+// Defense-in-depth: force every target="_blank" anchor to carry
+// rel="noopener noreferrer" regardless of what the markdown produced, so a
+// future regex change can't leak window.opener / referrer. Registered once.
+let kbAnchorHookRegistered = false;
+function ensureKbAnchorHook() {
+  if (kbAnchorHookRegistered || typeof window === 'undefined') return;
+  DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+    if (node.tagName === 'A' && node.getAttribute('target') === '_blank') {
+      node.setAttribute('rel', 'noopener noreferrer');
+    }
+  });
+  kbAnchorHookRegistered = true;
+}
+
 function renderMarkdown(text: string): string {
   if (!text) return '';
+  ensureKbAnchorHook();
   const html = text
     // Escape HTML
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     // Headings (## text)
-    .replace(/^## (.+)$/gm, '<strong class="text-base block mt-3 mb-1">$1</strong>')
-    .replace(/^### (.+)$/gm, '<strong class="text-sm block mt-2 mb-1">$1</strong>')
+    .replace(/^## (.+)$/gm, '<strong>$1</strong>')
+    .replace(/^### (.+)$/gm, '<strong>$1</strong>')
     // Bold
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     // Italic
     .replace(/_(.+?)_/g, '<em>$1</em>')
     // Inline code
-    .replace(/`([^`]+)`/g, '<code class="px-1.5 py-0.5 rounded bg-muted text-xs font-mono">$1</code>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
     // Blockquotes
-    .replace(/^&gt; (.+)$/gm, '<div class="border-l-2 border-primary/30 pl-3 text-muted-foreground italic">$1</div>')
+    .replace(/^&gt; (.+)$/gm, '<blockquote>$1</blockquote>')
     // Unordered lists
-    .replace(/^- (.+)$/gm, '<li class="ml-4 list-disc">$1</li>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
     // Ordered lists
-    .replace(/^\d+\. (.+)$/gm, '<li class="ml-4 list-decimal">$1</li>')
+    .replace(/^\d+\. (.+)$/gm, '<li>$1</li>')
     // Links
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_match: string, text: string, url: string) => {
       const safeUrl = /^(https?:\/\/|\/|mailto:)/i.test(url) ? url.replace(/"/g, '&quot;') : '#';
-      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer" class="text-primary hover:underline">${text}</a>`;
+      return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${text}</a>`;
     })
     // Line breaks
     .replace(/\n/g, '<br />');
+  // `class` removed from ALLOWED_ATTR — markdown styling now comes from the
+  // `.kb-markdown` scoped CSS targeting semantic tags, not injectable classes.
   return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['strong', 'em', 'code', 'a', 'br', 'div', 'li'],
-    ALLOWED_ATTR: ['href', 'target', 'rel', 'class'],
+    ALLOWED_TAGS: ['strong', 'em', 'code', 'a', 'br', 'blockquote', 'li'],
+    ALLOWED_ATTR: ['href', 'target', 'rel'],
   });
 }
 
@@ -336,7 +354,17 @@ function ArticleCard({ article, userId, onDeleteArticle, onReply, onDeleteReply 
         {article.body && (
           <div className="px-5 pb-4">
             <div
-              className="text-sm text-foreground/80 leading-relaxed prose-sm max-w-none"
+              className={cn(
+                'text-sm text-foreground/80 leading-relaxed prose-sm max-w-none',
+                // Styling for sanitized markdown via child selectors (classes are
+                // no longer emitted into the HTML — see renderMarkdown).
+                '[&_strong]:font-semibold [&_strong]:block [&_strong]:mt-2',
+                '[&_em]:italic',
+                '[&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded [&_code]:bg-muted [&_code]:text-xs [&_code]:font-mono',
+                '[&_blockquote]:border-l-2 [&_blockquote]:border-primary/30 [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground [&_blockquote]:italic',
+                '[&_li]:ml-4 [&_li]:list-disc',
+                '[&_a]:text-primary [&_a]:hover:underline',
+              )}
               dangerouslySetInnerHTML={{ __html: renderMarkdown(article.body) }}
             />
           </div>

@@ -931,9 +931,20 @@ export default function TelnetPage() {
   const lineBufferRef = useRef<Map<string, string>>(new Map());
   const flushTimeoutRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  // Cancel any pending flush timer and drop the partial-line buffer for a
+  // session WITHOUT flushing it (used on clear/disconnect/remove so a stale
+  // partial line can't reappear after the buffer was wiped).
+  const resetLineBuffer = useCallback((sessionId: string) => {
+    const timer = flushTimeoutRef.current.get(sessionId);
+    if (timer) clearTimeout(timer);
+    flushTimeoutRef.current.delete(sessionId);
+    lineBufferRef.current.delete(sessionId);
+  }, []);
+
   const processIncomingData = useCallback((sessionId: string, data: string) => {
-    // Handle ANSI clear screen — wipe buffer
+    // Handle ANSI clear screen — wipe buffer (and any pending flush timer/partial)
     if (containsClearScreen(data)) {
+      resetLineBuffer(sessionId);
       clearBuffer(sessionId);
     }
 
@@ -966,6 +977,10 @@ export default function TelnetPage() {
     // If there's a partial line, flush it after 100ms (for interactive prompts)
     if (partial) {
       const timer = setTimeout(() => {
+        flushTimeoutRef.current.delete(sessionId);
+        // Bail if the session was removed or cleared/disconnected in the
+        // meantime — otherwise we'd re-inject a stale partial line.
+        if (!lineBufferRef.current.has(sessionId)) return;
         const buffered = lineBufferRef.current.get(sessionId);
         if (buffered) {
           appendLine(sessionId, {
@@ -975,11 +990,10 @@ export default function TelnetPage() {
           });
           lineBufferRef.current.set(sessionId, '');
         }
-        flushTimeoutRef.current.delete(sessionId);
       }, 100);
       flushTimeoutRef.current.set(sessionId, timer);
     }
-  }, [appendLine, clearBuffer]);
+  }, [appendLine, clearBuffer, resetLineBuffer]);
 
   const flushLineBuffer = useCallback((sessionId: string) => {
     const timer = flushTimeoutRef.current.get(sessionId);
@@ -996,12 +1010,26 @@ export default function TelnetPage() {
     }
   }, [appendLine]);
 
+  // Clear the buffer AND cancel any pending flush timer / drop the partial line
+  // so a stale partial can't reappear right after the user clears the screen.
+  const handleClearBuffer = useCallback((sessionId: string) => {
+    resetLineBuffer(sessionId);
+    clearBuffer(sessionId);
+  }, [resetLineBuffer, clearBuffer]);
+
   // Clean up flush timers on unmount
   useEffect(() => {
     return () => {
       for (const timer of flushTimeoutRef.current.values()) clearTimeout(timer);
     };
   }, []);
+
+  // Keep the latest sessions accessible to the unmount cleanup (which runs with
+  // empty deps and would otherwise close over a stale snapshot).
+  const sessionsRef = useRef(sessions);
+  sessionsRef.current = sessions;
+  const isDesktopRef = useRef(isDesktop);
+  isDesktopRef.current = isDesktop;
 
   useEffect(() => { setIsDesktop(isTauri()); }, []);
 
@@ -1022,8 +1050,18 @@ export default function TelnetPage() {
   useEffect(() => { refreshPorts(); }, [refreshPorts]);
 
   // ─── Connection logic ────────────────────────────────────
+  // Guards against re-entrant connect attempts (e.g. spamming Reconnect) that
+  // could pile up native connect calls and cross-wire listeners between tasks.
+  const connectingRef = useRef<Set<string>>(new Set());
+
   const handleConnect = useCallback(async () => {
     const isSerial = session.connectionMode === 'serial';
+
+    // Don't start a second connect while one is already in flight for this
+    // session — prevents piled-up native connect calls cross-wiring listeners.
+    if (connectingRef.current.has(session.id)) {
+      return;
+    }
 
     if (isSerial && !session.serialPort) {
       toast.error('Please select a serial port');
@@ -1047,6 +1085,9 @@ export default function TelnetPage() {
       type: 'system',
     });
 
+    // Lock re-entry for this session until the connect attempt settles.
+    connectingRef.current.add(session.id);
+    try {
     if (isDesktop) {
       const sid = session.id;
       try {
@@ -1202,13 +1243,19 @@ export default function TelnetPage() {
         });
       }
     }
+    } finally {
+      connectingRef.current.delete(session.id);
+    }
   }, [session, isDesktop, setConnectionState, appendLine, addToHistory, processIncomingData, flushLineBuffer]);
 
   const handleDisconnect = useCallback(async (sessionIdOverride?: string) => {
     const sid = sessionIdOverride || session.id;
+    // Resolve the mode from the target session (not the active one) so closing
+    // a background tab disconnects the right transport.
+    const targetSession = sessions.find(s => s.id === sid) ?? session;
     if (isDesktop) {
       try {
-        if (session.connectionMode === 'serial') {
+        if (targetSession.connectionMode === 'serial') {
           await nativeSerialDisconnect(sid);
         } else {
           await nativeTelnetDisconnect(sid);
@@ -1230,12 +1277,16 @@ export default function TelnetPage() {
       timestamp: new Date().toISOString(),
       type: 'system',
     });
-  }, [session.id, session.connectionMode, isDesktop, setConnectionState, appendLine, flushLineBuffer]);
+  }, [session, sessions, isDesktop, setConnectionState, appendLine, flushLineBuffer]);
 
   const handleReconnect = useCallback(async () => {
+    // Lock the button immediately so rapid clicks can't stack reconnects while
+    // the disconnect is still in flight (handleConnect's ref guard backs this up).
+    if (connectingRef.current.has(session.id)) return;
+    setConnectionState(session.id, 'connecting');
     await handleDisconnect();
     await handleConnect();
-  }, [handleConnect, handleDisconnect]);
+  }, [session.id, handleConnect, handleDisconnect, setConnectionState]);
 
   const handleTestPort = useCallback(async () => {
     if (!session.host.trim()) {
@@ -1340,6 +1391,20 @@ export default function TelnetPage() {
       if (wsRef.current) {
         wsRef.current.close();
       }
+      // Disconnect any live native (Tauri) sessions so the Rust-side socket /
+      // COM port doesn't leak when the user navigates away from /terminal.
+      // Fire-and-forget — errors are irrelevant during teardown.
+      if (isDesktopRef.current) {
+        for (const s of sessionsRef.current) {
+          if (s.connectionState === 'connected' || s.connectionState === 'connecting') {
+            if (s.connectionMode === 'serial') {
+              nativeSerialDisconnect(s.id).catch(() => { /* ignore */ });
+            } else {
+              nativeTelnetDisconnect(s.id).catch(() => { /* ignore */ });
+            }
+          }
+        }
+      }
       // Clean up all Tauri event listeners across all sessions
       for (const [, fns] of cleanupListenersMapRef.current) {
         for (const fn of fns) fn();
@@ -1406,6 +1471,9 @@ export default function TelnetPage() {
                         if (s.connectionState === 'connected' || s.connectionState === 'connecting') {
                           handleDisconnect(s.id);
                         }
+                        // Cancel any pending flush timer / drop the partial-line
+                        // buffer so the timer can't fire after the session is gone.
+                        resetLineBuffer(s.id);
                         removeSession(s.id);
                       }}
                       className="ml-1 opacity-0 group-hover:opacity-100 hover:text-destructive p-0.5 rounded transition-opacity"
@@ -1688,7 +1756,7 @@ export default function TelnetPage() {
 
                 <div className="border-l border-border h-5" />
 
-                <Button size="sm" variant="ghost" onClick={() => clearBuffer(session.id)} className="gap-1 h-7 text-xs px-2">
+                <Button size="sm" variant="ghost" onClick={() => handleClearBuffer(session.id)} className="gap-1 h-7 text-xs px-2">
                   <Trash2 className="h-3 w-3" /> Clear
                 </Button>
                 <Button
