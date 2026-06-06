@@ -873,8 +873,12 @@ export class SyncManager implements SyncManagerInterface {
         const deadIds = deadProjects.map((p) => p.id as string);
         console.info(`${LOG_PREFIX} Found ${deadIds.length} soft-deleted project(s) — purging children first…`);
 
-        // Delete all child records referencing these projects (order: children before parents)
-        const childTables = SYNC_ORDER.filter((t) => t !== 'projects' && t !== 'commandSnippets' && t !== 'bugReports');
+        // Delete all child records referencing these projects (order: children before parents).
+        // Only local entity types that actually carry a `project_id` column — derived from
+        // REQUIRES_PROJECT_ID to match Step 1b. Filtering anything else (e.g. global_* tables
+        // keyed on global_project_id, or commandSnippets/bugReports which have no project_id)
+        // would 42703-error against the missing column and spam the syncErrors log.
+        const childTables = SYNC_ORDER.filter((t) => REQUIRES_PROJECT_ID.has(t));
         for (const entityType of childTables) {
           try {
             const table = entityTypeToTable[entityType];

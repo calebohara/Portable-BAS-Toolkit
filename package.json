@@ -1,11 +1,12 @@
 {
   "name": "bau-suite",
-  "version": "4.17.0",
+  "version": "4.18.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "build:static": "node scripts/build-static.js",
+    "icons": "node scripts/generate-icons.mjs",
     "start": "next start",
     "lint": "eslint",
     "tauri": "tauri",

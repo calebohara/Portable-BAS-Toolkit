@@ -17,6 +17,7 @@ import {
 import {
   clearSyncQueue,
   clearSyncErrors,
+  clearAllSyncConflicts,
 } from '@/lib/db';
 import { useSyncContext } from '@/providers/sync-provider';
 import { emitPullComplete } from '@/lib/sync/sync-bridge';
@@ -25,9 +26,10 @@ import { useAppStore } from '@/store/app-store';
 /**
  * Reset Sync State — admin recovery action.
  *
- * Clears every pending push (syncQueue), every captured SyncError, and then
- * triggers a fresh full pull from Supabase. Use when sync is stuck in a
- * cascade of failures the user can't recover from one row at a time.
+ * Clears every pending push (syncQueue), every captured SyncError, every
+ * stuck sync conflict, and then triggers a fresh full pull from Supabase. Use
+ * when sync is stuck in a cascade of failures the user can't recover from one
+ * row at a time.
  *
  * Does NOT delete local IndexedDB entity rows — only sync metadata. If an
  * orphan row keeps failing after reset, the user must Forget Locally on the
@@ -46,6 +48,9 @@ export function ResetSyncStateCard() {
     try {
       const clearedQueue = await clearSyncQueue();
       const clearedErrors = await clearSyncErrors();
+      // Also clear any stuck sync conflicts — these are equally sticky and the
+      // user can't otherwise recover them from this card.
+      await clearAllSyncConflicts();
 
       // Reset lastPulledAt so the next pull is a full (non-incremental) refresh.
       setLastPulledAt(null);
@@ -73,7 +78,7 @@ export function ResetSyncStateCard() {
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold">Reset Sync State</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Clears every pending push and every captured sync error, then re-pulls all data from Supabase.
+            Clears every pending push, captured sync error, and stuck conflict, then re-pulls all data from Supabase.
             Use when sync is stuck in a loop of failed retries. Local entity rows are preserved — clear those
             individually via &quot;Forget locally&quot; in the Sync Error Inspector if needed.
           </p>

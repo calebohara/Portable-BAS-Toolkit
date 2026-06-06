@@ -1,14 +1,14 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import type { SyncError, SyncEntityType } from '@/types';
+import type { SyncError } from '@/types';
 import {
   getAllSyncErrors,
   clearSyncErrors,
   deleteSyncError,
   deleteSyncItem,
   bulkDeleteSilent,
-  type BasToolkitStoreName,
+  isBasToolkitStoreName,
 } from '@/lib/db';
 
 export interface UseSyncErrorsResult {
@@ -50,8 +50,14 @@ async function deleteUnderlyingQueueItem(error: SyncError): Promise<void> {
 
 async function deleteUnderlyingEntityRow(error: SyncError): Promise<void> {
   if (error.entityId === PULL_SENTINEL) return;
-  // SyncEntityType values map 1:1 to IndexedDB store names.
-  const storeName = error.entityType as SyncEntityType as BasToolkitStoreName;
+  // SyncEntityType values overlap IndexedDB store names today, but a future
+  // pull-only entity could diverge — guard at runtime instead of double-casting
+  // so a divergent entityType becomes a no-op rather than a bad-store crash.
+  const storeName = error.entityType;
+  if (!isBasToolkitStoreName(storeName)) {
+    console.warn(`No IndexedDB store for entityType "${storeName}" — skipping local row delete.`);
+    return;
+  }
   try {
     await bulkDeleteSilent(storeName, [error.entityId]);
   } catch (e) {

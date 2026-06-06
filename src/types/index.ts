@@ -3,6 +3,21 @@ export type FileCategory = 'panel-databases' | 'wiring-diagrams' | 'sequences' |
 export type FileStatus = 'current' | 'previous' | 'archived' | 'field-verified' | 'superseded' | 'backup-snapshot' | 'obsolete';
 export type NoteCategory = 'general' | 'issue' | 'fix' | 'punch-item' | 'startup-note' | 'network-change' | 'customer-request';
 
+/**
+ * Siemens project-number convention: `44OP-` followed by exactly six digits
+ * (e.g. `44OP-001847`). Validation is soft (a warning, never blocking) — callers
+ * treat an empty value as valid and only warn on a non-empty, malformed value.
+ * Shared by `new-project-dialog.tsx` and `edit-project-dialog.tsx` so the rule
+ * lives in one place.
+ */
+export const PROJECT_NUMBER_REGEX = /^44OP-\d{6}$/;
+export const PROJECT_NUMBER_FORMAT_HINT = 'Expected format: 44OP-XXXXXX';
+
+/** True when `pn` is empty (soft-valid) or matches the Siemens 44OP-XXXXXX format. */
+export function isValidProjectNumber(pn: string): boolean {
+  return !pn || PROJECT_NUMBER_REGEX.test(pn);
+}
+
 export interface Contact {
   name: string;
   role: string; // GC, controls contractor, TAB, mechanical, customer, etc.
@@ -11,6 +26,26 @@ export interface Contact {
   company?: string;
 }
 
+/**
+ * Local ↔ global project field mapping (see `src/lib/global-projects/reconcile.ts`).
+ *
+ * The local `Project` has a single `customerName` field, while the global
+ * `GlobalProject` (`src/types/global-projects.ts`) splits the same concept into
+ * two columns — `customer_name` AND `job_site_name` — plus a `description`.
+ *
+ * Reconcile collapses/expands them as follows:
+ *   push (local → global): `customer_name` ← `customerName`;
+ *                          `job_site_name` ← `customerName || name`;
+ *                          `description`   ← '' (local has no description field).
+ *   pull (global → local): `customerName`  ← `customer_name || job_site_name || ''`.
+ *
+ * Consequence: on the global side `customerName` and `jobSiteName` look like two
+ * distinct fields, but they collapse to local `customerName` on the next pull,
+ * and local `customerName` overwrites both global columns on the next push. They
+ * are intentionally NOT two independent fields locally — do not add `jobSiteName`
+ * to this interface without also surfacing it in the local edit UI and updating
+ * the reconcile mappers, or the round-trip will silently lose data.
+ */
 export interface Project {
   id: string;
   name: string;
@@ -821,6 +856,13 @@ export interface TrendSession {
 export type PingStatus = 'reachable' | 'unreachable' | 'pending' | 'error';
 
 export interface PingTarget {
+  /**
+   * Stable per-target id (crypto.randomUUID), assigned at row creation. Used to
+   * key the results map so two targets with the same host and an undefined port
+   * don't collide on a `${host}:${port}` string key. Optional for backwards
+   * compatibility with sessions saved before this field existed.
+   */
+  id?: string;
   host: string;
   label?: string;
   port?: number;

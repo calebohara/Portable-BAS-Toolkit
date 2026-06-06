@@ -16,6 +16,12 @@ export function EmbeddedWorkspace() {
   const setEmbedState = useWebInterfaceStore(s => s.setEmbedState);
   const clearWorkspace = useWebInterfaceStore(s => s.clearWorkspace);
   const activeEndpointId = useWebInterfaceStore(s => s.activeEndpointId);
+  // NOTE: Web endpoints (and their `lastKnownEmbedSupport`) live only in the
+  // `bau-suite-web-interface` Zustand-persist store — they are local-only and are
+  // NOT synced to IndexedDB or Supabase. The direct `updateEndpoint` calls below
+  // therefore correctly bypass SyncManager. If endpoints are ever promoted to
+  // project-scoped, remote-synced entities, these mutations must be routed
+  // through SyncManager like the other synced entities.
   const updateEndpoint = useWebInterfaceStore(s => s.updateEndpoint);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [copied, setCopied] = useState(false);
@@ -58,6 +64,13 @@ export function EmbeddedWorkspace() {
       } catch {
         if (!cancelled) {
           setEmbedState('cert-issue');
+          // Persist 'blocked' so the endpoint card shows "ext only" next time and
+          // the user knows to choose New Tab. The card has no 'cert-issue' badge;
+          // a cert failure means embedding won't work, which is what 'blocked'
+          // conveys. (Endpoints are local-only Zustand-persist — see note below.)
+          if (activeEndpointId) {
+            updateEndpoint(activeEndpointId, { lastKnownEmbedSupport: 'blocked' });
+          }
         }
       }
     })();
@@ -70,6 +83,10 @@ export function EmbeddedWorkspace() {
     if (embedState === 'loading' && isHttps && isPrivateNetwork) {
       loadTimerRef.current = setTimeout(() => {
         setEmbedState('cert-issue');
+        // Remember the cert failure as 'blocked' (see proxy catch above for why).
+        if (activeEndpointId) {
+          updateEndpoint(activeEndpointId, { lastKnownEmbedSupport: 'blocked' });
+        }
       }, 8000);
     }
     return () => {
@@ -78,7 +95,7 @@ export function EmbeddedWorkspace() {
         loadTimerRef.current = null;
       }
     };
-  }, [embedState, isHttps, isPrivateNetwork, setEmbedState, isTauriApp]);
+  }, [embedState, isHttps, isPrivateNetwork, setEmbedState, isTauriApp, activeEndpointId, updateEndpoint]);
 
   const handleCopyUrl = async () => {
     try {

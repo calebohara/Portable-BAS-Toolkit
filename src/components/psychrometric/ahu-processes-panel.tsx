@@ -186,8 +186,7 @@ export function AhuProcessesPanel({ unitSystem, altitude, calculatorResults }: A
               <PropertyCard label="Dry Bulb" icon={Thermometer} {...formatProperty('dryBulb', mixedDisplay.dryBulb, unitSystem)} />
               <PropertyCard label="Wet Bulb" icon={Thermometer} {...formatProperty('wetBulb', mixedDisplay.wetBulb, unitSystem)} />
               <PropertyCard label="Humidity Ratio" icon={Droplets}
-                value={unitSystem === 'ip' ? (mixedDisplay.humidityRatio * 7000).toFixed(1) : mixedDisplay.humidityRatio.toFixed(2)}
-                unit={unitSystem === 'ip' ? 'gr/lb' : 'g/kg'} />
+                {...formatProperty('humidityRatio', mixedDisplay.humidityRatio, unitSystem)} />
               <PropertyCard label="Enthalpy" icon={Zap} {...formatProperty('enthalpy', mixedDisplay.enthalpy, unitSystem)} />
               <PropertyCard label="RH" icon={Droplets} {...formatProperty('relativeHumidity', mixedDisplay.relativeHumidity, unitSystem)} />
               <PropertyCard label="Dew Point" icon={Thermometer} {...formatProperty('dewPoint', mixedDisplay.dewPoint, unitSystem)} />

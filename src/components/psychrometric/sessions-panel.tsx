@@ -92,7 +92,7 @@ export function SessionsPanel({
       `Wet Bulb: ${formatProperty('wetBulb', s.wetBulb, u).value} ${formatProperty('wetBulb', s.wetBulb, u).unit}`,
       `Dew Point: ${formatProperty('dewPoint', s.dewPoint, u).value} ${formatProperty('dewPoint', s.dewPoint, u).unit}`,
       `RH: ${s.relativeHumidity.toFixed(1)}%`,
-      `Humidity Ratio: ${u === 'ip' ? (s.humidityRatio * 7000).toFixed(1) + ' gr/lb' : s.humidityRatio.toFixed(2) + ' g/kg'}`,
+      `Humidity Ratio: ${formatProperty('humidityRatio', s.humidityRatio, u).value} ${formatProperty('humidityRatio', s.humidityRatio, u).unit}`,
       `Enthalpy: ${formatProperty('enthalpy', s.enthalpy, u).value} ${formatProperty('enthalpy', s.enthalpy, u).unit}`,
       `Specific Volume: ${formatProperty('specificVolume', s.specificVolume, u).value} ${formatProperty('specificVolume', s.specificVolume, u).unit}`,
       '',

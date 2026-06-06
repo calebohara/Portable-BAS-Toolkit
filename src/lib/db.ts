@@ -296,6 +296,34 @@ export type BasToolkitStoreName =
   // ── Sync Error log (v21) ──
   | 'syncErrors';
 
+/**
+ * Runtime mirror of the `BasToolkitStoreName` union. Used to guard runtime
+ * values (e.g. a `SyncEntityType` coming off a persisted SyncError) before
+ * treating them as IndexedDB store names — the union and `SyncEntityType`
+ * happen to overlap today, but a future pull-only entity could diverge.
+ * The `satisfies` assertion keeps this in lockstep with the type: drop a
+ * member and TS fails to compile.
+ */
+export const BAS_TOOLKIT_STORE_NAMES = new Set<BasToolkitStoreName>([
+  'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
+  'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
+  'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
+  'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions', 'bugReports', 'reviews', 'syncQueue', 'syncConflicts',
+  'globalProjects', 'globalNotes', 'globalDevices', 'globalIpPlan',
+  'globalDailyReports', 'globalActivityLog', 'globalNetworkDiagrams',
+  'globalProjectFiles', 'globalPpclDocuments', 'globalTerminalLogs',
+  'globalPidTuningSessions', 'globalPsychSessions', 'globalRegisterCalculations',
+  'globalPingSessions', 'globalTrendSessions', 'globalConnectionProfiles',
+  'globalFieldPanels', 'globalNotepadEntries', 'globalProjectPreferences',
+  'dxrs', 'globalDxrs',
+  'syncErrors',
+] satisfies BasToolkitStoreName[]);
+
+/** Runtime guard: is `value` a known IndexedDB store name? */
+export function isBasToolkitStoreName(value: string): value is BasToolkitStoreName {
+  return BAS_TOOLKIT_STORE_NAMES.has(value as BasToolkitStoreName);
+}
+
 /** Current schema version — bump this and add a new `if (oldVersion < N)` block when changing the schema. */
 export const DB_VERSION = 21;
 
@@ -658,6 +686,33 @@ const GLOBAL_PROJECT_CHILD_STORES: readonly SyncEntityType[] = [
  * Re-exported as `deleteProject` for backward compatibility — all call sites
  * should migrate to `cascadeDeleteProject` for clarity.
  */
+/**
+ * Clean up `syncQueue` items and `syncErrors` records for a batch of deleted
+ * entities. Shared by `cascadeDeleteProject` and `cascadeDeleteGlobalProject`.
+ *
+ * These stores live outside the cascade write transaction, so this runs
+ * post-commit. The IndexedDB entity rows are already gone by the time this is
+ * called — failures here are non-fatal (at worst the Inspector shows stale rows
+ * the user can clear manually), so callers should wrap this in try/catch.
+ */
+async function cleanupSyncArtifacts(
+  pairs: Array<{ entityType: SyncEntityType; entityId: string }>,
+): Promise<void> {
+  if (pairs.length === 0) return;
+  const db = await getDB();
+  for (const { entityType, entityId } of pairs) {
+    // syncQueue uses deterministic key `${entityType}-${entityId}`
+    await deleteSyncItem(`${entityType}-${entityId}`).catch(() => { /* no-op if absent */ });
+    // syncErrors: delete by scanning the by-entity-type index for matching entityId
+    const errorsByType = await db.getAllFromIndex('syncErrors', 'by-entity-type', entityType);
+    for (const err of errorsByType) {
+      if (err.entityId === entityId) {
+        await db.delete('syncErrors', err.id);
+      }
+    }
+  }
+}
+
 export async function cascadeDeleteProject(id: string): Promise<void> {
   const db = await getDB();
 
@@ -719,10 +774,8 @@ export async function cascadeDeleteProject(id: string): Promise<void> {
   }
 
   // ── Post-commit: clean up syncQueue and syncErrors for deleted entities ──
-  // These are in separate stores (not part of the cascade transaction) so we
-  // handle them independently. Failures here are non-fatal — the IndexedDB data
-  // is already gone; at worst the Inspector shows stale rows that can be cleared
-  // manually.
+  // Handled outside the cascade transaction (separate stores). Failures are
+  // non-fatal — the IndexedDB data is already gone.
   try {
     const allChildIds: Array<{ entityType: SyncEntityType; entityId: string }> = [];
     for (const [store, ids] of deleted) {
@@ -733,18 +786,7 @@ export async function cascadeDeleteProject(id: string): Promise<void> {
     // Also include the project itself
     allChildIds.push({ entityType: 'projects', entityId: id });
 
-    for (const { entityType, entityId } of allChildIds) {
-      // syncQueue uses deterministic key `${entityType}-${entityId}`
-      await deleteSyncItem(`${entityType}-${entityId}`).catch(() => { /* no-op if absent */ });
-      // syncErrors: delete by scanning the by-entity-type index for matching entityId
-      const errorDb = await getDB();
-      const errorsByType = await errorDb.getAllFromIndex('syncErrors', 'by-entity-type', entityType);
-      for (const err of errorsByType) {
-        if (err.entityId === entityId) {
-          await errorDb.delete('syncErrors', err.id);
-        }
-      }
-    }
+    await cleanupSyncArtifacts(allChildIds);
   } catch (cleanupErr) {
     console.warn('[db] cascadeDeleteProject: syncQueue/syncErrors cleanup failed (non-fatal):', cleanupErr);
   }
@@ -841,18 +883,7 @@ export async function cascadeDeleteGlobalProject(globalProjectId: string): Promi
     // Include the global project itself
     allChildIds.push({ entityType: 'globalProjects', entityId: globalProjectId });
 
-    const cleanupDb = await getDB();
-    for (const { entityType, entityId } of allChildIds) {
-      // syncQueue key is `${entityType}-${entityId}`
-      await deleteSyncItem(`${entityType}-${entityId}`).catch(() => { /* no-op if absent */ });
-      // syncErrors: scan by-entity-type index for matching entityId
-      const errorsByType = await cleanupDb.getAllFromIndex('syncErrors', 'by-entity-type', entityType);
-      for (const err of errorsByType) {
-        if (err.entityId === entityId) {
-          await cleanupDb.delete('syncErrors', err.id);
-        }
-      }
-    }
+    await cleanupSyncArtifacts(allChildIds);
   } catch (cleanupErr) {
     console.warn('[db] cascadeDeleteGlobalProject: syncQueue/syncErrors cleanup failed (non-fatal):', cleanupErr);
   }
@@ -1834,15 +1865,18 @@ const SYNC_ERROR_CAP = 100;
  */
 export async function addSyncError(error: SyncError): Promise<void> {
   const db = await getDB();
-  await db.put('syncErrors', error);
+  // Put + count + overflow-delete all happen in ONE readwrite transaction so
+  // the cap can't race: two errors firing in quick succession would otherwise
+  // both observe count = CAP+1 in separate txs and both delete the same oldest
+  // row, drifting the store above the cap.
+  const tx = db.transaction('syncErrors', 'readwrite');
+  await tx.store.put(error);
 
-  // Enforce cap: if we now exceed 100 rows, delete the oldest until we're at 100.
-  const total = await db.count('syncErrors');
+  const total = await tx.store.count();
   if (total > SYNC_ERROR_CAP) {
     const overflow = total - SYNC_ERROR_CAP;
-    // Open a cursor on the by-created-at index (ascending = oldest first) and
-    // delete the first `overflow` rows.
-    const tx = db.transaction('syncErrors', 'readwrite');
+    // Cursor on by-created-at (ascending = oldest first) — delete the oldest
+    // `overflow` rows so we settle back at the cap.
     let cursor = await tx.store.index('by-created-at').openCursor(null, 'next');
     let deleted = 0;
     while (cursor && deleted < overflow) {
@@ -1850,8 +1884,8 @@ export async function addSyncError(error: SyncError): Promise<void> {
       deleted++;
       cursor = await cursor.continue();
     }
-    await tx.done;
   }
+  await tx.done;
 }
 
 /**

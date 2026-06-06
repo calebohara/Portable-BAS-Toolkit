@@ -210,8 +210,7 @@ export function CalculatorPanel({
             <PropertyCard label="Relative Humidity" icon={Droplets}
               {...formatProperty('relativeHumidity', displayState.relativeHumidity, unitSystem)} />
             <PropertyCard label="Humidity Ratio" icon={Droplets}
-              value={unitSystem === 'ip' ? (displayState.humidityRatio * 7000).toFixed(1) : displayState.humidityRatio.toFixed(2)}
-              unit={unitSystem === 'ip' ? 'gr/lb' : 'g/kg'} />
+              {...formatProperty('humidityRatio', displayState.humidityRatio, unitSystem)} />
             <PropertyCard label="Enthalpy" icon={Zap}
               {...formatProperty('enthalpy', displayState.enthalpy, unitSystem)} />
             <PropertyCard label="Specific Volume" icon={Wind}

@@ -138,6 +138,12 @@ function buildDateFromParts(
   return ts;
 }
 
+// Common BMS null-ish / bad-quality sentinels (WebCTRL `#N/A`, Niagara `null`,
+// generic `NaN`, `N/A`, `bad`, `none`, em-dash `—`, double-dash `--`). Matched
+// case-insensitively against an already-trimmed cell so they become null cells
+// instead of being silently coerced by parseLocaleFloat.
+const BAD_QUALITY_RE = /^(null|nan|n\/a|#n\/a|bad|none|—|--)$/i;
+
 // ─── Locale-Aware Numeric Parsing ────────────────────────────
 
 // Matches a comma-decimal number with optional dot thousands separators,
@@ -228,16 +234,48 @@ export function detectHeaderRow(rows: string[][]): number {
     // Check next row has mostly numeric or timestamp values
     const nextRow = rows[i + 1];
     if (!nextRow) continue;
-    const nextNumericOrTs = nextRow.filter(cell => {
-      const t = cell.trim();
-      return t && (isNumeric(t) || parseTimestamp(t) !== null);
-    }).length;
-    const nextNonEmpty = nextRow.filter(c => c.trim()).length;
-    if (nextNonEmpty > 0 && nextNumericOrTs / nextNonEmpty >= 0.4) {
+    if (rowIsMostlyData(nextRow)) {
+      return i;
+    }
+
+    // Some BMS exports (Niagara/Desigo) put a short units row (°F, %, psi, …)
+    // directly below the header. Such a row is mostly non-numeric/non-timestamp
+    // (so the check above fails) but its cells are short (1–2 tokens). When the
+    // row below *that* is real data, treat i as the header and i+1 as a units
+    // row to skip — i.e. data begins at i+2.
+    const rowAfterNext = rows[i + 2];
+    if (rowAfterNext && rowIsShortUnitsRow(nextRow) && rowIsMostlyData(rowAfterNext)) {
       return i;
     }
   }
   return 0;
+}
+
+/** A row whose non-empty cells are at least 40% numeric or parseable timestamps. */
+function rowIsMostlyData(row: string[]): boolean {
+  const numericOrTs = row.filter(cell => {
+    const t = cell.trim();
+    return t && (isNumeric(t) || parseTimestamp(t) !== null);
+  }).length;
+  const nonEmpty = row.filter(c => c.trim()).length;
+  return nonEmpty > 0 && numericOrTs / nonEmpty >= 0.4;
+}
+
+/**
+ * A short, mostly non-numeric row — the signature of a units row beneath a
+ * header (`°F, %, psi`). Each non-empty cell holds 1–2 whitespace-separated
+ * tokens and the row is predominantly non-numeric/non-timestamp.
+ */
+function rowIsShortUnitsRow(row: string[]): boolean {
+  const nonEmpty = row.filter(c => c.trim());
+  if (nonEmpty.length < 2) return false;
+  const allShort = nonEmpty.every(c => c.trim().split(/\s+/).length <= 2);
+  if (!allShort) return false;
+  const nonNumeric = nonEmpty.filter(c => {
+    const t = c.trim();
+    return !isNumeric(t) && parseTimestamp(t) === null;
+  }).length;
+  return nonNumeric / nonEmpty.length >= 0.6;
 }
 
 function getModeColumnCount(rows: string[][]): number {
@@ -327,7 +365,23 @@ export async function parseTrendCSV(
   // 3. Detect header row
   const headerRowIdx = options.headerRow ?? detectHeaderRow(allRows);
   const headerRow = allRows[headerRowIdx] || [];
-  const dataRows = allRows.slice(headerRowIdx + 1);
+
+  // Skip a units row (e.g. °F, %, psi) sitting between the header and the data —
+  // common in Niagara/Desigo exports. Only skip when the row below the header
+  // looks like units and the row after that looks like real data.
+  const unitsRow = allRows[headerRowIdx + 1];
+  const skipUnitsRow =
+    options.headerRow === undefined &&
+    !!unitsRow &&
+    rowIsShortUnitsRow(unitsRow) &&
+    !rowIsMostlyData(unitsRow) &&
+    !!allRows[headerRowIdx + 2] &&
+    rowIsMostlyData(allRows[headerRowIdx + 2]);
+  const dataStartIdx = headerRowIdx + (skipUnitsRow ? 2 : 1);
+  const dataRows = allRows.slice(dataStartIdx);
+  if (skipUnitsRow) {
+    warnings.push('Detected a units row beneath the header — skipped.');
+  }
 
   // 4. Detect timestamp column
   const tsCol = options.timestampColumn ?? detectTimestampColumn(headerRow, dataRows);
@@ -368,6 +422,7 @@ export async function parseTrendCSV(
   const data: TrendDataPoint[] = [];
   let missingTsRows = 0;   // empty timestamp cell
   let ambiguousTsRows = 0; // non-empty but unparseable timestamp
+  let badQualityCells = 0; // recognized bad-quality / null-ish sentinels
   const timezone = options.timezone ?? 'local';
 
   for (let i = 0; i < dataRows.length; i++) {
@@ -381,8 +436,13 @@ export async function parseTrendCSV(
     const values: Record<string, number | null> = {};
     for (let j = 0; j < valueColIndexes.length; j++) {
       const cell = row[valueColIndexes[j]];
-      if (cell === undefined || cell.trim() === '' || cell.trim() === 'null' || cell.trim() === 'NaN') {
+      const t = cell?.trim() ?? '';
+      if (t === '') {
         values[series[j].id] = null;
+      } else if (BAD_QUALITY_RE.test(t)) {
+        // Recognized BMS null-ish / bad-quality sentinel (#N/A, null, NaN, --, —, …).
+        values[series[j].id] = null;
+        badQualityCells++;
       } else {
         const num = parseLocaleFloat(cell, decimalSeparator);
         values[series[j].id] = isNaN(num) ? null : num;
@@ -406,6 +466,9 @@ export async function parseTrendCSV(
   }
   if (ambiguousTsRows > 0) {
     warnings.push(`${ambiguousTsRows} row(s) skipped — ambiguous/unrecognized date format. Try setting the Timestamp Format explicitly.`);
+  }
+  if (badQualityCells > 0) {
+    warnings.push(`${badQualityCells} bad-quality cell(s) (e.g. #N/A, null, NaN) treated as missing.`);
   }
 
   // Sort by timestamp

@@ -185,6 +185,16 @@ const STATUS_CONFIG: Record<PingStatus, { label: string; color: string; icon: ty
   error: { label: 'Error', color: 'text-field-danger', icon: AlertTriangle },
 };
 
+/**
+ * Stable key for the results map. Prefers the target's per-row `id` (a UUID
+ * assigned at creation) so two targets with the same host and an undefined port
+ * don't collide. Falls back to `host:port` for sessions saved before `id`
+ * existed.
+ */
+function targetKey(t: PingTarget): string {
+  return t.id ?? `${t.host}:${t.port}`;
+}
+
 // ─── Result Row ─────────────────────────────────────────────
 function ResultRow({ target, results }: { target: PingTarget; results: PingResultEntry[] }) {
   const [expanded, setExpanded] = useState(false);
@@ -325,7 +335,7 @@ function PingToolPageInner() {
   useEffect(() => { setIsDesktop(isTauri()); }, []);
 
   // Test config
-  const [targets, setTargets] = useState<PingTarget[]>([{ host: '', label: '' }]);
+  const [targets, setTargets] = useState<PingTarget[]>([{ id: crypto.randomUUID(), host: '', label: '' }]);
   const [mode, setMode] = useState<'single' | 'repeated' | 'multi'>('single');
   const [repeatCount, setRepeatCount] = useState(5);
   const [intervalMs, setIntervalMs] = useState(1000);
@@ -339,7 +349,7 @@ function PingToolPageInner() {
 
   // ─── Add/remove targets ────────────────────────────────
   const addTarget = useCallback(() => {
-    setTargets(prev => [...prev, { host: '', label: '' }]);
+    setTargets(prev => [...prev, { id: crypto.randomUUID(), host: '', label: '' }]);
   }, []);
 
   const removeTarget = useCallback((idx: number) => {
@@ -353,7 +363,17 @@ function PingToolPageInner() {
   // ─── Run test ──────────────────────────────────────────
   const runTest = useCallback(async () => {
     if (running) return; // Prevent concurrent runs
-    const validTargets = targets.filter(t => t.host.trim());
+    // Backfill a stable id on any target that lacks one (e.g. rehydrated legacy
+    // rows) so the results map keys never collide on `host:port`.
+    let needsIds = false;
+    const withIds = targets.map(t => {
+      if (t.id) return t;
+      needsIds = true;
+      return { ...t, id: crypto.randomUUID() };
+    });
+    if (needsIds) setTargets(withIds);
+
+    const validTargets = withIds.filter(t => t.host.trim());
     if (validTargets.length === 0) {
       toast.error('Enter at least one host');
       return;
@@ -369,7 +389,7 @@ function PingToolPageInner() {
       if (abortRef.current) break;
 
       const promises = validTargets.map(async (target) => {
-        const resultKey = `${target.host}:${target.port}`;
+        const resultKey = targetKey(target);
         // Set pending
         setResults(prev => ({
           ...prev,
@@ -455,7 +475,7 @@ function PingToolPageInner() {
     lines.push('');
 
     for (const target of validTargets) {
-      const hostResults = results[`${target.host}:${target.port}`] || [];
+      const hostResults = results[targetKey(target)] || [];
       const reachable = hostResults.filter(r => r.status === 'reachable').length;
       const total = hostResults.length;
       const times = hostResults.filter(r => r.responseTimeMs).map(r => r.responseTimeMs!);
@@ -698,9 +718,9 @@ function PingToolPageInner() {
               <h2 className="text-sm font-semibold">Results</h2>
               {validTargets.map(target => (
                 <ResultRow
-                  key={`${target.host}:${target.port}`}
+                  key={targetKey(target)}
                   target={target}
-                  results={results[`${target.host}:${target.port}`] || []}
+                  results={results[targetKey(target)] || []}
                 />
               ))}
 
@@ -709,7 +729,7 @@ function PingToolPageInner() {
                 <div className="rounded-lg border border-border bg-muted/20 p-3 text-xs text-muted-foreground">
                   <strong className="text-foreground">Summary:</strong>{' '}
                   {validTargets.filter(t => {
-                    const r = results[`${t.host}:${t.port}`];
+                    const r = results[targetKey(t)];
                     return r && r[r.length - 1]?.status === 'reachable';
                   }).length} of {validTargets.length} hosts reachable
                 </div>
@@ -717,7 +737,7 @@ function PingToolPageInner() {
 
               {/* Unreachable help */}
               {!running && validTargets.some(t => {
-                const r = results[`${t.host}:${t.port}`];
+                const r = results[targetKey(t)];
                 return r && r[r.length - 1]?.status === 'unreachable';
               }) && (
                 <div className="rounded-lg border border-field-warning/20 bg-field-warning/5 px-4 py-3 text-xs flex gap-3">

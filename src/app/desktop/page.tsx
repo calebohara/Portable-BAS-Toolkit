@@ -168,8 +168,8 @@ export default function DesktopAppPage() {
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Platform</p>
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Available for Windows</h2>
             <p className="mt-3 text-sm text-muted-foreground max-w-md mx-auto">
-              The desktop app is being built for Windows first.
-              Additional platform support may follow based on demand.
+              The desktop app is available for Windows.
+              Mac and Linux users can run the full web app in any modern browser.
             </p>
           </div>
 
@@ -190,7 +190,7 @@ export default function DesktopAppPage() {
 
       <div className="hp-divider" />
 
-      {/* ── Coming Soon Card ──────────────────────────────────────────── */}
+      {/* ── Download Card ─────────────────────────────────────────────── */}
       <section style={{ paddingTop: 'clamp(2.5rem, 6vw, 5rem)', paddingBottom: 'clamp(2.5rem, 6vw, 5rem)' }}>
         <div className="mx-auto max-w-3xl px-4 sm:px-6">
           <div className="hp-reveal">
@@ -252,7 +252,7 @@ export default function DesktopAppPage() {
         <div className="relative mx-auto max-w-3xl px-4 sm:px-6 text-center">
           <div className="hp-reveal">
             <p className="text-sm text-muted-foreground mb-4">
-              In the meantime, BAU Suite works great in your browser as a PWA.
+              Prefer the browser? BAU Suite also works great as a PWA on any platform.
             </p>
             <Button variant="outline" size="sm" onClick={() => router.push('/')} className="gap-1.5">
               <ArrowLeft className="h-3.5 w-3.5" /> Back to Home

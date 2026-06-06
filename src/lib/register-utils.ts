@@ -662,10 +662,17 @@ export function modbusAddressInfo(
     modicon = address.toString();
   }
 
-  const notes =
-    registerType === "Unknown"
-      ? "Could not determine register type from address."
-      : `Zero-based protocol address ${zeroBased} (0x${zeroBased.toString(16).toUpperCase()}).`;
+  const addressNote = `Zero-based protocol address ${zeroBased} (0x${zeroBased.toString(16).toUpperCase()}).`;
+  let notes: string;
+  if (registerType === "Unknown") {
+    notes = "Could not determine register type from address.";
+  } else if (notation !== "modicon") {
+    // 0-/1-based notation carries no register-type prefix, so we assume a Holding
+    // Register (FC03). Make the assumption explicit and point at the disambiguator.
+    notes = `Holding Register assumed — 0-/1-based notation has no type prefix. Switch to Modicon notation (3xxxx / 1xxxx / 0xxxx) to disambiguate input registers, coils, or discrete inputs. ${addressNote}`;
+  } else {
+    notes = addressNote;
+  }
 
   return {
     zeroBased,

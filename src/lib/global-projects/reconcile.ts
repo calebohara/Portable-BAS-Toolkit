@@ -416,6 +416,12 @@ async function uploadFileBlob(file: ProjectFile, globalProjectId: string): Promi
   }
 }
 
+// TODO(Platform/db.ts): global file delete soft-deletes the row but does NOT
+// clear `storage_path`, while `cascadeDeleteGlobalProject` (`db.ts:761-779`)
+// deletes the local file row outright. A future "undelete from a soft-deleted
+// server row" flow would therefore be orphaned locally. Deferred to the Platform
+// owner of `src/lib/db.ts` until the soft-delete recovery UX is built — this
+// reconcile-side mapper intentionally preserves the existing `storage_path`.
 async function mapLocalFileToRow(
   f: ProjectFile,
   globalProjectId: string,
@@ -1339,8 +1345,15 @@ async function reconcilePairLocalToGlobal(
         ?? (item as { createdAt?: string }).createdAt
         ?? null;
 
-      // Idempotent skip: identical updatedAt means nothing to push.
-      if (existing && existing.updated_at && localUpdatedAt && existing.updated_at === localUpdatedAt) {
+      // Idempotent skip: skip when the global row is already at-or-newer than the
+      // local row. Compare parsed timestamps rather than raw strings — local rows
+      // and Postgres `now()` can serialize the same instant differently (timezone
+      // offset, fractional-second precision), so an exact string match would
+      // almost never hold and we'd needlessly re-push every row, deflating the
+      // skip count. Unparseable timestamps fall through to a push (safe default).
+      const existingMs = existing?.updated_at ? Date.parse(existing.updated_at) : NaN;
+      const localMs = localUpdatedAt ? Date.parse(localUpdatedAt) : NaN;
+      if (existing && !Number.isNaN(existingMs) && !Number.isNaN(localMs) && existingMs >= localMs) {
         counts.skipped++;
         continue;
       }

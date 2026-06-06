@@ -122,12 +122,22 @@ export function humidityRatioFromEnthalpy(T_db_F: number, h: number): number {
 }
 
 // ─── Derived Properties ──────────────────────────────────────
-/** Relative humidity (%) from humidity ratio. */
-export function relativeHumidityFromW(T_db_F: number, W: number, P_atm: number): number {
+/**
+ * Uncapped relative humidity (%) from humidity ratio. Can exceed 100% when the
+ * (dry bulb, W) pair is supersaturated — e.g. a bad `db-w` input or a
+ * `humidityRatioFromEnthalpy` overshoot. Callers that want a display-safe value
+ * should use `relativeHumidityFromW`; callers that want to detect/flag an
+ * unphysical state should read this raw value.
+ */
+export function relativeHumidityRawFromW(T_db_F: number, W: number, P_atm: number): number {
   const pws = saturationPressure(T_db_F);
   const pw = W * P_atm / (0.621945 + W);
-  const rh = (pw / pws) * 100;
-  return Math.min(Math.max(rh, 0), 100);
+  return (pw / pws) * 100;
+}
+
+/** Relative humidity (%) from humidity ratio, clamped to [0, 100] for display. */
+export function relativeHumidityFromW(T_db_F: number, W: number, P_atm: number): number {
+  return Math.min(Math.max(relativeHumidityRawFromW(T_db_F, W, P_atm), 0), 100);
 }
 
 /** Enthalpy (BTU/lb_da) from humidity ratio. */
@@ -262,7 +272,14 @@ export interface ValidationResult {
   warnings: string[];
 }
 
-export function validateInputs(
+/**
+ * Validate calculator inputs. INVARIANT: all numeric inputs are in IP units —
+ * `input1` is dry bulb in °F, `altitude_ft` is feet, and `input2` is in the IP
+ * unit for `inputMode` (°F for wb/dp, % for rh, lb/lb for W, BTU/lb for h). The
+ * bounds below (e.g. -80…200) are °F thresholds; callers must convert SI inputs
+ * to IP before calling. The `IP` suffix makes this invariant explicit.
+ */
+export function validateInputsIP(
   inputMode: PsychInputMode,
   input1: number,
   input2: number,
@@ -298,10 +315,17 @@ export function validateInputs(
       if (input2 > input1) errors.push('Dew point cannot exceed dry bulb.');
       if (input2 < -80) errors.push('Dew point is below physical minimum.');
       break;
-    case 'db-w':
+    case 'db-w': {
       if (input2 < 0) errors.push('Humidity ratio cannot be negative.');
       if (input2 > 0.03) warnings.push('Humidity ratio is unusually high (> 0.03 lb/lb).');
+      // Flag unphysical (supersaturated) db–W pairs. RH is clamped to 100% for
+      // display, so without this warning the state would silently look saturated.
+      if (input2 >= 0 && input1 >= -80) {
+        const rhRaw = relativeHumidityRawFromW(input1, input2, pressureFromAltitude(altitude_ft));
+        if (rhRaw > 100.5) warnings.push('Supersaturated — humidity ratio exceeds saturation for this dry bulb. Check inputs.');
+      }
       break;
+    }
     case 'db-h':
       if (input2 < -20) warnings.push('Enthalpy is unusually low.');
       if (input2 > 80) warnings.push('Enthalpy is unusually high for normal HVAC conditions.');
@@ -552,6 +576,15 @@ export const COMMON_CONDITIONS_TABLE = [
 ];
 
 // ─── Formatting Helpers ──────────────────────────────────────
+/**
+ * Format a single PsychState property for display.
+ *
+ * CONVENTION: `value` is already in the *display* units for `units`. For IP this
+ * is the IP-engine value (e.g. humidityRatio in lb/lb, which is shown as gr/lb);
+ * for SI it is the value already converted via `ipToSi` (e.g. humidityRatio in
+ * g/kg). All callers should pass `displayState`/`ipToSi(...)` values — never mix
+ * raw IP values with `units: 'si'`.
+ */
 export function formatProperty(
   key: keyof PsychState,
   value: number,

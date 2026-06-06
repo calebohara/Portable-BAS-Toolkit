@@ -1,67 +1,22 @@
 'use client';
 
-import { Component, type ReactNode } from 'react';
-import { AlertTriangle, RotateCcw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-
-interface Props {
-  children: ReactNode;
-  /** Optional label shown in the error UI to identify which section crashed. */
-  section?: string;
-}
-
-interface State {
-  hasError: boolean;
-  error: Error | null;
-}
-
 /**
- * React error boundary that catches render errors in child components.
- * Shows a recoverable error UI instead of blanking the entire page.
+ * Thin wrapper around the canonical {@link SharedErrorBoundary}.
+ *
+ * This layout-flavored boundary historically rendered a compact "Try Again"
+ * card that resets in place. That behavior now lives in the shared component's
+ * `mode="retry"` path; this wrapper just pins that default so existing call
+ * sites (e.g. `AppShell`) keep their original behavior.
+ *
+ * Prefer importing `ErrorBoundary` from `@/components/shared/error-boundary`
+ * directly in new code.
  */
-export class ErrorBoundary extends Component<Props, State> {
-  constructor(props: Props) {
-    super(props);
-    this.state = { hasError: false, error: null };
-  }
 
-  static getDerivedStateFromError(error: Error): State {
-    return { hasError: true, error };
-  }
+import type { ComponentProps } from 'react';
+import { ErrorBoundary as SharedErrorBoundary } from '@/components/shared/error-boundary';
 
-  componentDidCatch(error: Error, info: React.ErrorInfo): void {
-    console.error(
-      `[ErrorBoundary] ${this.props.section ?? 'Component'} crashed:`,
-      error,
-      info.componentStack,
-    );
-  }
+type Props = ComponentProps<typeof SharedErrorBoundary>;
 
-  private handleRetry = () => {
-    this.setState({ hasError: false, error: null });
-  };
-
-  render(): ReactNode {
-    if (this.state.hasError) {
-      return (
-        <div className="flex flex-col items-center justify-center gap-3 p-8 text-center">
-          <AlertTriangle className="h-8 w-8 text-destructive" />
-          <div>
-            <p className="font-medium text-sm">
-              {this.props.section ? `${this.props.section} encountered an error` : 'Something went wrong'}
-            </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {this.state.error?.message ?? 'An unexpected error occurred.'}
-            </p>
-          </div>
-          <Button variant="outline" size="sm" onClick={this.handleRetry}>
-            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
-            Try Again
-          </Button>
-        </div>
-      );
-    }
-
-    return this.props.children;
-  }
+export function ErrorBoundary({ mode = 'retry', ...props }: Props) {
+  return <SharedErrorBoundary mode={mode} {...props} />;
 }

@@ -31,6 +31,12 @@ import type {
 
 export type GlobalProjectStatus = 'active' | 'on-hold' | 'completed' | 'archived';
 export type GlobalProjectRole = 'admin' | 'member';
+// NOTE: casing drift is intentional and matches the local `DeviceEntry.status`
+// in `src/types/index.ts`. Project status is kebab/lower-case (`active`,
+// `on-hold`, ...) because it doubles as a CSS/state key, whereas device status
+// is mixed-case Title labels (`Online`, `Not Commissioned`, ...) that are shown
+// verbatim in the UI. They are stored as-is in their respective DB columns, so
+// normalizing either set would be a breaking data migration — not worth it.
 export type GlobalDeviceStatus = 'Online' | 'Offline' | 'Issue' | 'Not Commissioned';
 export type GlobalIpStatus = 'active' | 'reserved' | 'available' | 'conflict';
 export type GlobalReportStatus = 'draft' | 'submitted' | 'finalized';
@@ -41,6 +47,11 @@ export interface GlobalProject {
   id: string;
   createdBy: string;
   name: string;
+  // `jobSiteName`, `customerName` and `description` all collapse to the single
+  // local `Project.customerName` on reconcile — see the field-mapping block above
+  // `interface Project` in `src/types/index.ts`. They are NOT three independent
+  // fields end-to-end; a round-trip through local will drop `description` and
+  // unify `jobSiteName`/`customerName`.
   jobSiteName: string;
   siteAddress: string;
   buildingArea: string;

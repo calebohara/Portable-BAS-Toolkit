@@ -16,7 +16,7 @@ import { SessionsPanel } from '@/components/psychrometric/sessions-panel';
 import { ReferencePanel } from '@/components/psychrometric/reference-panel';
 import { GlobalModeBanner } from '@/components/global-projects/global-mode-banner';
 import {
-  computeAllProperties, validateInputs, checkComfortZone,
+  computeAllProperties, validateInputsIP, checkComfortZone,
   ipToSi, celsiusToFahrenheit, metersToFeet,
 } from '@/lib/psychrometric-engine';
 
@@ -77,7 +77,7 @@ function PsychrometricPageInner() {
       val2_ip = v2 / 7000;
     }
 
-    const validation = validateInputs(inputMode, db_F, val2_ip, alt_ft);
+    const validation = validateInputsIP(inputMode, db_F, val2_ip, alt_ft);
     if (!validation.valid) return { errors: validation.errors, warnings: validation.warnings, state: null, displayState: null, comfort: null };
 
     const state = computeAllProperties(inputMode, db_F, val2_ip, alt_ft);

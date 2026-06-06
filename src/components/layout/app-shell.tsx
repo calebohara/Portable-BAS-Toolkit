@@ -14,13 +14,8 @@ import { isMaintenanceMode } from '@/lib/maintenance';
 import { isTauri } from '@/lib/tauri-bridge';
 import { cn } from '@/lib/utils';
 import { silently } from '@/lib/error-reporting';
+import { FULL_PAGE_ROUTES, PUBLIC_ROUTES } from '@/lib/routes';
 import { ErrorBoundary } from './error-boundary';
-
-// Routes that render their own full-page layout (no sidebar)
-const FULL_PAGE_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/donate', '/desktop', '/pending-approval'];
-
-// Routes that don't require authentication
-const PUBLIC_ROUTES = ['/', '/login', '/forgot-password', '/reset-password', '/offline', '/donate', '/desktop', '/pending-approval'];
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -30,8 +25,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
   const setOnline = useAppStore((s) => s.setOnline);
-  const isFullPage = FULL_PAGE_ROUTES.includes(pathname) || pathname.startsWith('/donate/');
-  const isPublic = PUBLIC_ROUTES.includes(pathname) || pathname.startsWith('/donate/');
+  const isFullPage = (FULL_PAGE_ROUTES as readonly string[]).includes(pathname) || pathname.startsWith('/donate/');
+  const isPublic = (PUBLIC_ROUTES as readonly string[]).includes(pathname) || pathname.startsWith('/donate/');
 
   // Auth guard: redirect unauthenticated users to /login
   useEffect(() => {

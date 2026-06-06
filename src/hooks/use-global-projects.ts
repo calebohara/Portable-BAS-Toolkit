@@ -284,6 +284,11 @@ export function useGlobalProject(id: string | undefined) {
     return { ...project, isPinned, isOfflineAvailable };
   }, [project, isPinned, isOfflineAvailable]);
 
+  // NOTE: `update` THROWS on failure — `unwrap` re-throws the API error rather
+  // than returning an `{ error }` shape. Callers must wrap it in try/catch (e.g.
+  // the `safeUpdate` helper in the global project detail page). The error layer
+  // is intentionally left as throw-based here for consistency with the other
+  // mutating callbacks in this hook (`remove`, etc.); do not "fix" by swallowing.
   const update = useCallback(
     async (data: Partial<GlobalProject>) => {
       if (!id) return;

@@ -139,6 +139,9 @@ const FIELD_OVERRIDES: Partial<Record<SyncEntityType, Record<string, string>>> =
     networkSummary: 'network_summary',
     isPinned: 'is_pinned',
     isOfflineAvailable: 'is_offline_available',
+    // Explicit (also in UUID_FK_COLUMNS) — toSnakeCase already yields this, but
+    // pin it here so a field rename can't silently break the column mapping.
+    syncedGlobalId: 'synced_global_id',
     createdAt: 'created_at',
     updatedAt: 'updated_at',
   },

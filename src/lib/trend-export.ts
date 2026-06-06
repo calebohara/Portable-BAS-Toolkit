@@ -5,6 +5,20 @@ import { copyToClipboard } from '@/lib/utils';
 
 // ─── Clean CSV Export ────────────────────────────────────────
 
+/**
+ * Quote a single CSV field per RFC 4180: wrap in double quotes and double any
+ * internal quotes when the field contains a comma, quote, or newline. Numeric
+ * timestamp/value fields are left untouched. Prevents series names like
+ * `Pressure, primary (psi)` or units like `"H2O` from scrambling columns when
+ * the export is re-imported.
+ */
+function csvEscape(field: string): string {
+  if (/[",\n\r]/.test(field)) {
+    return `"${field.replace(/"/g, '""')}"`;
+  }
+  return field;
+}
+
 export function exportCleanCSV(data: TrendDataPoint[], series: TrendSeries[]): string {
   const visibleSeries = series.filter(s => s.visible);
   const headers = ['Timestamp', ...visibleSeries.map(s => s.unit ? `${s.name} (${s.unit})` : s.name)];
@@ -14,10 +28,10 @@ export function exportCleanCSV(data: TrendDataPoint[], series: TrendSeries[]): s
       const val = point.values[s.id];
       return val !== null ? val.toString() : '';
     });
-    return [ts, ...values].join(',');
+    return [ts, ...values].map(csvEscape).join(',');
   });
 
-  return [headers.join(','), ...rows].join('\n');
+  return [headers.map(csvEscape).join(','), ...rows].join('\n');
 }
 
 export function downloadCSV(csv: string, filename: string) {

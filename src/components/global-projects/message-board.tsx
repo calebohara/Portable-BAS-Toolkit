@@ -32,7 +32,11 @@ export function MessageBoard({ projects, onUnreadChange }: MessageBoardProps) {
   // Filter
   const [filterProjectId, setFilterProjectId] = useState<string>('');
 
-  // Mark messages as read when board tab is opened
+  // Mark messages as read when the board tab is opened (i.e. on mount). This
+  // deliberately does NOT re-fire on every tab switch — if a user navigates away,
+  // posts a message via another route, and returns, `markRead` only runs again on
+  // remount. That's acceptable: `unreadCount` is always recomputed on `refresh()`,
+  // so the badge stays correct even when this effect doesn't run.
   useEffect(() => {
     markRead();
   }, [markRead]);

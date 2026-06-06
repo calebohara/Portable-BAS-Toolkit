@@ -22,6 +22,22 @@ export function defaultAnomalyConfig(): AnomalyConfig {
   };
 }
 
+// ─── Shared Helpers ──────────────────────────────────────────
+
+/**
+ * Median of a numeric array. For even-length arrays the two middle values are
+ * averaged (avoids the upper-middle bias of picking `sorted[len/2]`). Returns 0
+ * for an empty array. Sorts a copy — the input is not mutated.
+ */
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[mid - 1] + sorted[mid]) / 2
+    : sorted[mid];
+}
+
 // ─── Statistics Computation ──────────────────────────────────
 
 export function computeSeriesStats(data: TrendDataPoint[], seriesId: string): TrendSeriesStats {
@@ -85,17 +101,11 @@ export function computeSeriesStats(data: TrendDataPoint[], seriesId: string): Tr
   }
 
   // Median
-  const sorted = [...values].sort((a, b) => a - b);
-  const median = sorted.length > 0
-    ? sorted.length % 2 === 0
-      ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2
-      : sorted[Math.floor(sorted.length / 2)]
-    : 0;
+  const medianValue = median(values);
 
   // Gap count
   if (intervals.length > 0) {
-    const sortedIntervals = [...intervals].sort((a, b) => a - b);
-    const medianInterval = sortedIntervals[Math.floor(sortedIntervals.length / 2)];
+    const medianInterval = median(intervals);
     if (medianInterval > 0) {
       gapCount = intervals.filter(i => i > medianInterval * 3).length;
     }
@@ -108,7 +118,7 @@ export function computeSeriesStats(data: TrendDataPoint[], seriesId: string): Tr
     min: min === Infinity ? 0 : min,
     max: max === -Infinity ? 0 : max,
     mean: n > 0 ? sum / n : 0,
-    median,
+    median: medianValue,
     stdDev,
     sampleCount: n,
     gapCount,
@@ -304,9 +314,10 @@ function detectOscillation(data: TrendDataPoint[], series: TrendSeries, config: 
         continue;
       }
 
+      const criticalThreshold = config.oscillationMinReversals * 2;
       anomalies.push(makeAnomaly(
         series.id, 'oscillation', deltas[windowStart].ts, deltas[i].ts,
-        reversals >= config.oscillationMinReversals * 2 ? 'critical' : 'warning',
+        reversals >= criticalThreshold ? 'critical' : 'warning',
         `${reversals} direction reversals in ${config.oscillationWindowMinutes} min window`
       ));
     }
@@ -377,8 +388,7 @@ function detectGaps(data: TrendDataPoint[], series: TrendSeries, config: Anomaly
     intervals.push(timestamps[i] - timestamps[i - 1]);
   }
 
-  const sorted = [...intervals].sort((a, b) => a - b);
-  const medianInterval = sorted[Math.floor(sorted.length / 2)];
+  const medianInterval = median(intervals);
   const threshold = medianInterval * config.gapThresholdMultiplier;
 
   for (let i = 1; i < timestamps.length; i++) {

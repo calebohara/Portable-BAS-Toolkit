@@ -13,7 +13,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import type { Project, ProjectStatus } from '@/types';
-import { PROJECT_STATUS_LABELS } from '@/types';
+import { PROJECT_STATUS_LABELS, PROJECT_NUMBER_FORMAT_HINT, isValidProjectNumber } from '@/types';
 
 interface Props {
   open: boolean;
@@ -67,11 +67,7 @@ export function EditProjectDialog({ open, onOpenChange, project, onSave }: Props
   }, [open, project]);
 
   const validateProjectNumber = (pn: string) => {
-    if (!pn || /^44OP-\d{6}$/.test(pn)) {
-      setPnWarning('');
-    } else {
-      setPnWarning('Expected format: 44OP-XXXXXX');
-    }
+    setPnWarning(isValidProjectNumber(pn) ? '' : PROJECT_NUMBER_FORMAT_HINT);
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -164,6 +160,16 @@ export function EditProjectDialog({ open, onOpenChange, project, onSave }: Props
               <Label htmlFor="ep-notes">Technician Notes</Label>
               <Textarea id="ep-notes" placeholder="Project-level notes..." value={form.technicianNotes} onChange={e => u('technicianNotes', e.target.value)} rows={3} className="resize-none" />
             </div>
+            {/*
+              Contacts are intentionally NOT edited here. Project contacts
+              (`Project.contacts`) are managed inline on the Overview tab of the
+              project detail page, not in this metadata dialog. This differs from
+              the global project UI, which exposes a separate inline contacts card.
+              If a contacts editor is ever added here, keep both surfaces in sync.
+            */}
+            <p className="text-xs text-muted-foreground sm:col-span-2 pt-1">
+              Contacts are managed on the project Overview tab.
+            </p>
           </div>
         </form></DialogBody>
         <DialogFooter>

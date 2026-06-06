@@ -117,12 +117,12 @@ function TrendViewerPageInner() {
     setSeries(mergedSeries);
     setZoomDomain(null);
 
-    // Compute anomalies
-    const visibleSeries = mergedSeries.filter(s => s.visible);
-    const detectedAnomalies = detectAnomalies(mergedData, visibleSeries, config);
+    // Compute anomalies and stats over ALL series — hide/show is a chart-only
+    // concern, so both the Anomalies and Statistics panels report on the full
+    // dataset (consistent counts; not affected by series visibility toggles).
+    const detectedAnomalies = detectAnomalies(mergedData, mergedSeries, config);
     setAnomalies(detectedAnomalies);
 
-    // Compute stats
     const computedStats = mergedSeries.map(s => computeSeriesStats(mergedData, s.id));
     setStats(computedStats);
   }, []);
@@ -140,17 +140,18 @@ function TrendViewerPageInner() {
   }, [allResults, anomalyConfig, processData]);
 
   // ─── Series changes (re-run anomalies) ──────────────────
+  // Anomalies are computed over ALL series (visibility is a chart concern), so a
+  // visibility toggle alone doesn't change the anomaly set — only structural
+  // changes (renames/units/added series) do.
   const handleSeriesChange = useCallback((newSeries: TrendSeries[]) => {
     setSeries(newSeries);
-    const visibleSeries = newSeries.filter(s => s.visible);
-    setAnomalies(detectAnomalies(data, visibleSeries, anomalyConfig));
+    setAnomalies(detectAnomalies(data, newSeries, anomalyConfig));
   }, [data, anomalyConfig]);
 
   // ─── Anomaly config changes ─────────────────────────────
   const handleConfigChange = useCallback((config: AnomalyConfig) => {
     setAnomalyConfig(config);
-    const visibleSeries = series.filter(s => s.visible);
-    setAnomalies(detectAnomalies(data, visibleSeries, config));
+    setAnomalies(detectAnomalies(data, series, config));
   }, [data, series]);
 
   // ─── Jump to anomaly ────────────────────────────────────

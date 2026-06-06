@@ -1,4 +1,7 @@
-const CACHE_VERSION = 'bau-suite-v6';
+// CACHE_VERSION is stamped from package.json `version` at build time by
+// scripts/build-static.js (replace target: the bau-suite-v… string literal).
+// The fallback value below is used in dev / if the stamp step is skipped.
+const CACHE_VERSION = 'bau-suite-v4.17.0';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const DYNAMIC_CACHE = `${CACHE_VERSION}-dynamic`;
 

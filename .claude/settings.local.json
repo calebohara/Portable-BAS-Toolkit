@@ -137,7 +137,17 @@
       "Bash(grep -c \"Attach to file\\\\|fileId, $\\\\|files: GlobalProjectFile\" \"src/app/global-projects/[...slug]/client-page.tsx\")",
       "Bash(sed -i '' 's/\"version\": \"4.16.0\"/\"version\": \"4.17.0\"/' package.json src-tauri/tauri.conf.json)",
       "Bash(sed -i '' 's/^version = \"4.16.0\"/version = \"4.17.0\"/' src-tauri/Cargo.toml)",
-      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.16.0\"/name = \"bau-suite\"\\\\nversion = \"4.17.0\"/' src-tauri/Cargo.lock)"
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.16.0\"/name = \"bau-suite\"\\\\nversion = \"4.17.0\"/' src-tauri/Cargo.lock)",
+      "Bash(grep -n \"resultKey\\\\|PingTarget\\\\|host}:\\\\${.*port\\\\|crypto.randomUUID\\\\|interface PingTarget\\\\|type PingTarget\\\\|\\\\.host}:\\\\|results\\\\b\" src/app/ping/page.tsx)",
+      "Bash(perl -0pi -e 's/\\\\bvalidateInputs\\\\\\(/validateInputsIP\\(/g; s/describe\\\\\\(.validateInputs.,/describe\\('\"'\"'validateInputsIP'\"'\"',/' src/lib/__tests__/psychrometric-engine.test.ts)",
+      "Bash(node --check scripts/build-static.js)",
+      "Bash(node --check public/sw.js)",
+      "Bash(node -e \"JSON.parse\\(require\\('fs'\\).readFileSync\\('package.json','utf8'\\)\\); console.log\\('OK'\\)\")",
+      "Bash(node -e ' *)",
+      "Bash(echo \"exit=$? \\(1=no matches, good\\)\")",
+      "Bash(sed -i '' 's/\"version\": \"4.17.0\"/\"version\": \"4.18.0\"/' package.json src-tauri/tauri.conf.json)",
+      "Bash(sed -i '' 's/^version = \"4.17.0\"/version = \"4.18.0\"/' src-tauri/Cargo.toml)",
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.17.0\"/name = \"bau-suite\"\\\\nversion = \"4.18.0\"/' src-tauri/Cargo.lock)"
     ]
   }
 }

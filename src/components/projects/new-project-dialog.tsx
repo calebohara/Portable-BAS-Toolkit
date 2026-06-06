@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import type { Project, ProjectStatus } from '@/types';
+import { PROJECT_NUMBER_FORMAT_HINT, isValidProjectNumber } from '@/types';
 
 type CreateData = Omit<Project, 'id' | 'createdAt' | 'updatedAt'>;
 
@@ -75,7 +76,7 @@ export function NewProjectDialog({ open, onOpenChange, onCreate }: Props) {
             </div>
             <div className="space-y-2">
               <Label htmlFor="projectNumber">Project Number *</Label>
-              <Input id="projectNumber" placeholder="e.g. 44OP-001234" value={form.projectNumber} onChange={(e) => updateField('projectNumber', e.target.value)} onBlur={() => { const pn = form.projectNumber.trim(); if (pn && !/^44OP-\d{6}$/.test(pn)) setPnWarning('Expected format: 44OP-XXXXXX'); else setPnWarning(''); }} required />
+              <Input id="projectNumber" placeholder="e.g. 44OP-001234" value={form.projectNumber} onChange={(e) => updateField('projectNumber', e.target.value)} onBlur={() => setPnWarning(isValidProjectNumber(form.projectNumber.trim()) ? '' : PROJECT_NUMBER_FORMAT_HINT)} required />
               {pnWarning && <p className="text-xs text-field-warning">{pnWarning}</p>}
             </div>
             <div className="space-y-2">

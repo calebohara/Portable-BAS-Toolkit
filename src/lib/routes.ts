@@ -17,28 +17,36 @@
 
 import { isTauri } from './tauri-bridge';
 
-// ─── Static route constants ─────────────────────────────────
-export const ROUTES = {
-  DASHBOARD: '/dashboard',
-  PROJECTS: '/projects',
-  REPORTS: '/reports',
-  REPORT_NEW: '/reports/new',
-  SEARCH: '/search',
-  NETWORK_DIAGRAM: '/network-diagram',
-  TERMINAL: '/terminal',
-  WEB_INTERFACE: '/web-interface',
-  PING: '/ping',
-  DOCUMENTS: '/documents',
-  OFFLINE: '/offline',
-  HELP: '/help',
-  SETTINGS: '/settings',
-  GLOBAL_PROJECTS: '/global-projects',
-  PID_TUNING: '/pid-tuning',
-  KNOWLEDGE_BASE: '/knowledge-base',
-  REGISTER_TOOL: '/register-tool',
-  PPCL_EDITOR: '/ppcl-editor',
-  PSYCHROMETRIC: '/psychrometric',
-} as const;
+// ─── App-shell routing config ───────────────────────────────
+// Single source of truth for which routes render without sidebar chrome
+// (FULL_PAGE_ROUTES) and which are reachable without authentication
+// (PUBLIC_ROUTES). Consumed by `components/layout/app-shell.tsx`.
+//
+// Keep these in sync when adding a public marketing page: a page that should
+// render its own full layout AND be reachable signed-out must appear in both.
+
+/** Routes that render their own full-page layout (no sidebar). */
+export const FULL_PAGE_ROUTES = [
+  '/',
+  '/login',
+  '/forgot-password',
+  '/reset-password',
+  '/donate',
+  '/desktop',
+  '/pending-approval',
+] as const;
+
+/** Routes that do not require authentication. */
+export const PUBLIC_ROUTES = [
+  '/',
+  '/login',
+  '/forgot-password',
+  '/reset-password',
+  '/offline',
+  '/donate',
+  '/desktop',
+  '/pending-approval',
+] as const;
 
 // ─── Dynamic route helpers ──────────────────────────────────
 // These return the correct URL based on runtime context.

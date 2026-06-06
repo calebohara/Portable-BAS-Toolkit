@@ -7,6 +7,7 @@ import {
   humidityRatioFromDewPoint,
   humidityRatioFromEnthalpy,
   relativeHumidityFromW,
+  relativeHumidityRawFromW,
   enthalpyFromW,
   specificVolumeFromW,
   vaporPressureFromW,
@@ -14,7 +15,7 @@ import {
   dewPointFromW,
   wetBulbFromW,
   computeAllProperties,
-  validateInputs,
+  validateInputsIP,
   checkComfortZone,
   celsiusToFahrenheit,
   fahrenheitToCelsius,
@@ -165,6 +166,21 @@ describe('relativeHumidityFromW', () => {
   });
 });
 
+describe('relativeHumidityRawFromW', () => {
+  it('matches the clamped value within the physical range', () => {
+    const W = humidityRatioFromRH(75, 50, P_SEA);
+    expect(relativeHumidityRawFromW(75, W, P_SEA)).toBeCloseTo(50, 1);
+  });
+
+  it('exceeds 100% for a supersaturated db–W pair (uncapped)', () => {
+    // W far above saturation for 75°F → unphysical, raw RH > 100.
+    const raw = relativeHumidityRawFromW(75, 1, P_SEA);
+    expect(raw).toBeGreaterThan(100);
+    // Clamped variant still reports 100 for display.
+    expect(relativeHumidityFromW(75, 1, P_SEA)).toBeLessThanOrEqual(100);
+  });
+});
+
 describe('enthalpyFromW', () => {
   it('computes enthalpy at standard conditions', () => {
     // 75°F, W = 0.0093 → ~28.1 BTU/lb
@@ -308,57 +324,64 @@ describe('computeAllProperties', () => {
 
 // ─── Input Validation ────────────────────────────────────────
 
-describe('validateInputs', () => {
+describe('validateInputsIP', () => {
   it('accepts valid db-rh inputs', () => {
-    const result = validateInputs('db-rh', 75, 50, 0);
+    const result = validateInputsIP('db-rh', 75, 50, 0);
     expect(result.valid).toBe(true);
     expect(result.errors).toHaveLength(0);
   });
 
   it('rejects NaN inputs', () => {
-    const result = validateInputs('db-rh', NaN, 50, 0);
+    const result = validateInputsIP('db-rh', NaN, 50, 0);
     expect(result.valid).toBe(false);
   });
 
   it('rejects dry bulb out of range', () => {
-    const result = validateInputs('db-rh', 300, 50, 0);
+    const result = validateInputsIP('db-rh', 300, 50, 0);
     expect(result.valid).toBe(false);
   });
 
   it('rejects altitude out of range', () => {
-    const result = validateInputs('db-rh', 75, 50, 50000);
+    const result = validateInputsIP('db-rh', 75, 50, 50000);
     expect(result.valid).toBe(false);
   });
 
   it('rejects wet bulb > dry bulb', () => {
-    const result = validateInputs('db-wb', 75, 80, 0);
+    const result = validateInputsIP('db-wb', 75, 80, 0);
     expect(result.valid).toBe(false);
     expect(result.errors.some(e => e.includes('Wet bulb'))).toBe(true);
   });
 
   it('rejects RH out of range', () => {
-    const result = validateInputs('db-rh', 75, 110, 0);
+    const result = validateInputsIP('db-rh', 75, 110, 0);
     expect(result.valid).toBe(false);
   });
 
   it('rejects dew point > dry bulb', () => {
-    const result = validateInputs('db-dp', 75, 80, 0);
+    const result = validateInputsIP('db-dp', 75, 80, 0);
     expect(result.valid).toBe(false);
   });
 
   it('rejects negative humidity ratio', () => {
-    const result = validateInputs('db-w', 75, -0.01, 0);
+    const result = validateInputsIP('db-w', 75, -0.01, 0);
     expect(result.valid).toBe(false);
   });
 
+  it('warns when a db-w pair is supersaturated', () => {
+    // 0.04 lb/lb at 75°F is well above saturation → unphysical.
+    const result = validateInputsIP('db-w', 75, 0.04, 0);
+    expect(result.valid).toBe(true);
+    expect(result.warnings.some(w => w.includes('Supersaturated'))).toBe(true);
+  });
+
   it('warns for below-freezing dry bulb', () => {
-    const result = validateInputs('db-rh', 20, 50, 0);
+    const result = validateInputsIP('db-rh', 20, 50, 0);
     expect(result.valid).toBe(true);
     expect(result.warnings.some(w => w.includes('freezing'))).toBe(true);
   });
 
   it('warns for high altitude', () => {
-    const result = validateInputs('db-rh', 75, 50, 6000);
+    const result = validateInputsIP('db-rh', 75, 50, 6000);
     expect(result.valid).toBe(true);
     expect(result.warnings.some(w => w.includes('altitude'))).toBe(true);
   });

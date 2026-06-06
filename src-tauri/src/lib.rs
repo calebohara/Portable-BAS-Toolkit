@@ -131,7 +131,7 @@ async fn check_port(host: String, port: u16, timeoutMs: Option<u64>) -> Result<P
 
     let timeout = std::time::Duration::from_millis(timeoutMs.unwrap_or(3000));
     let start = Instant::now();
-    let addr = format!("{}:{}", host, port);
+    let addr = build_socket_addr_str(&host, port);
 
     // Use blocking std::net connect (same Winsock code path as native tools)
     // Tokio's async IOCP connect can fail on some BAS network configurations
@@ -353,7 +353,7 @@ async fn telnet_connect(
     port: u16,
     timeoutMs: Option<u64>,
 ) -> Result<(), String> {
-    let addr = format!("{}:{}", host, port);
+    let addr = build_socket_addr_str(&host, port);
     // Honour a caller-supplied timeout; fall back to 15s when not provided.
     let timeout = std::time::Duration::from_millis(timeoutMs.unwrap_or(15_000));
     let timeout_secs = timeout.as_secs();
@@ -526,10 +526,13 @@ async fn telnet_disconnect(
     let mut connections = state.0.lock().await;
     if let Some(conn) = connections.remove(&sessionId) {
         conn.read_task.abort();
-        // Attempt graceful shutdown
-        if let Ok(mut w) = conn.writer.try_lock() {
-            let _ = w.shutdown().await;
-        }
+        // Graceful shutdown: send FIN so panels (esp. Tridium Niagara) release the
+        // session server-side instead of waiting for a TCP keepalive timeout.
+        // Use `.lock().await` rather than `try_lock()` — the read task only holds
+        // the writer briefly while emitting negotiation responses, so the wait is
+        // bounded, and skipping the shutdown leaves the connection un-FIN'd.
+        let mut w = conn.writer.lock().await;
+        let _ = w.shutdown().await;
     }
     Ok(())
 }
@@ -648,8 +651,13 @@ async fn serial_connect(
                     let _ = app_handle.emit(&format!("serial-data-{}", sid), text);
                 }
                 Ok(Ok(None)) => {
-                    // Timeout / no data — just loop
-                    tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                    // Timeout / no data — loop immediately. The 100ms port read
+                    // timeout already throttles this loop, so an extra sleep here
+                    // only adds latency: while sleeping we hold no lock, but the
+                    // next iteration re-takes the port mutex, so a concurrent
+                    // `serial_send` would wait longer than necessary. Re-reading
+                    // right away keeps the lock-held window back-to-back and bounded
+                    // by the read timeout.
                 }
                 Ok(Err(e)) => {
                     let _ = app_handle.emit(&format!("serial-error-{}", sid), e);
@@ -783,6 +791,19 @@ pub struct ProxyResponse {
     pub content_type: String,
     pub body: String,
     pub is_binary: bool,
+}
+
+/// Build a `host:port` string that parses as a `SocketAddr` for both IPv4 and
+/// IPv6 literals. IPv6 addresses contain `:` and must be bracketed
+/// (`[::1]:23`) before the port is appended, otherwise `format!("{}:{}", ..)`
+/// yields ambiguous strings like `::1:23` that fail `SocketAddr::parse`.
+/// A bare `host` already wrapped in brackets is passed through unchanged.
+fn build_socket_addr_str(host: &str, port: u16) -> String {
+    if host.contains(':') && !host.starts_with('[') {
+        format!("[{}]:{}", host, port)
+    } else {
+        format!("{}:{}", host, port)
+    }
 }
 
 /// Check if a host is on a private/local network (safe to proxy without cert validation).
@@ -1120,5 +1141,48 @@ mod tests {
         assert_eq!(filtered, vec![b'y']);
         assert!(responses.is_empty());
         assert!(residue.is_empty());
+    }
+
+    #[test]
+    fn socket_addr_str_handles_ipv4_and_ipv6() {
+        use std::net::SocketAddr;
+        // IPv4 — plain host:port.
+        let v4 = build_socket_addr_str("192.168.1.10", 23);
+        assert_eq!(v4, "192.168.1.10:23");
+        assert!(v4.parse::<SocketAddr>().is_ok());
+
+        // Hostname — still plain (parse will fail later, as intended).
+        assert_eq!(build_socket_addr_str("localhost", 80), "localhost:80");
+
+        // IPv6 literal — must be bracketed so it parses.
+        let v6 = build_socket_addr_str("::1", 23);
+        assert_eq!(v6, "[::1]:23");
+        assert!(v6.parse::<SocketAddr>().is_ok());
+
+        let v6_full = build_socket_addr_str("fe80::1", 502);
+        assert_eq!(v6_full, "[fe80::1]:502");
+        assert!(v6_full.parse::<SocketAddr>().is_ok());
+
+        // Already-bracketed host is passed through unchanged.
+        assert_eq!(build_socket_addr_str("[::1]", 23), "[::1]:23");
+    }
+
+    #[test]
+    fn is_private_network_accepts_v4_v6_rejects_hostnames() {
+        assert!(is_private_network("192.168.1.1"));
+        assert!(is_private_network("10.0.0.5"));
+        assert!(is_private_network("172.16.0.1"));
+        assert!(is_private_network("127.0.0.1"));
+        assert!(is_private_network("::1"));
+        assert!(is_private_network("[::1]")); // bracketed form from reqwest
+        assert!(is_private_network("fe80::1")); // link-local
+        assert!(is_private_network("fc00::1")); // unique-local
+
+        // Deceptive hostnames must NOT pass the gate.
+        assert!(!is_private_network("10.attacker.example"));
+        assert!(!is_private_network("192.168.evil.com"));
+        assert!(!is_private_network("localhost")); // not a literal IP
+        assert!(!is_private_network("8.8.8.8")); // public
+        assert!(!is_private_network("2001:4860:4860::8888")); // public v6
     }
 }
