@@ -156,7 +156,13 @@
       "Bash(echo \"=== eslint exit: $? ===\")",
       "Bash(sed -i '' 's/\"version\": \"4.18.0\"/\"version\": \"4.19.0\"/' package.json src-tauri/tauri.conf.json)",
       "Bash(sed -i '' 's/^version = \"4.18.0\"/version = \"4.19.0\"/' src-tauri/Cargo.toml)",
-      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.18.0\"/name = \"bau-suite\"\\\\nversion = \"4.19.0\"/' src-tauri/Cargo.lock)"
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.18.0\"/name = \"bau-suite\"\\\\nversion = \"4.19.0\"/' src-tauri/Cargo.lock)",
+      "Bash(grep -n 'id=\"tools\"\\\\|id={`tools`}\\\\|#tools\\\\|scrollToTools\\\\|getElementById' src/app/page.tsx)",
+      "Bash(node scripts/sync-version.js)",
+      "Bash(sed -i '' 's/\"version\": \"4.19.0\"/\"version\": \"4.20.0\"/' package.json src-tauri/tauri.conf.json)",
+      "Bash(sed -i '' 's/^version = \"4.19.0\"/version = \"4.20.0\"/' src-tauri/Cargo.toml)",
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.19.0\"/name = \"bau-suite\"\\\\nversion = \"4.20.0\"/' src-tauri/Cargo.lock)",
+      "Bash(echo \"fix-log tracked? $\\(git check-ignore docs/DesignAgents-fixes-2026-06-06-2.md 2>&1 && echo IGNORED || echo OK\\)\")"
     ]
   }
 }

@@ -3,11 +3,9 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  FolderKanban, FileText, StickyNote, ClipboardList, Share2,
-  Network, Database, Activity, Globe, TerminalSquare, Calculator, FileCode,
-  Wrench, WifiOff, ArrowRight, UserPlus,
-  Zap, Layers, ChevronRight, Wifi, Heart, Code,
-  Gauge, BookOpen, Download, Cloud, Users, Check, Thermometer, Shield, Star, TrendingUp,
+  FileText, StickyNote, Database, ArrowRight, UserPlus,
+  Zap, Wifi, Heart, Code, Wrench, WifiOff,
+  Download, Cloud, Users, Check, Shield, Star, Activity, TerminalSquare,
 } from 'lucide-react';
 import { isPaywallEnabled } from '@/lib/paywall';
 import { useAuth } from '@/providers/auth-provider';
@@ -15,83 +13,7 @@ import { Button } from '@/components/ui/button';
 import { APP_VERSION } from '@/lib/version';
 import { useScrollReveal } from '@/hooks/use-scroll-reveal';
 import { getSupabaseClient } from '@/lib/supabase/client';
-
-// ─── Data ────────────────────────────────────────────────────────────────────
-
-const toolGroups = [
-  {
-    title: 'Manage & Document',
-    accent: { icon: 'text-primary', bg: 'bg-primary/10', border: 'border-primary/15' },
-    desc: 'Keep every project organized and every finding documented.',
-    items: [
-      { icon: FolderKanban, name: 'Projects', desc: 'All your BAS project data in one place — contacts, tags, status, and a full activity history' },
-      { icon: ClipboardList, name: 'Daily Reports', desc: 'Structured field reports with issue tracking and one-click Teams / Outlook / PDF export' },
-      { icon: FileText, name: 'Documents', desc: 'Upload panel databases, wiring diagrams, and controller backups — attached directly to the project' },
-      { icon: StickyNote, name: 'Field Notes', desc: 'Capture punch items, fixes, and observations on the fly — categorized and searchable across projects' },
-      { icon: Share2, name: 'Share & Export', desc: 'Send to Teams, Outlook, or PDF with audience presets — no reformatting required' },
-    ],
-  },
-  {
-    title: 'Plan & Diagnose',
-    accent: { icon: 'text-field-info', bg: 'bg-field-info/10', border: 'border-field-info/15' },
-    desc: 'The full diagnostic toolkit for BAS commissioning and service.',
-    items: [
-      { icon: Network, name: 'IP Plan', desc: 'Never lose track of a device. Full IP addressing with VLAN, subnet, and duplicate detection' },
-      { icon: Database, name: 'Device List', desc: 'Track every controller — BACnet instance, IP, MAC, firmware version, and physical location' },
-      { icon: Network, name: 'Network Diagrams', desc: 'Build topology maps in minutes, not hours. Drag-and-drop with PNG / SVG export for submittals' },
-      { icon: Activity, name: 'Ping Tool', desc: 'Know instantly which devices are reachable. HTTP and ICMP testing with port scanning and history' },
-      { icon: Calculator, name: 'Register Tool', desc: 'Decode any BACnet, Modbus, or LonWorks value — hex, IEEE 754, byte order, and addressing' },
-      { icon: Gauge, name: 'PID Tuning', desc: 'Stop guessing on loop parameters. Ziegler-Nichols and Cohen-Coon calculators with symptom diagnosis' },
-      { icon: Thermometer, name: 'Psychrometric', desc: 'Calculate moist air properties for AHU commissioning — mixed air, coil loads, and comfort zones' },
-      { icon: TrendingUp, name: 'Trend Viewer', desc: 'Overlay BAS trend CSVs from any platform — detect stuck sensors and anomalies, then export clean reports' },
-    ],
-  },
-  {
-    title: 'Access & Program',
-    accent: { icon: 'text-field-warning', bg: 'bg-field-warning/10', border: 'border-field-warning/15' },
-    desc: 'Connect directly to controllers and program from the field.',
-    items: [
-      { icon: TerminalSquare, name: 'Telnet HMI', desc: 'Direct terminal access to BAS controllers — session logging, multi-profile management, and ANSI rendering' },
-      { icon: Globe, name: 'Web Interface', desc: 'Launch and manage controller web panels in embedded tabs — no browser switching required' },
-      { icon: FileCode, name: 'PPCL Editor', desc: 'Write, edit, and validate Carrier PPCL logic with syntax highlighting and project file management' },
-    ],
-  },
-  {
-    title: 'Collaborate',
-    accent: { icon: 'text-field-success', bg: 'bg-field-success/10', border: 'border-field-success/15' },
-    desc: 'Share projects and knowledge across your team in real time.',
-    items: [
-      { icon: Globe, name: 'Global Projects', desc: 'Multi-user shared projects with access codes, role-based permissions, and real-time activity tracking' },
-      { icon: BookOpen, name: 'Knowledge Base', desc: 'A shared library of technical guides with markdown editing, threaded replies, and full-text search' },
-      { icon: Share2, name: 'Activity Tracking', desc: 'Every change logged with before/after diffs, timestamps, and creator attribution' },
-    ],
-  },
-];
-
-const workflowSteps = [
-  { step: '01', title: 'Load your project offline', desc: 'Pin any project before heading to site. All files, device lists, IP plans, and notes are available without Wi-Fi or cellular.' },
-  { step: '02', title: 'Locate and scan devices', desc: 'Find every controller, verify IP addresses and BACnet instances, check VLAN assignments, and detect duplicates automatically.' },
-  { step: '03', title: 'Access controllers directly', desc: 'Open web panels, telnet into firmware, or decode register values — all without switching to a separate tool.' },
-  { step: '04', title: 'Run diagnostics', desc: 'Tune PID loops, calculate psychrometric conditions, map network topology, and decode Modbus registers on the spot.' },
-  { step: '05', title: 'Document the findings', desc: 'Attach terminal logs, screenshots, and field notes to the project. Write structured daily reports with full issue tracking.' },
-  { step: '06', title: 'Export to the customer', desc: 'Send a formatted PDF report, push to Teams, or email via Outlook — all directly from inside the app.' },
-];
-
-const platformPillars = [
-  { icon: Layers, title: 'Unified workspace', desc: 'Projects, files, IP plans, device lists, notes, and diagnostics — all linked and searchable in one place.' },
-  { icon: WifiOff, title: 'Offline-first', desc: 'Everything stored locally. Pin projects before heading to site, then work without Wi-Fi, VPN, or cellular.' },
-  { icon: Wrench, title: 'Built-in diagnostics', desc: 'Terminal, web panel viewer, ping, register decoder, PID tuner, and psychrometric calculator — no extra software needed.' },
-  { icon: ClipboardList, title: 'Professional documentation', desc: 'Structured daily reports, versioned file uploads, and one-click export to Teams, Outlook, and PDF with full audit trails.' },
-  { icon: Globe, title: 'Team collaboration', desc: 'Global Projects with access codes, role-based permissions, real-time activity tracking, and a shared knowledge base.' },
-];
-
-const fieldBenefits = [
-  { icon: Layers, title: 'One workspace, not a stack of tools', desc: 'No more bouncing between spreadsheets, file shares, note apps, terminal emulators, and IP scanners.' },
-  { icon: WifiOff, title: 'Works without signal', desc: 'Data lives on your device. Pin projects before you leave — no Wi-Fi, VPN, or hotspot required on site.' },
-  { icon: Zap, title: 'Built for field speed', desc: 'Quick upload from any page, global Cmd+K search, and keyboard shortcuts across every project view.' },
-  { icon: Database, title: 'Your data, your control', desc: 'Device configs and project data stay local by default. Cloud sync is opt-in, never forced.' },
-];
-
+import { toolGroups, fieldHighlights } from './landing-content';
 
 // ─── Page Component ──────────────────────────────────────────────────────────
 
@@ -127,10 +49,11 @@ export default function HomePage() {
   const goApp = () => router.push('/dashboard');
   const goSignup = () => isTauri ? window.location.assign('/login?tab=signup') : router.push('/login?tab=signup');
   const goLogin = () => isTauri ? window.location.assign('/login') : router.push('/login');
+  const scrollToTools = () => document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' });
 
   // Short-circuit on Tauri: this landing page is the web marketing surface only.
-  // Without this guard the desktop app paints ~800 lines of DOM, runs every
-  // hp-fade animation, and only then redirects to /login. Skip all of it.
+  // Without this guard the desktop app paints the full DOM, runs every
+  // animation, and only then redirects to /login. Skip all of it.
   if (isTauri) {
     return null;
   }
@@ -140,7 +63,7 @@ export default function HomePage() {
 
       {/* ── Glass Navigation ─────────────────────────────────────────── */}
       <header className="hp-glass-nav sticky top-0 z-40">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg overflow-hidden">
               <img src="/icons/icon-small.svg" alt="BAU Suite" className="h-8 w-8" />
@@ -161,7 +84,7 @@ export default function HomePage() {
                   Sign In
                 </Button>
                 <Button size="sm" onClick={goSignup} className="gap-1.5 hp-btn-glow">
-                  Get Started Free <ArrowRight className="h-3.5 w-3.5" />
+                  Open BAU Suite <ArrowRight className="h-3.5 w-3.5" />
                 </Button>
               </>
             )}
@@ -170,167 +93,105 @@ export default function HomePage() {
       </header>
 
       {/* ── Hero ─────────────────────────────────────────────────────── */}
+      {/* Calm hero: one soft orb (not two animated), no grid background, and a
+          single quiet product glimpse rather than three competing cards. */}
       <section className="relative overflow-hidden">
-        {/* Gradient orbs */}
         <div
-          className="hp-orb absolute -top-24 -left-24 w-80 h-80 opacity-40 dark:opacity-25"
+          className="hp-orb absolute -top-32 left-1/2 -translate-x-1/2 w-[36rem] h-80 opacity-25 dark:opacity-15 pointer-events-none"
           style={{ background: 'radial-gradient(circle, var(--color-siemens-teal) 0%, transparent 70%)' }}
         />
-        <div
-          className="hp-orb absolute -bottom-32 -right-24 w-80 h-80 opacity-25 dark:opacity-15"
-          style={{ background: 'radial-gradient(circle, var(--color-siemens-petrol) 0%, transparent 70%)', animationDelay: '4s' }}
-        />
-        {/* Grid background */}
-        <div className="hp-grid-bg absolute inset-0 opacity-0" style={{
-          backgroundImage: 'linear-gradient(to right, currentColor 1px, transparent 1px), linear-gradient(to bottom, currentColor 1px, transparent 1px)',
-          backgroundSize: '48px 48px',
-        }} />
 
-        <div className="relative mx-auto max-w-6xl px-4 sm:px-6 py-16 sm:py-24 lg:py-28">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <div className="relative mx-auto max-w-5xl px-4 sm:px-6 pt-16 pb-12 sm:pt-24 sm:pb-16 text-center">
+          <div
+            className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-sm"
+            style={{ animation: 'hp-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.1s', opacity: 0 }}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+            <span>Portable BAS field toolkit</span>
+            <span className="text-muted-foreground/50" aria-hidden="true">·</span>
+            <span className="font-mono text-[11px] tabular-nums">v{APP_VERSION}</span>
+          </div>
 
-            {/* Left: Copy */}
-            <div>
-              <div
-                className="mb-5 inline-flex items-center gap-2 rounded-full border border-border bg-card/60 px-3 py-1.5 text-xs font-medium text-muted-foreground backdrop-blur-sm"
-                style={{ animation: 'hp-fade-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.1s', opacity: 0 }}
-              >
-                <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
-                <span>BAS Field Toolkit</span>
-                <span className="text-muted-foreground/50" aria-hidden="true">·</span>
-                <span className="font-mono text-[11px] tabular-nums">v{APP_VERSION}</span>
+          <h1
+            className="mx-auto max-w-3xl text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-balance leading-[1.05]"
+            style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.2s', opacity: 0 }}
+          >
+            The offline-first toolkit for <span className="text-primary">BAS field techs</span>
+          </h1>
+
+          <p
+            className="mx-auto mt-5 max-w-xl text-base sm:text-lg text-muted-foreground leading-relaxed text-balance"
+            style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.35s', opacity: 0 }}
+          >
+            BAU Suite puts your projects, controller diagnostics, terminal access, and
+            documentation in one portable workspace — on site or in the office, with or without Wi-Fi.
+          </p>
+
+          <div
+            className="mt-8 flex flex-wrap justify-center gap-3"
+            style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.5s', opacity: 0 }}
+          >
+            {isAuthed ? (
+              <Button size="lg" onClick={goApp} className="gap-2 hp-btn-glow">
+                Go to Dashboard <ArrowRight className="h-4 w-4" />
+              </Button>
+            ) : (
+              <Button size="lg" onClick={goSignup} className="gap-2 hp-btn-glow">
+                Open BAU Suite <ArrowRight className="h-4 w-4" />
+              </Button>
+            )}
+            <Button size="lg" variant="ghost" onClick={scrollToTools} className="gap-1.5 text-muted-foreground hover:text-foreground">
+              See what&apos;s inside
+            </Button>
+          </div>
+
+          {/* Compact stats row — informative, not loud */}
+          <div
+            className="mt-10 flex flex-wrap justify-center gap-8 sm:gap-12"
+            style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.65s', opacity: 0 }}
+          >
+            {[
+              { value: '19', label: 'Integrated tools' },
+              { value: '100%', label: 'Offline-capable' },
+              { value: 'Free', label: 'To get started' },
+            ].map(({ value, label }) => (
+              <div key={label}>
+                <p className="text-2xl font-bold tracking-tight tabular-nums">{value}</p>
+                <p className="text-xs text-muted-foreground">{label}</p>
               </div>
+            ))}
+          </div>
 
-              <h1
-                className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight text-balance leading-[1.05]"
-                style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.2s', opacity: 0 }}
-              >
-                Stop carrying <span className="text-primary whitespace-nowrap">five apps</span> into the field
-              </h1>
-
-              <p
-                className="mt-5 text-base sm:text-lg text-muted-foreground leading-relaxed max-w-lg"
-                style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.35s', opacity: 0 }}
-              >
-                One workspace for BAS technicians and controls engineers.
-                Projects, diagnostics, documentation, and terminal access — on site or in the office, with or without Wi-Fi.
-              </p>
-
-              <div
-                className="mt-8 flex flex-wrap gap-3"
-                style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.5s', opacity: 0 }}
-              >
-                {isAuthed ? (
-                  <Button size="lg" onClick={goApp} className="gap-2 hp-btn-glow">
-                    Go to Dashboard <ArrowRight className="h-4 w-4" />
-                  </Button>
-                ) : (
-                  <>
-                    <Button size="lg" onClick={goSignup} className="gap-2 hp-btn-glow">
-                      <UserPlus className="h-4 w-4" /> Get Started Free
-                    </Button>
-                    <Button size="lg" variant="ghost" onClick={goLogin} className="gap-1.5 text-muted-foreground hover:text-foreground">
-                      Sign In <ArrowRight className="h-4 w-4" />
-                    </Button>
-                  </>
-                )}
-              </div>
-
-              {/* Stats row */}
-              <div
-                className="mt-10 flex flex-wrap gap-6 sm:gap-8"
-                style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.65s', opacity: 0 }}
-              >
-                {[
-                  { value: '19', label: 'Integrated tools' },
-                  { value: '100%', label: 'Offline-capable' },
-                  { value: 'Free', label: 'To get started' },
-                ].map(({ value, label }) => (
-                  <div key={label}>
-                    <p className="text-2xl font-bold tracking-tight tabular-nums">{value}</p>
-                    <p className="text-xs text-muted-foreground">{label}</p>
-                  </div>
-                ))}
-              </div>
+          {/* Single quiet product glimpse */}
+          <div
+            className="mx-auto mt-12 max-w-md text-left hp-hero-card p-4"
+            style={{ animation: 'hp-fade-in 1s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.5s', opacity: 0 }}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active Project</span>
+              <span className="rounded-full bg-field-success/15 text-field-success text-[10px] font-bold px-2 py-0.5">Active</span>
             </div>
-
-            {/* Right: UI Preview Cards */}
-            <div
-              className="relative hidden lg:flex flex-col gap-3 max-w-sm ml-auto w-full"
-              style={{ animation: 'hp-fade-in 1s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.4s', opacity: 0 }}
-            >
-              {/* Project card */}
-              <div className="hp-hero-card will-change-transform p-4" style={{ animationDelay: '0s' }}>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Active Project</span>
-                  <span className="rounded-full bg-field-success/15 text-field-success text-[10px] font-bold px-2 py-0.5">Active</span>
-                </div>
-                <p className="text-sm font-semibold">AHU Level 3 — Block A</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">44OP-349942 · Updated today</p>
-                <div className="mt-2.5 flex items-center gap-4 text-[10px] text-muted-foreground border-t border-border/50 pt-2">
-                  <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> 8 files</span>
-                  <span className="flex items-center gap-1"><StickyNote className="h-3 w-3" /> 4 notes</span>
-                  <span className="flex items-center gap-1"><Database className="h-3 w-3" /> 14 devices</span>
-                </div>
-              </div>
-
-              {/* IP Plan + Terminal row */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="hp-hero-card will-change-transform p-3.5" style={{ animationDelay: '-2.6s' }}>
-                  <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">IP Plan</span>
-                  <p className="font-mono text-sm font-bold mt-1 truncate">192.168.10.45</p>
-                  <p className="text-[10px] text-muted-foreground">DDC-1 · VLAN 10</p>
-                  <div className="mt-1.5 flex items-center gap-1">
-                    <div className="h-1.5 w-1.5 rounded-full bg-field-success animate-pulse" />
-                    <span className="text-[10px] text-field-success font-semibold">Online · 8ms</span>
-                  </div>
-                </div>
-                <div
-                  className="hp-hero-card will-change-transform p-3.5 overflow-hidden"
-                  style={{
-                    background: 'var(--color-terminal-bg)',
-                    borderColor: 'var(--color-terminal-border)',
-                    animationDelay: '-1.3s',
-                  }}
-                >
-                  <p className="font-mono text-[10px] mb-1.5" style={{ color: 'var(--color-terminal-prompt)' }}>$ telnet 192.168.10.45</p>
-                  <p className="font-mono text-[10px]" style={{ color: 'var(--color-terminal-text)' }}>PSTATUS: ACTIVE</p>
-                  <p className="font-mono text-[10px]" style={{ color: 'var(--color-terminal-text)' }}>AO1 = 65.3%</p>
-                  <p className="font-mono text-[10px]" style={{ color: 'var(--color-terminal-text)' }}>SP  = 68.0°F</p>
-                </div>
-              </div>
-
-              {/* Ping results card */}
-              <div className="hp-hero-card will-change-transform p-4" style={{ animationDelay: '-3.4s' }}>
-                <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Ping Results</span>
-                <div className="mt-2 space-y-1.5">
-                  {[
-                    { ip: '192.168.10.45', ms: '8ms', ok: true },
-                    { ip: '192.168.10.46', ms: '11ms', ok: true },
-                    { ip: '192.168.10.50', ms: 'timeout', ok: false },
-                  ].map(({ ip, ms, ok }) => (
-                    <div key={ip} className="flex items-center justify-between">
-                      <span className="font-mono text-[11px]">{ip}</span>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] text-muted-foreground">{ms}</span>
-                        <div className={`h-1.5 w-1.5 rounded-full ${ok ? 'bg-field-success' : 'bg-field-danger'}`} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <p className="text-sm font-semibold">AHU Level 3 — Block A</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">44OP-349942 · Updated today</p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-4 text-[10px] text-muted-foreground border-t border-border/50 pt-2">
+              <span className="flex items-center gap-1"><FileText className="h-3 w-3" /> 8 files</span>
+              <span className="flex items-center gap-1"><StickyNote className="h-3 w-3" /> 4 notes</span>
+              <span className="flex items-center gap-1"><Database className="h-3 w-3" /> 14 devices</span>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-field-success" /> 13 online
+              </span>
             </div>
           </div>
         </div>
       </section>
 
       {/* ── Social Proof ─────────────────────────────────────────────── */}
-      {/* Hide entire section for unauthed visitors when no reviews exist —
-          empty social proof signals "no one uses this" and crushes conversion.
-          Authed users still see the soft prompt to seed the first review. */}
+      {/* Hidden for unauthed visitors when no reviews exist — an empty social
+          proof section signals "no one uses this". Authed users still see the
+          soft prompt to seed the first review. */}
       {(reviews.length > 0 || isAuthed) && (
-      <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      <section className="border-t border-border/50 py-12 sm:py-16">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
           {reviews.length > 0 ? (
             <>
               <p className="hp-reveal text-center text-xs font-semibold text-muted-foreground uppercase tracking-widest mb-10">
@@ -391,64 +252,35 @@ export default function HomePage() {
       </section>
       )}
 
-      {/* ── Workflow ─────────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="hp-reveal mb-12">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Workflow</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">How it works in the field</h2>
-            <p className="mt-3 text-base text-muted-foreground max-w-xl">
-              A connected workflow that mirrors how a job actually runs — from project pin to customer handoff.
+      {/* ── What's inside / the tools ────────────────────────────────── */}
+      {/* Merges the old Workflow + Tool Ecosystem + Platform sections into one
+          information-rich tool catalogue. The tool list is the substance. */}
+      <section id="tools" className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20 scroll-mt-16">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="hp-reveal max-w-2xl mb-12">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">What&apos;s inside</p>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Every tool the job needs, built in</h2>
+            <p className="mt-3 text-base text-muted-foreground leading-relaxed">
+              BAU Suite replaces the stack of spreadsheets, file shares, note apps, terminal emulators,
+              and IP scanners techs juggle on a job — with one connected workspace. No tab-switching, no extra software.
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {workflowSteps.map(({ step, title, desc }) => (
-              <div key={step} className="hp-reveal hp-card-surface p-5 sm:p-6 group flex items-start gap-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-mono text-xs font-bold border border-primary/20 bg-primary/10 text-primary transition-all duration-300 group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary">
-                  {step}
-                </div>
-                <div className="min-w-0">
-                  {/* h3 (was h4): workflow section jumped h2 → h4. Promote to
-                      h3 so the heading outline stays linear for screen readers. */}
-                  <h3 className="text-sm font-semibold mb-1">{title}</h3>
-                  <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ── Tool Ecosystem ───────────────────────────────────────────── */}
-      <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="hp-reveal mb-12">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Ecosystem</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Every tool you need, built in</h2>
-            <p className="mt-3 text-base text-muted-foreground max-w-xl">
-              Purpose-built utilities for building automation fieldwork. No extra software, no tab-switching.
-            </p>
-          </div>
-
-          <div className="space-y-10">
+          <div className="space-y-8">
             {toolGroups.map((group) => (
               <div key={group.title} className="hp-reveal">
-                <div className="mb-4">
+                <div className="mb-3">
                   <h3 className="text-base font-bold">{group.title}</h3>
                   <p className="text-sm text-muted-foreground mt-0.5">{group.desc}</p>
                 </div>
-                <div className="hp-stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="hp-stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                   {group.items.map(({ icon: Icon, name, desc }) => (
-                    <div key={name} className="hp-reveal hp-card-surface group p-4 flex items-start gap-3">
-                      <div className={`hp-tool-icon rounded-lg p-2 border shrink-0 mt-0.5 ${group.accent.icon} ${group.accent.bg} ${group.accent.border}`}>
+                    <div key={name} className="hp-reveal hp-card-surface p-4 flex items-start gap-3">
+                      <div className={`rounded-lg p-2 border shrink-0 mt-0.5 ${group.accent.icon} ${group.accent.bg} ${group.accent.border}`}>
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0">
-                        <h4 className="text-sm font-semibold flex items-center gap-1">
-                          {name}
-                          <ChevronRight className="h-3 w-3 text-muted-foreground/0 group-hover:text-primary transition-colors duration-300" />
-                        </h4>
+                        <h4 className="text-sm font-semibold">{name}</h4>
                         <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">{desc}</p>
                       </div>
                     </div>
@@ -460,28 +292,20 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Platform Positioning ─────────────────────────────────────── */}
+      {/* ── Built for the field (differentiators strip) ──────────────── */}
       <section className="py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="hp-reveal max-w-2xl mb-12">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Platform</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight leading-tight">
-              Everything a BAS technician carries — in one platform
-            </h2>
-            <p className="mt-4 text-base text-muted-foreground leading-relaxed">
-              BAU Suite consolidates the project data, diagnostic tools, and documentation workflows that field engineers reach for on every job.
-            </p>
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
+          <div className="hp-reveal max-w-xl mb-10">
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Built for the field</p>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Designed around real site constraints</h2>
           </div>
-
-          <div className="hp-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {platformPillars.map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="hp-reveal hp-card-surface p-6">
-                <div className="flex items-center gap-3 mb-3">
-                  <div className="hp-tool-icon rounded-xl bg-primary/10 p-2.5 border border-primary/15">
-                    <Icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <h3 className="text-sm font-semibold">{title}</h3>
+          <div className="hp-stagger grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {fieldHighlights.map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="hp-reveal hp-card-surface p-5">
+                <div className="rounded-xl bg-primary/10 p-2.5 border border-primary/15 w-fit mb-3">
+                  <Icon className="h-5 w-5 text-primary" />
                 </div>
+                <h3 className="text-sm font-semibold mb-1.5">{title}</h3>
                 <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
               </div>
             ))}
@@ -489,57 +313,26 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Built for the Field ──────────────────────────────────────── */}
-      <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="hp-reveal mb-12">
-            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Field-first</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Made for site work</h2>
-            <p className="mt-3 text-base text-muted-foreground max-w-xl">
-              Designed around the real constraints of BAS commissioning, service, and troubleshooting.
-            </p>
-          </div>
-
-          <div className="hp-stagger grid gap-4 sm:grid-cols-2">
-            {fieldBenefits.map(({ icon: Icon, title, desc }) => (
-              <div key={title} className="hp-reveal hp-card-surface p-6 flex gap-4">
-                <div className="hp-tool-icon rounded-xl bg-primary/10 p-3 border border-primary/15 shrink-0 self-start">
-                  <Icon className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="text-base font-semibold mb-1.5">{title}</h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* ── Desktop App ──────────────────────────────────────────────── */}
-      <section className="py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="hp-reveal">
             <div
               className="relative overflow-hidden rounded-2xl border border-primary/15"
               style={{ background: 'var(--gradient-brand)' }}
             >
-              <div className="absolute inset-0 opacity-10" style={{
-                backgroundImage: 'var(--pattern-brand-grid)',
-                backgroundSize: '32px 32px',
-              }} />
-              <div className="relative px-6 sm:px-12 py-10 sm:py-14">
+              <div className="relative px-6 sm:px-12 py-10 sm:py-12">
                 <div className="grid lg:grid-cols-2 gap-8 lg:gap-12 items-center">
                   <div>
                     <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white/90 backdrop-blur-sm mb-5">
                       <Download className="h-3.5 w-3.5" />
-                      Available Now
+                      Windows desktop app
                     </div>
                     <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
                       Full network diagnostics<br />on Windows
                     </h2>
                     <p className="mt-3 text-sm sm:text-base text-white/70 leading-relaxed max-w-lg">
-                      Download the native desktop app for true ICMP ping, VPN and internal subnet access,
+                      The native desktop app adds true ICMP ping, VPN and internal subnet access,
                       and a focused workspace without browser limitations.
                     </p>
                     <Button
@@ -576,15 +369,15 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Support the Platform / Pricing ───────────────────────────── */}
-      <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      {/* ── Pricing / Support ────────────────────────────────────────── */}
+      <section className="py-16 sm:py-20">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="hp-reveal">
             <div className="grid lg:grid-cols-5 gap-8 lg:gap-12 items-center">
-              {/* Left: narrative — 3 columns */}
+              {/* Left: narrative */}
               <div className="lg:col-span-3">
                 <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">
-                  {isPaywallEnabled() ? 'Plans & Pricing' : 'Support the project'}
+                  {isPaywallEnabled() ? 'Plans & pricing' : 'Support the project'}
                 </p>
                 <h2 className="text-2xl sm:text-3xl font-bold tracking-tight leading-tight mb-4">
                   {isPaywallEnabled() ? (
@@ -615,7 +408,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              {/* Right: CTA / Pricing cards — 2 columns */}
+              {/* Right: pricing tiers / support card */}
               <div className="lg:col-span-2">
                 {isPaywallEnabled() ? (
                   <div className="space-y-4">
@@ -680,9 +473,8 @@ export default function HomePage() {
                       </div>
                     </div>
 
-                    {/* Authed: route to settings to manage subscription. Unauthed: route to
-                        signup tab so the CTA matches its label ("Get Started Free" should land
-                        on signup, not the default signin tab). */}
+                    {/* Authed: manage subscription. Unauthed: signup tab so the CTA
+                        matches its label. */}
                     <Button size="lg" onClick={user ? () => router.push('/settings') : goSignup} className="w-full gap-2 hp-btn-glow">
                       {user ? (
                         <><Zap className="h-4 w-4" /> Manage Subscription</>
@@ -714,61 +506,43 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Get Started CTA ──────────────────────────────────────────── */}
-      <section className="py-16 sm:py-24">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="hp-reveal relative rounded-2xl overflow-hidden" style={{
-            background: 'var(--gradient-brand)',
-          }}>
-            <div className="absolute inset-0 opacity-10" style={{
-              backgroundImage: 'var(--pattern-brand-grid)',
-              backgroundSize: '32px 32px',
-            }} />
-            <div className="relative px-6 sm:px-12 py-12 sm:py-16 text-center">
-              {isAuthed ? (
-                <>
-                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-                    Welcome back
-                  </h2>
-                  <p className="mt-3 text-sm text-white/70 max-w-md mx-auto">
-                    Your workspace is ready. Data stays on your device — cloud sync is there when you need it.
-                  </p>
-                  <Button
-                    size="lg"
-                    onClick={goApp}
-                    className="mt-6 gap-2 bg-white text-siemens-teal-dark hover:bg-white/90 hp-btn-glow"
-                  >
-                    Go to Dashboard <ArrowRight className="h-4 w-4" />
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-                    Ready to simplify your fieldwork?
-                  </h2>
-                  <p className="mt-3 text-sm text-white/70 max-w-md mx-auto">
-                    Create a free account in under a minute. Upgrade only when you need cloud sync or team collaboration.
-                  </p>
-                  <Button
-                    size="lg"
-                    onClick={goSignup}
-                    className="mt-6 gap-2 bg-white text-siemens-teal-dark hover:bg-white/90 hp-btn-glow"
-                  >
-                    <UserPlus className="h-4 w-4" /> Get Started Free
-                  </Button>
-                  <p className="mt-3 text-xs text-white/60">
-                    No credit card required.
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
+      {/* ── Closing CTA ──────────────────────────────────────────────── */}
+      {/* One calm, low-pressure close — informative, not a hard sell. */}
+      <section className="border-t border-border/50 py-14 sm:py-20">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 text-center">
+          {isAuthed ? (
+            <>
+              <h2 className="hp-reveal text-2xl sm:text-3xl font-bold tracking-tight">Welcome back</h2>
+              <p className="hp-reveal mt-3 text-sm text-muted-foreground max-w-md mx-auto">
+                Your workspace is ready. Data stays on your device — cloud sync is there when you need it.
+              </p>
+              <Button size="lg" onClick={goApp} className="hp-reveal mt-6 gap-2 hp-btn-glow">
+                Go to Dashboard <ArrowRight className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <h2 className="hp-reveal text-2xl sm:text-3xl font-bold tracking-tight">Take a look around</h2>
+              <p className="hp-reveal mt-3 text-sm text-muted-foreground max-w-md mx-auto">
+                Open BAU Suite and start with the local tools — they&apos;re free, no credit card required.
+                Add cloud sync or team collaboration later, only if you need them.
+              </p>
+              <div className="hp-reveal mt-6 flex flex-wrap justify-center gap-3">
+                <Button size="lg" onClick={goSignup} className="gap-2 hp-btn-glow">
+                  Open BAU Suite <ArrowRight className="h-4 w-4" />
+                </Button>
+                <Button size="lg" variant="ghost" onClick={goLogin} className="gap-1.5 text-muted-foreground hover:text-foreground">
+                  Sign In
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </section>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
       <footer className="border-t border-border/50 py-10 px-4 sm:px-6">
-        <div className="mx-auto max-w-6xl">
+        <div className="mx-auto max-w-5xl">
           <div className="grid sm:grid-cols-3 gap-8 mb-8">
             {/* Brand */}
             <div>
@@ -779,7 +553,7 @@ export default function HomePage() {
                 <span className="text-sm font-semibold">BAU Suite</span>
               </div>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                The unified workspace for BAS technicians and controls engineers.
+                The portable, offline-first workspace for BAS technicians and controls engineers.
               </p>
               <p className="text-xs text-muted-foreground mt-3">v{APP_VERSION}</p>
             </div>
