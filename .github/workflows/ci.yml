@@ -1,0 +1,36 @@
+name: CI
+
+# Fast per-push regression gate: typecheck + lint + unit tests on every push.
+# Surfaces a red ✗ on the commit within ~1-2 min instead of waiting for the
+# daily health check. Deliberately SKIPS the heavy build + cargo/Tauri compile —
+# those stay on the daily cron (.github/workflows/daily-health-check.yml).
+
+on:
+  push: {}
+  workflow_dispatch: {}
+
+# Cancel an in-flight run when a newer commit lands on the same ref.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install deps
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests
+        run: npm run test:run
