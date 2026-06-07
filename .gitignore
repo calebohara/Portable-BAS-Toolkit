@@ -70,4 +70,5 @@ docs/**/*.md
 !docs/MIGRATIONS.md
 !docs/ReviewAgents-findings-*.md
 !docs/ACTIVE-BUGS.md
+!docs/README-SYNC.md
 !docs/PXC7-CONNECTIVITY-FINDINGS.md
