@@ -27,7 +27,17 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 ## 🤖 Daily health check
 
 <!-- AUTOMATED-CHECKS:START -->
-_Not run yet — the daily workflow will populate this on its first run (or trigger it manually from the Actions tab → "Daily Health Check" → Run workflow)._
+**Last run:** 2026-06-07 00:01 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/27077421835)
+
+> ⚠️ **One or more checks FAILED — see the failing job below and open a manual entry if it is a real bug.**
+
+| Check | Result |
+|-------|--------|
+| TypeScript (`tsc --noEmit`) | ✅ pass |
+| Lint (`eslint`) | ❌ FAIL |
+| Unit tests (`vitest run`) | ✅ pass |
+| Production build (`build:static`) | ✅ pass |
+| Rust (`cargo check`/`test`) | ❌ FAIL |
 <!-- AUTOMATED-CHECKS:END -->
 
 ---
@@ -37,7 +47,7 @@ _Not run yet — the daily workflow will populate this on its first run (or trig
 Open rows from the Supabase `bug_reports` table (submitted via the in-app Bug Report dialog).
 
 <!-- USER-REPORTS:START -->
-_Not run yet — populates once the workflow runs with Supabase secrets configured._
+_Supabase not configured — add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` repo secrets to enable the user-bug pull._
 <!-- USER-REPORTS:END -->
 
 ---
