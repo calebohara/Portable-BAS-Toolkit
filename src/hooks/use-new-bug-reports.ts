@@ -44,10 +44,9 @@ export function useNewBugReports() {
   const [count, setCount] = useState(0);
 
   const refresh = useCallback(async () => {
-    if (!isAdmin) {
-      setCount(0);
-      return;
-    }
+    // Non-admins never see a count — handled by deriving the returned value
+    // below, so there's nothing to fetch here.
+    if (!isAdmin) return;
     try {
       const lastSeen = readLastSeen();
       const reports = await getAllBugReports();
@@ -64,6 +63,11 @@ export function useNewBugReports() {
   }, []);
 
   useEffect(() => {
+    // Fetch the count on mount (and whenever the admin status changes via the
+    // refresh callback identity). refresh() only setState's after an await, so
+    // it's not a synchronous cascading render — this is the canonical
+    // data-fetch-on-mount effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch on mount; setCount runs after await
     refresh();
   }, [refresh]);
 
@@ -74,5 +78,7 @@ export function useNewBugReports() {
     return () => window.removeEventListener('bau-suite:bug-report-added', handler);
   }, [refresh]);
 
-  return { count, markSeen, isAdmin };
+  // Non-admins always see 0 — derived, so refresh() never has to setState
+  // synchronously for them (which would trigger a cascading render).
+  return { count: isAdmin ? count : 0, markSeen, isAdmin };
 }

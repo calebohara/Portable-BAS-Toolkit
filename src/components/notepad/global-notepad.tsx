@@ -2,7 +2,7 @@
 
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
-  StickyNote, X, Minus, Plus, Trash2, Copy,
+  StickyNote, X, Minus, Plus, Copy,
   RotateCcw, FolderKanban, Link2, Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -88,10 +88,13 @@ function useDraggableLauncher(elWidth: number, elHeight: number) {
   const startPosRef = useRef({ x: 0, y: 0 });
   const offsetRef = useRef({ x: 0, y: 0 });
 
-  // Initialize position only AFTER hydration to prevent jump
+  // Initialize position only AFTER hydration to prevent jump. Depends on
+  // persisted store state + window dimensions, neither available during render,
+  // so this one-time-per-hydration setState belongs in an effect.
   useEffect(() => {
     if (!hydrated || typeof window === 'undefined') return;
     if (launcherPos) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- post-hydration position init from persisted store + window size
       setPos(clampPosition(launcherPos.x, launcherPos.y, elWidth, elHeight));
     } else {
       setPos(defaultPosition(elWidth, elHeight));
@@ -421,9 +424,14 @@ function AttachDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v:
   const { projects } = useProjects();
   const [selectedProjectId, setSelectedProjectId] = useState(activeTab?.projectId || '');
 
-  useEffect(() => {
+  // Reset the selection to the active tab's project each time the dialog opens.
+  // Adjust-state-during-render pattern (React docs) instead of an effect: track
+  // the previous `open` and reseed when it transitions false -> true.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) setSelectedProjectId(activeTab?.projectId || '');
-  }, [open, activeTab?.projectId]);
+  }
 
   const handleAttach = () => {
     if (!activeTab || !selectedProjectId) return;

@@ -28,7 +28,10 @@ const eslintConfig = defineConfig([
     ".next/**",
     "out/**",
     "build/**",
+    "dist/**",
     "next-env.d.ts",
+    // Generated build artifacts (e.g. tauri-codegen-assets/*.js).
+    "src-tauri/target/**",
   ]),
 ]);
 

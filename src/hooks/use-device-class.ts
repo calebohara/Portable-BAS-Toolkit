@@ -51,6 +51,10 @@ export function useDeviceClass(): DeviceInfo {
     else if (/mac\s?os|macintosh/i.test(ua)) desktopOS = 'macos';
     else if (/linux/i.test(ua) && !hasMobileUA) desktopOS = 'linux';
 
+    // One-shot read of browser-only environment (navigator, matchMedia, Tauri
+    // globals) on mount. These are unavailable/impure during SSR, so the values
+    // cannot be derived in render — setState-in-effect is the correct pattern.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-shot environment probe on mount
     setInfo({
       deviceClass,
       desktopOS,

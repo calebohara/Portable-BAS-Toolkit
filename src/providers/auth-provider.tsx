@@ -65,14 +65,17 @@ const AuthContext = createContext<AuthState | null>(null);
 
 // ─── Provider ───────────────────────────────────────────────
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const configured = isSupabaseConfigured();
+  const client = configured ? getSupabaseClient() : null;
+
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  // When there's no Supabase client there's nothing to restore, so start
+  // un-loaded. This avoids a synchronous setLoading(false) inside the restore
+  // effect (which would trigger a cascading render).
+  const [loading, setLoading] = useState(() => client !== null);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
-
-  const configured = isSupabaseConfigured();
-  const client = configured ? getSupabaseClient() : null;
 
   // Fetch profile data from Supabase
   const fetchProfile = useCallback(async (userId: string) => {
@@ -119,10 +122,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore session on mount + listen for auth changes
   useEffect(() => {
-    if (!client) {
-      setLoading(false);
-      return;
-    }
+    // No client → loading was initialized to false; nothing to restore.
+    if (!client) return;
 
     // Get initial session
     client.auth.getSession().then(({ data: { session: s } }) => {

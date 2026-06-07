@@ -71,13 +71,11 @@ const STATE_CONFIG: Record<ConnectionState, { label: string; color: string; icon
 // ─── Connection Duration Hook ────────────────────────────────
 function useConnectionDuration(session: TerminalSession) {
   const [elapsed, setElapsed] = useState('');
+  const isRunning = session.connectionState === 'connected' && !!session.startedAt;
 
   useEffect(() => {
-    if (session.connectionState !== 'connected' || !session.startedAt) {
-      setElapsed('');
-      return;
-    }
-    const start = new Date(session.startedAt).getTime();
+    if (!isRunning) return;
+    const start = new Date(session.startedAt!).getTime();
     const tick = () => {
       const diff = Math.floor((Date.now() - start) / 1000);
       const h = Math.floor(diff / 3600);
@@ -91,9 +89,10 @@ function useConnectionDuration(session: TerminalSession) {
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [session.connectionState, session.startedAt]);
+  }, [isRunning, session.startedAt]);
 
-  return elapsed;
+  // Derive the not-running case during render instead of resetting state in the effect.
+  return isRunning ? elapsed : '';
 }
 
 // ─── Session Notes Panel ─────────────────────────────────────
@@ -101,7 +100,14 @@ function SessionNotesPanel({ session }: { session: TerminalSession }) {
   const updateSession = useTerminalStore(s => s.updateSession);
   const [notes, setNotes] = useState(session.sessionNotes ?? '');
 
-  useEffect(() => { setNotes(session.sessionNotes ?? ''); }, [session.id, session.sessionNotes]);
+  // Re-sync the draft when a different session (or its stored notes) loads, using the
+  // "adjust state during render" pattern instead of an effect that calls setState.
+  const [syncedKey, setSyncedKey] = useState(`${session.id}:${session.sessionNotes ?? ''}`);
+  const currentKey = `${session.id}:${session.sessionNotes ?? ''}`;
+  if (syncedKey !== currentKey) {
+    setSyncedKey(currentKey);
+    setNotes(session.sessionNotes ?? '');
+  }
 
   const handleSave = () => {
     updateSession(session.id, { sessionNotes: notes });
@@ -385,9 +391,13 @@ function CommandInput({ session, insertedCmd, onClearInserted, onSend }: {
   const appendLine = useTerminalStore(s => s.appendLine);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Handle inserted commands from snippet library
+  // Handle inserted commands from snippet library. This reacts to a transient prop
+  // signal and must also focus the input and clear the signal in the parent (real side
+  // effects), so it belongs in an effect. onClearInserted nulls insertedCmd immediately,
+  // making this one-shot with no cascading renders.
   useEffect(() => {
     if (insertedCmd) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- one-shot sync from transient prop signal alongside focus side effect
       setCmd(insertedCmd);
       onClearInserted?.();
       inputRef.current?.focus();

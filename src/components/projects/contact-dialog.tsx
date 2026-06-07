@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
@@ -23,11 +23,16 @@ export function ContactDialog({ open, onOpenChange, contact, onSave }: Props) {
   const isEdit = !!contact;
   const [form, setForm] = useState(emptyForm);
 
-  useEffect(() => {
+  // Re-seed the form whenever the dialog transitions to open. Tracked via a
+  // previous-open snapshot so the reset happens during render (no setState in
+  // an effect) and only fires on the closed -> open edge, not on every render.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setForm(contact ? { ...contact, phone: contact.phone || '', email: contact.email || '', company: contact.company || '' } : emptyForm);
     }
-  }, [open, contact]);
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

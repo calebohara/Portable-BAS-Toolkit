@@ -90,7 +90,9 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     const validTabs: string[] = sections.map(s => s.id);
+    // Sync local tab state from the URL (external system) on navigation.
     if (tab && validTabs.includes(tab)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing state from the URL ?tab= param on id change
       setActiveTabState(tab);
     } else if (!tab) {
       setActiveTabState('overview');

@@ -38,7 +38,11 @@ export function useRecentShares() {
   }, [userId]);
 
   useEffect(() => {
-    refresh();
+    // Fetch-on-mount (and on user change). refresh() is async, so setShares
+    // runs after the awaited fetch resolves — not synchronously during the
+    // effect — but the compiler can't see through the awaited boundary.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- async data fetch; setState happens post-await, not synchronously
+    void refresh();
   }, [refresh]);
 
   const clearSeen = useCallback(() => {

@@ -52,6 +52,11 @@ export function DataCleanupDialog({ open, onOpenChange }: DataCleanupDialogProps
 
   useEffect(() => {
     if (!open) return;
+    // Reset dialog state each time it opens, then (re)load the project list.
+    // These setState calls run only on the open→true transition to synchronize
+    // the dialog with the external "opened" signal — not a render-derivable
+    // value — so the synchronous setState here is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset-on-open is a legitimate external-signal sync, gated on `open`
     setPhase('loading');
     setSelected(new Set());
     setDeletedCount(0);

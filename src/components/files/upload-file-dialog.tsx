@@ -107,12 +107,12 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const dropped = Array.from(e.dataTransfer.files);
     if (dropped.length > 0) addFiles(dropped);
-  }, [accepted, isUploading]);
+  };
 
   const handleSubmit = async () => {
     if (files.length === 0 || submittingRef.current) return;

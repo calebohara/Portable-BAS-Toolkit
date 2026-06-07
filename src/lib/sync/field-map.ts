@@ -83,6 +83,14 @@ const SKIP_FIELDS: Partial<Record<SyncEntityType, Set<string>>> = {
   // IndexedDB. Strip both at push time so upserts don't fail PostgREST schema-
   // cache validation.
   globalActivityLog: new Set(['deletedAt', 'syncVersion']),
+  // global_project_preferences is a composite-PK table with NO `deleted_at`
+  // column (soft-deletes are handled by deleting the row outright). The pull /
+  // realtime paths still stamp deletedAt=null on it (it's not excluded from the
+  // generic global-entity stamping in sync-manager.ts:764 / :1290), so the
+  // value leaks into IndexedDB. Pushing it back maps deletedAt → deleted_at and
+  // triggers PGRST204 / 42703 "missing column on globalProjectPreferences".
+  // Strip it (and syncVersion, which the table also lacks) on push.
+  globalProjectPreferences: new Set(['deletedAt', 'syncVersion']),
 };
 
 // camelCase → snake_case conversion
@@ -702,6 +710,11 @@ export const REQUIRES_PROJECT_ID: Set<SyncEntityType> = new Set([
   'networkDiagrams', // network_diagrams.project_id NOT NULL
   'pidTuningSessions', // pid_tuning_sessions.project_id NOT NULL
   'psychSessions',     // psych_sessions.project_id NOT NULL
+  'trendSessions', // trend_sessions.project_id NOT NULL (add-trend-sessions.sql).
+                   // Without this, a trend session with an empty/invalid projectId
+                   // passes validateSyncable, gets project_id nulled by the
+                   // UUID_FK_COLUMNS coercion, and hits a 23502 NOT NULL violation
+                   // on push — surfaced to users as "[sync] unknown on trendSessions".
   'dxrs',          // dxrs.project_id NOT NULL
 ]);
 // These tables have project_id nullable: files, commandSnippets,

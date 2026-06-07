@@ -332,7 +332,13 @@ function PingToolPageInner() {
   // Desktop detection
   const [isDesktop, setIsDesktop] = useState(false);
   const [pingMethod, setPingMethod] = useState<'auto' | 'icmp' | 'http'>('auto');
-  useEffect(() => { setIsDesktop(isTauri()); }, []);
+  useEffect(() => {
+    // Window-dependent value: isTauri() reads false during SSR and the real value
+    // after mount. A lazy useState initializer would cause a hydration mismatch, so
+    // this one-shot post-mount sync is the correct pattern.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional SSR-safe mount detection
+    setIsDesktop(isTauri());
+  }, []);
 
   // Test config
   const [targets, setTargets] = useState<PingTarget[]>([{ id: crypto.randomUUID(), host: '', label: '' }]);

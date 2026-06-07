@@ -39,11 +39,12 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
   const [conflictsOpen, setConflictsOpen] = useState(false);
   const [inspectorOpen, setInspectorOpen] = useState(false);
 
-  // Re-render every 30s to keep relative time fresh — pause when tab is hidden
-  const [, setTick] = useState(0);
+  // Re-render every 30s to keep relative time fresh — pause when tab is hidden.
+  // `now` also drives the staleness check below so render stays pure (no Date.now()).
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     let id: ReturnType<typeof setInterval> | null = null;
-    const start = () => { id = setInterval(() => setTick((t) => t + 1), 30_000); };
+    const start = () => { id = setInterval(() => setNow(Date.now()), 30_000); };
     const stop = () => { if (id !== null) { clearInterval(id); id = null; } };
 
     const onVisibility = () => {
@@ -58,7 +59,7 @@ export function SyncStatusIndicator({ collapsed }: { collapsed?: boolean }) {
   if (mode !== 'authenticated' || syncStatus === 'disabled') return null;
 
   const isStale = lastSyncedAt
-    ? Date.now() - new Date(lastSyncedAt).getTime() > STALE_THRESHOLD_MS
+    ? now - new Date(lastSyncedAt).getTime() > STALE_THRESHOLD_MS
     : true;
 
   const relativeTime = lastSyncedAt ? getRelativeTime(lastSyncedAt) : null;

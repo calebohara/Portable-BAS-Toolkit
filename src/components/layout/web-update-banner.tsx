@@ -25,6 +25,9 @@ export function WebUpdateBanner() {
   const [visible, setVisible] = useState(false);
   const [mounted, setMounted] = useState(false);
 
+  // Client-only mount guard (avoids SSR hydration mismatch). setState-in-effect
+  // is the documented pattern here — hydration state can't be derived in render.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-shot client mount guard
   useEffect(() => { setMounted(true); }, []);
 
   useEffect(() => {

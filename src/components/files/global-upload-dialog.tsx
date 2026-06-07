@@ -114,12 +114,12 @@ export function GlobalUploadDialog({ open, onOpenChange, onUploaded }: Props) {
     setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     const dropped = Array.from(e.dataTransfer.files);
     if (dropped.length > 0) addFiles(dropped);
-  }, [isUploading]);
+  };
 
   const handleSubmit = async () => {
     if (files.length === 0 || submittingRef.current) return;

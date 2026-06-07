@@ -169,7 +169,22 @@
       "Bash(echo \"total: $\\(npx tsc --noEmit 2>&1)",
       "Bash(TSC_RESULT=success LINT_RESULT=success TEST_RESULT=success BUILD_RESULT=success CARGO_RESULT=failure RUN_URL=\"https://example/run/1\" node scripts/update-active-bugs.mjs)",
       "Bash(sed -n '/AUTOMATED-CHECKS:START/,/AUTOMATED-CHECKS:END/p' docs/ACTIVE-BUGS.md)",
-      "Bash(sed -n '/USER-REPORTS:START/,/USER-REPORTS:END/p' docs/ACTIVE-BUGS.md)"
+      "Bash(sed -n '/USER-REPORTS:START/,/USER-REPORTS:END/p' docs/ACTIVE-BUGS.md)",
+      "Bash(gh workflow *)",
+      "Bash(gh run *)",
+      "Bash(echo \"=== watch exit: $? ===\")",
+      "Bash(gh secret *)",
+      "Bash(awk '/health\\\\tLint/')",
+      "Bash(node -e \"require\\('js-yaml'\\).load\\(require\\('fs'\\).readFileSync\\('.github/workflows/daily-health-check.yml','utf8'\\)\\); console.log\\('YAML OK'\\)\")",
+      "Bash(echo \"watch done \\(exit $?\\)\")",
+      "Bash(grep -vE \"warning|^\\\\s*$|^>|eslint$\")",
+      "Bash(awk '/^\\\\//{f=$0} /error/{print f}')",
+      "Bash(awk '/^\\\\/.*\\\\.\\(ts|tsx\\)$/{file=$0; next} / error /{c[file]++} END{for \\(f in c\\) print c[f], f}')",
+      "Bash(echo \"ESLINT\\(quiet/errors\\) EXIT: $?\")",
+      "Bash(echo \"TSC EXIT: $?\")",
+      "Bash(sed -i '' 's/\"version\": \"4.20.0\"/\"version\": \"4.21.0\"/' package.json src-tauri/tauri.conf.json)",
+      "Bash(sed -i '' 's/^version = \"4.20.0\"/version = \"4.21.0\"/' src-tauri/Cargo.toml)",
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.20.0\"/name = \"bau-suite\"\\\\nversion = \"4.21.0\"/' src-tauri/Cargo.lock)"
     ]
   }
 }

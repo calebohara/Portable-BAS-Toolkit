@@ -69,6 +69,11 @@ export function PwslFormOverlay(props: {
   // normally allowed; if blocked, the UI offers a manual button.
   useEffect(() => {
     if (!open) return;
+    // launch() opens the companion browser window (an external system) and must
+    // run inside the transient-activation window of the user's click. The state
+    // resets synchronize the overlay UI with that external action on the
+    // open→true signal, so the synchronous setState here is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- launch-on-open syncs to an external window; gated on `open`
     setBlocked(false);
     setWindowClosed(false);
     launch();

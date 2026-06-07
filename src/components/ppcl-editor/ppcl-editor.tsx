@@ -89,6 +89,10 @@ export function PpclEditorComponent({
       }),
       search(),
       keymap.of(searchKeymap),
+      // Latest-ref pattern: the closure reads onCursorChangeRef.current only when
+      // CodeMirror fires the update listener (an event), never during render. The
+      // ref keeps `extensions` stable so the editor isn't rebuilt on every prop change.
+      // eslint-disable-next-line react-hooks/refs -- ref is read inside the event-time updateListener, not during render
       EditorView.updateListener.of((update: ViewUpdate) => {
         const fn = onCursorChangeRef.current;
         if (!fn) return;
@@ -101,7 +105,10 @@ export function PpclEditorComponent({
       }),
     ];
     if (!readOnly) {
-      // Prec.high ensures our Enter handler runs BEFORE basicSetup's insertNewlineAndIndent
+      // Prec.high ensures our Enter handler runs BEFORE basicSetup's insertNewlineAndIndent.
+      // lineStepRef.current is read inside the Enter `run` handler (a keypress event),
+      // not during render — the ref keeps `extensions` stable across lineStep changes.
+      // eslint-disable-next-line react-hooks/refs -- ref is read inside the event-time keymap handler, not during render
       exts.push(Prec.high(keymap.of([
         {
           key: 'Enter',
@@ -129,6 +136,9 @@ export function PpclEditorComponent({
         },
       ])));
     }
+    // onSaveRef.current is read inside the Mod-s `run` handler (a keypress event),
+    // not during render — the ref keeps `extensions` stable across onSave changes.
+    // eslint-disable-next-line react-hooks/refs -- ref is read inside the event-time keymap handler, not during render
     exts.push(keymap.of([
       // Save shortcut only makes sense when editable.
       ...(readOnly ? [] : [{

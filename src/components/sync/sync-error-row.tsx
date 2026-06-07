@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { cn } from '@/lib/utils';
+import { cn, copyToClipboard } from '@/lib/utils';
 import type { SyncError } from '@/types';
 
 // ── Classification ────────────────────────────────────────────
@@ -122,7 +122,9 @@ export function SyncErrorRow({ error, onReport, onRemove, onForget }: SyncErrorR
 
   const handleCopy = async () => {
     try {
-      await navigator.clipboard.writeText(buildCopyText(error));
+      // copyToClipboard handles non-HTTPS contexts + older browsers via a
+      // textarea + execCommand fallback.
+      await copyToClipboard(buildCopyText(error));
     } catch {
       // silently fail — clipboard may be unavailable in non-secure contexts
     }

@@ -99,6 +99,10 @@ export function TourOverlay() {
   useEffect(() => {
     if (!tourActive || !step) return;
 
+    // Hide the tooltip while this step's sidebar/navigation settles; it is shown
+    // again by positionTooltip() once the DOM/route is ready. Driven by step
+    // change (not by `visible`), so this cannot cascade.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset visibility before async re-position on step change
     setVisible(false);
 
     // Manage sidebar state: open only when the step needs it, close otherwise

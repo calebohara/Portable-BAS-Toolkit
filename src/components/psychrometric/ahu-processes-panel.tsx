@@ -82,7 +82,7 @@ export function AhuProcessesPanel({ unitSystem, altitude, calculatorResults }: A
   // Dispatches the current calculator result into one of three DB/RH setter
   // pairs. Kept as a stringly-typed switch (rather than passing the setter pair)
   // since each branch sets a distinct field pair and the call sites stay terse.
-  function useCalcAs(setter: 'oa' | 'ra' | 'enter') {
+  function applyCalcAs(setter: 'oa' | 'ra' | 'enter') {
     if (!calculatorResults) return;
     const s = unitSystem === 'si' ? ipToSi(calculatorResults) : calculatorResults;
     const db = s.dryBulb.toFixed(1);
@@ -110,7 +110,7 @@ export function AhuProcessesPanel({ unitSystem, altitude, calculatorResults }: A
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold">Outdoor Air (OA)</Label>
               {calculatorResults && (
-                <Button variant="ghost" size="sm" className="text-[10px] h-5 px-1.5 text-primary" onClick={() => useCalcAs('oa')}>
+                <Button variant="ghost" size="sm" className="text-[10px] h-5 px-1.5 text-primary" onClick={() => applyCalcAs('oa')}>
                   Use calc
                 </Button>
               )}
@@ -134,7 +134,7 @@ export function AhuProcessesPanel({ unitSystem, altitude, calculatorResults }: A
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold">Return Air (RA)</Label>
               {calculatorResults && (
-                <Button variant="ghost" size="sm" className="text-[10px] h-5 px-1.5 text-primary" onClick={() => useCalcAs('ra')}>
+                <Button variant="ghost" size="sm" className="text-[10px] h-5 px-1.5 text-primary" onClick={() => applyCalcAs('ra')}>
                   Use calc
                 </Button>
               )}
@@ -217,7 +217,7 @@ export function AhuProcessesPanel({ unitSystem, altitude, calculatorResults }: A
                   </Button>
                 )}
                 {calculatorResults && (
-                  <Button variant="ghost" size="sm" className="text-[10px] h-5 px-1.5 text-primary" onClick={() => useCalcAs('enter')}>
+                  <Button variant="ghost" size="sm" className="text-[10px] h-5 px-1.5 text-primary" onClick={() => applyCalcAs('enter')}>
                     Use calc
                   </Button>
                 )}

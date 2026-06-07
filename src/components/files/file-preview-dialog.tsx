@@ -40,9 +40,12 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
 
   useEffect(() => {
     if (!open || !file) {
-      // Cleanup
+      // Cleanup: revoke and clear the object URL when the dialog closes so a
+      // reopen doesn't flash the previous file's preview. Resetting state here
+      // is the intended "sync local preview state to the closed dialog" case.
       if (blobUrl) {
         URL.revokeObjectURL(blobUrl);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset of preview state on dialog close; mirrors external open/file props
         setBlobUrl(null);
       }
       setTextContent(null);

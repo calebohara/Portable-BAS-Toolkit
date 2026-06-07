@@ -35,7 +35,10 @@ export function UpdateNotifier() {
   const hasCheckedRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Prevent hydration mismatch: render nothing until mounted on client
+  // Prevent hydration mismatch: render nothing until mounted on client.
+  // setState-in-effect is the documented pattern for a client-only mount flag —
+  // "are we hydrated" cannot be derived during render.
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-shot client mount guard
   useEffect(() => { setMounted(true); }, []);
 
   // Clear any pending timer on unmount

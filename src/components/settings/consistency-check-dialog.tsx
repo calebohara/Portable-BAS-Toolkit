@@ -61,9 +61,12 @@ export function ConsistencyCheckDialog({ open, onOpenChange }: Props) {
     }
   }, [checkConsistency]);
 
-  // Kick off the check each time the dialog opens.
+  // Kick off the check each time the dialog opens. runCheck synchronously sets
+  // phase='checking' before its first await — that's an intentional reset on the
+  // open→true external signal (not a render-derivable value), gated on `open`.
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- check-on-open is a legitimate external-signal sync, gated on `open`
       void runCheck();
     }
   }, [open, runCheck]);

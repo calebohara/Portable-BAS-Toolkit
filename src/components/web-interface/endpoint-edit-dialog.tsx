@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Globe, Copy, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -89,10 +89,13 @@ export function EndpointEditDialog({ open, onOpenChange, endpoint, onSave }: {
     endpoint || createBlankEndpoint()
   );
 
-  // Re-sync form when endpoint prop changes (different endpoint opened)
-  useEffect(() => {
+  // Re-sync form when endpoint prop changes (different endpoint opened), using the
+  // "adjust state during render" pattern instead of an effect that calls setState.
+  const [syncedEndpoint, setSyncedEndpoint] = useState(endpoint);
+  if (syncedEndpoint !== endpoint) {
+    setSyncedEndpoint(endpoint);
     setForm(endpoint || createBlankEndpoint());
-  }, [endpoint]);
+  }
 
   const handleSave = () => {
     if (!form.host.trim()) {
