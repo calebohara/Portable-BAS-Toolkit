@@ -192,7 +192,14 @@
       "Bash(node -e \"require\\('js-yaml'\\).load\\(require\\('fs'\\).readFileSync\\('.github/workflows/readme-sync-check.yml','utf8'\\)\\); console.log\\('YAML OK'\\)\")",
       "Bash(node --check scripts/check-readme-sync.mjs)",
       "Bash(echo \"tracked? $\\(git check-ignore docs/README-SYNC.md 2>&1 && echo IGNORED || echo OK\\)\")",
-      "Bash(node -e \"require\\('js-yaml'\\).load\\(require\\('fs'\\).readFileSync\\('.github/workflows/ci.yml','utf8'\\)\\); console.log\\('YAML OK'\\)\")"
+      "Bash(node -e \"require\\('js-yaml'\\).load\\(require\\('fs'\\).readFileSync\\('.github/workflows/ci.yml','utf8'\\)\\); console.log\\('YAML OK'\\)\")",
+      "Bash(perl -0pi -e 's/  const isAscii = \\\\/.*?\\\\/\\\\.test\\\\\\(value\\\\\\);/  const isAscii = [...value].every\\(ch => ch.charCodeAt\\(0\\) < 128\\);/s' src/components/reports/report-eml.ts)",
+      "Bash(sed -n '220,224p' src/components/reports/report-eml.ts)",
+      "Bash(perl -0777 -pi -e 's/const isAscii = \\\\/\\\\^\\\\[[^\\\\n]*?\\\\]\\\\*\\\\$\\\\/\\\\.test\\\\\\(value\\\\\\);/const isAscii = [...value].every\\(ch => ch.charCodeAt\\(0\\) < 128\\);/' src/components/reports/report-eml.ts)",
+      "Bash(sed -n '221p' src/components/reports/report-eml.ts)",
+      "Bash(sed -i '' 's/\"version\": \"4.21.0\"/\"version\": \"4.22.0\"/' package.json src-tauri/tauri.conf.json)",
+      "Bash(sed -i '' 's/^version = \"4.21.0\"/version = \"4.22.0\"/' src-tauri/Cargo.toml)",
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.21.0\"/name = \"bau-suite\"\\\\nversion = \"4.22.0\"/' src-tauri/Cargo.lock)"
     ]
   }
 }

@@ -4,7 +4,7 @@ import { useState, useCallback, useRef } from 'react';
 import { format } from 'date-fns';
 import {
   MessageSquare, Mail, FileDown, Package, ChevronRight, ChevronLeft,
-  Copy, Check, Printer, Download,
+  Copy, Check, Printer, Download, Loader2,
 } from 'lucide-react';
 import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
@@ -14,14 +14,15 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { cn, escapeHtml, copyToClipboard, sanitizeFilename } from '@/lib/utils';
+import { cn, copyToClipboard, sanitizeFilename, downloadBlob } from '@/lib/utils';
 import { openUrl } from '@/lib/tauri-bridge';
 import { toast } from 'sonner';
-import type { DailyReport, Project, ReportAttachment } from '@/types';
+import type { DailyReport, Project } from '@/types';
 import {
   type ShareFormat,
   SHARE_FORMAT_LABELS, SHARE_FORMAT_DESCRIPTIONS,
 } from '@/components/share/share-types';
+import { buildReportEml } from './report-eml';
 
 // ─── Props ──────────────────────────────────────────────────
 interface Props {
@@ -126,7 +127,7 @@ function formatReportForOutlook(
   project: Project,
   meta: ReportExportMetadata,
 ): { subject: string; body: string } {
-  const subject = meta.title || `Daily Report – ${project.name} – ${fmtDate(report.date)}`;
+  const subject = meta.title || `Daily Report #${report.reportNumber} – ${project.name} – ${fmtDate(report.date)}`;
   const lines: string[] = [];
 
   if (meta.coverNote) lines.push(meta.coverNote, '');
@@ -166,7 +167,7 @@ function formatReportForOutlook(
     lines.push('ADDITIONAL NOTES', report.generalNotes, '');
   }
   if (report.attachments.length > 0) {
-    lines.push('ATTACHMENTS');
+    lines.push('ATTACHMENTS (attach these files manually)');
     for (const a of report.attachments) {
       lines.push(`- ${a.fileName} (${formatSize(a.size)})`);
     }
@@ -379,6 +380,8 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
     coverNote: '',
   });
   const [copied, setCopied] = useState(false);
+  const [subjectCopied, setSubjectCopied] = useState(false);
+  const [emlBuilding, setEmlBuilding] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   const reset = useCallback(() => {
@@ -386,6 +389,8 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
     setSelectedFormat('teams');
     setMetadata({ title: '', preparedBy: '', coverNote: '' });
     setCopied(false);
+    setSubjectCopied(false);
+    setEmlBuilding(false);
   }, []);
 
   const handleOpenChange = (o: boolean) => {
@@ -402,6 +407,63 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
       setTimeout(() => setCopied(false), 2000);
     } catch {
       toast.error('Failed to copy');
+    }
+  };
+
+  // ─── Copy subject only ─────────────────────────────────────
+  const handleCopySubject = async (subject: string) => {
+    try {
+      await copyToClipboard(subject);
+      setSubjectCopied(true);
+      toast.success('Subject copied');
+      setTimeout(() => setSubjectCopied(false), 2000);
+    } catch {
+      toast.error('Failed to copy subject');
+    }
+  };
+
+  // ─── Open in Email (length-guarded mailto) ─────────────────
+  const handleOpenInEmail = async (subject: string, body: string) => {
+    const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    if (mailto.length > 1800) {
+      // Many mail clients (Outlook desktop ~2048 chars) silently truncate long
+      // mailto URLs, dropping the back half of the report. Copy instead.
+      try {
+        await copyToClipboard(body);
+        toast.info('Report is too long to open directly in email — copied to clipboard instead. Paste it into a new message.');
+      } catch {
+        toast.error('Report is too long to open directly in email, and copying failed.');
+      }
+      return;
+    }
+    openUrl(mailto);
+  };
+
+  // ─── Download .eml (with real attachments) ─────────────────
+  const handleDownloadEml = async () => {
+    setEmlBuilding(true);
+    try {
+      const { eml, totalAttachmentBytes, missingAttachments } = await buildReportEml(report, project, metadata);
+      downloadBlob(
+        eml,
+        sanitizeFilename(`report-${report.reportNumber}-${report.date}`) + '.eml',
+        'message/rfc822',
+      );
+      if (missingAttachments.length > 0) {
+        toast.warning(
+          `Email draft downloaded — ${missingAttachments.length} attachment(s) could not be found and were skipped.`,
+        );
+      } else {
+        toast.success('Email draft (.eml) downloaded — open it in Outlook or Mail.');
+      }
+      // Gentle heads-up for very large attachment payloads (base64 inflates ~33%).
+      if (totalAttachmentBytes > 25 * 1024 * 1024) {
+        toast.info('Heads up: large attachments make this .eml sizeable — some mail servers cap message size.');
+      }
+    } catch {
+      toast.error('Failed to build email draft');
+    } finally {
+      setEmlBuilding(false);
     }
   };
 
@@ -556,6 +618,13 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
                 <p className="text-xs font-medium text-muted-foreground mb-1">Body:</p>
                 <pre className="text-xs whitespace-pre-wrap font-mono">{outlookOutput.body}</pre>
               </div>
+              {report.attachments.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Tip: use <span className="font-medium">Download .eml</span> to email a complete report — it
+                  opens as a draft in Outlook/Mail with the {report.attachments.length} attachment
+                  {report.attachments.length === 1 ? '' : 's'} already included. Copy/Open in Email send text only.
+                </p>
+              )}
             </div>
           )}
           {selectedFormat === 'pdf' && (
@@ -585,16 +654,21 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
           )}
           {selectedFormat === 'outlook' && outlookOutput && (
             <>
-              <Button onClick={() => handleCopy(`Subject: ${outlookOutput.subject}\n\n${outlookOutput.body}`)} className="gap-1.5">
+              <Button onClick={handleDownloadEml} disabled={emlBuilding} className="gap-1.5">
+                {emlBuilding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+                {emlBuilding ? 'Building…' : 'Download .eml (with attachments)'}
+              </Button>
+              <Button variant="outline" onClick={() => handleCopy(outlookOutput.body)} className="gap-1.5">
                 {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 {copied ? 'Copied!' : 'Copy Email'}
               </Button>
+              <Button variant="outline" onClick={() => handleCopySubject(outlookOutput.subject)} className="gap-1.5">
+                {subjectCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                {subjectCopied ? 'Copied!' : 'Copy subject'}
+              </Button>
               <Button
                 variant="outline"
-                onClick={() => {
-                  const mailto = `mailto:?subject=${encodeURIComponent(outlookOutput.subject)}&body=${encodeURIComponent(outlookOutput.body)}`;
-                  openUrl(mailto);
-                }}
+                onClick={() => handleOpenInEmail(outlookOutput.subject, outlookOutput.body)}
                 className="gap-1.5"
               >
                 <Mail className="h-4 w-4" /> Open in Email
