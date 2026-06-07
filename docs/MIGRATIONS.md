@@ -112,4 +112,4 @@ Status legend: **L** = ledger-tracked once setup is run · **P** = pending (appl
 | 43 | add-sync-version-auto-increment.sql | `bump_sync_version()` trigger fn | L (applied 2026-06-03) |
 | 44 | add-schema-migrations-ledger.sql | `schema_migrations` table | L (applied 2026-06-03) |
 | 45 | enforce-storage-bucket-size-limits.sql | `project-files` bucket `file_size_limit = 50MB` | L |
-| 46 | **add-bug-report-discord-notify.sql** | `notify_discord_on_bug_report()` trigger fn | **P** (apply + create the `discord_bug_webhook` Vault secret) |
+| 46 | add-bug-report-discord-notify.sql | `notify_discord_on_bug_report()` trigger fn | L (applied 2026-06-07; Vault secret set, ping verified) |
