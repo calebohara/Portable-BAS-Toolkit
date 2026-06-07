@@ -27,7 +27,7 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 ## 🤖 Daily health check
 
 <!-- AUTOMATED-CHECKS:START -->
-**Last run:** 2026-06-07 00:01 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/27077421835)
+**Last run:** 2026-06-07 00:09 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/27077568426)
 
 > ⚠️ **One or more checks FAILED — see the failing job below and open a manual entry if it is a real bug.**
 
@@ -37,7 +37,7 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 | Lint (`eslint`) | ❌ FAIL |
 | Unit tests (`vitest run`) | ✅ pass |
 | Production build (`build:static`) | ✅ pass |
-| Rust (`cargo check`/`test`) | ❌ FAIL |
+| Rust (`cargo check`/`test`) | ✅ pass |
 <!-- AUTOMATED-CHECKS:END -->
 
 ---
@@ -47,7 +47,14 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 Open rows from the Supabase `bug_reports` table (submitted via the in-app Bug Report dialog).
 
 <!-- USER-REPORTS:START -->
-_Supabase not configured — add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` repo secrets to enable the user-bug pull._
+**4** open reports as of 2026-06-07 00:09 UTC.
+
+| Opened | Sev | Status | Title | Page | Version | By |
+|--------|-----|--------|-------|------|---------|----|
+| 2026-05-13 | high | open | [sync] missing-column on globalProjectPreferences | /settings | 4.9.1 | Caleb O'Hara |
+| 2026-05-12 | high | open | [sync] missing-column on globalProjectPreferences | /settings | 4.9.1 |  |
+| 2026-05-13 | medium | open | [sync] unknown on trendSessions | /settings | 4.9.1 | Caleb O'Hara |
+| 2026-05-12 | medium | open | [sync] unknown on trendSessions | /settings | 4.9.1 |  |
 <!-- USER-REPORTS:END -->
 
 ---
