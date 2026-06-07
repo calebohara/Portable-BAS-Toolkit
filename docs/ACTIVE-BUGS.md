@@ -27,14 +27,14 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 ## 🤖 Daily health check
 
 <!-- AUTOMATED-CHECKS:START -->
-**Last run:** 2026-06-07 00:09 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/27077568426)
+**Last run:** 2026-06-07 00:28 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/27077922403)
 
-> ⚠️ **One or more checks FAILED — see the failing job below and open a manual entry if it is a real bug.**
+> ✅ All automated checks passed.
 
 | Check | Result |
 |-------|--------|
 | TypeScript (`tsc --noEmit`) | ✅ pass |
-| Lint (`eslint`) | ❌ FAIL |
+| Lint (`eslint`) | ✅ pass |
 | Unit tests (`vitest run`) | ✅ pass |
 | Production build (`build:static`) | ✅ pass |
 | Rust (`cargo check`/`test`) | ✅ pass |
@@ -47,7 +47,7 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 Open rows from the Supabase `bug_reports` table (submitted via the in-app Bug Report dialog).
 
 <!-- USER-REPORTS:START -->
-**4** open reports as of 2026-06-07 00:09 UTC.
+**4** open reports as of 2026-06-07 00:28 UTC.
 
 | Opened | Sev | Status | Title | Page | Version | By |
 |--------|-----|--------|-------|------|---------|----|
