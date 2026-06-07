@@ -184,7 +184,13 @@
       "Bash(echo \"TSC EXIT: $?\")",
       "Bash(sed -i '' 's/\"version\": \"4.20.0\"/\"version\": \"4.21.0\"/' package.json src-tauri/tauri.conf.json)",
       "Bash(sed -i '' 's/^version = \"4.20.0\"/version = \"4.21.0\"/' src-tauri/Cargo.toml)",
-      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.20.0\"/name = \"bau-suite\"\\\\nversion = \"4.21.0\"/' src-tauri/Cargo.lock)"
+      "Bash(perl -0pi -e 's/name = \"bau-suite\"\\\\nversion = \"4.20.0\"/name = \"bau-suite\"\\\\nversion = \"4.21.0\"/' src-tauri/Cargo.lock)",
+      "Read(//Users/calebohara/.claude/scheduled-tasks/daily-ai-bug-review/**)",
+      "Bash(grep -nE \"^#{1,4} \" README.md)",
+      "Bash(node scripts/check-readme-sync.mjs)",
+      "Bash(echo \"=== exit: $? ===\")",
+      "Bash(node -e \"require\\('js-yaml'\\).load\\(require\\('fs'\\).readFileSync\\('.github/workflows/readme-sync-check.yml','utf8'\\)\\); console.log\\('YAML OK'\\)\")",
+      "Bash(node --check scripts/check-readme-sync.mjs)"
     ]
   }
 }

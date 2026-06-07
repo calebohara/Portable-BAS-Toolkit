@@ -19,6 +19,16 @@
 
 ## What's New
 
+### v4.12.0 – v4.21.0
+
+- **Full code-review remediation (ReviewAgents P0–P3)** — Closed every priority tier from the 2026-05-20 audit: data-loss/security P0s (proxy/iframe sandboxing, IDB transaction safety, sync queue recovery, `sync_version` tiebreak, reset-password hardening), ~38 P1 visible bugs, ~43 P2 consistency fixes, and ~40 P3 cleanups (incl. removing 11 unused dependencies). See `docs/BASAgents-fixes-*` and `docs/ReviewAgents-findings-*`.
+- **Daily health-check automation + active-bugs registry** — A GitHub Actions cron runs `tsc`/`eslint`/`vitest`/`build:static`/`cargo` daily and pulls open user bug reports from Supabase into `docs/ACTIVE-BUGS.md`, the single source of truth for active bugs.
+- **Landing page simplified** — Consolidated the marketing page to a calmer, more informative layout.
+- **PPCL preview** — Copy-to-clipboard and corrected `.pcl` download (no more `.pcl.txt`).
+- **Help center redesign** — Searchable, categorized, full-width, and updated against every tool.
+- **Sync fixes** — Resolved user-reported `globalProjectPreferences` and `trendSessions` sync errors; server-side `sync_version` auto-increment; storage bucket size limits.
+- **Supabase migration tracking** — `schema_migrations` ledger + drift checker (`supabase/check-migrations.sql`). See `docs/MIGRATIONS.md`.
+
 ### v4.11.0
 
 - **Database Consistency Check** — A read-only check that compares this device's local data against the cloud, per data type (projects, files, field notes, devices, IP plan, daily reports, DXRs, and 10 more). It runs automatically once after login on already-synced devices — so when you've edited on one device and open the app on another with stale local data, a toast warns "Your local data is behind the cloud" with a one-tap **Update**. A new **Database Consistency** card in **Settings → Cloud & Sync** runs it on demand and opens a results dialog showing exactly what's out of date (local vs cloud counts) with an **Update from cloud** action. The check is strictly read-only and conservative — pending local edits are never mis-flagged as "behind," and a single table failing degrades gracefully rather than failing the whole check. Only the user-initiated update pulls cloud→local (respecting remote deletes), reusing the existing sync engine.

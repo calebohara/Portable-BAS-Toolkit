@@ -13,6 +13,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "health": "npm run typecheck && npm run lint && npm run test:run",
+    "check:readme": "node scripts/check-readme-sync.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",

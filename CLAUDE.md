@@ -192,3 +192,19 @@ sections:
 
 Run the same checks locally with `npm run health` (typecheck + lint + tests).
 The Supabase pull needs repo secrets `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`.
+
+### README ↔ code sync
+
+The README's tool list and changelog are kept honest by two layers:
+
+- **Deterministic** — `.github/workflows/readme-sync-check.yml` runs
+  `scripts/check-readme-sync.mjs` on pushes that touch docs/tool files (+ weekly).
+  It asserts every tool in the canonical list (`src/app/landing-content.ts`
+  `toolGroups`) is referenced in `README.md`, and warns if the "What's New"
+  version lags `package.json`. Run locally with `npm run check:readme`.
+- **Semantic** — the weekly `weekly-readme-review` scheduled Claude routine judges
+  whether the README *descriptions* are still accurate vs. the real tools, and
+  records drift findings.
+
+When you add/rename/remove a tool, update `README.md` (and `landing-content.ts`)
+so the deterministic check stays green.

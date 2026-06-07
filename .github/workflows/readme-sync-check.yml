@@ -1,0 +1,42 @@
+name: README Sync Check
+
+# Deterministic check that the README stays in sync with the code's canonical
+# tool list (src/app/landing-content.ts) — every tool referenced, changelog
+# version current. Runs ONLY when docs/tool files change (not every commit),
+# plus a weekly backstop. Results go to the run's Step Summary. The deeper
+# "are the descriptions accurate?" review is the weekly AI routine, separate.
+
+on:
+  push:
+    paths:
+      - 'README.md'
+      - 'package.json'
+      - 'src/app/landing-content.ts'
+      - 'src/app/help/help-content.ts'
+      - 'src/components/layout/sidebar.tsx'
+      - 'src/lib/routes.ts'
+      - 'src/app/**/page.tsx'
+      - 'scripts/check-readme-sync.mjs'
+      - '.github/workflows/readme-sync-check.yml'
+  schedule:
+    - cron: '0 14 * * 1' # Mondays 14:00 UTC — weekly backstop
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: readme-sync-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  readme-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No npm install needed — the script only reads files with the node stdlib.
+      - name: Check README ↔ code tool sync
+        run: node scripts/check-readme-sync.mjs
