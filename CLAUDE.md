@@ -193,6 +193,17 @@ sections:
 Run the same checks locally with `npm run health` (typecheck + lint + tests).
 The Supabase pull needs repo secrets `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY`.
 
+### Discord notifications
+
+- **Real-time** — `supabase/migrations/add-bug-report-discord-notify.sql` adds a
+  `bug_reports` INSERT trigger (`notify_discord_on_bug_report`, via `pg_net`) that
+  posts to a Discord webhook the moment a user submits a bug. The webhook URL is
+  stored in Supabase **Vault** as `discord_bug_webhook` (not in git); no-op until set.
+- **Digest + CI failures** — `scripts/notify-discord.mjs` (run by the daily health
+  check) pings Discord when a check fails or bugs are open; `ci.yml` pings on a
+  failed push gate. Both use the `DISCORD_WEBHOOK_URL` GitHub Actions secret and
+  stay silent when all is green.
+
 ### README ↔ code sync
 
 The README's tool list and changelog are kept honest by two layers:

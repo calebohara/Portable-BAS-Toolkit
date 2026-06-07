@@ -112,3 +112,18 @@ jobs:
             git commit -m "chore(health): daily bug registry update [skip ci]"
             git push
           fi
+
+      # Daily digest to Discord — only pings when a check failed or bugs are open.
+      - name: Notify Discord (failures / open bugs)
+        if: always()
+        run: node scripts/notify-discord.mjs
+        env:
+          TSC_RESULT: ${{ steps.tsc.outcome }}
+          LINT_RESULT: ${{ steps.lint.outcome }}
+          TEST_RESULT: ${{ steps.test.outcome }}
+          BUILD_RESULT: ${{ steps.build.outcome }}
+          CARGO_RESULT: ${{ steps.cargo.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}

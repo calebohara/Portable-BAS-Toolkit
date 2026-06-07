@@ -190,7 +190,9 @@
       "Bash(node scripts/check-readme-sync.mjs)",
       "Bash(echo \"=== exit: $? ===\")",
       "Bash(node -e \"require\\('js-yaml'\\).load\\(require\\('fs'\\).readFileSync\\('.github/workflows/readme-sync-check.yml','utf8'\\)\\); console.log\\('YAML OK'\\)\")",
-      "Bash(node --check scripts/check-readme-sync.mjs)"
+      "Bash(node --check scripts/check-readme-sync.mjs)",
+      "Bash(echo \"tracked? $\\(git check-ignore docs/README-SYNC.md 2>&1 && echo IGNORED || echo OK\\)\")",
+      "Bash(node -e \"require\\('js-yaml'\\).load\\(require\\('fs'\\).readFileSync\\('.github/workflows/ci.yml','utf8'\\)\\); console.log\\('YAML OK'\\)\")"
     ]
   }
 }

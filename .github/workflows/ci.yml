@@ -34,3 +34,14 @@ jobs:
         run: npm run lint
       - name: Unit tests
         run: npm run test:run
+
+      # Ping Discord if the gate failed (no-op if the secret isn't set).
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && { echo "no webhook secret — skipping"; exit 0; }
+          msg="❌ **CI failed** on \`${GITHUB_REF_NAME}\` by ${GITHUB_ACTOR}\n${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          curl -fsS -H 'Content-Type: application/json' -X POST "$DISCORD_WEBHOOK_URL" \
+            -d "$(printf '{"username":"BAU Suite CI","content":"%s"}' "$msg")" || true
