@@ -113,4 +113,4 @@ Status legend: **L** = ledger-tracked once setup is run · **P** = pending (appl
 | 44 | add-schema-migrations-ledger.sql | `schema_migrations` table | L (applied 2026-06-03) |
 | 45 | enforce-storage-bucket-size-limits.sql | `project-files` bucket `file_size_limit = 50MB` | L |
 | 46 | add-bug-report-discord-notify.sql | `notify_discord_on_bug_report()` trigger fn | L (applied 2026-06-07; Vault secret set, ping verified) |
-| 47 | add-daily-report-name.sql | `daily_reports.name` + `global_daily_reports.name` cols | P (not yet applied to prod) |
+| 47 | add-daily-report-name.sql | `daily_reports.name` + `global_daily_reports.name` cols | L (applied 2026-06-07) |
