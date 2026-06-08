@@ -1513,6 +1513,30 @@ export async function getPendingSyncItems(limit = 20): Promise<SyncQueueItem[]> 
   return all.slice(0, limit);
 }
 
+/**
+ * Return the `${entityType}-${entityId}` keys of every UN-PUSHED sync-queue
+ * item, unbounded (unlike `getPendingSyncItems`, which is batch-limited).
+ *
+ * "Un-pushed" = any status that is not `completed`: `pending`, `syncing`, and
+ * `failed`. A row in any of these states represents local work that has not yet
+ * landed in the cloud, so the subtractive full-pull reconciliation must NOT
+ * reap it (see sync-manager.pullSync). We key on `entityType` + `entityId`
+ * (the syncQueue uses the deterministic `${entityType}-${entityId}` id, but we
+ * read the fields directly rather than parse the id, since `entityId` itself
+ * may legally contain hyphens).
+ */
+export async function getUnpushedSyncItemKeys(): Promise<Set<string>> {
+  const db = await getDB();
+  const keys = new Set<string>();
+  for (const status of ['pending', 'syncing', 'failed'] as const) {
+    const items = await db.getAllFromIndex('syncQueue', 'by-status', status);
+    for (const item of items) {
+      keys.add(`${item.entityType}-${item.entityId}`);
+    }
+  }
+  return keys;
+}
+
 export async function updateSyncItem(item: SyncQueueItem): Promise<void> {
   const db = await getDB();
   await db.put('syncQueue', item);

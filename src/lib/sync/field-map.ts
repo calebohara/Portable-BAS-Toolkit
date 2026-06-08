@@ -56,6 +56,15 @@ const LOCAL_ONLY_FIELDS = new Set([
   'isOfflineCached', // files — local-only blob cache indicator
   'fts',             // full-text search tsvector — generated column on every global_* table that opts in
   'prefKey',         // globalProjectPreferences — synthetic IDB primary key ("uid|gpid"); no pref_key Supabase column
+  // deleted_at is owned EXCLUSIVELY by the delete path (sets it to now()) and
+  // restoreFromCloud (sets it back to null). It must NEVER ride along on a
+  // create/update upsert. The pull loop stamps `deletedAt = null` on every
+  // pulled global entity (so the local TS interface stays satisfied); if that
+  // null were echoed back on a re-push it would map to `deleted_at: null` and
+  // RESURRECT a cloud-tombstoned row via ON CONFLICT DO UPDATE. Stripping it on
+  // push is the single defense that keeps deletes sticky regardless of which
+  // device re-pushes a stale live copy. (Finding #1, Phase 1a.)
+  'deletedAt',
   // sync_version (schema: `int default 1`) round-trips IN on pull so it can be
   // used as a JS-side secondary tiebreaker for conflict detection, but is
   // stripped on PUSH so the database default / future server-side increment owns
@@ -844,6 +853,52 @@ export function fromSupabaseRow(
 /** Check if a Supabase row has been soft-deleted */
 export function isDeletedRow(row: Record<string, unknown>): boolean {
   return row.deleted_at != null;
+}
+
+// ── Delete-propagation helpers (Finding #1, Phase 1a) ──────────────────────
+
+// Entity types whose Supabase table has NO `deleted_at` column. For these,
+// deletes are hard (DELETE row) and there is no tombstone to pull — they keep
+// their existing append-only / composite-PK handling.
+//   - activityLog / globalActivityLog: append-only audit logs (hard delete).
+//   - globalProjectPreferences: composite-PK table, deleted outright (no column).
+const LACKS_DELETED_AT: Set<SyncEntityType> = new Set([
+  'activityLog',
+  'globalActivityLog',
+  'globalProjectPreferences',
+]);
+
+/**
+ * Does this entity's Supabase table carry a `deleted_at` (soft-delete) column?
+ * Tombstone-aware incremental pull only applies to tables that have one — the
+ * rest hard-delete and have no tombstone row to fetch.
+ */
+export function hasDeletedAtColumn(entityType: SyncEntityType): boolean {
+  return !LACKS_DELETED_AT.has(entityType);
+}
+
+/**
+ * Entity types whose full pull returns the COMPLETE live set scoped to the
+ * current user (local user-owned tables) or to the user's memberships (global
+ * tables). Subtractive reconciliation (deleting local rows absent from the
+ * cloud's live set) is only safe for these — for anything whose pull might be a
+ * partial view we'd risk deleting rows that simply weren't returned.
+ *
+ * Excluded from subtractive delete:
+ *   - activityLog / globalActivityLog: append-only logs — never subtractively
+ *     reconciled (a missing log row is not a deletion signal).
+ *   - globalProjectPreferences: keyed by composite (user_id|global_project_id),
+ *     not a plain `id` — handled by its own realtime/delete path; skip here to
+ *     avoid keying mismatches.
+ *
+ * Local user-owned tables fully pull by `user_id = me`. Global child tables
+ * fully pull by `global_project_id IN (my memberships)` — complete for the set
+ * of projects the user belongs to, which is exactly the set mirrored locally.
+ */
+export function supportsSubtractivePull(entityType: SyncEntityType): boolean {
+  if (entityType === 'activityLog' || entityType === 'globalActivityLog') return false;
+  if (entityType === 'globalProjectPreferences') return false;
+  return true;
 }
 
 // Dependency order for full sync (projects first due to FK constraints)

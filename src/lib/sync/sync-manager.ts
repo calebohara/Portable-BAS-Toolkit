@@ -1,7 +1,7 @@
 import type { SupabaseClient, RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import type { SyncEntityType, SyncQueueItem, SyncConflict, SyncError } from '@/types';
 import {
-  addSyncItem, getPendingSyncItems, updateSyncItem, deleteSyncItem,
+  addSyncItem, getPendingSyncItems, getUnpushedSyncItemKeys, updateSyncItem, deleteSyncItem,
   getSyncQueueCount, getAllFromStore, clearSyncQueue,
   bulkPutSilent, bulkDeleteSilent,
   addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
@@ -13,6 +13,7 @@ import {
   entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER,
   fromSupabaseRow, isDeletedRow, REQUIRES_PROJECT_ID,
   isGlobalEntity, GLOBAL_ENTITY_TYPES, REQUIRES_GLOBAL_PROJECT_ID,
+  supportsSubtractivePull,
 } from './field-map';
 import { emitPullComplete, type SyncManagerInterface } from './sync-bridge';
 import { formatPostgrestError, sanitizeForLog } from './sync-error-utils';
@@ -682,6 +683,24 @@ export class SyncManager implements SyncManagerInterface {
     // Used by the global-entity branch below.
     const memberProjectIds = await fetchMyGlobalProjectIds(this.client, this.userId);
 
+    // Pre-fetch the set of `${entityType}-${entityId}` keys for every UN-PUSHED
+    // sync-queue item (status pending/syncing/failed) once per pull cycle. The
+    // subtractive full-pull reconciliation below must NEVER reap a local row
+    // that still has un-pushed work queued — otherwise "Update from cloud" run
+    // on a device with offline-created/edited rows would destroy them (they're
+    // absent from the cloud live set only because they haven't synced YET).
+    // Only matters for a full pull (where subtractive reconciliation runs); skip
+    // the read entirely on incremental pulls.
+    const isFullPullCycle = lastPulledAt == null;
+    const unpushedKeys = isFullPullCycle
+      ? await getUnpushedSyncItemKeys().catch((e) => {
+          // Fail SAFE: if we can't determine pending work, do NOT subtractively
+          // delete anything this cycle (returning a sentinel disables the reap).
+          console.warn(`${LOG_PREFIX} Could not load pending sync queue; skipping subtractive deletes this pull:`, e);
+          return null;
+        })
+      : new Set<string>();
+
     for (const entityType of SYNC_ORDER) {
       // Skip entity types whose tables are missing from Supabase
       if (this.brokenEntityTypes.has(entityType)) continue;
@@ -726,10 +745,20 @@ export class SyncManager implements SyncManagerInterface {
             query = this.client.from(table).select('*').eq('user_id', this.userId);
           }
 
-          // Apply deleted_at filter consistently — skip for tables that
-          // don't have a deleted_at column (append-only logs +
-          // globalProjectPreferences).
-          if (!lacksDeletedAt) {
+          // deleted_at filtering — tombstone-aware (Finding #1, Phase 1a):
+          //   • First full hydration (lastPulledAt == null): KEEP the
+          //     `deleted_at IS NULL` filter. There's no local state to
+          //     reconcile against and pulling tombstones would be pointless
+          //     (subtractive reconciliation handles stale local rows after).
+          //   • Incremental pull (lastPulledAt set) on a table WITH a
+          //     deleted_at column: DROP the filter so tombstoned rows
+          //     (deleted_at != null, updated_at >= lastPulledAt) reach this
+          //     device and get routed to a LOCAL delete below. This is the only
+          //     path that propagates a soft-delete to other devices.
+          //   • Tables without a deleted_at column (append-only logs +
+          //     globalProjectPreferences): never apply the filter (42703).
+          const skipDeletedFilter = lacksDeletedAt || (lastPulledAt != null);
+          if (!skipDeletedFilter) {
             query = query.is('deleted_at', null);
           }
 
@@ -754,13 +783,25 @@ export class SyncManager implements SyncManagerInterface {
           offset += PAGE_SIZE;
         }
 
-        if (allRows.length === 0) continue;
+        // Subtractive reconciliation (Finding #1, Phase 1a) only runs on a FULL
+        // pull. On a full pull with zero cloud rows we still need to fall
+        // through so any stale local rows get removed — so only short-circuit
+        // here when this is an incremental pull (nothing to reconcile).
+        const isFullPull = lastPulledAt == null;
+        if (allRows.length === 0 && !isFullPull) continue;
+
+        // Track the cloud's LIVE id set for subtractive reconciliation. On a
+        // full pull `allRows` already excludes tombstones (deleted_at IS NULL
+        // filter), so every id collected here is a live cloud row.
+        const liveCloudIds = new Set<string>();
 
         // Separate live rows from soft-deleted and orphaned rows.
-        // We already filtered out deleted_at in the query, but a row that was
-        // soft-deleted between the membership fetch and the query could
-        // theoretically slip through — keep the isDeletedRow() guard as a
-        // belt-and-braces check.
+        // Tombstone-aware pull (Finding #1, Phase 1a): on an incremental pull we
+        // deliberately fetch tombstoned rows (deleted_at != null) so a remote
+        // soft-delete can be applied as a LOCAL delete here. The isDeletedRow()
+        // branch is the active delete-propagation path, not a belt-and-braces
+        // guard. (On the first full pull we still filter deleted_at IS NULL, so
+        // no tombstones reach this branch then — that's fine.)
         const toUpsert: Record<string, unknown>[] = [];
         const toDeleteIds: string[] = [];
         let orphanCount = 0;
@@ -795,17 +836,23 @@ export class SyncManager implements SyncManagerInterface {
               toDeleteIds.push(row.id as string);
             }
           } else if (!isGlobal && entityType !== 'projects' && REQUIRES_PROJECT_ID.has(entityType) && !row.project_id) {
-            // Orphaned local row: requires project_id but has none
+            // Orphaned local row: requires project_id but has none.
+            // It IS a live cloud row, so record its id to keep subtractive
+            // reconciliation from deleting a local copy it can't see.
+            if (typeof row.id === 'string') liveCloudIds.add(row.id);
             orphanCount++;
           } else if (isGlobal && REQUIRES_GLOBAL_PROJECT_ID.has(entityType) && !row.global_project_id) {
-            // Orphaned global child: requires global_project_id but has none
+            // Orphaned global child: requires global_project_id but has none.
+            if (typeof row.id === 'string') liveCloudIds.add(row.id);
             orphanCount++;
           } else {
             const entity = fromSupabaseRow(entityType, row);
             // Wave 1 TS interfaces expose `deletedAt: string | null` on every
             // global entity, but fromSupabaseRow strips `deleted_at` from every
-            // row. Since the query already filters out tombstoned rows, the
-            // live rows that reach here always have deletedAt = null.
+            // row. Rows reaching this else-branch are live (isDeletedRow() was
+            // false above), so stamping deletedAt = null is correct. Note this
+            // null is now stripped on PUSH (LOCAL_ONLY_FIELDS) so it can never
+            // resurrect a cloud tombstone.
             // Exception: globalActivityLog is append-only — the TS interface
             // doesn't declare `deletedAt` and the table has no such column.
             // Stamping it would poison the IndexedDB row and break upserts.
@@ -820,6 +867,9 @@ export class SyncManager implements SyncManagerInterface {
               if (uid && gpid) {
                 entity.prefKey = `${uid}|${gpid}`;
               }
+            } else if (typeof row.id === 'string') {
+              // Record the live cloud id for subtractive reconciliation.
+              liveCloudIds.add(row.id);
             }
             toUpsert.push(entity);
           }
@@ -844,6 +894,67 @@ export class SyncManager implements SyncManagerInterface {
           console.info(
             `${LOG_PREFIX} ${entityType}: ${toUpsert.length} pulled, ${toDeleteIds.length} deleted`,
           );
+        }
+
+        // ── Subtractive reconciliation (Finding #1, Phase 1a) ──────────────
+        // After a FULL pull, remove any local row whose id is absent from the
+        // cloud's live set. This is what lets "Update from cloud" / restore
+        // actually REMOVE a stale/resurrected row instead of only adding.
+        //
+        // Safety: only run for a full pull (lastPulledAt == null), where the
+        // query returned the COMPLETE live set scoped to this user / their
+        // memberships — incremental pulls return a delta, so subtracting there
+        // would wrongly delete rows that simply weren't updated this cycle.
+        // Also restricted to entities whose pull is provably complete
+        // (supportsSubtractivePull): append-only logs and the composite-PK
+        // preferences table are excluded.
+        // unpushedKeys === null means the pending-queue read failed earlier this
+        // cycle; fail safe by skipping ALL subtractive deletes (better to keep a
+        // stale row than risk reaping un-pushed user work).
+        if (isFullPull && unpushedKeys !== null && supportsSubtractivePull(entityType)) {
+          try {
+            const localRows = await getAllFromStore(entityType) as Record<string, unknown>[];
+            const staleIds = localRows
+              .map((r) => r.id as string | undefined)
+              // Guard 1: absent from the cloud's live set (stale/resurrected).
+              // Guard 2: NO un-pushed sync-queue item. A row with a pending
+              // create/update item is offline work not yet in the cloud — it is
+              // absent from liveCloudIds only because it hasn't synced, so it
+              // MUST be protected. We key on "has a pending queue item", NOT on
+              // "exists locally": an already-pushed-then-remotely-deleted row has
+              // no pending item and is correctly reaped.
+              .filter((id): id is string =>
+                typeof id === 'string'
+                && !liveCloudIds.has(id)
+                && !unpushedKeys.has(`${entityType}-${id}`),
+              );
+
+            if (staleIds.length > 0) {
+              if (entityType === 'projects') {
+                // Cascade so children are removed too (otherwise they linger
+                // and keep pushing against RLS forever).
+                for (const pid of staleIds) {
+                  await cascadeDeleteProject(pid).catch((e) =>
+                    console.warn(`${LOG_PREFIX} subtractive cascade (projects/${pid}) failed:`, e),
+                  );
+                }
+              } else if (entityType === 'globalProjects') {
+                for (const gpid of staleIds) {
+                  await cascadeDeleteGlobalProject(gpid).catch((e) =>
+                    console.warn(`${LOG_PREFIX} subtractive cascade (globalProjects/${gpid}) failed:`, e),
+                  );
+                }
+              } else {
+                await bulkDeleteSilent(entityType, staleIds);
+              }
+              totalDeleted += staleIds.length;
+              console.info(
+                `${LOG_PREFIX} ${entityType}: subtractively removed ${staleIds.length} stale local row(s) absent from cloud`,
+              );
+            }
+          } catch (subErr) {
+            console.warn(`${LOG_PREFIX} Subtractive reconcile skipped for ${entityType}:`, subErr);
+          }
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message
