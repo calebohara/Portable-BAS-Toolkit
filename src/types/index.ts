@@ -339,6 +339,17 @@ export interface SyncQueueItem {
    * only re-pend the transient ones. `undefined` until the first failure.
    */
   lastErrorCode?: string;
+  /**
+   * In-flight compare-and-swap token (P1-4, SyncAudit 2026-06-08 s2). Stamped
+   * with a fresh value each time `processItem` flips the row to `syncing`, just
+   * before the network round-trip. The success/failure finalizers only delete
+   * or rewrite the row when the STORED token still matches — so an edit or
+   * delete the user enqueues DURING the in-flight push (which overwrites this
+   * deterministic-id row via `addSyncItem`, clearing the token) is never
+   * destroyed by the completing push. Prevents lost updates and delete-during-
+   * create resurrection. `undefined` whenever the row is not actively syncing.
+   */
+  syncToken?: string;
 }
 
 export interface SyncConflict {

@@ -116,6 +116,37 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     manager.setConflictCallback((count) => setSyncConflictCount(count));
 
+    // ── Convergence backstop: shared incremental pull (P1-2 / P1-3) ──────────
+    // Pull cloud changes since the last cursor, advance the cursor, and notify
+    // hooks. Guarded so it no-ops when offline or before the first-login full
+    // pull has set a cursor, and serialized so overlapping triggers (periodic
+    // timer + realtime-reconnect backfill) don't run concurrently.
+    let incrementalPullInFlight = false;
+    const runIncrementalPull = (reason: string) => {
+      if (!navigator.onLine || incrementalPullInFlight) return;
+      const storedPulledAt = useAppStore.getState().lastPulledAt;
+      if (!storedPulledAt) return; // first-login full pull owns the cursor
+      incrementalPullInFlight = true;
+      manager.pullSync(storedPulledAt).then((result) => {
+        if (result.errors.length === 0) {
+          useAppStore.getState().setLastPulledAt(result.newPulledAt);
+        }
+        if (result.pulled > 0 || result.deleted > 0) {
+          console.info(`[sync] Incremental pull (${reason}): ${result.pulled} pulled, ${result.deleted} removed`);
+        }
+        emitPullComplete();
+      }).catch((err) => {
+        console.warn(`[sync] Incremental pull (${reason}) failed:`, err);
+      }).finally(() => {
+        incrementalPullInFlight = false;
+      });
+    };
+
+    // P1-3: when a realtime channel re-subscribes after a websocket drop, catch
+    // up on events missed during the gap (a missed DELETE is a resurrection
+    // vector). The manager debounces coincident channel reconnects.
+    manager.setRealtimeBackfillCallback(() => runIncrementalPull('realtime-reconnect'));
+
     managerRef.current = manager;
     registerSyncManager(manager);
     manager.start();
@@ -192,6 +223,17 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       manager.autoRecoverFailedItems().catch(() => { /* logged inside */ });
     }, 3 * 60_000);
 
+    // Periodic incremental pull (P1-2): the 5s manager interval only PUSHES, and
+    // realtime covers global_* tables only — so an idle-but-online device (and
+    // every local user-owned table on a second device) never converges between
+    // the `online` event and a manual refresh. A lightweight incremental pull on
+    // a 90s cadence gives both local and global tables a guaranteed convergence
+    // backstop independent of realtime delivery. Cheap: it just advances the
+    // cursor and pulls the delta.
+    const periodicPullIntervalId = setInterval(() => {
+      runIncrementalPull('periodic');
+    }, 90_000);
+
     // Auto-pull on first login (new device scenario) — only once per session
     const storedLastPulledAt = useAppStore.getState().lastPulledAt;
     if (!storedLastPulledAt && !autoPullFiredRef.current) {
@@ -249,6 +291,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener(GLOBAL_MEMBERSHIP_CHANGED_EVENT, handleMembershipChanged);
       clearInterval(autoRecoverIntervalId);
+      clearInterval(periodicPullIntervalId);
       // Tear down realtime explicitly first; `manager.stop()` also calls
       // `unsubscribeFromGlobalRealtime` for belt-and-suspenders.
       realtimeCleanupRef.current?.();

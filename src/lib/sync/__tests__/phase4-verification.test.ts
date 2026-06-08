@@ -30,6 +30,8 @@ vi.mock('@/lib/db', () => ({
   resetSyncingItemsToPending: vi.fn().mockResolvedValue(0),
   updateSyncItem: vi.fn().mockResolvedValue(undefined),
   deleteSyncItem: vi.fn().mockResolvedValue(undefined),
+  deleteSyncItemIfToken: vi.fn().mockResolvedValue(true),
+  updateSyncItemIfToken: vi.fn().mockResolvedValue(true),
   getSyncQueueCount: vi.fn().mockResolvedValue({ pending: 0, failed: 0 }),
   getAllFromStore: vi.fn().mockResolvedValue([]),
   clearSyncQueue: vi.fn().mockResolvedValue(0),
@@ -57,6 +59,7 @@ const dbMocks = {
   getPendingSyncItems: vi.mocked(db.getPendingSyncItems),
   updateSyncItem: vi.mocked(db.updateSyncItem),
   deleteSyncItem: vi.mocked(db.deleteSyncItem),
+  deleteSyncItemIfToken: vi.mocked(db.deleteSyncItemIfToken),
   bulkDeleteSilent: vi.mocked(db.bulkDeleteSilent),
   cascadeDeleteProject: vi.mocked(db.cascadeDeleteProject),
   cascadeDeleteGlobalProject: vi.mocked(db.cascadeDeleteGlobalProject),
@@ -114,8 +117,9 @@ describe('Delete propagation — parent tombstone pull cascades (Phase 1a gap)',
     const manager = new SyncManager(client, TEST_USER_ID);
     await manager.pullSync('2026-06-01T00:00:00.000Z'); // incremental → tombstones flow
 
-    // Cascade helper used (children cleaned up too) …
-    expect(dbMocks.cascadeDeleteProject).toHaveBeenCalledWith(DELETED_PROJECT_ID);
+    // Cascade helper used (children cleaned up too), silently — applying a
+    // cloud tombstone must NOT re-enqueue an outbound delete (P1-1).
+    expect(dbMocks.cascadeDeleteProject).toHaveBeenCalledWith(DELETED_PROJECT_ID, { silent: true });
     // … and NOT a flat single-store delete on the projects store.
     const flatProjectDeletes = dbMocks.bulkDeleteSilent.mock.calls.filter((c) => c[0] === 'projects');
     expect(flatProjectDeletes).toHaveLength(0);
@@ -139,7 +143,7 @@ describe('Delete propagation — parent tombstone pull cascades (Phase 1a gap)',
     const manager = new SyncManager(client, FRESH_USER_ID);
     await manager.pullSync('2026-06-01T00:00:00.000Z');
 
-    expect(dbMocks.cascadeDeleteGlobalProject).toHaveBeenCalledWith(DELETED_GPID);
+    expect(dbMocks.cascadeDeleteGlobalProject).toHaveBeenCalledWith(DELETED_GPID, { silent: true });
     const flatGpDeletes = dbMocks.bulkDeleteSilent.mock.calls.filter((c) => c[0] === 'globalProjects');
     expect(flatGpDeletes).toHaveLength(0);
   });
@@ -240,7 +244,7 @@ describe('Cross-user push rejection — every GLOBAL_AUDITED_ENTITY_TYPES member
     await manager.processQueue();
 
     expect(supabase._mock.upsert).toHaveBeenCalledTimes(1);
-    expect(dbMocks.deleteSyncItem).toHaveBeenCalledWith(item.id);
+    expect(dbMocks.deleteSyncItemIfToken).toHaveBeenCalledWith(item.id, expect.any(String));
   });
 });
 
@@ -304,7 +308,7 @@ describe('Cascade RPC — all "not deployed" fallback signals (Phase 3b gap)', (
     expect(supabase.rpc).toHaveBeenCalledWith('cascade_soft_delete_project', { p_project_id: PID });
     // Legacy parent-only soft-delete update ran as the fallback.
     expect(supabase._update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
-    expect(dbMocks.deleteSyncItem).toHaveBeenCalledWith(`projects-${PID}`);
+    expect(dbMocks.deleteSyncItemIfToken).toHaveBeenCalledWith(`projects-${PID}`, expect.any(String));
   });
 
   it('falls back on a message-only "Could not find the function" error (no code)', async () => {
@@ -317,6 +321,6 @@ describe('Cascade RPC — all "not deployed" fallback signals (Phase 3b gap)', (
     await manager.processQueue();
 
     expect(supabase._update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
-    expect(dbMocks.deleteSyncItem).toHaveBeenCalledWith(`projects-${PID}`);
+    expect(dbMocks.deleteSyncItemIfToken).toHaveBeenCalledWith(`projects-${PID}`, expect.any(String));
   });
 });

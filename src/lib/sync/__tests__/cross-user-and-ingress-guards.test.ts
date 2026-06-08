@@ -17,6 +17,8 @@ vi.mock('@/lib/db', () => ({
   resetSyncingItemsToPending: vi.fn().mockResolvedValue(0),
   updateSyncItem: vi.fn().mockResolvedValue(undefined),
   deleteSyncItem: vi.fn().mockResolvedValue(undefined),
+  deleteSyncItemIfToken: vi.fn().mockResolvedValue(true),
+  updateSyncItemIfToken: vi.fn().mockResolvedValue(true),
   getSyncQueueCount: vi.fn().mockResolvedValue({ pending: 0, failed: 0 }),
   getAllFromStore: vi.fn().mockResolvedValue([]),
   clearSyncQueue: vi.fn().mockResolvedValue(0),
@@ -42,6 +44,7 @@ const dbMocks = {
   hasUnpushedSyncItem: vi.mocked(db.hasUnpushedSyncItem),
   updateSyncItem: vi.mocked(db.updateSyncItem),
   deleteSyncItem: vi.mocked(db.deleteSyncItem),
+  deleteSyncItemIfToken: vi.mocked(db.deleteSyncItemIfToken),
   bulkPutSilent: vi.mocked(db.bulkPutSilent),
   bulkDeleteSilent: vi.mocked(db.bulkDeleteSilent),
 };
@@ -62,7 +65,20 @@ interface MockFrom {
   delete: ReturnType<typeof vi.fn>;
 }
 
-function createMockSupabase(): { from: ReturnType<typeof vi.fn>; _mock: MockFrom } {
+interface MockChannel {
+  name: string;
+  _statusCb: ((status: string) => void) | null;
+  on: ReturnType<typeof vi.fn>;
+  subscribe: ReturnType<typeof vi.fn>;
+}
+
+function createMockSupabase(): {
+  from: ReturnType<typeof vi.fn>;
+  _mock: MockFrom;
+  channel: ReturnType<typeof vi.fn>;
+  removeChannel: ReturnType<typeof vi.fn>;
+  _channels: MockChannel[];
+} {
   const mockFrom: MockFrom = {
     select: vi.fn().mockReturnThis(),
     eq: vi.fn().mockReturnThis(),
@@ -72,7 +88,23 @@ function createMockSupabase(): { from: ReturnType<typeof vi.fn>; _mock: MockFrom
     update: vi.fn().mockReturnThis(),
     delete: vi.fn().mockReturnThis(),
   };
-  return { from: vi.fn(() => mockFrom), _mock: mockFrom };
+  const channels: MockChannel[] = [];
+  return {
+    from: vi.fn(() => mockFrom),
+    _mock: mockFrom,
+    _channels: channels,
+    channel: vi.fn((name: string) => {
+      const ch: MockChannel = {
+        name,
+        _statusCb: null,
+        on: vi.fn(() => ch),
+        subscribe: vi.fn((cb?: (status: string) => void) => { ch._statusCb = cb ?? null; return ch; }),
+      };
+      channels.push(ch);
+      return ch;
+    }),
+    removeChannel: vi.fn(),
+  };
 }
 
 const TEST_USER_ID = '00000000-1111-2222-3333-444444444444';
@@ -156,7 +188,8 @@ describe('cross-user push guard (Finding #3, generalized)', () => {
     await manager.processQueue();
 
     expect(supabase._mock.upsert).toHaveBeenCalledTimes(1);
-    expect(dbMocks.deleteSyncItem).toHaveBeenCalledWith(item.id);
+    // Success path finalizes via the token-guarded delete (P1-4 CAS).
+    expect(dbMocks.deleteSyncItemIfToken).toHaveBeenCalledWith(item.id, expect.any(String));
   });
 
   it('stamps created_by on an own-authored update so a coalesced create→update upsert→INSERT survives RLS', async () => {
@@ -188,7 +221,7 @@ describe('cross-user push guard (Finding #3, generalized)', () => {
     expect(supabase._mock.upsert).toHaveBeenCalledTimes(1);
     const pushedRow = supabase._mock.upsert.mock.calls[0][0] as Record<string, unknown>;
     expect(pushedRow.created_by).toBe(TEST_USER_ID);
-    expect(dbMocks.deleteSyncItem).toHaveBeenCalledWith(item.id);
+    expect(dbMocks.deleteSyncItemIfToken).toHaveBeenCalledWith(item.id, expect.any(String));
   });
 
   it('also covers globalProjects (created_by) — drops a foreign-authored project', async () => {
@@ -369,5 +402,63 @@ describe('pull ingress dirty-guard (Finding #4)', () => {
     const putCalls = dbMocks.bulkPutSilent.mock.calls.filter((c) => c[0] === 'devices');
     expect(putCalls).toHaveLength(1);
     expect((putCalls[0][1] as Record<string, unknown>[])[0]).toMatchObject({ id });
+  });
+});
+
+// ─── P1-3: realtime reconnect backfill ──────────────────────────────────────
+describe('realtime reconnect backfill (P1-3)', () => {
+  it('triggers a debounced catch-up pull on RE-subscribe, but not on the first subscribe', async () => {
+    const supabase = createMockSupabase();
+    // Fresh user id so the module-scope membership cache doesn't interfere.
+    const manager = new SyncManager(supabase as never, '5a5a5a5a-1111-2222-3333-444444444444');
+    const backfill = vi.fn();
+    manager.setRealtimeBackfillCallback(backfill);
+
+    await manager.subscribeToGlobalRealtime();
+    const ch = supabase._channels[0];
+    expect(ch?._statusCb).toBeTypeOf('function');
+
+    vi.useFakeTimers();
+    try {
+      // First SUBSCRIBED is the initial subscribe — already covered by the
+      // provider's initial pull, so NO backfill.
+      ch._statusCb!('SUBSCRIBED');
+      vi.advanceTimersByTime(2000);
+      expect(backfill).not.toHaveBeenCalled();
+
+      // A transport drop + auto-rejoin re-fires SUBSCRIBED → debounced backfill.
+      // Coincident re-subscribes must coalesce into a SINGLE catch-up pull.
+      ch._statusCb!('SUBSCRIBED');
+      ch._statusCb!('SUBSCRIBED');
+      vi.advanceTimersByTime(1500);
+      expect(backfill).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+      manager.stop();
+    }
+  });
+
+  it('treats a re-subscribe AFTER a deliberate teardown as a fresh first subscribe (no backfill)', async () => {
+    const supabase = createMockSupabase();
+    const manager = new SyncManager(supabase as never, '6b6b6b6b-1111-2222-3333-444444444444');
+    const backfill = vi.fn();
+    manager.setRealtimeBackfillCallback(backfill);
+
+    await manager.subscribeToGlobalRealtime();
+    supabase._channels[0]._statusCb!('SUBSCRIBED'); // initial
+    // Deliberate teardown (e.g. membership change) then re-subscribe.
+    manager.unsubscribeFromGlobalRealtime();
+    await manager.subscribeToGlobalRealtime();
+    const ch2 = supabase._channels[supabase._channels.length - 1];
+
+    vi.useFakeTimers();
+    try {
+      ch2._statusCb!('SUBSCRIBED'); // first SUBSCRIBED on the new channel → no backfill
+      vi.advanceTimersByTime(2000);
+      expect(backfill).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      manager.stop();
+    }
   });
 });

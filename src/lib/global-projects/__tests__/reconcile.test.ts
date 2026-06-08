@@ -372,13 +372,19 @@ describe('reconcile.ts', () => {
     expect((noteUpsert!.row as { id: string }).id).toBe('note-uuid-1');
   });
 
-  // ─── (c2) Reconcile respects sync_version (Finding #9, Phase 2) ────────────
+  // ─── (c2) Reconcile uses updated_at, NOT cross-table sync_version ──────────
+  // P0 regression (SyncAudit 2026-06-08 session 2): local→global reconcile must
+  // compare `updated_at`, never the local-table vs global-table `sync_version`
+  // counters — those are independent per-table sequences and comparing them
+  // silently dropped genuinely newer local edits on "Share local updates to
+  // Global". See reconcile.ts reconcilePairLocalToGlobal.
 
-  it('does NOT overwrite a remote note whose sync_version is higher than local', async () => {
+  it('PUSHES a newer-timestamp local note even when the global row has a higher (unrelated) sync_version', async () => {
     dbMocks.getProject.mockResolvedValue(makeLocalProject());
-    // Local note has a NEWER updated_at but a LOWER sync_version than the remote.
-    // Under the old timestamp-only skip the local row would be pushed (clobbering
-    // the higher-version remote). The version guard must skip it.
+    // Local note is genuinely newer by timestamp but carries a LOWER local-table
+    // sync_version than the global row's unrelated counter. The old version guard
+    // skipped this (data loss). Correct behavior: push it — the edit must not be
+    // dropped by a meaningless cross-table counter comparison.
     const note: FieldNote & { syncVersion?: number } = {
       id: 'note-uuid-ver',
       projectId: 'local-uuid-1',
@@ -387,39 +393,42 @@ describe('reconcile.ts', () => {
       author: 'tech',
       isPinned: false,
       createdAt: '2025-01-01T00:00:00.000Z',
-      updatedAt: '2025-06-01T00:00:00.000Z', // newer timestamp
+      updatedAt: '2025-06-01T00:00:00.000Z', // newer timestamp → must push
       tags: [],
-      syncVersion: 2, // lower version
+      syncVersion: 2, // lower LOCAL counter — irrelevant; must NOT cause a skip
     };
     dbMocks.getProjectNotes.mockResolvedValue([note]);
 
-    // Remote prefetch: same id, OLDER updated_at, HIGHER sync_version.
+    // Remote prefetch: same id, OLDER updated_at, HIGHER (unrelated) sync_version.
     supabaseState.current!.existingChildRowsByTable['global_field_notes'] = [
       { id: 'note-uuid-ver', updated_at: '2025-01-01T00:00:00.000Z', sync_version: 9 },
     ];
 
     await reconcileLocalToGlobal('local-uuid-1');
 
-    // The higher-version remote note is NOT overwritten.
+    // The newer local edit IS pushed (no longer silently dropped).
     const noteUpsert = supabaseState.current!.upserts.find(
       (u) => u.table === 'global_field_notes' && (u.row as { id?: string }).id === 'note-uuid-ver',
     );
-    expect(noteUpsert).toBeUndefined();
+    expect(noteUpsert).toBeDefined();
   });
 
-  it('DOES push a local note whose sync_version is higher than the remote (even if older timestamp)', async () => {
+  it('SKIPS a local note whose global row is newer by timestamp (does not clobber a newer peer edit)', async () => {
     dbMocks.getProject.mockResolvedValue(makeLocalProject());
+    // Local note is OLDER by timestamp; the global row was edited more recently
+    // (e.g. by another member). Reconcile must not clobber it — regardless of the
+    // unrelated, higher local sync_version.
     const note: FieldNote & { syncVersion?: number } = {
       id: 'note-uuid-ver2',
       projectId: 'local-uuid-1',
-      content: 'authoritative local',
+      content: 'stale local',
       category: 'general',
       author: 'tech',
       isPinned: false,
       createdAt: '2025-01-01T00:00:00.000Z',
-      updatedAt: '2025-01-01T00:00:00.000Z', // older timestamp
+      updatedAt: '2025-01-01T00:00:00.000Z', // older timestamp → skip
       tags: [],
-      syncVersion: 12, // higher version → local wins
+      syncVersion: 12, // higher LOCAL counter — irrelevant; must NOT force a push
     };
     dbMocks.getProjectNotes.mockResolvedValue([note]);
 
@@ -432,7 +441,7 @@ describe('reconcile.ts', () => {
     const noteUpsert = supabaseState.current!.upserts.find(
       (u) => u.table === 'global_field_notes' && (u.row as { id?: string }).id === 'note-uuid-ver2',
     );
-    expect(noteUpsert).toBeDefined();
+    expect(noteUpsert).toBeUndefined();
   });
 
   // ─── (d) Global→Local preserves entity UUIDs ──────────────────────────────

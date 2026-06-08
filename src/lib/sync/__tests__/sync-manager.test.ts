@@ -7,6 +7,8 @@ vi.mock('@/lib/db', () => ({
   resetSyncingItemsToPending: vi.fn().mockResolvedValue(0),
   updateSyncItem: vi.fn().mockResolvedValue(undefined),
   deleteSyncItem: vi.fn().mockResolvedValue(undefined),
+  deleteSyncItemIfToken: vi.fn().mockResolvedValue(true),
+  updateSyncItemIfToken: vi.fn().mockResolvedValue(true),
   getSyncQueueCount: vi.fn().mockResolvedValue({ pending: 0, failed: 0 }),
   getAllFromStore: vi.fn().mockResolvedValue([]),
   clearSyncQueue: vi.fn().mockResolvedValue(0),
@@ -89,7 +91,7 @@ vi.mock('../field-map', () => ({
 }));
 
 import { SyncManager } from '../sync-manager';
-import { addSyncItem, getPendingSyncItems, deleteSyncItem, updateSyncItem } from '@/lib/db';
+import { addSyncItem, getPendingSyncItems, deleteSyncItem, updateSyncItem, deleteSyncItemIfToken, updateSyncItemIfToken } from '@/lib/db';
 import type { SyncQueueItem } from '@/types';
 
 // Mock navigator.onLine so processQueue doesn't bail out
@@ -294,8 +296,10 @@ describe('SyncManager', () => {
       await manager.processQueue();
 
       // Should update with incremented retry count (3 -> 4), still pending
-      expect(updateSyncItem).toHaveBeenCalledWith(
+      // (failure update goes through the token-guarded finalizer, P1-4).
+      expect(updateSyncItemIfToken).toHaveBeenCalledWith(
         expect.objectContaining({ retriedCount: 4, status: 'pending' }),
+        expect.any(String),
       );
     });
 
@@ -316,8 +320,9 @@ describe('SyncManager', () => {
 
       await manager.processQueue();
 
-      expect(updateSyncItem).toHaveBeenCalledWith(
+      expect(updateSyncItemIfToken).toHaveBeenCalledWith(
         expect.objectContaining({ retriedCount: 5, status: 'failed' }),
+        expect.any(String),
       );
     });
 
@@ -335,7 +340,7 @@ describe('SyncManager', () => {
 
       await manager.processQueue();
 
-      expect(deleteSyncItem).toHaveBeenCalledWith(item.id);
+      expect(deleteSyncItemIfToken).toHaveBeenCalledWith(item.id, expect.any(String));
     });
   });
 
@@ -355,7 +360,7 @@ describe('SyncManager', () => {
       expect(supabase.rpc).toHaveBeenCalledWith('cascade_soft_delete_project', { p_project_id: PID });
       // RPC handled it → no single-statement update() fallback on the projects table.
       expect(supabase._mock.update).not.toHaveBeenCalled();
-      expect(deleteSyncItem).toHaveBeenCalledWith(`projects-${PID}`);
+      expect(deleteSyncItemIfToken).toHaveBeenCalledWith(`projects-${PID}`, expect.any(String));
     });
 
     it('calls cascade_soft_delete_global_project for a global project delete', async () => {
@@ -372,7 +377,7 @@ describe('SyncManager', () => {
       expect(supabase.rpc).toHaveBeenCalled();
       // Fallback path issues the legacy parent-only update().
       expect(supabase._mock.update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
-      expect(deleteSyncItem).toHaveBeenCalledWith(`projects-${PID}`);
+      expect(deleteSyncItemIfToken).toHaveBeenCalledWith(`projects-${PID}`, expect.any(String));
     });
 
     it('does NOT fall back on a real RPC error (treated as a sync failure)', async () => {
@@ -381,7 +386,24 @@ describe('SyncManager', () => {
       await manager.processQueue();
       // Real error → no legacy fallback update(), item NOT deleted from queue (will retry).
       expect(supabase._mock.update).not.toHaveBeenCalled();
-      expect(deleteSyncItem).not.toHaveBeenCalledWith(`projects-${PID}`);
+      expect(deleteSyncItemIfToken).not.toHaveBeenCalledWith(`projects-${PID}`, expect.any(String));
+    });
+
+    it('drops a globalProjects delete that RLS-rejects (42501) as non-retryable (P1-1 backstop)', async () => {
+      // A non-admin member who pulled a project tombstone could re-enqueue an
+      // outbound delete the cascade RPC rejects (creator/admin-only). The silent
+      // cascade prevents the enqueue; this backstop guarantees any delete-push
+      // that still hits 42501 is dropped, not retried forever.
+      supabase.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'not authorized' } });
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([mkDelete('globalProjects')]);
+      await manager.processQueue();
+      // Dropped (plain deleteSyncItem on the non-retryable 42501 path) …
+      expect(deleteSyncItem).toHaveBeenCalledWith(`globalProjects-${PID}`);
+      // … and never re-queued with a bumped retry count.
+      expect(updateSyncItemIfToken).not.toHaveBeenCalledWith(
+        expect.objectContaining({ retriedCount: 1 }),
+        expect.any(String),
+      );
     });
   });
 
@@ -454,7 +476,7 @@ describe('SyncManager', () => {
         expect.anything(),
         expect.objectContaining({ ignoreDuplicates: true }),
       );
-      expect(deleteSyncItem).toHaveBeenCalledWith(item.id);
+      expect(deleteSyncItemIfToken).toHaveBeenCalledWith(item.id, expect.any(String));
     });
   });
 

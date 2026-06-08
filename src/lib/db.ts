@@ -745,7 +745,7 @@ async function cleanupSyncArtifacts(
   }
 }
 
-export async function cascadeDeleteProject(id: string): Promise<void> {
+export async function cascadeDeleteProject(id: string, options?: { silent?: boolean }): Promise<void> {
   const db = await getDB();
 
   // Track deleted IDs per store — used for sync notifications and cleanup below
@@ -821,11 +821,16 @@ export async function cascadeDeleteProject(id: string): Promise<void> {
     console.warn('[db] cascadeDeleteProject: syncQueue/syncErrors cleanup failed (non-fatal):', cleanupErr);
   }
 
-  // Notify sync bridge about cascade-deleted children
-  for (const [store, ids] of deleted) {
-    for (const childId of ids) notifySync('delete', store, childId, null);
+  // Notify sync bridge about cascade-deleted children — ENQUEUES outbound delete
+  // pushes. Skip when `silent` (P1-1): callers applying a tombstone PULLED from
+  // the cloud must not re-enqueue deletes (the rows are already gone server-side,
+  // and a non-admin member can't push a project delete → perpetual 42501 churn).
+  if (!options?.silent) {
+    for (const [store, ids] of deleted) {
+      for (const childId of ids) notifySync('delete', store, childId, null);
+    }
+    notifySync('delete', 'projects', id, null);
   }
-  notifySync('delete', 'projects', id, null);
 }
 
 /**
@@ -836,7 +841,7 @@ export async function cascadeDeleteProject(id: string): Promise<void> {
  * Also cleans up `syncQueue` items and `syncErrors` records for deleted
  * entities so the Inspector shows no ghost errors after deletion.
  */
-export async function cascadeDeleteGlobalProject(globalProjectId: string): Promise<void> {
+export async function cascadeDeleteGlobalProject(globalProjectId: string, options?: { silent?: boolean }): Promise<void> {
   const db = await getDB();
 
   // Collect all child entity IDs across every child store so we can clean up
@@ -919,10 +924,16 @@ export async function cascadeDeleteGlobalProject(globalProjectId: string): Promi
   }
 
   // ── Step 4: Notify sync bridge ───────────────────────────────────────────
-  for (const [store, ids] of deleted) {
-    for (const childId of ids) notifySync('delete', store, childId, null);
+  // Skip when `silent` (P1-1): applying a tombstone pulled/streamed from the
+  // cloud must not re-enqueue outbound deletes a non-admin member can never push
+  // (perpetual 42501). User-initiated leaves/deletes call without `silent` so the
+  // delete still propagates.
+  if (!options?.silent) {
+    for (const [store, ids] of deleted) {
+      for (const childId of ids) notifySync('delete', store, childId, null);
+    }
+    notifySync('delete', 'globalProjects', globalProjectId, null);
   }
-  notifySync('delete', 'globalProjects', globalProjectId, null);
 }
 
 export async function deleteProject(id: string): Promise<void> {
@@ -1657,6 +1668,49 @@ export async function updateSyncItem(item: SyncQueueItem): Promise<void> {
 export async function deleteSyncItem(id: string): Promise<void> {
   const db = await getDB();
   await db.delete('syncQueue', id);
+}
+
+/**
+ * Atomically delete the queue row ONLY if it still carries `token` (P1-4).
+ *
+ * The deterministic-id queue means an edit/delete the user enqueues while this
+ * item's push is in flight overwrites the row (via `addSyncItem`) with a fresh
+ * item that has NO `syncToken`. A completing push must not destroy that newer
+ * work. We re-read and delete within a single readwrite transaction (IndexedDB
+ * serializes transactions, so no concurrent `put` can interleave between the get
+ * and the delete). Returns true if deleted, false if a newer item now occupies
+ * the id (left intact for the next cycle).
+ */
+export async function deleteSyncItemIfToken(id: string, token: string): Promise<boolean> {
+  const db = await getDB();
+  const tx = db.transaction('syncQueue', 'readwrite');
+  const current = await tx.store.get(id);
+  let deleted = false;
+  if (current && (current as SyncQueueItem).syncToken === token) {
+    await tx.store.delete(id);
+    deleted = true;
+  }
+  await tx.done;
+  return deleted;
+}
+
+/**
+ * Atomically rewrite the queue row (failure/retry update) ONLY if the stored row
+ * still carries `token` (P1-4). Mirrors {@link deleteSyncItemIfToken}: a stale
+ * failure/backoff update must not clobber an edit the user enqueued during the
+ * in-flight push. Returns true if the put was applied, false if skipped.
+ */
+export async function updateSyncItemIfToken(item: SyncQueueItem, token: string): Promise<boolean> {
+  const db = await getDB();
+  const tx = db.transaction('syncQueue', 'readwrite');
+  const current = await tx.store.get(item.id);
+  let applied = false;
+  if (current && (current as SyncQueueItem).syncToken === token) {
+    await tx.store.put(item);
+    applied = true;
+  }
+  await tx.done;
+  return applied;
 }
 
 export async function getSyncQueueCount(): Promise<{ pending: number; failed: number }> {

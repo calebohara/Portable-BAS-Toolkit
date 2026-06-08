@@ -24,6 +24,8 @@ vi.mock('@/lib/db', () => ({
   resetSyncingItemsToPending: vi.fn().mockResolvedValue(0),
   updateSyncItem: vi.fn().mockResolvedValue(undefined),
   deleteSyncItem: vi.fn().mockResolvedValue(undefined),
+  deleteSyncItemIfToken: vi.fn().mockResolvedValue(true),
+  updateSyncItemIfToken: vi.fn().mockResolvedValue(true),
   getSyncQueueCount: vi.fn().mockResolvedValue({ pending: 0, failed: 0 }),
   getAllFromStore: vi.fn().mockResolvedValue([]),
   clearSyncQueueExceptFailed: vi.fn().mockResolvedValue(0),
@@ -49,6 +51,7 @@ const dbMocks = {
   getPendingSyncItems: vi.mocked(db.getPendingSyncItems),
   updateSyncItem: vi.mocked(db.updateSyncItem),
   deleteSyncItem: vi.mocked(db.deleteSyncItem),
+  deleteSyncItemIfToken: vi.mocked(db.deleteSyncItemIfToken),
   addSyncConflict: vi.mocked(db.addSyncConflict),
   bulkPutSilent: vi.mocked(db.bulkPutSilent),
 };
@@ -114,8 +117,8 @@ describe('Fix A — globalProjectPreferences delete is a HARD delete (Finding #7
     // Keyed by the composite PK.
     expect(supabase._mock.eq).toHaveBeenCalledWith('user_id', TEST_USER_ID);
     expect(supabase._mock.eq).toHaveBeenCalledWith('global_project_id', GPID);
-    // Removed from the queue on success.
-    expect(dbMocks.deleteSyncItem).toHaveBeenCalledWith(item.id);
+    // Removed from the queue on success (token-guarded finalizer, P1-4).
+    expect(dbMocks.deleteSyncItemIfToken).toHaveBeenCalledWith(item.id, expect.any(String));
   });
 
   it('drops the queue item when no globalProjectId is available', async () => {

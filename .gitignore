@@ -79,3 +79,4 @@ docs/**/*.md
 .claude/settings.local.json
 docs/Portable-BAS-Toolkit.code-workspace
 !docs/SyncAuditAgents-findings-*.md
+!docs/SyncAuditAgents-fixes-*.md

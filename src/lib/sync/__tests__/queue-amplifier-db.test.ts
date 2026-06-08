@@ -22,6 +22,9 @@ import {
   addSyncItemPreservingRetry,
   getPendingSyncItems,
   recoverTransientFailedItems,
+  deleteSyncItemIfToken,
+  updateSyncItemIfToken,
+  getAllFromStore,
   getSyncMeta,
   setSyncMeta,
   clearAllData,
@@ -205,5 +208,49 @@ describe('syncMeta keyval', () => {
     expect(await getSyncMeta('lastFullPush:devices')).toBe('2026-03-01T00:00:00.000Z');
     await clearAllData();
     expect(await getSyncMeta('lastFullPush:devices')).toBeNull();
+  });
+});
+
+// ─── P1-4: in-flight CAS finalizers (SyncAudit 2026-06-08 s2) ────────────────
+// processItem stamps a fresh syncToken when it flips a row to 'syncing'. The
+// success/failure finalizers only mutate the row if the STORED token still
+// matches, so an edit/delete the user enqueues DURING the push is never
+// destroyed. These exercise the real fake-indexeddb transaction.
+describe('deleteSyncItemIfToken / updateSyncItemIfToken — in-flight compare-and-swap', () => {
+  it('deletes the row when the token still matches (normal success path)', async () => {
+    await addSyncItem(makeQueueItem({ id: 'devices-aaaa', status: 'syncing', syncToken: 'tok-1' }));
+    const deleted = await deleteSyncItemIfToken('devices-aaaa', 'tok-1');
+    expect(deleted).toBe(true);
+    expect(await getAllFromStore('syncQueue')).toHaveLength(0);
+  });
+
+  it('does NOT delete when a mid-flight enqueue replaced the row (token cleared) — prevents delete-resurrection', async () => {
+    // Item flipped to 'syncing' with tok-1, push in flight…
+    await addSyncItem(makeQueueItem({ id: 'devices-aaaa', status: 'syncing', syncToken: 'tok-1' }));
+    // …user deletes the entity mid-flight → enqueue overwrites the deterministic
+    // id with a fresh delete item that has NO syncToken.
+    await addSyncItem(makeQueueItem({ id: 'devices-aaaa', action: 'delete', status: 'pending' }));
+    // The completing create push tries to finalize with its stale token.
+    const deleted = await deleteSyncItemIfToken('devices-aaaa', 'tok-1');
+    expect(deleted).toBe(false);
+    const rows = await getAllFromStore('syncQueue') as Array<{ action: string }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].action).toBe('delete'); // the queued delete survived
+  });
+
+  it('updateSyncItemIfToken skips the stale failure update when the row was replaced mid-flight', async () => {
+    await addSyncItem(makeQueueItem({ id: 'devices-aaaa', status: 'syncing', syncToken: 'tok-1', payload: { id: 'aaaa', name: 'old' } }));
+    // Mid-flight edit replaces the row (no token).
+    await addSyncItem(makeQueueItem({ id: 'devices-aaaa', status: 'pending', payload: { id: 'aaaa', name: 'new' } }));
+    // The failed push's retry update must NOT clobber the newer edit.
+    const applied = await updateSyncItemIfToken(
+      makeQueueItem({ id: 'devices-aaaa', status: 'failed', payload: { id: 'aaaa', name: 'old' }, lastError: 'boom' }),
+      'tok-1',
+    );
+    expect(applied).toBe(false);
+    const rows = await getAllFromStore('syncQueue') as Array<{ status: string; payload: { name: string } }>;
+    expect(rows).toHaveLength(1);
+    expect(rows[0].status).toBe('pending');
+    expect(rows[0].payload.name).toBe('new');
   });
 });

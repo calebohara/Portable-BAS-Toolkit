@@ -1327,42 +1327,30 @@ async function reconcilePairLocalToGlobal(
         ?? (item as { createdAt?: string }).createdAt
         ?? null;
 
-      // ── Version-aware skip (Finding #9, Phase 2) ─────────────────────────
-      // sync_version is the PRIMARY guard against blind-overwriting a remote row
-      // that has advanced past what this device last saw. The server trigger
-      // bumps sync_version monotonically on every UPDATE (clock-skew-immune),
-      // so if the remote version is strictly higher than the local row's
-      // version, the cloud holds a newer revision we haven't merged — never
-      // overwrite it here. (A genuine conflict surfaces via the push-path
-      // conflict detector; reconcile must not silently clobber it.)
-      const remoteVersion = existing?.sync_version ?? null;
-      const localVersion = typeof (item as { syncVersion?: number }).syncVersion === 'number'
-        ? (item as { syncVersion: number }).syncVersion
-        : null;
-      const bothVersionsKnown = existing != null && remoteVersion !== null && localVersion !== null;
-      if (bothVersionsKnown && remoteVersion > localVersion) {
-        // Remote holds a strictly newer revision than this device has seen —
-        // never blind-overwrite it.
-        counts.skipped++;
-        continue;
-      }
-      // When both versions are known and LOCAL is strictly higher, the local row
-      // is authoritative — push it regardless of timestamps (skip the timestamp
-      // fallback below, which a skewed remote `updated_at` could otherwise use to
-      // suppress the legitimately-newer local write).
-      const localVersionWins = bothVersionsKnown && localVersion > remoteVersion;
-
-      // Idempotent skip: skip when the global row is already at-or-newer than the
-      // local row. Compare parsed timestamps rather than raw strings — local rows
-      // and Postgres `now()` can serialize the same instant differently (timezone
-      // offset, fractional-second precision), so an exact string match would
-      // almost never hold and we'd needlessly re-push every row, deflating the
-      // skip count. Unparseable timestamps fall through to a push (safe default).
-      // Timestamps are the FALLBACK comparator only — consulted when sync_version
-      // is absent or equal (the version guards above are authoritative).
+      // ── Idempotent skip: timestamp-only (P0 fix — SyncAudit 2026-06-08 s2) ─
+      // DO NOT reintroduce a sync_version comparison here. The local row's
+      // `syncVersion` is the LOCAL table's counter (e.g. field_notes.sync_version,
+      // round-tripped on local pull); `existing.sync_version` is the GLOBAL
+      // table's INDEPENDENT counter (global_field_notes.sync_version). They count
+      // different rows in different tables and are never reconciled, so comparing
+      // them is a category error. The old "version-aware skip" (Finding #9) did
+      // exactly that and SILENTLY DROPPED a genuinely newer local edit whenever
+      // the unrelated global counter happened to be higher — the common case after
+      // any global-side edit — on the documented "Share local updates to Global"
+      // action. Removed (P0 data-loss).
+      //
+      // Reconcile here is the explicit user action "push my local project's state
+      // to the linked global project", so the only comparable signal is
+      // `updated_at`: skip when the global row is already at-or-newer than the
+      // local row (don't clobber a newer peer edit), otherwise push. Compare
+      // parsed timestamps — local rows and Postgres `now()` serialize the same
+      // instant differently (tz offset, fractional seconds), so a raw string
+      // match would almost never hold. Unparseable timestamps fall through to a
+      // push (safe default). A real divergence still surfaces through the normal
+      // push-path conflict detector on the subsequent sync.
       const existingMs = existing?.updated_at ? Date.parse(existing.updated_at) : NaN;
       const localMs = localUpdatedAt ? Date.parse(localUpdatedAt) : NaN;
-      if (!localVersionWins && existing && !Number.isNaN(existingMs) && !Number.isNaN(localMs) && existingMs >= localMs) {
+      if (existing && !Number.isNaN(existingMs) && !Number.isNaN(localMs) && existingMs >= localMs) {
         counts.skipped++;
         continue;
       }

@@ -3,7 +3,7 @@ import type { SyncEntityType, SyncQueueItem, SyncConflict, SyncError } from '@/t
 import {
   addSyncItem, addSyncItemPreservingRetry,
   getPendingSyncItems, getUnpushedSyncItemKeys, hasUnpushedSyncItem,
-  updateSyncItem, deleteSyncItem,
+  updateSyncItem, deleteSyncItem, deleteSyncItemIfToken, updateSyncItemIfToken,
   getSyncQueueCount, getAllFromStore, clearSyncQueueExceptFailed,
   bulkPutSilent, bulkDeleteSilent,
   addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
@@ -175,6 +175,15 @@ export class SyncManager implements SyncManagerInterface {
   // token-expired error this session. Prevents an infinite refresh→retry loop
   // if the refresh itself doesn't fix the 401.
   private authRefreshedItemIds = new Set<string>();
+  // ── Realtime reconnect backfill (P1-3) ──────────────────────────────────────
+  // A websocket drop where navigator.onLine stays true (server restart, idle
+  // timeout, flaky cellular) silently loses postgres_changes events for the gap.
+  // We detect a channel RE-subscribe and trigger a catch-up incremental pull so
+  // missed peer edits/deletes (a missed DELETE is a resurrection vector) are
+  // reconciled. The callback is wired by SyncProvider to its incremental pull.
+  private onRealtimeBackfillNeeded: (() => void) | null = null;
+  private realtimeEverSubscribed = new Set<string>();
+  private backfillDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(client: SupabaseClient, userId: string) {
     this.client = client;
@@ -187,6 +196,47 @@ export class SyncManager implements SyncManagerInterface {
 
   setConflictCallback(cb: ConflictCallback): void {
     this.onConflictCountChange = cb;
+  }
+
+  /**
+   * Register the catch-up pull to run when a realtime channel RE-subscribes
+   * after a transport drop (P1-3). SyncProvider wires this to its incremental
+   * pull so events missed during a websocket gap are backfilled.
+   */
+  setRealtimeBackfillCallback(cb: () => void): void {
+    this.onRealtimeBackfillNeeded = cb;
+  }
+
+  /**
+   * Realtime channel status handler (P1-3). Supabase auto-rejoins a dropped
+   * channel and re-fires `SUBSCRIBED`; the FIRST subscribe is the initial one
+   * (already covered by the provider's initial pull), so we only backfill on a
+   * SUBSEQUENT `SUBSCRIBED` for the same channel — i.e. a reconnect. Keyed by a
+   * stable channel label so each channel tracks its own lifecycle; the set is
+   * cleared on a deliberate teardown so a membership-driven re-subscribe doesn't
+   * count as a reconnect.
+   */
+  private handleChannelStatus(channelKey: string, status: string): void {
+    if (status === 'SUBSCRIBED') {
+      if (this.realtimeEverSubscribed.has(channelKey)) {
+        console.info(`${LOG_PREFIX} Realtime re-subscribed (${channelKey}) — scheduling catch-up pull`);
+        this.scheduleRealtimeBackfill();
+      } else {
+        this.realtimeEverSubscribed.add(channelKey);
+      }
+    } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+      // Supabase auto-rejoins; the ensuing SUBSCRIBED triggers the backfill above.
+      console.warn(`${LOG_PREFIX} Realtime channel ${channelKey} status: ${status} (auto-rejoining)`);
+    }
+  }
+
+  /** Debounce coincident channel reconnects into a single catch-up pull. */
+  private scheduleRealtimeBackfill(): void {
+    if (this.backfillDebounceTimer) clearTimeout(this.backfillDebounceTimer);
+    this.backfillDebounceTimer = setTimeout(() => {
+      this.backfillDebounceTimer = null;
+      this.onRealtimeBackfillNeeded?.();
+    }, 1500);
   }
 
   /**
@@ -518,8 +568,13 @@ export class SyncManager implements SyncManagerInterface {
       }
     }
 
-    // Mark as syncing
-    await updateSyncItem({ ...item, status: 'syncing' });
+    // Mark as syncing, stamping a fresh compare-and-swap token (P1-4). The
+    // success/failure finalizers below only mutate the row if this token still
+    // matches — so an edit/delete the user enqueues during the in-flight push
+    // (which overwrites this deterministic-id row, clearing the token) is never
+    // destroyed by the completing push.
+    const syncToken = crypto.randomUUID();
+    await updateSyncItem({ ...item, status: 'syncing', syncToken });
 
     try {
       const table = entityTypeToTable[item.entityType];
@@ -767,8 +822,18 @@ export class SyncManager implements SyncManagerInterface {
         if (error) throw error;
       }
 
-      // Success — remove from queue and clear any auth-refresh marker
-      await deleteSyncItem(item.id);
+      // Success — remove from queue (only if no newer edit/delete was enqueued
+      // during the in-flight push; CAS on syncToken, P1-4) and clear the
+      // auth-refresh marker. If a newer item replaced this row, it is preserved
+      // and pushed on the next cycle — critical for the delete-during-create case
+      // where dropping the queued delete would resurrect the row on the next pull.
+      const removed = await deleteSyncItemIfToken(item.id, syncToken);
+      if (!removed) {
+        console.info(
+          `${LOG_PREFIX} ${item.entityType}/${item.entityId} pushed, but a newer ` +
+          `queue entry was enqueued mid-flight — keeping it for the next cycle.`,
+        );
+      }
       this.authRefreshedItemIds.delete(item.id);
       return true;
     } catch (err: unknown) {
@@ -815,10 +880,15 @@ export class SyncManager implements SyncManagerInterface {
       // is deterministic — retrying can never make a forbidden write succeed —
       // so park/drop it immediately instead. Scoped to global entities so a
       // genuine transient permission blip on a local table still gets retries.
-      if (errorCode === '42501' && isGlobalEntity(item.entityType) && item.action !== 'delete') {
+      // Includes delete actions (P1-1): a member applying a pulled project
+      // tombstone could re-enqueue an outbound delete the RLS cascade RPC rejects
+      // (creator/admin-only). The silent-cascade fix stops the enqueue at the
+      // source; this is the backstop so any delete-push that still hits 42501 is
+      // dropped immediately instead of churning the retry/error machinery.
+      if (errorCode === '42501' && isGlobalEntity(item.entityType)) {
         console.warn(
-          `${LOG_PREFIX} RLS-rejected (42501) on ${item.entityType}/${item.entityId} — ` +
-          `dropping as non-retryable (cannot push a row you don't own)`,
+          `${LOG_PREFIX} RLS-rejected (42501) on ${item.entityType}/${item.entityId} ` +
+          `(${item.action}) — dropping as non-retryable (cannot push a row you don't own)`,
         );
         await this.captureSyncError(err, { ...captureCtx, retryCount: item.retriedCount });
         await deleteSyncItem(item.id);
@@ -850,12 +920,13 @@ export class SyncManager implements SyncManagerInterface {
         } catch (refreshErr) {
           console.warn(`${LOG_PREFIX} Session refresh failed:`, refreshErr);
         }
-        // Requeue without incrementing the retry count.
-        await updateSyncItem({
+        // Requeue without incrementing the retry count (CAS — don't clobber a
+        // mid-flight enqueue, P1-4).
+        await updateSyncItemIfToken({
           ...item,
           status: 'pending',
           lastError: errorMsg,
-        });
+        }, syncToken);
         return false;
       }
       // ── End token-expired handling ────────────────────────────────────────
@@ -879,7 +950,7 @@ export class SyncManager implements SyncManagerInterface {
       }
 
       if (isTerminal) {
-        await updateSyncItem({
+        await updateSyncItemIfToken({
           ...item,
           status: 'failed',
           retriedCount: newRetryCount,
@@ -887,7 +958,7 @@ export class SyncManager implements SyncManagerInterface {
           lastErrorCode: errorCode || undefined,
           // Terminal — clear any backoff gate (the auto-recovery sweep owns it now).
           nextRetryAt: undefined,
-        });
+        }, syncToken);
         console.error(
           `${LOG_PREFIX} Permanently failed: ${item.entityType}/${item.entityId} — ${errorMsg}`,
         );
@@ -897,14 +968,14 @@ export class SyncManager implements SyncManagerInterface {
         // tick. nextRetryAt = now + base * 2^retriedCount (capped); the eligible
         // filter in getPendingSyncItems skips the item until then.
         const nextRetryAt = computeNextRetryAt(item.retriedCount);
-        await updateSyncItem({
+        await updateSyncItemIfToken({
           ...item,
           status: 'pending',
           retriedCount: newRetryCount,
           lastError: errorMsg,
           lastErrorCode: errorCode || undefined,
           nextRetryAt,
-        });
+        }, syncToken);
       }
       return false;
     }
@@ -1255,7 +1326,7 @@ export class SyncManager implements SyncManagerInterface {
             if (entityType === 'projects') {
               const pid = row.id as string | undefined;
               if (pid) {
-                await cascadeDeleteProject(pid).catch((e) =>
+                await cascadeDeleteProject(pid, { silent: true }).catch((e) =>
                   console.warn(`${LOG_PREFIX} pullSync cascade (projects/${pid}) failed:`, e),
                 );
                 totalDeleted++;
@@ -1263,7 +1334,7 @@ export class SyncManager implements SyncManagerInterface {
             } else if (entityType === 'globalProjects') {
               const gpid = row.id as string | undefined;
               if (gpid) {
-                await cascadeDeleteGlobalProject(gpid).catch((e) =>
+                await cascadeDeleteGlobalProject(gpid, { silent: true }).catch((e) =>
                   console.warn(`${LOG_PREFIX} pullSync cascade (globalProjects/${gpid}) failed:`, e),
                 );
                 totalDeleted++;
@@ -1408,13 +1479,13 @@ export class SyncManager implements SyncManagerInterface {
                 // Cascade so children are removed too (otherwise they linger
                 // and keep pushing against RLS forever).
                 for (const pid of staleIds) {
-                  await cascadeDeleteProject(pid).catch((e) =>
+                  await cascadeDeleteProject(pid, { silent: true }).catch((e) =>
                     console.warn(`${LOG_PREFIX} subtractive cascade (projects/${pid}) failed:`, e),
                   );
                 }
               } else if (entityType === 'globalProjects') {
                 for (const gpid of staleIds) {
-                  await cascadeDeleteGlobalProject(gpid).catch((e) =>
+                  await cascadeDeleteGlobalProject(gpid, { silent: true }).catch((e) =>
                     console.warn(`${LOG_PREFIX} subtractive cascade (globalProjects/${gpid}) failed:`, e),
                   );
                 }
@@ -1784,7 +1855,7 @@ export class SyncManager implements SyncManagerInterface {
       },
     );
 
-    projectChannel.subscribe();
+    projectChannel.subscribe((status: string) => this.handleChannelStatus('global-projects', status));
     this.globalRealtimeChannels.push(projectChannel);
 
     // Channel 2 — global child tables. Skip if user has no memberships.
@@ -1811,7 +1882,7 @@ export class SyncManager implements SyncManagerInterface {
           },
         );
       }
-      childChannel.subscribe();
+      childChannel.subscribe((status: string) => this.handleChannelStatus('global-children', status));
       this.globalRealtimeChannels.push(childChannel);
     }
 
@@ -1824,6 +1895,15 @@ export class SyncManager implements SyncManagerInterface {
 
   /** Tear down all active global realtime channels. */
   unsubscribeFromGlobalRealtime(): void {
+    // Reset the per-channel subscribe history so a deliberate re-subscribe (e.g.
+    // a membership change) is treated as a fresh first subscribe, not a reconnect
+    // (P1-3) — only a transport-level auto-rejoin, which never calls this, should
+    // trigger a backfill pull.
+    this.realtimeEverSubscribed.clear();
+    if (this.backfillDebounceTimer) {
+      clearTimeout(this.backfillDebounceTimer);
+      this.backfillDebounceTimer = null;
+    }
     if (this.globalRealtimeChannels.length === 0) return;
     for (const channel of this.globalRealtimeChannels) {
       try {
@@ -1854,7 +1934,7 @@ export class SyncManager implements SyncManagerInterface {
         // don't keep pushing against RLS.
         const id = oldRow.id as string | undefined;
         if (id) {
-          await cascadeDeleteGlobalProject(id).catch((e) =>
+          await cascadeDeleteGlobalProject(id, { silent: true }).catch((e) =>
             console.warn(`${LOG_PREFIX} realtime cascade (globalProjects/${id}) failed:`, e),
           );
         }
@@ -1883,7 +1963,7 @@ export class SyncManager implements SyncManagerInterface {
         // Parent soft-deleted — cascade to all IndexedDB child stores.
         const id = newRow.id as string | undefined;
         if (id) {
-          await cascadeDeleteGlobalProject(id).catch((e) =>
+          await cascadeDeleteGlobalProject(id, { silent: true }).catch((e) =>
             console.warn(`${LOG_PREFIX} realtime soft-delete cascade (globalProjects/${id}) failed:`, e),
           );
         }

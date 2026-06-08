@@ -29,6 +29,8 @@ vi.mock('@/lib/db', () => ({
   resetSyncingItemsToPending: vi.fn().mockResolvedValue(0),
   updateSyncItem: vi.fn().mockResolvedValue(undefined),
   deleteSyncItem: vi.fn().mockResolvedValue(undefined),
+  deleteSyncItemIfToken: vi.fn().mockResolvedValue(true),
+  updateSyncItemIfToken: vi.fn().mockResolvedValue(true),
   getSyncQueueCount: vi.fn().mockResolvedValue({ pending: 0, failed: 0 }),
   getAllFromStore: vi.fn().mockResolvedValue([]),
   clearSyncQueueExceptFailed: vi.fn().mockResolvedValue(0),
@@ -56,6 +58,7 @@ const dbMocks = {
   getPendingSyncItems: vi.mocked(db.getPendingSyncItems),
   getAllFromStore: vi.mocked(db.getAllFromStore),
   updateSyncItem: vi.mocked(db.updateSyncItem),
+  updateSyncItemIfToken: vi.mocked(db.updateSyncItemIfToken),
   deleteSyncItem: vi.mocked(db.deleteSyncItem),
   addSyncError: vi.mocked(db.addSyncError),
 };
@@ -234,7 +237,8 @@ describe('processItem — capture at terminal only + backoff (Findings #6 + Fix 
     // Captured exactly once on the first occurrence.
     expect(dbMocks.addSyncError).toHaveBeenCalledTimes(1);
     // Re-queued as pending with a future nextRetryAt (exponential backoff).
-    const firstUpdate = dbMocks.updateSyncItem.mock.calls
+    // The failure update goes through the token-guarded finalizer (P1-4).
+    const firstUpdate = dbMocks.updateSyncItemIfToken.mock.calls
       .map((c) => c[0] as SyncQueueItem)
       .find((i) => i.status === 'pending' && i.retriedCount === 1);
     expect(firstUpdate).toBeDefined();
@@ -268,7 +272,7 @@ describe('processItem — capture at terminal only + backoff (Findings #6 + Fix 
     await manager.processQueue();
 
     expect(dbMocks.addSyncError).toHaveBeenCalledTimes(1);
-    const terminal = dbMocks.updateSyncItem.mock.calls
+    const terminal = dbMocks.updateSyncItemIfToken.mock.calls
       .map((c) => c[0] as SyncQueueItem)
       .find((i) => i.status === 'failed');
     expect(terminal).toBeDefined();
