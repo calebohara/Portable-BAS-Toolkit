@@ -72,3 +72,6 @@ docs/**/*.md
 !docs/ACTIVE-BUGS.md
 !docs/README-SYNC.md
 !docs/PXC7-CONNECTIVITY-FINDINGS.md
+
+# Claude Code machine-local settings (permission allowlist) — never commit
+.claude/settings.local.json
