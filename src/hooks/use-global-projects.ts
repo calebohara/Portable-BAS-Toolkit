@@ -313,6 +313,14 @@ export function useGlobalProject(id: string | undefined) {
   const leave = useCallback(async () => {
     if (!id) return;
     unwrap(await leaveGlobalProject(id));
+    // Clean up the local mirror so the left project's data doesn't linger in IDB
+    // (P3-1). SILENT cascade — the user is leaving, not deleting the shared
+    // project, so we must NOT re-enqueue outbound deletes (they'd 42501). Mirrors
+    // `remove`, but `remove` legitimately propagates the delete; `leave` only
+    // drops the local copy.
+    await cascadeDeleteGlobalProject(id, { silent: true }).catch((e) =>
+      console.warn('[useGlobalProject] local cascade on leave failed (non-fatal):', e),
+    );
     notifyMembershipChanged();
   }, [id]);
 

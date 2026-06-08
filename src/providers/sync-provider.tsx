@@ -187,6 +187,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }).catch((err) => {
         console.warn('[sync] Failed to re-subscribe to global realtime:', err);
       });
+      // Hydrate the offline mirror after a membership change (P2-5). A JOIN
+      // otherwise never pulls the project's PRE-EXISTING child rows: the
+      // incremental pull filters `updated_at >= lastPulledAt` (excluding older
+      // rows) and realtime only delivers FUTURE changes, so a tech who joins on
+      // Wi-Fi then drives to a no-signal site has none of the shared data
+      // locally. A full pull is tombstone-respecting and one-shot.
+      void triggerFullPull();
     };
     window.addEventListener(GLOBAL_MEMBERSHIP_CHANGED_EVENT, handleMembershipChanged);
 

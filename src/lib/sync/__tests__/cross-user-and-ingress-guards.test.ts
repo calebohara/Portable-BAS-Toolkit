@@ -462,3 +462,68 @@ describe('realtime reconnect backfill (P1-3)', () => {
     }
   });
 });
+
+// ─── P2-1 / P3-2: membership-revocation local cleanup ───────────────────────
+describe('membership-revocation reconcile (P2-1 / P3-2)', () => {
+  beforeEach(() => vi.clearAllMocks()); // sibling describe — reset call history per test
+  type RevocableManager = { reconcileMembershipRevocations: () => Promise<void> };
+  // A supabase mock whose global_project_members query resolves to a fixed result.
+  function membershipSupabase(result: { data: unknown; error: unknown }) {
+    const s = createMockSupabase();
+    s.from = vi.fn((table: string) => {
+      if (table === 'global_project_members') {
+        const b = { select: () => b, eq: () => Promise.resolve(result) } as unknown as MockFrom;
+        return b;
+      }
+      return s._mock;
+    });
+    return s;
+  }
+
+  it('drops the local mirror of a global project the user no longer belongs to', async () => {
+    const supabase = membershipSupabase({ data: [{ global_project_id: 'gp-A' }], error: null });
+    const manager = new SyncManager(supabase as never, TEST_USER_ID);
+    vi.mocked(db.getAllFromStore).mockResolvedValueOnce([{ id: 'gp-A' }, { id: 'gp-B' }]);
+
+    await (manager as unknown as RevocableManager).reconcileMembershipRevocations();
+
+    // gp-B (no longer a member) is reaped silently; gp-A (still a member) survives.
+    expect(vi.mocked(db.cascadeDeleteGlobalProject)).toHaveBeenCalledWith('gp-B', { silent: true });
+    expect(vi.mocked(db.cascadeDeleteGlobalProject)).not.toHaveBeenCalledWith('gp-A', { silent: true });
+    manager.stop();
+  });
+
+  it('FAILS CLOSED — reaps nothing when the membership fetch errors (no transient wipe)', async () => {
+    const supabase = membershipSupabase({ data: null, error: { message: 'network down' } });
+    const manager = new SyncManager(supabase as never, TEST_USER_ID);
+    vi.mocked(db.getAllFromStore).mockResolvedValueOnce([{ id: 'gp-A' }, { id: 'gp-B' }]);
+
+    await (manager as unknown as RevocableManager).reconcileMembershipRevocations();
+
+    expect(vi.mocked(db.cascadeDeleteGlobalProject)).not.toHaveBeenCalled();
+    manager.stop();
+  });
+});
+
+// ─── P2-4: subscribeToGlobalRealtime concurrency guard ──────────────────────
+describe('realtime subscribe concurrency (P2-4)', () => {
+  it('two interleaving subscribes build ONE channel set, not duplicate same-topic channels', async () => {
+    const supabase = createMockSupabase();
+    const manager = new SyncManager(supabase as never, '7c7c7c7c-1111-2222-3333-444444444444');
+
+    // Fire two subscribes concurrently (mount + membership-changed). Each awaits
+    // the membership fetch; without the generation guard both would build a
+    // channel on the same topic → duplicate bindings + leaked refs.
+    const [c1, c2] = await Promise.all([
+      manager.subscribeToGlobalRealtime(),
+      manager.subscribeToGlobalRealtime(true),
+    ]);
+
+    // Only the winning generation built a channel (no memberships → 1 channel).
+    expect(supabase._channels.length).toBe(1);
+    // The superseded call returned a no-op cleanup (built nothing).
+    expect(typeof c1).toBe('function');
+    expect(typeof c2).toBe('function');
+    manager.stop();
+  });
+});

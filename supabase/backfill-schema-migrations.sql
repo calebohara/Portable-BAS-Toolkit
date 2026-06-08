@@ -59,6 +59,8 @@ select migration from (
   union all select 'add-daily-report-name.sql' where exists(select 1 from information_schema.columns where table_schema='public' and table_name='daily_reports' and column_name='name')
   union all select 'add-sync-version-insert-defaults.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='init_sync_version')
   union all select 'add-cascade-soft-delete-rpcs.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='cascade_soft_delete_global_project')
+  union all select 'add-global-activity-log-server-timestamp.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='force_global_activity_timestamp')
+  union all select 'add-last-admin-guard.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='prevent_last_admin_removal')
 ) applied
 on conflict (id) do nothing;
 

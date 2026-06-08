@@ -775,6 +775,18 @@ export function _resetDroppedColumnWarnings(): void {
 }
 
 /**
+ * The schema-derived set of Supabase columns the client owns for an entity (the
+ * allowlist `toSupabaseRow` gates on). Exposed so the conflict content-equality
+ * gate can compare the FULL set of client-owned columns — not just the ones
+ * present in a given push payload — so a field the user CLEARED (dropped from the
+ * payload by toSupabaseRow's undefined-skip) is still compared against the
+ * remote's value rather than silently ignored (P3-3).
+ */
+export function entityOwnedColumns(entityType: SyncEntityType): Set<string> {
+  return ENTITY_COLUMN_ALLOWLIST[entityType] ?? new Set<string>();
+}
+
+/**
  * Converts a local IndexedDB entity to a Supabase-compatible row.
  * Adds user_id (local) or created_by/updated_by (global membership-RLS entities),
  * converts camelCase fields to snake_case, and strips local-only fields.

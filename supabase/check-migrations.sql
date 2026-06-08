@@ -109,6 +109,10 @@ with probe(seq, migration, probe_desc, applied) as (
     exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='init_sync_version')
   union all select 48, 'add-cascade-soft-delete-rpcs.sql', 'function cascade_soft_delete_global_project',
     exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='cascade_soft_delete_global_project')
+  union all select 49, 'add-global-activity-log-server-timestamp.sql', 'function force_global_activity_timestamp',
+    exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='force_global_activity_timestamp')
+  union all select 50, 'add-last-admin-guard.sql', 'function prevent_last_admin_removal',
+    exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='prevent_last_admin_removal')
 )
 select
   seq            as "#",

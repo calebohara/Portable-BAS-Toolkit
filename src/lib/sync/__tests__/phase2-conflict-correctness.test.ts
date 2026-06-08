@@ -472,4 +472,50 @@ describe('Hotfix — identical content with a higher remote version is NOT a con
     expect(supabase._mock.upsert).not.toHaveBeenCalled();
     manager.stop();
   });
+
+  it('does NOT adopt the cloud row when the user CLEARED a field the remote still has (P3-3)', async () => {
+    // Remote still carries a non-empty mac_address; local cleared it to undefined
+    // (so toSupabaseRow drops it from the push payload). Otherwise identical, with
+    // a higher remote version. The OLD gate iterated only payload keys → never
+    // compared mac_address → "identical" → silently adopted cloud, discarding the
+    // clear. The fix compares the FULL client-owned column set, so the clear vs a
+    // non-empty remote value is a real divergence → conflict, not silent adopt.
+    const remoteRow = {
+      id: ID,
+      global_project_id: GPID,
+      device_name: 'VAV-2',
+      mac_address: 'AA:BB:CC:DD:EE:FF',          // ← remote still set
+      updated_at: '2026-03-01T00:00:00.000Z',
+      sync_version: 9,
+    };
+    const supabase = createMockSupabase(remoteRow);
+    const manager = new SyncManager(supabase as never, TEST_USER_ID);
+
+    const item: SyncQueueItem = {
+      id: `globalDevices-${ID}`,
+      action: 'update',
+      entityType: 'globalDevices',
+      entityId: ID,
+      payload: {
+        id: ID,
+        globalProjectId: GPID,
+        deviceName: 'VAV-2',
+        macAddress: undefined,                   // ← user cleared it (dropped on push)
+        updatedAt: '2026-03-20T00:00:00.000Z',
+        syncVersion: 3,
+      },
+      userId: TEST_USER_ID,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      retriedCount: 0,
+    };
+    dbMocks.getPendingSyncItems.mockResolvedValueOnce([item]);
+
+    await manager.processQueue();
+
+    // The clear is a real divergence → conflict raised, cloud row NOT adopted.
+    expect(dbMocks.addSyncConflict).toHaveBeenCalledTimes(1);
+    expect(dbMocks.bulkPutSilent).not.toHaveBeenCalled();
+    manager.stop();
+  });
 });

@@ -16,7 +16,7 @@ import {
   entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER, orderPushBatch,
   fromSupabaseRow, isDeletedRow, REQUIRES_PROJECT_ID,
   isGlobalEntity, GLOBAL_ENTITY_TYPES, GLOBAL_AUDITED_ENTITY_TYPES,
-  REQUIRES_GLOBAL_PROJECT_ID, supportsSubtractivePull,
+  REQUIRES_GLOBAL_PROJECT_ID, supportsSubtractivePull, entityOwnedColumns,
 } from './field-map';
 import { emitPullComplete, type SyncManagerInterface } from './sync-bridge';
 import { formatPostgrestError, sanitizeForLog, isTransientSyncError } from './sync-error-utils';
@@ -99,18 +99,24 @@ function columnValuesEqual(a: unknown, b: unknown): boolean {
 /**
  * True if the row the client WOULD push (`pushRow`, already mapped to Supabase
  * column shape by toSupabaseRow) is content-identical to the existing cloud row
- * (`remoteRow`), ignoring server-owned/volatile columns. We only iterate the
- * columns the client owns — extra server columns on remoteRow are irrelevant
- * because the client never writes them. If every client-owned column matches,
- * pushing would be a no-op, so a version/timestamp difference is NOT a conflict.
+ * (`remoteRow`), ignoring server-owned/volatile columns.
+ *
+ * We iterate the entity's FULL client-owned column allowlist — NOT just the keys
+ * present in `pushRow` (P3-3). `toSupabaseRow` drops `undefined`-valued fields,
+ * so a column the user CLEARED is absent from `pushRow`; iterating only pushRow
+ * keys would never compare it against the remote's non-empty value, the gate
+ * would report "identical", and the clear would be silently discarded by
+ * adopting the cloud row. Comparing every allowlisted column (an absent pushRow
+ * column reads as empty) makes a real clear register as a divergence.
  */
 function pushRowMatchesRemote(
+  entityType: SyncEntityType,
   pushRow: Record<string, unknown>,
   remoteRow: Record<string, unknown>,
 ): boolean {
-  for (const [key, value] of Object.entries(pushRow)) {
-    if (CONFLICT_IGNORED_COLUMNS.has(key)) continue;
-    if (!columnValuesEqual(value, remoteRow[key])) return false;
+  for (const col of entityOwnedColumns(entityType)) {
+    if (CONFLICT_IGNORED_COLUMNS.has(col)) continue;
+    if (!columnValuesEqual(pushRow[col], remoteRow[col])) return false;
   }
   return true;
 }
@@ -184,6 +190,12 @@ export class SyncManager implements SyncManagerInterface {
   private onRealtimeBackfillNeeded: (() => void) | null = null;
   private realtimeEverSubscribed = new Set<string>();
   private backfillDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+  // Monotonic generation token (P2-4). subscribeToGlobalRealtime awaits a
+  // membership fetch before building fixed-topic channels; two interleaving
+  // calls (mount + membership-changed) would otherwise stack duplicate channels
+  // on the same topic → events applied twice + leaked refs. Each call captures a
+  // generation and aborts after the await if a newer call has superseded it.
+  private realtimeSubscribeGen = 0;
 
   constructor(client: SupabaseClient, userId: string) {
     this.client = client;
@@ -759,7 +771,7 @@ export class SyncManager implements SyncManagerInterface {
                 // re-enqueues unchanged rows another device has since bumped).
                 // Silently reconcile: adopt the cloud row locally (so syncVersion
                 // catches up) and drop the queue item. No prompt, no push.
-                if (pushRowMatchesRemote(row, remoteRow)) {
+                if (pushRowMatchesRemote(item.entityType, row, remoteRow)) {
                   await bulkPutSilent(item.entityType, [fromSupabaseRow(item.entityType, remoteRow)]);
                   await deleteSyncItem(item.id);
                   console.info(
@@ -1535,7 +1547,63 @@ export class SyncManager implements SyncManagerInterface {
       `${LOG_PREFIX} Pull sync complete: ${totalPulled} pulled, ${totalDeleted} deleted`,
     );
 
+    // Drop the local mirror of any global project the user is no longer a member
+    // of (P2-1 / P3-2). Membership removal produces NO tombstone, so this runs on
+    // every pull cycle (not just full pulls). Never fails the pull.
+    await this.reconcileMembershipRevocations().catch((e) =>
+      console.warn(`${LOG_PREFIX} membership-revocation reconcile failed (non-fatal):`, e),
+    );
+
     return { pulled: totalPulled, deleted: totalDeleted, errors, newPulledAt };
+  }
+
+  /**
+   * Remove the local mirror of any global project the user is no longer a member
+   * of — removed by an admin, or left on another device (P2-1 / P3-2). Membership
+   * removal produces no tombstone (RLS just stops returning the rows), so a diff
+   * of the live membership set against the locally-mirrored global projects is how
+   * a removed member's device learns to drop the stale copy.
+   *
+   * FAILS CLOSED: if the membership fetch errors (or throws), we do NOTHING — a
+   * transient blip must never wipe the user's local mirror. A SUCCESSFUL empty
+   * result (genuinely no memberships) does reap every local global project, which
+   * is correct. The cascade is SILENT — the user can't delete the shared project,
+   * so no outbound delete pushes are enqueued.
+   */
+  private async reconcileMembershipRevocations(): Promise<void> {
+    // Strict membership fetch — distinct from fetchMyGlobalProjectIds (which
+    // returns [] on error, indistinguishable from "no memberships"). Here an
+    // error must SKIP, so we read the result explicitly.
+    let memberIds: Set<string>;
+    try {
+      const { data, error } = await this.client
+        .from('global_project_members')
+        .select('global_project_id')
+        .eq('user_id', this.userId);
+      if (error) return; // fail closed
+      memberIds = new Set(
+        (data ?? [])
+          .map((r) => (r as { global_project_id?: string }).global_project_id)
+          .filter((x): x is string => typeof x === 'string' && x.length > 0),
+      );
+    } catch {
+      return; // fail closed
+    }
+
+    let localGlobalProjects: Array<{ id: string }>;
+    try {
+      localGlobalProjects = (await getAllFromStore('globalProjects')) as Array<{ id: string }>;
+    } catch {
+      return;
+    }
+
+    for (const gp of localGlobalProjects) {
+      if (!gp?.id || memberIds.has(gp.id)) continue;
+      console.info(`${LOG_PREFIX} No longer a member of global project ${gp.id} — removing local mirror`);
+      await cascadeDeleteGlobalProject(gp.id, { silent: true }).catch((e) =>
+        console.warn(`${LOG_PREFIX} membership-revocation cleanup for ${gp.id} failed:`, e),
+      );
+    }
   }
 
   /**
@@ -1810,10 +1878,18 @@ export class SyncManager implements SyncManagerInterface {
    * filters immediately, rather than after the 30s cache TTL expires.
    */
   async subscribeToGlobalRealtime(force = false): Promise<() => void> {
-    // Tear down any prior subscriptions before re-subscribing.
+    // Claim a generation, then tear down any prior subscriptions (P2-4).
+    const gen = ++this.realtimeSubscribeGen;
     this.unsubscribeFromGlobalRealtime();
 
     const memberProjectIds = await fetchMyGlobalProjectIds(this.client, this.userId, force);
+    // A newer subscribe() superseded us during the membership fetch. Abort BEFORE
+    // building any channels — the newer call owns the (single) channel set, and
+    // building here would stack duplicate same-topic bindings. Channel building
+    // below is synchronous (no further await), so passing this gate is atomic.
+    if (gen !== this.realtimeSubscribeGen) {
+      return () => {};
+    }
     // If the user belongs to no global projects, the IN filters would be
     // empty (Postgres rejects `IN ()`). Subscribe only to the per-user
     // preferences table in that case; the child-tables channel is skipped.

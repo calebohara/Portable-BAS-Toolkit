@@ -116,3 +116,5 @@ Status legend: **L** = ledger-tracked once setup is run · **P** = pending (appl
 | 47 | add-daily-report-name.sql | `daily_reports.name` + `global_daily_reports.name` cols | L (applied 2026-06-07) |
 | 48 | add-sync-version-insert-defaults.sql | `init_sync_version()` BEFORE INSERT trigger fn (server-owns `updated_at` + `sync_version` on insert) | L (pending) |
 | 49 | add-cascade-soft-delete-rpcs.sql | `cascade_soft_delete_global_project()` + `cascade_soft_delete_project()` SECURITY DEFINER RPCs (atomic parent+child soft-delete cascade) | P (pending) |
+| 50 | add-global-activity-log-server-timestamp.sql | `force_global_activity_timestamp()` BEFORE INSERT trigger (server-owns `global_activity_log.timestamp` so slow-clock devices' rows aren't skipped by the incremental cursor) — P2-3 | P (pending) |
+| 51 | add-last-admin-guard.sql | `prevent_last_admin_removal()` BEFORE DELETE/UPDATE trigger on `global_project_members` (rejects removing/demoting the last admin while other members remain) — P2-2 | P (pending) |
