@@ -616,6 +616,27 @@ export class SyncManager implements SyncManagerInterface {
           { isUpdate: item.action === 'update' },
         );
 
+        // ── Stamp created_by on update-action upserts that may INSERT ─────────
+        // The queue is keyed on a deterministic `${entityType}-${entityId}` id, so
+        // a `create` that the user edits before it syncs is OVERWRITTEN by an
+        // `update` (sync-manager.enqueue). That `update` still resolves to an
+        // INSERT here whenever the cloud row doesn't exist yet (the original
+        // create never landed). But toSupabaseRow(isUpdate:true) intentionally
+        // omits created_by (treating it as immutable), and the payload's own
+        // createdBy is stripped for audited globals — so the upsert→INSERT lands
+        // created_by = NULL and trips the INSERT `WITH CHECK (created_by =
+        // auth.uid())` with 42501, blocking a legitimate member's first sync of
+        // any global child row. foreignGlobalAuthor() above already guaranteed
+        // this row is the current user's own, so stamping created_by = me is
+        // always correct here: it satisfies the INSERT check, and on a genuine
+        // UPDATE it's a no-op (the stored value already equals auth.uid()).
+        if (
+          item.action === 'update'
+          && (item.entityType === 'globalProjects' || GLOBAL_AUDITED_ENTITY_TYPES.has(item.entityType))
+        ) {
+          row.created_by = this.userId;
+        }
+
         // Conflict detection: for updates, check if remote is newer.
         // globalActivityLog is append-only (no updates) and globalProjectPreferences
         // doesn't have a stable `id` column to look up — skip conflict detection

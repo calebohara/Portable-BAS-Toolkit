@@ -65,6 +65,7 @@ docs/**/*.md
 !docs/DesignAgents-fixes-*.md
 !docs/SyncAgents-fixes-*.md
 !docs/SyncAgents-plan-*.md
+!docs/SyncErrorAgents-fixes-*.md
 !docs/ShareAgents-fixes-*.md
 !docs/ShareAgents-plan-*.md
 !docs/MIGRATIONS.md

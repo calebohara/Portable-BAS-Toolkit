@@ -159,6 +159,38 @@ describe('cross-user push guard (Finding #3, generalized)', () => {
     expect(dbMocks.deleteSyncItem).toHaveBeenCalledWith(item.id);
   });
 
+  it('stamps created_by on an own-authored update so a coalesced create→update upsert→INSERT survives RLS', async () => {
+    // Repro of the 42501 on global_devices/global_field_notes: the queue is
+    // keyed on a deterministic id, so a create the user edits before it syncs
+    // becomes an `update`. That update upserts→INSERTs when the cloud row never
+    // landed; without created_by it fails `WITH CHECK (created_by = auth.uid())`.
+    const id = 'eeee1111-2222-3333-4444-555555555555';
+    const item = makeItem({
+      id: `globalDevices-${id}`,
+      entityType: 'globalDevices',
+      entityId: id,
+      action: 'update',
+      payload: {
+        id,
+        globalProjectId: GPID,
+        deviceName: 'AHU-3',
+        // createdBy is the current user (own row) but gets stripped on push by
+        // the audited-global mapper — the upsert must still carry created_by.
+        createdBy: TEST_USER_ID,
+        updatedBy: TEST_USER_ID,
+        updatedAt: '2026-03-19T00:00:00.000Z',
+      },
+    });
+
+    dbMocks.getPendingSyncItems.mockResolvedValueOnce([item]);
+    await manager.processQueue();
+
+    expect(supabase._mock.upsert).toHaveBeenCalledTimes(1);
+    const pushedRow = supabase._mock.upsert.mock.calls[0][0] as Record<string, unknown>;
+    expect(pushedRow.created_by).toBe(TEST_USER_ID);
+    expect(dbMocks.deleteSyncItem).toHaveBeenCalledWith(item.id);
+  });
+
   it('also covers globalProjects (created_by) — drops a foreign-authored project', async () => {
     const id = 'cccc1111-2222-3333-4444-555555555555';
     const item = makeItem({
