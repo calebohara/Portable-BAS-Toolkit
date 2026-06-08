@@ -678,6 +678,9 @@ describe('selective share', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     supabaseState.current = makeSupabaseStub();
+    // Re-arm the default Supabase `.from()` chain (clearAllMocks doesn't reset
+    // implementations, and per-test overrides below must not leak across tests).
+    supabaseMock.from.mockImplementation((table: string) => makeFromQuery(table));
     dbMocks.saveProject.mockResolvedValue(undefined);
     dbMocks.getAllProjects.mockResolvedValue([]);
     dbMocks.addActivity.mockResolvedValue(undefined);
@@ -753,6 +756,46 @@ describe('selective share', () => {
       const upserts = supabaseState.current!.upserts;
       expect(upserts.some((u) => u.table === 'global_devices')).toBe(true);
       expect(upserts.some((u) => u.table === 'global_field_notes')).toBe(true);
+    });
+  });
+
+  describe('non-admin member re-share (RLS on parent global_projects)', () => {
+    beforeEach(() => {
+      // Linked, existing global project (re-share path).
+      dbMocks.getProject.mockResolvedValue(makeLocalProject({ syncedGlobalId: 'global-uuid-1' }));
+      supabaseState.current!.projectLookupResult = { id: 'global-uuid-1', access_code: 'ABC-1234' };
+      dbMocks.getProjectDevices.mockResolvedValue([dev('dev-1', '2025-06-01T00:00:00.000Z')]);
+    });
+
+    it('does NOT abort the share when the member lacks rights to update project metadata (42501)', async () => {
+      // Make the global_projects upsert reject like a non-admin re-share would.
+      supabaseMock.from.mockImplementation((table: string) => {
+        const q = makeFromQuery(table);
+        if (table === 'global_projects') {
+          q.upsert = vi.fn(async () => ({ error: { message: 'new row violates row-level security policy', code: '42501' } }));
+        }
+        return q;
+      });
+
+      const res = await reconcileLocalToGlobal('local-uuid-1', undefined, { devices: 'all' });
+      // The share completes (no throw) and reports that project metadata was skipped…
+      expect(res.parentMetadataShared).toBe(false);
+      // …while the child rows the member CAN push were still upserted.
+      expect(supabaseState.current!.upserts.some((u) => u.table === 'global_devices')).toBe(true);
+    });
+
+    it('still THROWS on a NEW project create failure (genuine auth problem)', async () => {
+      dbMocks.getProject.mockResolvedValue(makeLocalProject()); // unlinked → isNewProject
+      supabaseState.current!.projectLookupResult = null;
+      supabaseMock.from.mockImplementation((table: string) => {
+        const q = makeFromQuery(table);
+        if (table === 'global_projects') {
+          q.upsert = vi.fn(async () => ({ error: { message: 'new row violates row-level security policy', code: '42501' } }));
+        }
+        return q;
+      });
+      await expect(reconcileLocalToGlobal('local-uuid-1', undefined, { devices: 'all' }))
+        .rejects.toThrow(/global_projects upsert failed/);
     });
   });
 });

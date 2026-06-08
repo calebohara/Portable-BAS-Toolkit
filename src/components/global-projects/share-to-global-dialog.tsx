@@ -168,7 +168,11 @@ export function ShareToGlobalDialog({
       setResult(shareResult);
       setState('success');
       emitUnsharedChanged(project.id); // tell the project page to recompute (→ count drops)
-      toast.success('Selected data shared to Global');
+      if (shareResult.parentMetadataShared === false) {
+        toast.success('Your data was shared — project details are admin-only and were left unchanged');
+      } else {
+        toast.success('Selected data shared to Global');
+      }
     } catch (err) {
       toast.error('Share failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
       setState('preview');

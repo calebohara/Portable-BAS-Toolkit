@@ -112,6 +112,13 @@ export interface ReconcileResult {
   /** True when the destination side did not exist before this reconcile. */
   isNewProject: boolean;
   counts: Record<string, EntityReconcileCounts>;
+  /**
+   * local→global only. False when the caller is a non-admin member of an
+   * existing global project: their selected child data was published, but the
+   * project's metadata (name/contacts) was left unchanged (admin-only). Lets the
+   * UI explain the partial outcome instead of implying a full share.
+   */
+  parentMetadataShared?: boolean;
 }
 
 // ─── Entity-pair registry ───────────────────────────────────────────────────
@@ -1314,10 +1321,34 @@ async function reconcileLocalToGlobalImpl(
   onProgress?.('Reconciling project metadata', 1, 2 + RECONCILED_ENTITY_PAIRS.length);
 
   // Upsert the project row.
+  //
+  // The global_projects UPDATE policy is admin-only (is_global_project_admin).
+  // A non-admin MEMBER re-sharing their LINKED local copy (e.g. a project they
+  // joined via Save-to-Local and keep fresh via the auto-mirror) cannot update
+  // the shared project's metadata — that's by design. But the parent upsert runs
+  // unconditionally, so a member's "Share local updates" / Review-&-Share would
+  // 42501 here and abort the ENTIRE share, even though member RLS lets them
+  // publish their own child rows. So: on a RE-SHARE, soften an RLS rejection on
+  // the parent — skip the metadata update and continue pushing the child data.
+  // On a NEW project (where the user MUST be able to create the row) a failure
+  // still throws, since that's a genuine auth problem worth surfacing.
+  let parentMetadataShared = true;
   const projectRow = buildGlobalProjectRow(localProject, globalProjectId, userId, accessCode, !isNewProject);
   {
     const { error } = await supabase.from('global_projects').upsert(projectRow, { onConflict: 'id' });
-    if (error) throw new Error(`global_projects upsert failed: ${error.message}`);
+    if (error) {
+      const code = (error as { code?: string }).code;
+      const isRls = code === '42501' || /row-level security/i.test(error.message);
+      if (isNewProject || !isRls) {
+        throw new Error(`global_projects upsert failed: ${error.message}`);
+      }
+      // Non-admin member re-share: keep going with the children they CAN push.
+      parentMetadataShared = false;
+      console.info(
+        '[reconcile] not an admin of the linked global project — skipping project-metadata ' +
+        'update and sharing the selected child data only.',
+      );
+    }
   }
 
   // On a NEW global project, ensure the creator is a member so RLS lets
@@ -1386,6 +1417,7 @@ async function reconcileLocalToGlobalImpl(
     accessCode: isNewProject ? accessCode : undefined,
     isNewProject,
     counts,
+    parentMetadataShared,
   };
 }
 
