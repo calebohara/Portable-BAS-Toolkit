@@ -6,27 +6,23 @@ import {
   Globe, Check, AlertTriangle, Copy, ExternalLink,
   FileText, HardDrive, Network, ClipboardList, FolderOpen,
   GitBranch, FileCode, Terminal, Activity, Wind, Calculator,
-  Radio, LineChart, Plug, X,
+  Radio, LineChart, Plug, FileSearch, ChevronRight,
 } from 'lucide-react';
 import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { copyToClipboard } from '@/lib/utils';
 import { toast } from 'sonner';
-import { reconcileLocalToGlobal, type ReconcileResult } from '@/lib/global-projects/reconcile';
+import {
+  reconcileLocalToGlobal, computeUnsharedChanges,
+  type ReconcileResult, type UnsharedChanges, type UnsharedItem,
+  type ShareSelection, type ReconciledEntityKey,
+} from '@/lib/global-projects/reconcile';
+import { emitUnsharedChanged } from '@/lib/global-projects/unshared-events';
 import { navigateToGlobalProject } from '@/lib/routes';
 import type { Project } from '@/types';
-import {
-  getProjectNotes, getProjectDevices, getProjectIpPlan,
-  getProjectDailyReports, getProjectDiagrams, getProjectFiles,
-  getProjectPpclDocuments, getProjectTerminalLogs,
-  getProjectPidTuningSessions, getProjectPsychSessions,
-  getProjectRegisterCalculations, getProjectPingSessions,
-  getProjectTrendSessions, getProjectConnectionProfiles,
-} from '@/lib/db';
 
 interface ShareToGlobalDialogProps {
   open: boolean;
@@ -36,28 +32,29 @@ interface ShareToGlobalDialogProps {
 
 type DialogState = 'preview' | 'sharing' | 'success';
 
-interface EntityCounts {
-  notes: number;
-  devices: number;
-  ipEntries: number;
-  reports: number;
-  diagrams: number;
-  files: number;
-  ppcl: number;
-  terminalLogs: number;
-  pidSessions: number;
-  psychSessions: number;
-  registerCalcs: number;
-  pingSessions: number;
-  trendSessions: number;
-  connectionProfiles: number;
-}
+// All 15 shareable categories, aligned 1:1 with RECONCILED_ENTITY_PAIRS keys so
+// the selective UI can never drift from what the engine pushes. (Previously the
+// dialog was missing `dxrs`.)
+const CATEGORY_META: { key: ReconciledEntityKey; icon: React.ComponentType<{ className?: string }>; label: string }[] = [
+  { key: 'notes', icon: FileText, label: 'Notes' },
+  { key: 'devices', icon: HardDrive, label: 'Devices' },
+  { key: 'ipPlan', icon: Network, label: 'IP Plan Entries' },
+  { key: 'dailyReports', icon: ClipboardList, label: 'Daily Reports' },
+  { key: 'files', icon: FolderOpen, label: 'Files' },
+  { key: 'networkDiagrams', icon: GitBranch, label: 'Network Diagrams' },
+  { key: 'ppclDocuments', icon: FileCode, label: 'PPCL Documents' },
+  { key: 'terminalLogs', icon: Terminal, label: 'Terminal Logs' },
+  { key: 'pidTuningSessions', icon: Activity, label: 'PID Sessions' },
+  { key: 'psychSessions', icon: Wind, label: 'Psych Sessions' },
+  { key: 'registerCalculations', icon: Calculator, label: 'Register Calcs' },
+  { key: 'pingSessions', icon: Radio, label: 'Ping Sessions' },
+  { key: 'trendSessions', icon: LineChart, label: 'Trend Sessions' },
+  { key: 'connectionProfiles', icon: Plug, label: 'Connection Profiles' },
+  { key: 'dxrs', icon: FileSearch, label: 'DXRs' },
+];
 
-const ZERO_COUNTS: EntityCounts = {
-  notes: 0, devices: 0, ipEntries: 0, reports: 0, diagrams: 0, files: 0,
-  ppcl: 0, terminalLogs: 0, pidSessions: 0, psychSessions: 0,
-  registerCalcs: 0, pingSessions: 0, trendSessions: 0, connectionProfiles: 0,
-};
+const ALL_KEYS = CATEGORY_META.map((c) => c.key);
+const PER_ITEM_CAP = 50; // cap the per-item expand list; category counts stay exact
 
 export function ShareToGlobalDialog({
   open,
@@ -69,53 +66,30 @@ export function ShareToGlobalDialog({
   const [progressMessage, setProgressMessage] = useState('');
   const [result, setResult] = useState<ReconcileResult | null>(null);
   const [copied, setCopied] = useState(false);
-  const [counts, setCounts] = useState<EntityCounts>(ZERO_COUNTS);
+  // The read-only diff (rows not yet published up) + the per-category selection.
+  const [diff, setDiff] = useState<UnsharedChanges | null>(null);
+  const [loadingDiff, setLoadingDiff] = useState(true);
+  const [selected, setSelected] = useState<Record<ReconciledEntityKey, Set<string>>>(() => emptySelection());
+  const [expanded, setExpanded] = useState<ReconciledEntityKey | null>(null);
 
-  // Load entity counts when the dialog opens.
+  // Compute the unshared-changes diff when the dialog opens; default-select all.
   useEffect(() => {
     if (!open || state !== 'preview') return;
     let cancelled = false;
+    setLoadingDiff(true);
     (async () => {
       try {
-        const [
-          notes, devices, ipEntries, reports, diagrams, files,
-          ppcl, terminalLogs, pidSessions, psychSessions,
-          registerCalcs, pingSessions, trendSessions, connectionProfiles,
-        ] = await Promise.all([
-          getProjectNotes(project.id),
-          getProjectDevices(project.id),
-          getProjectIpPlan(project.id),
-          getProjectDailyReports(project.id),
-          getProjectDiagrams(project.id),
-          getProjectFiles(project.id),
-          getProjectPpclDocuments(project.id),
-          getProjectTerminalLogs(project.id),
-          getProjectPidTuningSessions(project.id),
-          getProjectPsychSessions(project.id),
-          getProjectRegisterCalculations(project.id),
-          getProjectPingSessions(project.id),
-          getProjectTrendSessions(project.id),
-          getProjectConnectionProfiles(project.id),
-        ]);
+        const d = await computeUnsharedChanges(project.id);
         if (cancelled) return;
-        setCounts({
-          notes: notes.length,
-          devices: devices.length,
-          ipEntries: ipEntries.length,
-          reports: reports.length,
-          diagrams: diagrams.length,
-          files: files.length,
-          ppcl: ppcl.length,
-          terminalLogs: terminalLogs.length,
-          pidSessions: pidSessions.length,
-          psychSessions: psychSessions.length,
-          registerCalcs: registerCalcs.length,
-          pingSessions: pingSessions.length,
-          trendSessions: trendSessions.length,
-          connectionProfiles: connectionProfiles.length,
-        });
+        setDiff(d);
+        const sel = emptySelection();
+        for (const key of ALL_KEYS) sel[key] = new Set(d[key].map((i) => i.id));
+        setSelected(sel);
       } catch (e) {
-        console.warn('[share-to-global] failed to load counts:', e);
+        console.warn('[share-to-global] failed to compute diff:', e);
+        if (!cancelled) setDiff(emptyDiff());
+      } finally {
+        if (!cancelled) setLoadingDiff(false);
       }
     })();
     return () => { cancelled = true; };
@@ -126,6 +100,9 @@ export function ShareToGlobalDialog({
     setProgressMessage('');
     setResult(null);
     setCopied(false);
+    setDiff(null);
+    setSelected(emptySelection());
+    setExpanded(null);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -134,7 +111,50 @@ export function ShareToGlobalDialog({
     onOpenChange(nextOpen);
   };
 
+  // ── Selection helpers ──────────────────────────────────────────────────────
+  const totalUnshared = diff ? ALL_KEYS.reduce((n, k) => n + diff[k].length, 0) : 0;
+  const totalSelected = ALL_KEYS.reduce((n, k) => n + selected[k].size, 0);
+  const allSelected = totalUnshared > 0 && totalSelected === totalUnshared;
+
+  const toggleCategory = (key: ReconciledEntityKey) => {
+    if (!diff) return;
+    setSelected((prev) => {
+      const next = { ...prev };
+      next[key] = prev[key].size === diff[key].length ? new Set() : new Set(diff[key].map((i) => i.id));
+      return next;
+    });
+  };
+  const toggleItem = (key: ReconciledEntityKey, id: string) => {
+    setSelected((prev) => {
+      const next = { ...prev };
+      const set = new Set(prev[key]);
+      if (set.has(id)) set.delete(id); else set.add(id);
+      next[key] = set;
+      return next;
+    });
+  };
+  const setAll = (on: boolean) => {
+    if (!diff) return;
+    const next = emptySelection();
+    if (on) for (const k of ALL_KEYS) next[k] = new Set(diff[k].map((i) => i.id));
+    setSelected(next);
+  };
+
   const handleShare = useCallback(async () => {
+    // Build the selection: omit categories with nothing checked (engine skips the
+    // pair); send 'all' when every unshared row of a category is checked, else
+    // the explicit id list.
+    const selection: ShareSelection = {};
+    for (const key of ALL_KEYS) {
+      const ids = selected[key];
+      if (!ids || ids.size === 0) continue;
+      const total = diff ? diff[key].length : 0;
+      selection[key] = total > 0 && ids.size === total ? 'all' : Array.from(ids);
+    }
+    if (Object.keys(selection).length === 0) {
+      toast.error('Select at least one category to share');
+      return;
+    }
     setState('sharing');
     setProgressMessage('Preparing share...');
     try {
@@ -143,15 +163,17 @@ export function ShareToGlobalDialog({
         (step, current, total) => {
           setProgressMessage(`${step} (${current}/${total})...`);
         },
+        selection,
       );
       setResult(shareResult);
       setState('success');
-      toast.success('Project shared to Global successfully');
+      emitUnsharedChanged(project.id); // tell the project page to recompute (→ count drops)
+      toast.success('Selected data shared to Global');
     } catch (err) {
       toast.error('Share failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
       setState('preview');
     }
-  }, [project.id]);
+  }, [project.id, selected, diff]);
 
   const handleCopyCode = async () => {
     if (!result?.accessCode) return;
@@ -312,40 +334,58 @@ export function ShareToGlobalDialog({
             )}
           </div>
 
-          {/* What Will Be Shared */}
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Will be shared</p>
-            <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-1">
-              <MigrationItem icon={FileText}      label="Notes"                count={counts.notes} />
-              <MigrationItem icon={HardDrive}     label="Devices"              count={counts.devices} />
-              <MigrationItem icon={Network}       label="IP Plan Entries"      count={counts.ipEntries} />
-              <MigrationItem icon={ClipboardList} label="Daily Reports"        count={counts.reports} />
-              <MigrationItem icon={FolderOpen}    label="Files"                count={counts.files} />
-              <MigrationItem icon={GitBranch}     label="Network Diagrams"     count={counts.diagrams} />
-              <MigrationItem icon={FileCode}      label="PPCL Documents"       count={counts.ppcl} />
-              <MigrationItem icon={Terminal}      label="Terminal Logs"        count={counts.terminalLogs} />
-              <MigrationItem icon={Activity}      label="PID Sessions"         count={counts.pidSessions} />
-              <MigrationItem icon={Wind}          label="Psych Sessions"       count={counts.psychSessions} />
-              <MigrationItem icon={Calculator}    label="Register Calcs"       count={counts.registerCalcs} />
-              <MigrationItem icon={Radio}         label="Ping Sessions"        count={counts.pingSessions} />
-              <MigrationItem icon={LineChart}     label="Trend Sessions"       count={counts.trendSessions} />
-              <MigrationItem icon={Plug}          label="Connection Profiles"  count={counts.connectionProfiles} />
+          {/* Choose what to share */}
+          {loadingDiff ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">Checking for unshared changes…</p>
+          ) : totalUnshared === 0 ? (
+            <div className="rounded-md border border-green-500/30 bg-green-500/5 p-4 text-center">
+              <Check className="h-5 w-5 text-green-500 mx-auto mb-1.5" />
+              <p className="text-sm font-medium">Everything is up to date</p>
+              <p className="text-xs text-muted-foreground mt-0.5">No unshared changes to publish.</p>
             </div>
-          </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Choose what to share</p>
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={() => setAll(!allSelected)}
+                >
+                  {allSelected ? 'Deselect all' : 'Select all'}
+                </button>
+              </div>
+              <div className="space-y-1 max-h-80 overflow-y-auto pr-1 -mr-1">
+                {CATEGORY_META.filter((c) => diff && diff[c.key].length > 0).map((c) => (
+                  <SelectableCategoryRow
+                    key={c.key}
+                    icon={c.icon}
+                    label={c.label}
+                    items={diff![c.key]}
+                    selectedIds={selected[c.key]}
+                    expanded={expanded === c.key}
+                    onToggleCategory={() => toggleCategory(c.key)}
+                    onToggleExpand={() => setExpanded(expanded === c.key ? null : c.key)}
+                    onToggleItem={(id) => toggleItem(c.key, id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
 
           <p className="text-xs text-muted-foreground leading-relaxed">
             {project.syncedGlobalId
-              ? 'Updates push into the linked Global Project. IDs are preserved, so this is safe to run multiple times.'
-              : 'A new Global Project will be created and your data will be pushed. Your local project remains unchanged.'}
+              ? 'Only the selected items are published to the linked Global Project; sharing overwrites the Global copy of changed items. IDs are preserved, so this is safe to run again. (Local deletions are not propagated up yet.)'
+              : 'A new Global Project is created and the selected data is pushed. The project name and contacts always sync. Your local project stays unchanged.'}
           </p>
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="gap-1.5" onClick={handleShare}>
+          <Button className="gap-1.5" onClick={handleShare} disabled={totalSelected === 0}>
             <Globe className="h-4 w-4" />
-            Share
+            {totalSelected > 0 ? `Share ${totalSelected}` : 'Share'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -353,30 +393,103 @@ export function ShareToGlobalDialog({
   );
 }
 
-function MigrationItem({
-  icon: Icon,
-  label,
-  count,
+// A small check/dash box mirroring the app's data-cleanup checkbox style.
+function CheckBox({ state }: { state: 'on' | 'off' | 'partial' }) {
+  return (
+    <div className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border-[1.5px] transition-colors ${
+      state === 'off' ? 'border-muted-foreground/40' : 'border-primary bg-primary text-primary-foreground'
+    }`}>
+      {state === 'on' && (
+        <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+          <path d="M2 5L4 7L8 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )}
+      {state === 'partial' && <div className="h-1.5 w-1.5 rounded-[1px] bg-primary-foreground" />}
+    </div>
+  );
+}
+
+function SelectableCategoryRow({
+  icon: Icon, label, items, selectedIds, expanded,
+  onToggleCategory, onToggleExpand, onToggleItem,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
-  count: number;
+  items: UnsharedItem[];
+  selectedIds: Set<string>;
+  expanded: boolean;
+  onToggleCategory: () => void;
+  onToggleExpand: () => void;
+  onToggleItem: (id: string) => void;
 }) {
-  const included = count > 0;
+  const newCount = items.filter((i) => i.status === 'new').length;
+  const changedCount = items.length - newCount;
+  const boxState: 'on' | 'off' | 'partial' =
+    selectedIds.size === 0 ? 'off' : selectedIds.size === items.length ? 'on' : 'partial';
+  const summary = [newCount ? `${newCount} new` : '', changedCount ? `${changedCount} changed` : '']
+    .filter(Boolean).join(' · ');
+
   return (
-    <div className="flex items-center justify-between text-sm">
-      <div className="flex items-center gap-2">
-        {included ? (
-          <Check className="h-4 w-4 text-green-500" />
-        ) : (
-          <X className="h-4 w-4 text-muted-foreground/40" />
-        )}
-        <Icon className="h-4 w-4" />
-        <span className={included ? '' : 'text-muted-foreground'}>{label}</span>
+    <div className="rounded-lg border">
+      <div className="flex items-center gap-2.5 p-2.5">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={onToggleCategory}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleCategory(); } }}
+          className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer select-none"
+        >
+          <CheckBox state={boxState} />
+          <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <span className="text-sm font-medium truncate">{label}</span>
+          <span className="text-[11px] text-muted-foreground shrink-0">{summary}</span>
+        </div>
+        <button
+          type="button"
+          onClick={onToggleExpand}
+          aria-label={expanded ? `Collapse ${label}` : `Expand ${label}`}
+          className="p-1 text-muted-foreground hover:text-foreground shrink-0"
+        >
+          <ChevronRight className={`h-4 w-4 transition-transform ${expanded ? 'rotate-90' : ''}`} />
+        </button>
       </div>
-      <Badge variant="secondary" className="font-mono text-xs">
-        {count}
-      </Badge>
+      {expanded && (
+        <div className="border-t px-2.5 py-1.5 space-y-0.5">
+          {items.slice(0, PER_ITEM_CAP).map((item) => (
+            <div
+              key={item.id}
+              role="button"
+              tabIndex={0}
+              onClick={() => onToggleItem(item.id)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onToggleItem(item.id); } }}
+              className="flex items-center gap-2.5 py-1 pl-1 cursor-pointer select-none"
+            >
+              <CheckBox state={selectedIds.has(item.id) ? 'on' : 'off'} />
+              <span className="text-xs truncate flex-1 min-w-0">{item.label}</span>
+              <span className={`text-[10px] shrink-0 ${item.status === 'new' ? 'text-green-500' : 'text-amber-500'}`}>
+                {item.status}
+              </span>
+            </div>
+          ))}
+          {items.length > PER_ITEM_CAP && (
+            <p className="text-[10px] text-muted-foreground pl-1 py-1">
+              + {items.length - PER_ITEM_CAP} more (toggle the category to include all)
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
+}
+
+function emptySelection(): Record<ReconciledEntityKey, Set<string>> {
+  const sel = {} as Record<ReconciledEntityKey, Set<string>>;
+  for (const key of ALL_KEYS) sel[key] = new Set();
+  return sel;
+}
+
+function emptyDiff(): UnsharedChanges {
+  const d = {} as UnsharedChanges;
+  for (const key of ALL_KEYS) d[key] = [];
+  return d;
 }

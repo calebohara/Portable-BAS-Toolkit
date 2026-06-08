@@ -26,6 +26,7 @@ const dbMocks = vi.hoisted(() => ({
   getProjectPingSessions: vi.fn(),
   getProjectTrendSessions: vi.fn(),
   getProjectConnectionProfiles: vi.fn(),
+  getProjectDxrs: vi.fn(),
   // Child savers
   saveNote: vi.fn(),
   saveDevice: vi.fn(),
@@ -41,6 +42,7 @@ const dbMocks = vi.hoisted(() => ({
   savePingSession: vi.fn(),
   saveTrendSession: vi.fn(),
   saveConnectionProfile: vi.fn(),
+  addProjectDxr: vi.fn(),
   // Activity log + blob helpers
   addActivity: vi.fn(),
   getFileBlob: vi.fn(),
@@ -111,7 +113,11 @@ function makeFromQuery(table: string) {
     const s = supabaseState.current;
     if (!s) return;
     if (table === 'global_projects') {
-      if (_selectedFields.startsWith('id') && /access_code/.test(_selectedFields)) {
+      // `select('id')` (computeUnsharedChanges link lookup) and
+      // `select('id, access_code')` (reconcile link lookup) both resolve via
+      // .maybeSingle() → projectLookupResult. `select('*')` → .single() →
+      // globalProjectSingleResult.
+      if (_selectedFields.startsWith('id') && !_selectedFields.includes('*')) {
         _maybeSingle = s.projectLookupResult;
       } else {
         _single = s.globalProjectSingleResult;
@@ -195,6 +201,8 @@ import {
   RECONCILED_ENTITY_PAIRS,
   reconcileLocalToGlobal,
   reconcileGlobalToLocal,
+  computeUnsharedChanges,
+  type ShareSelection,
 } from '../reconcile';
 import type { Project, FieldNote, ProjectFile } from '@/types';
 import type { GlobalProject } from '@/types/global-projects';
@@ -646,6 +654,106 @@ describe('reconcile.ts', () => {
     expect(row.mime_type).toBe('application/pdf');
     expect(row.title).toBe('wiring');
     expect(row.id).toBe('file-uuid-1');
+  });
+});
+
+// ─── Selective share: diff (computeUnsharedChanges) + selection threading ───
+describe('selective share', () => {
+  // All 15 child readers default to [] so computeUnsharedChanges (which loops
+  // every pair) never hits an undefined reader; tests override `devices`/`notes`.
+  function armEmptyReaders() {
+    const readers = [
+      'getProjectNotes', 'getProjectDevices', 'getProjectIpPlan', 'getProjectDailyReports',
+      'getProjectDiagrams', 'getProjectFiles', 'getProjectPpclDocuments', 'getProjectTerminalLogs',
+      'getProjectPidTuningSessions', 'getProjectPsychSessions', 'getProjectRegisterCalculations',
+      'getProjectPingSessions', 'getProjectTrendSessions', 'getProjectConnectionProfiles', 'getProjectDxrs',
+    ] as const;
+    for (const r of readers) (dbMocks[r] as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+  }
+  const dev = (id: string, updatedAt: string, name = id) => ({
+    id, projectId: 'local-uuid-1', deviceName: name, status: 'active',
+    createdAt: '2025-01-01T00:00:00.000Z', updatedAt,
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    supabaseState.current = makeSupabaseStub();
+    dbMocks.saveProject.mockResolvedValue(undefined);
+    dbMocks.getAllProjects.mockResolvedValue([]);
+    dbMocks.addActivity.mockResolvedValue(undefined);
+    armEmptyReaders();
+    supabaseMock.auth.getUser.mockResolvedValue({ data: { user: { id: USER_ID } } });
+  });
+
+  describe('computeUnsharedChanges (read-only diff)', () => {
+    it('classifies new (no global row) and changed (local newer), excludes unchanged', async () => {
+      dbMocks.getProject.mockResolvedValue(makeLocalProject({ syncedGlobalId: 'global-uuid-1' }));
+      supabaseState.current!.projectLookupResult = { id: 'global-uuid-1' }; // linked global resolves
+      dbMocks.getProjectDevices.mockResolvedValue([
+        dev('d-new', '2025-06-01T00:00:00.000Z'),      // no global row → new
+        dev('d-changed', '2025-06-01T00:00:00.000Z'),  // local newer than global → changed
+        dev('d-unchanged', '2025-01-01T00:00:00.000Z'),// global at-or-newer → excluded
+      ]);
+      supabaseState.current!.existingChildRowsByTable['global_devices'] = [
+        { id: 'd-changed', updated_at: '2025-03-01T00:00:00.000Z' },   // older than local → changed
+        { id: 'd-unchanged', updated_at: '2025-02-01T00:00:00.000Z' }, // newer than local → unchanged
+      ];
+
+      const diff = await computeUnsharedChanges('local-uuid-1');
+      const ids = diff.devices.map((i) => `${i.id}:${i.status}`).sort();
+      expect(ids).toEqual(['d-changed:changed', 'd-new:new']);
+      expect(diff.devices.find((i) => i.id === 'd-new')?.label).toBeTruthy();
+    });
+
+    it('treats EVERY local row as new when the project is not linked (no syncedGlobalId)', async () => {
+      dbMocks.getProject.mockResolvedValue(makeLocalProject()); // no syncedGlobalId
+      dbMocks.getProjectDevices.mockResolvedValue([
+        dev('d1', '2025-06-01T00:00:00.000Z'), dev('d2', '2025-06-01T00:00:00.000Z'),
+      ]);
+      const diff = await computeUnsharedChanges('local-uuid-1');
+      expect(diff.devices.map((i) => i.status)).toEqual(['new', 'new']);
+    });
+  });
+
+  describe('selection threading into reconcileLocalToGlobal', () => {
+    beforeEach(() => {
+      // Linked, existing global project (re-share path) so no access-code branch noise.
+      dbMocks.getProject.mockResolvedValue(makeLocalProject({ syncedGlobalId: 'global-uuid-1' }));
+      supabaseState.current!.projectLookupResult = { id: 'global-uuid-1', access_code: 'ABC-1234' };
+      dbMocks.getProjectDevices.mockResolvedValue([
+        dev('dev-1', '2025-06-01T00:00:00.000Z'), dev('dev-2', '2025-06-01T00:00:00.000Z'),
+      ]);
+      dbMocks.getProjectNotes.mockResolvedValue([{
+        id: 'note-1', projectId: 'local-uuid-1', content: 'hi', category: 'general',
+        author: 'tech', isPinned: false, createdAt: '2025-01-01T00:00:00.000Z',
+        updatedAt: '2025-06-01T00:00:00.000Z', tags: [],
+      }]);
+    });
+
+    it('pushes ONLY the selected pair (devices), never an unselected pair (notes)', async () => {
+      const selection: ShareSelection = { devices: 'all' };
+      await reconcileLocalToGlobal('local-uuid-1', undefined, selection);
+
+      const upserts = supabaseState.current!.upserts;
+      expect(upserts.some((u) => u.table === 'global_devices')).toBe(true);
+      expect(upserts.some((u) => u.table === 'global_field_notes')).toBe(false);
+    });
+
+    it('pushes ONLY the selected row ids within a pair', async () => {
+      const selection: ShareSelection = { devices: ['dev-2'] };
+      await reconcileLocalToGlobal('local-uuid-1', undefined, selection);
+
+      const deviceUpserts = supabaseState.current!.upserts.filter((u) => u.table === 'global_devices');
+      expect(deviceUpserts).toHaveLength(1);
+      expect((deviceUpserts[0].row as { id: string }).id).toBe('dev-2');
+    });
+
+    it('no selection (undefined) still pushes all pairs — back-compat', async () => {
+      await reconcileLocalToGlobal('local-uuid-1');
+      const upserts = supabaseState.current!.upserts;
+      expect(upserts.some((u) => u.table === 'global_devices')).toBe(true);
+      expect(upserts.some((u) => u.table === 'global_field_notes')).toBe(true);
+    });
   });
 });
 

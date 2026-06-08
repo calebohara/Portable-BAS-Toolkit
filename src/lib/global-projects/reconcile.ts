@@ -155,6 +155,27 @@ export const RECONCILED_ENTITY_PAIRS = [
 
 export type ReconciledEntityKey = (typeof RECONCILED_ENTITY_PAIRS)[number]['key'];
 
+// ─── Selective share types ──────────────────────────────────────────────────
+
+/** One local row that has not yet been published up to the linked global project. */
+export interface UnsharedItem {
+  id: string;
+  label: string;
+  /** `new` = no global counterpart yet; `changed` = local edited after the global copy. */
+  status: 'new' | 'changed';
+}
+
+/** Per-entity-type unshared local rows for a linked project (the read-only diff). */
+export type UnsharedChanges = Record<ReconciledEntityKey, UnsharedItem[]>;
+
+/**
+ * Which data the user chose to publish on a selective share. A pair ABSENT from
+ * the map is not shared. `'all'` shares every row of that pair (subject to the
+ * normal updated_at skip); a `string[]` shares only those row ids. Passing
+ * `undefined` to reconcileLocalToGlobal shares everything (back-compat).
+ */
+export type ShareSelection = Partial<Record<ReconciledEntityKey, 'all' | string[]>>;
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 const VALID_GLOBAL_STATUSES: GlobalProjectStatus[] = ['active', 'on-hold', 'completed', 'archived'];
@@ -1079,7 +1100,99 @@ function buildLocalProjectFromGlobal(global: GlobalProject, existingLocalId?: st
   };
 }
 
-// ─── Public API: reconcileLocalToGlobal ─────────────────────────────────────
+// ─── Read-only diff: what local changes haven't been shared up yet ──────────
+
+/** Short human label for an unshared row, from fields the local object already
+ *  carries (no extra DB reads). Falls back to "(untitled) <id8>". */
+function labelFor(pairKey: ReconciledEntityKey, item: Record<string, unknown>): string {
+  const s = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+  let label = '';
+  switch (pairKey) {
+    case 'notes':                label = s(item.content).slice(0, 60); break;
+    case 'devices':              label = s(item.deviceName); break;
+    case 'ipPlan':               label = `${s(item.ipAddress)} ${s(item.hostname)}`.trim(); break;
+    case 'dailyReports':         label = s(item.name) || `Report ${s(item.reportNumber)}`.trim(); {
+      const d = s(item.date); if (d) label += ` · ${d}`;
+    } break;
+    case 'networkDiagrams':      label = s(item.name); break;
+    case 'files':                label = s(item.fileName) || s(item.title); break;
+    case 'ppclDocuments':        label = s(item.name); break;
+    case 'terminalLogs':         label = s(item.sessionLabel); break;
+    case 'pidTuningSessions':    label = s(item.loopName); break;
+    case 'psychSessions':        label = s(item.label); break;
+    case 'registerCalculations': label = s(item.label); break;
+    case 'pingSessions':         label = Array.isArray(item.targets) ? (item.targets as unknown[]).join(', ') : ''; break;
+    case 'trendSessions':        label = s(item.name); break;
+    case 'connectionProfiles':   label = s(item.name); break;
+    case 'dxrs':                 label = s(item.name); break;
+  }
+  if (label) return label;
+  const id = s(item.id);
+  return `(untitled) ${id.slice(0, 8)}`.trim();
+}
+
+/**
+ * Read-only diff of a LINKED local project against its global counterpart: the
+ * local rows that have NOT been published up yet, per entity type. A row is
+ * unshared when it has no global counterpart (`new`) or its local `updated_at`
+ * is strictly newer than the global copy's (`changed`). Strictly read-only — no
+ * writes, no blob uploads. Reuses the exact pre-fetch + `updated_at` compare the
+ * push path uses (the inverse of its skip), so the diff always matches what a
+ * share would actually push. `updated_at` only — never `sync_version`.
+ *
+ * An unlinked project (no `syncedGlobalId`) or one whose linked global was
+ * deleted yields every local row as `new` (nothing on the global side to match).
+ */
+export async function computeUnsharedChanges(localProjectId: string): Promise<UnsharedChanges> {
+  const supabase = client();
+  const result = {} as UnsharedChanges;
+  for (const pair of RECONCILED_ENTITY_PAIRS) result[pair.key] = [];
+
+  const localProject = await db.getProject(localProjectId);
+  if (!localProject) return result;
+
+  // Resolve the live linked global id (if any).
+  let globalProjectId: string | null = null;
+  if (localProject.syncedGlobalId) {
+    const { data: existing } = await supabase
+      .from('global_projects')
+      .select('id')
+      .eq('id', localProject.syncedGlobalId)
+      .is('deleted_at', null)
+      .maybeSingle();
+    globalProjectId = (existing as { id?: string } | null)?.id ?? null;
+  }
+
+  for (const pair of RECONCILED_ENTITY_PAIRS) {
+    const localItems = await loadLocalItems(pair.local, pair.key, localProjectId);
+    if (localItems.length === 0) continue;
+
+    // Pre-fetch global updated_at by id (empty when unlinked → every row is new).
+    const existingMs = new Map<string, number>();
+    if (globalProjectId) {
+      const { data: rows } = await supabase
+        .from(entityTable(pair.global))
+        .select('id, updated_at')
+        .eq('global_project_id', globalProjectId);
+      for (const r of (rows ?? []) as Array<{ id: string; updated_at: string | null }>) {
+        existingMs.set(r.id, r.updated_at ? Date.parse(r.updated_at) : NaN);
+      }
+    }
+
+    for (const item of localItems as Array<Record<string, unknown>>) {
+      const id = item.id as string;
+      const hasGlobal = existingMs.has(id);
+      const localUpdatedAt = (item.updatedAt ?? item.createdAt) as string | undefined;
+      const localMs = localUpdatedAt ? Date.parse(localUpdatedAt) : NaN;
+      const gMs = hasGlobal ? (existingMs.get(id) as number) : NaN;
+      // Inverse of the push-path skip: unchanged when global exists and is
+      // at-or-newer than local. Everything else is unshared.
+      if (hasGlobal && !Number.isNaN(gMs) && !Number.isNaN(localMs) && gMs >= localMs) continue;
+      result[pair.key].push({ id, label: labelFor(pair.key, item), status: hasGlobal ? 'changed' : 'new' });
+    }
+  }
+  return result;
+}
 
 // ─── Public API: manual reconcile (force-overwrite) + automatic mirror ──────
 
@@ -1088,10 +1201,11 @@ function buildLocalProjectFromGlobal(global: GlobalProject, existingLocalId?: st
 export async function reconcileLocalToGlobal(
   localProjectId: string,
   onProgress?: ProgressFn,
+  selection?: ShareSelection,
 ): Promise<ReconcileResult> {
   manualReconcileInFlight++;
   try {
-    return await reconcileLocalToGlobalImpl(localProjectId, onProgress);
+    return await reconcileLocalToGlobalImpl(localProjectId, onProgress, selection);
   } finally {
     manualReconcileInFlight--;
   }
@@ -1159,6 +1273,7 @@ export async function reconcileGlobalToLocalAuto(
 async function reconcileLocalToGlobalImpl(
   localProjectId: string,
   onProgress?: ProgressFn,
+  selection?: ShareSelection,
 ): Promise<ReconcileResult> {
   const supabase = client();
   const userId = await currentUserId();
@@ -1235,8 +1350,15 @@ async function reconcileLocalToGlobalImpl(
     step++;
     onProgress?.(`Reconciling ${pair.key}`, step, 2 + RECONCILED_ENTITY_PAIRS.length);
     counts[pair.key] = emptyCounts();
+    // Selective share: when a selection is provided, a pair ABSENT from the map
+    // is not chosen → skip it entirely. `undefined` selection = push all pairs
+    // (current behavior, preserves every existing caller). The parent project
+    // upsert / access code / link write-back above are intentionally NOT gated,
+    // so a partial first share still creates the global project + access code.
+    const sel = selection ? selection[pair.key] : undefined;
+    if (selection && sel === undefined) continue;
     try {
-      await reconcilePairLocalToGlobal(pair, globalProjectId, userId, counts[pair.key]);
+      await reconcilePairLocalToGlobal(pair, globalProjectId, userId, counts[pair.key], sel);
     } catch (e) {
       console.warn(`[reconcile] ${pair.key} failed:`, e);
       counts[pair.key].failed++;
@@ -1371,6 +1493,7 @@ async function reconcilePairLocalToGlobal(
   globalProjectId: string,
   userId: string,
   counts: EntityReconcileCounts,
+  sel?: 'all' | string[],
 ): Promise<void> {
   const supabase = client();
   const localItems = await loadLocalItems(pair.local, pair.key, globalProjectId);
@@ -1408,7 +1531,13 @@ async function reconcilePairLocalToGlobal(
 
   for (const item of localItems) {
     try {
-      const existing = existingMap.get((item as { id: string }).id);
+      const id = (item as { id: string }).id;
+      // Selective share gate: when `sel` is an explicit id list, push ONLY those
+      // rows. `sel === 'all'` (or undefined) pushes every row, subject to the
+      // normal updated_at skip below. An unselected row is neither counted nor
+      // pushed — exactly what the user chose, nothing more.
+      if (Array.isArray(sel) && !sel.includes(id)) continue;
+      const existing = existingMap.get(id);
       const isUpdate = !!existing;
       const localUpdatedAt = (item as { updatedAt?: string; createdAt?: string }).updatedAt
         ?? (item as { createdAt?: string }).createdAt

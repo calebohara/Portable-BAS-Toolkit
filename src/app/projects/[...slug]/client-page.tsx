@@ -7,7 +7,7 @@ import {
   ArrowLeft, Database, FileText, Network, Server, HardDrive,
   StickyNote, History, LayoutGrid, MapPin, Hash,
   Users, Pin, Edit2, Plus, Trash2, Phone, Mail, Building2,
-  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink, Eye, UserPlus, Cpu,
+  ChevronRight, Share2, FolderOpen, Terminal, Download, Globe, FileCode, ExternalLink, Eye, UserPlus, Cpu, X,
 } from 'lucide-react';
 import {
   useProject, useProjects, useProjectFiles, useProjectNotes,
@@ -35,6 +35,8 @@ import { FileListView } from '@/components/files/file-list-view';
 import { ActivityTimeline } from '@/components/projects/activity-timeline';
 import { ShareDialog } from '@/components/share/share-dialog';
 import { ShareToGlobalDialog } from '@/components/global-projects/share-to-global-dialog';
+import { computeUnsharedChanges } from '@/lib/global-projects/reconcile';
+import { onUnsharedChanged } from '@/lib/global-projects/unshared-events';
 import { ShareWithUserDialog } from '@/components/global-projects/share-with-user-dialog';
 import { PpclPreviewDialog } from '@/components/ppcl-editor/ppcl-preview-dialog';
 import { NOTE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type Project, type Contact, type FieldNote, type DeviceEntry, type IpPlanEntry, type TerminalSessionLog } from '@/types';
@@ -116,6 +118,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [showShare, setShowShare] = useState(false);
   const [showShareToGlobal, setShowShareToGlobal] = useState(false);
   const [showShareWithUser, setShowShareWithUser] = useState(false);
+  const [unsharedCount, setUnsharedCount] = useState(0);
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
   // Auto-refresh files when a global upload targets this project
   useEffect(() => {
@@ -126,6 +130,28 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     window.addEventListener('bau-file-uploaded', handler);
     return () => window.removeEventListener('bau-file-uploaded', handler);
   }, [id, refreshFiles]);
+
+  // Count local changes not yet published to the linked Global Project, to drive
+  // the "Review & Share" nudge. Runs only for linked projects (unlinked pay
+  // nothing). Recomputes after a share (the dialog fires bau-unshared-changed).
+  const linkedGlobalId = project?.syncedGlobalId;
+  useEffect(() => {
+    let cancelled = false;
+    const recompute = async () => {
+      if (!linkedGlobalId) { if (!cancelled) setUnsharedCount(0); return; }
+      try {
+        const diff = await computeUnsharedChanges(id);
+        if (!cancelled) setUnsharedCount(Object.values(diff).reduce((n, arr) => n + arr.length, 0));
+      } catch (e) {
+        console.warn('[project] unshared-count compute failed:', e);
+      }
+    };
+    void recompute();
+    const off = onUnsharedChanged((pid) => {
+      if (pid === id) { setNudgeDismissed(false); void recompute(); }
+    });
+    return () => { cancelled = true; off(); };
+  }, [id, linkedGlobalId]);
 
   const handleDeleteProject = async () => {
     if (!project) return;
@@ -257,6 +283,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               onShareToGlobal={() => setShowShareToGlobal(true)}
               onShareWithUser={() => setShowShareWithUser(true)}
               onDelete={() => setShowDeleteConfirm(true)}
+              unsharedCount={nudgeDismissed ? 0 : unsharedCount}
+              onDismissNudge={() => setNudgeDismissed(true)}
             />
           )}
 
@@ -358,6 +386,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
 function OverviewSection({
   project, files, notes, devices, ipEntries, onNavigate, onUpdateProject, onShare, onShareToGlobal, onShareWithUser, onDelete,
+  unsharedCount, onDismissNudge,
 }: {
   project: Project;
   files: ProjectFile[];
@@ -370,6 +399,8 @@ function OverviewSection({
   onShareToGlobal: () => void;
   onShareWithUser: () => void;
   onDelete: () => void;
+  unsharedCount: number;
+  onDismissNudge: () => void;
 }) {
   const [editOpen, setEditOpen] = useState(false);
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
@@ -423,6 +454,33 @@ function OverviewSection({
 
   return (
     <div className="space-y-6">
+      {/* Unshared-changes nudge — only for a linked project with pending local changes.
+          Opens the selective share dialog; never auto-pushes (manual checkpoint). */}
+      {project.syncedGlobalId && unsharedCount > 0 && (
+        <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Globe className="h-4 w-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium">
+              {unsharedCount} unshared change{unsharedCount === 1 ? '' : 's'}
+            </p>
+            <p className="text-xs text-muted-foreground">Local edits not yet published to the linked Global Project.</p>
+          </div>
+          <Button size="sm" className="gap-1.5 shrink-0" onClick={onShareToGlobal}>
+            <Globe className="h-3.5 w-3.5" /> Review &amp; Share
+          </Button>
+          <Button
+            variant="ghost" size="sm"
+            className="h-8 w-8 p-0 shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss"
+            onClick={onDismissNudge}
+          >
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
+
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditOpen(true)}>
