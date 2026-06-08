@@ -1298,15 +1298,25 @@ async function reconcilePairLocalToGlobal(
   // and aborts the whole pair before any row is pushed.
   const globalTable = entityTable(pair.global);
   const hasStoragePath = pair.global === 'globalProjectFiles';
-  const selectCols = hasStoragePath ? 'id, updated_at, storage_path' : 'id, updated_at';
+  // Finding #9 (Phase 2): also pull `sync_version` so reconcile can respect the
+  // server-authoritative version when deciding whether to overwrite a remote
+  // row. sync_version is on every global child table (add-sync-columns-global-
+  // children.sql) — safe to select here.
+  const selectCols = hasStoragePath
+    ? 'id, updated_at, sync_version, storage_path'
+    : 'id, updated_at, sync_version';
   const { data: existingRaw, error: exErr } = await supabase
     .from(globalTable)
     .select(selectCols)
     .eq('global_project_id', globalProjectId);
   if (exErr) throw new Error(`${globalTable} pre-fetch failed: ${exErr.message}`);
-  const existingMap = new Map<string, { updated_at: string | null; storage_path: string | null }>();
-  for (const row of (existingRaw ?? []) as unknown as Array<{ id: string; updated_at: string | null; storage_path?: string | null }>) {
-    existingMap.set(row.id, { updated_at: row.updated_at ?? null, storage_path: row.storage_path ?? null });
+  const existingMap = new Map<string, { updated_at: string | null; sync_version: number | null; storage_path: string | null }>();
+  for (const row of (existingRaw ?? []) as unknown as Array<{ id: string; updated_at: string | null; sync_version?: number | null; storage_path?: string | null }>) {
+    existingMap.set(row.id, {
+      updated_at: row.updated_at ?? null,
+      sync_version: typeof row.sync_version === 'number' ? row.sync_version : null,
+      storage_path: row.storage_path ?? null,
+    });
   }
 
   for (const item of localItems) {
@@ -1317,15 +1327,42 @@ async function reconcilePairLocalToGlobal(
         ?? (item as { createdAt?: string }).createdAt
         ?? null;
 
+      // ── Version-aware skip (Finding #9, Phase 2) ─────────────────────────
+      // sync_version is the PRIMARY guard against blind-overwriting a remote row
+      // that has advanced past what this device last saw. The server trigger
+      // bumps sync_version monotonically on every UPDATE (clock-skew-immune),
+      // so if the remote version is strictly higher than the local row's
+      // version, the cloud holds a newer revision we haven't merged — never
+      // overwrite it here. (A genuine conflict surfaces via the push-path
+      // conflict detector; reconcile must not silently clobber it.)
+      const remoteVersion = existing?.sync_version ?? null;
+      const localVersion = typeof (item as { syncVersion?: number }).syncVersion === 'number'
+        ? (item as { syncVersion: number }).syncVersion
+        : null;
+      const bothVersionsKnown = existing != null && remoteVersion !== null && localVersion !== null;
+      if (bothVersionsKnown && remoteVersion > localVersion) {
+        // Remote holds a strictly newer revision than this device has seen —
+        // never blind-overwrite it.
+        counts.skipped++;
+        continue;
+      }
+      // When both versions are known and LOCAL is strictly higher, the local row
+      // is authoritative — push it regardless of timestamps (skip the timestamp
+      // fallback below, which a skewed remote `updated_at` could otherwise use to
+      // suppress the legitimately-newer local write).
+      const localVersionWins = bothVersionsKnown && localVersion > remoteVersion;
+
       // Idempotent skip: skip when the global row is already at-or-newer than the
       // local row. Compare parsed timestamps rather than raw strings — local rows
       // and Postgres `now()` can serialize the same instant differently (timezone
       // offset, fractional-second precision), so an exact string match would
       // almost never hold and we'd needlessly re-push every row, deflating the
       // skip count. Unparseable timestamps fall through to a push (safe default).
+      // Timestamps are the FALLBACK comparator only — consulted when sync_version
+      // is absent or equal (the version guards above are authoritative).
       const existingMs = existing?.updated_at ? Date.parse(existing.updated_at) : NaN;
       const localMs = localUpdatedAt ? Date.parse(localUpdatedAt) : NaN;
-      if (existing && !Number.isNaN(existingMs) && !Number.isNaN(localMs) && existingMs >= localMs) {
+      if (!localVersionWins && existing && !Number.isNaN(existingMs) && !Number.isNaN(localMs) && existingMs >= localMs) {
         counts.skipped++;
         continue;
       }

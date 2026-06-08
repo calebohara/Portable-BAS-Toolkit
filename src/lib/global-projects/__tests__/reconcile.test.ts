@@ -116,7 +116,14 @@ function makeFromQuery(table: string) {
       } else {
         _single = s.globalProjectSingleResult;
       }
-    } else if (_selectedFields === 'id, updated_at, storage_path') {
+    } else if (
+      // Existing-child prefetch in reconcilePairLocalToGlobal. The exact column
+      // list now includes sync_version (Finding #9, Phase 2) and optionally
+      // storage_path — match on the updated_at prefetch shape rather than an
+      // exact string so the harness keeps working as columns are added.
+      _selectedFields.startsWith('id, updated_at')
+      && !/access_code/.test(_selectedFields)
+    ) {
       _terminalRows = s.existingChildRowsByTable[table] ?? [];
     } else {
       _terminalRows = s.childRowsByTable[table] ?? [];
@@ -363,6 +370,69 @@ describe('reconcile.ts', () => {
     );
     expect(noteUpsert).toBeDefined();
     expect((noteUpsert!.row as { id: string }).id).toBe('note-uuid-1');
+  });
+
+  // ─── (c2) Reconcile respects sync_version (Finding #9, Phase 2) ────────────
+
+  it('does NOT overwrite a remote note whose sync_version is higher than local', async () => {
+    dbMocks.getProject.mockResolvedValue(makeLocalProject());
+    // Local note has a NEWER updated_at but a LOWER sync_version than the remote.
+    // Under the old timestamp-only skip the local row would be pushed (clobbering
+    // the higher-version remote). The version guard must skip it.
+    const note: FieldNote & { syncVersion?: number } = {
+      id: 'note-uuid-ver',
+      projectId: 'local-uuid-1',
+      content: 'local edit',
+      category: 'general',
+      author: 'tech',
+      isPinned: false,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-06-01T00:00:00.000Z', // newer timestamp
+      tags: [],
+      syncVersion: 2, // lower version
+    };
+    dbMocks.getProjectNotes.mockResolvedValue([note]);
+
+    // Remote prefetch: same id, OLDER updated_at, HIGHER sync_version.
+    supabaseState.current!.existingChildRowsByTable['global_field_notes'] = [
+      { id: 'note-uuid-ver', updated_at: '2025-01-01T00:00:00.000Z', sync_version: 9 },
+    ];
+
+    await reconcileLocalToGlobal('local-uuid-1');
+
+    // The higher-version remote note is NOT overwritten.
+    const noteUpsert = supabaseState.current!.upserts.find(
+      (u) => u.table === 'global_field_notes' && (u.row as { id?: string }).id === 'note-uuid-ver',
+    );
+    expect(noteUpsert).toBeUndefined();
+  });
+
+  it('DOES push a local note whose sync_version is higher than the remote (even if older timestamp)', async () => {
+    dbMocks.getProject.mockResolvedValue(makeLocalProject());
+    const note: FieldNote & { syncVersion?: number } = {
+      id: 'note-uuid-ver2',
+      projectId: 'local-uuid-1',
+      content: 'authoritative local',
+      category: 'general',
+      author: 'tech',
+      isPinned: false,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-01-01T00:00:00.000Z', // older timestamp
+      tags: [],
+      syncVersion: 12, // higher version → local wins
+    };
+    dbMocks.getProjectNotes.mockResolvedValue([note]);
+
+    supabaseState.current!.existingChildRowsByTable['global_field_notes'] = [
+      { id: 'note-uuid-ver2', updated_at: '2025-06-01T00:00:00.000Z', sync_version: 4 },
+    ];
+
+    await reconcileLocalToGlobal('local-uuid-1');
+
+    const noteUpsert = supabaseState.current!.upserts.find(
+      (u) => u.table === 'global_field_notes' && (u.row as { id?: string }).id === 'note-uuid-ver2',
+    );
+    expect(noteUpsert).toBeDefined();
   });
 
   // ─── (d) Global→Local preserves entity UUIDs ──────────────────────────────

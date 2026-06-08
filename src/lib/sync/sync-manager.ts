@@ -458,8 +458,12 @@ export class SyncManager implements SyncManagerInterface {
           const { error } = await query;
           if (error) throw error;
         } else if (item.entityType === 'globalProjectPreferences') {
-          // Composite PK (user_id, global_project_id). Delete row by composite
-          // key — `id` doesn't exist on this table. Payload carries the parts.
+          // Composite PK (user_id, global_project_id). This table has NO
+          // `deleted_at` column (add-global-project-preferences.sql), so a
+          // soft-delete UPDATE would fail 42703/PGRST204 and retry forever
+          // (Finding #7, Phase 2). Issue a HARD delete by the composite key.
+          // RLS ("Users can manage their own global project preferences" —
+          // for all USING auth.uid() = user_id) allows deleting your own row.
           const payload = (item.payload ?? {}) as Record<string, unknown>;
           const gpid = payload.globalProjectId as string | undefined;
           if (!gpid) {
@@ -470,7 +474,7 @@ export class SyncManager implements SyncManagerInterface {
           }
           const { error } = await this.client
             .from(table)
-            .update({ deleted_at: new Date().toISOString() })
+            .delete()
             .eq('user_id', this.userId)
             .eq('global_project_id', gpid);
           if (error) throw error;
@@ -514,28 +518,44 @@ export class SyncManager implements SyncManagerInterface {
 
             if (!fetchError && remoteRow) {
               const remoteUpdatedAt = (remoteRow.updated_at ?? remoteRow.completed_at ?? remoteRow.created_at) as string | undefined;
-              // Conflict if the remote row is strictly newer, OR the timestamps
-              // are equal (ms granularity + client-clock skew) AND the remote
-              // sync_version is at least the local one. Using >= on equal-ms
-              // rows raises a conflict for the user to resolve instead of letting
-              // the slower-clock device silently drop the other's write.
-              // sync_version is the secondary tiebreaker (schema: int default 1,
-              // round-tripped via field-map). Falls back to a plain >= on the
-              // timestamp when versions are absent/equal.
+              // ── Conflict comparator (Finding #9, Phase 2) ──────────────────
+              // sync_version is now the PRIMARY comparator, not just an equal-ms
+              // tiebreaker. The server trigger advances sync_version monotonically
+              // on every UPDATE (add-sync-version-auto-increment.sql), so it is
+              // immune to client clock skew — unlike updated_at, which the slower
+              // / spoofed clock could otherwise use to silently drop the other
+              // device's write.
+              //   • Both versions known → conflict whenever remoteVersion >
+              //     localVersion, REGARDLESS of timestamps. (A higher remote
+              //     version means the cloud has a strictly newer revision this
+              //     device hasn't seen.) Equal versions fall through to the
+              //     timestamp comparison below.
+              //   • Versions absent/equal → fall back to updated_at: conflict
+              //     when remote is strictly newer, or equal-ms (skew window) —
+              //     advisory only.
               const remoteVersion = typeof remoteRow.sync_version === 'number'
                 ? remoteRow.sync_version : undefined;
               const localVersion = typeof localPayload.syncVersion === 'number'
                 ? localPayload.syncVersion : undefined;
+              const bothVersionsKnown = remoteVersion !== undefined && localVersion !== undefined;
               const remoteTime = remoteUpdatedAt ? new Date(remoteUpdatedAt).getTime() : NaN;
               const localTime = new Date(localUpdatedAt).getTime();
               const remoteIsNewer = remoteTime > localTime;
               const equalTimestamp = remoteTime === localTime;
-              const remoteVersionWins = remoteVersion !== undefined && localVersion !== undefined
-                ? remoteVersion >= localVersion
-                : true; // unknown versions: treat equal-timestamp as a conflict
-              if (remoteUpdatedAt && (remoteIsNewer || (equalTimestamp && remoteVersionWins))) {
-                // Conflict: remote is newer (or equal-ms with a version tiebreak)
-                // — store conflict, remove from queue
+
+              // Primary: version-based decision when both versions are present.
+              const versionConflict = bothVersionsKnown && remoteVersion > localVersion;
+              // Fallback: timestamp-based, only consulted when versions are
+              // absent or equal (so a higher local version can still win even on
+              // an older-or-equal timestamp).
+              const timestampConflict = !bothVersionsKnown || remoteVersion === localVersion
+                ? Boolean(remoteUpdatedAt) && (remoteIsNewer || equalTimestamp)
+                : false;
+
+              if (versionConflict || timestampConflict) {
+                // Conflict: remote is a newer revision (by version, or by
+                // timestamp when versions are unavailable/equal) — store
+                // conflict, remove from queue
                 console.warn(
                   `${LOG_PREFIX} Conflict detected for ${item.entityType}/${item.entityId}: ` +
                   `local=${localUpdatedAt}, remote=${remoteUpdatedAt}`,
@@ -547,7 +567,10 @@ export class SyncManager implements SyncManagerInterface {
                   localData: localPayload,
                   remoteData: fromSupabaseRow(item.entityType, remoteRow),
                   localUpdatedAt,
-                  remoteUpdatedAt,
+                  // remoteUpdatedAt is required (string). When a conflict is
+                  // raised purely on sync_version and the remote row has no
+                  // usable timestamp, fall back to the local one for display.
+                  remoteUpdatedAt: remoteUpdatedAt ?? localUpdatedAt,
                   detectedAt: new Date().toISOString(),
                 };
                 await addSyncConflict(conflict);
@@ -880,10 +903,20 @@ export class SyncManager implements SyncManagerInterface {
     for (const entityType of tablesWithDeletedAt) {
       try {
         const table = entityTypeToTable[entityType];
-        const { data, error } = await this.client
+        // Finding #8 (Phase 2): global membership-RLS tables key on `created_by`,
+        // NOT `user_id`. Adding `.eq('user_id', …)` against them raises 42703
+        // (column does not exist) and "Restore from Cloud" silently never
+        // un-deletes shared data. RLS already scopes the UPDATE to the user's
+        // memberships server-side, so for global tables we drop the user_id
+        // filter entirely. Local user-owned tables keep it (ownership scope).
+        const isGlobal = isGlobalEntity(entityType);
+        let undeleteQuery = this.client
           .from(table)
-          .update({ deleted_at: null })
-          .eq('user_id', this.userId)
+          .update({ deleted_at: null });
+        if (!isGlobal) {
+          undeleteQuery = undeleteQuery.eq('user_id', this.userId);
+        }
+        const { data, error } = await undeleteQuery
           .not('deleted_at', 'is', null)
           .select('id');
 
@@ -1501,11 +1534,12 @@ export class SyncManager implements SyncManagerInterface {
       if (!isGlobal) q = q.eq('user_id', this.userId);
       await q;
     } else if (conflict.entityType === 'globalProjectPreferences') {
+      // No deleted_at column — hard delete by composite key (Finding #7, Phase 2).
       const gpid = (conflict.localData as Record<string, unknown>).globalProjectId as string | undefined;
       if (gpid) {
         await this.client
           .from(table)
-          .update({ deleted_at: new Date().toISOString() })
+          .delete()
           .eq('user_id', this.userId)
           .eq('global_project_id', gpid);
       }

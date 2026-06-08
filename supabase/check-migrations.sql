@@ -105,6 +105,8 @@ with probe(seq, migration, probe_desc, applied) as (
     exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='notify_discord_on_bug_report')
   union all select 46, 'add-daily-report-name.sql', 'column daily_reports.name',
     exists(select 1 from information_schema.columns where table_schema='public' and table_name='daily_reports' and column_name='name')
+  union all select 47, 'add-sync-version-insert-defaults.sql', 'function init_sync_version',
+    exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='init_sync_version')
 )
 select
   seq            as "#",
