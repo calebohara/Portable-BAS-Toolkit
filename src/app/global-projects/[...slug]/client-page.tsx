@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, use, useEffect, useCallback } from 'react';
+import { useState, useMemo, use, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
 import {
@@ -8,7 +8,7 @@ import {
   History, Users, Plus, Trash2, Edit2, MapPin, Hash, Building2,
   Copy, Check, Clock, User, ChevronDown, ChevronUp, Pencil, FolderKanban,
   FileCode, Terminal, Pin, PinOff,
-  Download, CloudOff, Phone, Mail, Eye, Database, ChevronRight, HardDrive, Cpu,
+  Download, Upload, CloudOff, Phone, Mail, Eye, Database, ChevronRight, HardDrive, Cpu,
 } from 'lucide-react';
 import {
   useGlobalProject,
@@ -2636,12 +2636,31 @@ function GlobalPpclTab({
       }
     : null;
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const handleNew = async () => {
     try {
       await onAdd({ name: 'Untitled.pcl', content: '', firmware: 'pxc-tc' });
       toast.success('PPCL program created');
     } catch {
       toast.error('Failed to create PPCL program');
+    }
+  };
+
+  // Upload an existing .pcl program and attach it to this global project. Mirrors
+  // the local PPCL editor's import (ppcl-editor/page.tsx handleImportFile): read
+  // the file text verbatim as inline content, derive a `.pcl` name from the file
+  // name, and default the firmware target to pxc-tc (no content-based detection
+  // exists). Persists via the same onAdd → addGlobalPpcl path as "New Program",
+  // so RLS, sync, and realtime fan-out are already handled.
+  const handleUpload = async (file: File) => {
+    try {
+      const text = await file.text();
+      const name = file.name.endsWith('.pcl') ? file.name : `${file.name}.pcl`;
+      await onAdd({ name, content: text, firmware: 'pxc-tc' });
+      toast.success(`Imported "${file.name}"`);
+    } catch {
+      toast.error('Failed to import file');
     }
   };
 
@@ -2662,20 +2681,53 @@ function GlobalPpclTab({
         <h2 className="text-lg font-semibold flex items-center gap-2">
           <FileCode className="h-5 w-5" /> PPCL Programs
         </h2>
-        <Button size="sm" className="gap-1.5" onClick={handleNew}>
-          <Plus className="h-4 w-4" /> New Program
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Hidden input shared by the header + empty-state Upload buttons.
+              accept=".pcl,.txt" matches the local editor's file panel exactly. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pcl,.txt"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) handleUpload(f);
+              e.target.value = ''; // reset so re-uploading the same file fires onChange
+            }}
+          />
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4" /> Upload .pcl
+          </Button>
+          <Button size="sm" className="gap-1.5" onClick={handleNew}>
+            <Plus className="h-4 w-4" /> New Program
+          </Button>
+        </div>
       </div>
 
       {documents.length === 0 ? (
         <EmptyState
           icon={FileCode}
           title="No PPCL Programs"
-          description="Create a new PPCL program. The global PPCL editor is read-only for now — use Preview / Download to inspect content."
+          description="Upload an existing .pcl file or create a new program to attach it to this project. Programs are read-only here — use Preview / Download to inspect content."
           action={
-            <Button size="sm" className="gap-1.5" onClick={handleNew}>
-              <Plus className="h-4 w-4" /> New Program
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="h-4 w-4" /> Upload .pcl
+              </Button>
+              <Button size="sm" className="gap-1.5" onClick={handleNew}>
+                <Plus className="h-4 w-4" /> New Program
+              </Button>
+            </div>
           }
         />
       ) : (
