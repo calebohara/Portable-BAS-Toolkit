@@ -27,7 +27,7 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 ## 🤖 Daily health check
 
 <!-- AUTOMATED-CHECKS:START -->
-**Last run:** 2026-06-07 13:43 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/27094146084)
+**Last run:** 2026-06-08 01:28 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/27110866735)
 
 > ✅ All automated checks passed.
 
@@ -47,7 +47,16 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 Open rows from the Supabase `bug_reports` table (submitted via the in-app Bug Report dialog).
 
 <!-- USER-REPORTS:START -->
-_No open user-reported bugs as of 2026-06-07 13:43 UTC. 🎉_
+**6** open reports as of 2026-06-08 01:28 UTC.
+
+| Opened | Sev | Status | Title | Page | Version | By |
+|--------|-----|--------|-------|------|---------|----|
+| 2026-06-08 | high | open | [sync] rls-rejected on globalActivityLog | /settings | 4.23.0 | Caleb O'Hara |
+| 2026-06-07 | high | open | [sync] missing-column on globalProjectPreferences | /settings | 4.22.0 | Caleb O'Hara |
+| 2026-05-13 | high | closed | [sync] missing-column on globalProjectPreferences | /settings | 4.9.1 | Caleb O'Hara |
+| 2026-05-12 | high | closed | [sync] missing-column on globalProjectPreferences | /settings | 4.9.1 |  |
+| 2026-05-13 | medium | closed | [sync] unknown on trendSessions | /settings | 4.9.1 | Caleb O'Hara |
+| 2026-05-12 | medium | closed | [sync] unknown on trendSessions | /settings | 4.9.1 |  |
 <!-- USER-REPORTS:END -->
 
 ---
