@@ -9,6 +9,7 @@ import { registerSyncManager, unregisterSyncManager, emitPullComplete } from '@/
 import { hasSyncAccess, isInGracePeriod } from '@/lib/paywall';
 import { GLOBAL_MEMBERSHIP_CHANGED_EVENT } from '@/hooks/use-global-projects';
 import { runConsistencyCheck, type ConsistencyReport } from '@/lib/sync/consistency-check';
+import { startAutoMirror } from '@/lib/global-projects/auto-mirror';
 import { toast } from 'sonner';
 
 interface SyncContextValue {
@@ -152,6 +153,12 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     manager.start();
     setSyncStatus('idle');
 
+    // Automatic global→local mirror: reflect global-project changes down into any
+    // LOCAL project linked via syncedGlobalId. Driven off pull-complete (which
+    // also fires on realtime apply), debounced + idempotent + tombstone-delete-
+    // aware. Torn down in the cleanup below.
+    const stopAutoMirror = startAutoMirror();
+
     // Subscribe to realtime changes on the user's global_* tables. The
     // returned cleanup function is stored so we can tear down channels on
     // logout/unmount. `subscribeToGlobalRealtime` is idempotent — calling it
@@ -292,6 +299,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       window.removeEventListener(GLOBAL_MEMBERSHIP_CHANGED_EVENT, handleMembershipChanged);
       clearInterval(autoRecoverIntervalId);
       clearInterval(periodicPullIntervalId);
+      stopAutoMirror();
       // Tear down realtime explicitly first; `manager.stop()` also calls
       // `unsubscribeFromGlobalRealtime` for belt-and-suspenders.
       realtimeCleanupRef.current?.();

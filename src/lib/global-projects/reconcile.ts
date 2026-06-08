@@ -89,6 +89,18 @@ export interface EntityReconcileCounts {
   pulled: number;
   skipped: number;
   failed: number;
+  /** Rows deleted locally because a matching GLOBAL tombstone arrived (auto-mirror). */
+  deleted?: number;
+}
+
+// ── Manual-reconcile in-flight gate (auto-mirror coordination) ──────────────
+// The automatic global→local mirror must not run while a USER-initiated
+// reconcile (Share to Global / Save to Local) is writing the same local rows —
+// they'd double-write and race. The manual entry points bump this counter; the
+// auto-mirror orchestrator defers while it's > 0.
+let manualReconcileInFlight = 0;
+export function isManualReconcileInFlight(): boolean {
+  return manualReconcileInFlight > 0;
 }
 
 export interface ReconcileResult {
@@ -1069,7 +1081,82 @@ function buildLocalProjectFromGlobal(global: GlobalProject, existingLocalId?: st
 
 // ─── Public API: reconcileLocalToGlobal ─────────────────────────────────────
 
+// ─── Public API: manual reconcile (force-overwrite) + automatic mirror ──────
+
+/** Manual "Share to Global" — pushes a local project up. Gated so the auto-mirror
+ *  defers while it runs (they'd race on the local project row). */
 export async function reconcileLocalToGlobal(
+  localProjectId: string,
+  onProgress?: ProgressFn,
+): Promise<ReconcileResult> {
+  manualReconcileInFlight++;
+  try {
+    return await reconcileLocalToGlobalImpl(localProjectId, onProgress);
+  } finally {
+    manualReconcileInFlight--;
+  }
+}
+
+/** Manual "Save to Local" — force-pulls a global project down (overwrites local,
+ *  creating the local project if needed). Gated against the auto-mirror. */
+export async function reconcileGlobalToLocal(
+  globalProjectId: string,
+  onProgress?: ProgressFn,
+): Promise<ReconcileResult> {
+  manualReconcileInFlight++;
+  try {
+    return await reconcileGlobalToLocalImpl(globalProjectId, onProgress);
+  } finally {
+    manualReconcileInFlight--;
+  }
+}
+
+/**
+ * Automatic global→local mirror for an ALREADY-LINKED local project.
+ *
+ * The auto-path twin of reconcileGlobalToLocal, with three hard differences:
+ *   1. NEVER creates a local project — it asserts the linked local exists (and
+ *      still points at this global). If not, it returns zero counts. This is the
+ *      "only if the global project lives in the project" per-device gate.
+ *   2. Idempotent: the live-upsert pass skips rows global hasn't advanced past
+ *      what we already mirrored (skipUnchanged), so repeated runs on every pull /
+ *      realtime event enqueue zero pushes for unchanged rows.
+ *   3. Propagates GLOBAL deletes down via the tombstone pass (tombstone-only;
+ *      local-only rows are never touched).
+ *
+ * GLOBAL WINS on conflict, by `updated_at` precedence (never sync_version). All
+ * writes go to LOCAL stores, so this can never push up to global or loop.
+ */
+export async function reconcileGlobalToLocalAuto(
+  globalProjectId: string,
+  localProjectId: string,
+): Promise<{ pulled: number; deleted: number; skipped: number; failed: number }> {
+  const localProject = await db.getProject(localProjectId);
+  if (!localProject || localProject.syncedGlobalId !== globalProjectId) {
+    // Not linked (anymore) — mirror nothing. Hard invariant: no phantom writes.
+    return { pulled: 0, deleted: 0, skipped: 0, failed: 0 };
+  }
+
+  let pulled = 0, deleted = 0, skipped = 0, failed = 0;
+  for (const pair of RECONCILED_ENTITY_PAIRS) {
+    const counts = emptyCounts();
+    try {
+      // Live changes first (idempotent), then global tombstones → local deletes.
+      await reconcilePairGlobalToLocal(pair, globalProjectId, localProjectId, counts, { skipUnchanged: true });
+      await reconcilePairTombstonesGlobalToLocal(pair, globalProjectId, localProjectId, counts);
+    } catch (e) {
+      console.warn(`[auto-mirror] ${pair.key} failed:`, e);
+      counts.failed++;
+    }
+    pulled += counts.pulled;
+    deleted += counts.deleted ?? 0;
+    skipped += counts.skipped;
+    failed += counts.failed;
+  }
+  return { pulled, deleted, skipped, failed };
+}
+
+async function reconcileLocalToGlobalImpl(
   localProjectId: string,
   onProgress?: ProgressFn,
 ): Promise<ReconcileResult> {
@@ -1184,7 +1271,7 @@ export async function reconcileLocalToGlobal(
  * Pull a global project + all its children into the local IndexedDB. Mirrors
  * reconcileLocalToGlobal: ID-stable, idempotent, appends one activity entry.
  */
-export async function reconcileGlobalToLocal(
+async function reconcileGlobalToLocalImpl(
   globalProjectId: string,
   onProgress?: ProgressFn,
 ): Promise<ReconcileResult> {
@@ -1423,6 +1510,7 @@ async function reconcilePairGlobalToLocal(
   globalProjectId: string,
   localProjectId: string,
   counts: EntityReconcileCounts,
+  opts?: { skipUnchanged?: boolean },
 ): Promise<void> {
   const globalTable = entityTable(pair.global);
   const supabase = client();
@@ -1443,11 +1531,42 @@ async function reconcilePairGlobalToLocal(
     ? await buildNoteAuthorContext(localProjectId, rows as Record<string, unknown>[])
     : undefined;
 
-  // We rely on IndexedDB's put-by-id semantics for idempotency; no
-  // pre-fetch needed on the local side. Skip-on-unchanged could be added
-  // later if write amplification becomes a concern.
+  // ── Skip-on-unchanged gate (auto-mirror only; manual Save-to-Local forces) ──
+  // The MANUAL path (skipUnchanged falsy) keeps force-overwrite semantics — a
+  // user who clicks "Save to Local" expects local to match global, even if they
+  // edited the local copy more recently. The AUTO path passes skipUnchanged=true
+  // and skips rows the global side has NOT advanced past what we already mirrored,
+  // so re-running on every 90s pull / realtime event enqueues ZERO pushes for
+  // unchanged rows (the primary churn defense). Compare `updated_at` ONLY — local
+  // and global `sync_version` are independent per-table counters and must never
+  // be compared (the P0 lesson in reconcilePairLocalToGlobal). The compare is
+  // computed from the RAW snake_case row BEFORE convertGlobalToLocal so an
+  // unchanged file/attachment never re-downloads its blob.
+  let localUpdatedById: Map<string, string | undefined> | null = null;
+  if (opts?.skipUnchanged) {
+    const localItems = await loadLocalItems(pair.local, pair.key, localProjectId);
+    localUpdatedById = new Map();
+    for (const it of localItems as Array<{ id: string; updatedAt?: string; createdAt?: string }>) {
+      localUpdatedById.set(it.id, it.updatedAt ?? it.createdAt);
+    }
+  }
+
   for (const raw of rows as Record<string, unknown>[]) {
     try {
+      if (localUpdatedById) {
+        const id = raw.id as string;
+        const localStored = localUpdatedById.get(id);
+        if (localUpdatedById.has(id) && localStored) {
+          const globalMs = Date.parse(raw.updated_at as string);
+          const localMs = Date.parse(localStored);
+          // GLOBAL WINS, but only when global is strictly newer than what we last
+          // mirrored. Unparseable/missing timestamps fall through to a save (safe).
+          if (!Number.isNaN(globalMs) && !Number.isNaN(localMs) && globalMs <= localMs) {
+            counts.skipped++;
+            continue;
+          }
+        }
+      }
       const camelRow = camelKeysShallow<Record<string, unknown>>(raw);
       const localRow = await convertGlobalToLocal(pair.key, camelRow, localProjectId, noteCtx);
       if (!localRow) {
@@ -1459,6 +1578,107 @@ async function reconcilePairGlobalToLocal(
     } catch (e) {
       console.warn(`[reconcile] pull ${pair.key} row failed:`, e);
       counts.failed++;
+    }
+  }
+}
+
+// ── Tombstone-aware delete propagation (global delete → linked local delete) ──
+// Runs AFTER the live-upsert pass for each pair on the AUTO path only. NEVER a
+// blind subtract of "rows absent from the global live set" — that would wipe a
+// local-only row the user added directly and hasn't shared up. The rule is:
+// delete a local row ONLY when a real GLOBAL tombstone with that id exists AND
+// the local row is actually present. A per-(project,pair) high-water cursor in
+// syncMeta keeps the tombstone fetch bounded; it advances ONLY past resolved
+// tombstones (applied, or provably absent locally) and NOT past one deferred
+// because its local push is still pending — else that delete would be lost.
+async function reconcilePairTombstonesGlobalToLocal(
+  pair: Pair,
+  globalProjectId: string,
+  localProjectId: string,
+  counts: EntityReconcileCounts,
+): Promise<void> {
+  const supabase = client();
+  const globalTable = entityTable(pair.global);
+  const cursorKey = `mirror:tomb:${globalProjectId}:${pair.key}`;
+  const cursor = await db.getSyncMeta(cursorKey);
+
+  let q = supabase
+    .from(globalTable)
+    .select('id, updated_at')
+    .eq('global_project_id', globalProjectId)
+    .not('deleted_at', 'is', null);
+  if (cursor) q = q.gte('updated_at', cursor);
+  const { data: tombstones, error } = await q;
+  if (error) throw new Error(`${globalTable} tombstone fetch failed: ${error.message}`);
+  if (!tombstones || tombstones.length === 0) return;
+
+  // Only delete a local row that actually exists for THIS project.
+  const localItems = await loadLocalItems(pair.local, pair.key, localProjectId);
+  const localIds = new Set((localItems as Array<{ id: string }>).map((x) => x.id));
+
+  // Cursor = high-water mark of RESOLVED tombstones. If ANY tombstone is deferred
+  // (pending local push) or fails, we do NOT advance — so it's re-fetched next
+  // pass and its delete is never permanently dropped (Review B1/B2).
+  let resolvedMaxMs = cursor ? Date.parse(cursor) : NaN;
+  let anyDeferred = false;
+  const bump = (ms: number) => {
+    if (!Number.isNaN(ms)) resolvedMaxMs = Number.isNaN(resolvedMaxMs) ? ms : Math.max(resolvedMaxMs, ms);
+  };
+
+  for (const t of tombstones as Array<{ id: string; updated_at: string }>) {
+    const tMs = Date.parse(t.updated_at);
+    if (!localIds.has(t.id)) {
+      // Never had it locally (or already deleted) → resolved no-op.
+      bump(tMs);
+      continue;
+    }
+    // Dirty-guard: don't delete a local row whose own create/update push is still
+    // pending — the delete could race the create and resurrect a zombie. Defer.
+    if (await db.hasUnpushedSyncItem(pair.local, t.id)) {
+      anyDeferred = true;
+      continue;
+    }
+    try {
+      await deleteLocalItem(pair.local, t.id);
+      counts.deleted = (counts.deleted ?? 0) + 1;
+      bump(tMs);
+    } catch (e) {
+      console.warn(`[reconcile] tombstone delete ${pair.key}/${t.id} failed:`, e);
+      counts.failed++;
+      anyDeferred = true;
+    }
+  }
+
+  if (!anyDeferred && !Number.isNaN(resolvedMaxMs)) {
+    await db.setSyncMeta(cursorKey, new Date(resolvedMaxMs).toISOString());
+  }
+}
+
+// Dispatcher: route a tombstone-driven delete to the LOCAL store's delete helper.
+// Each `db.deleteX` (repo.delete) emits notifySync('delete', LOCAL_store, id) →
+// enqueues a delete push to the user's OWN local cloud tables — desired, the
+// local copy is the user's data. (NOT bulkDeleteSilent, which targets the global
+// mirror stores.) deleteFile/deleteDailyReport/deleteProjectDxr also clean blobs.
+async function deleteLocalItem(localKey: Pair['local'], id: string): Promise<void> {
+  switch (localKey) {
+    case 'notes':                return db.deleteNote(id);
+    case 'devices':              return db.deleteDevice(id);
+    case 'ipPlan':               return db.deleteIpEntry(id);
+    case 'dailyReports':         return db.deleteDailyReport(id);
+    case 'networkDiagrams':      return db.deleteDiagram(id);
+    case 'files':                return db.deleteFile(id);
+    case 'ppclDocuments':        return db.deletePpclDocument(id);
+    case 'terminalLogs':         return db.deleteTerminalLog(id);
+    case 'pidTuningSessions':    return db.deletePidTuningSession(id);
+    case 'psychSessions':        return db.deletePsychSession(id);
+    case 'registerCalculations': return db.deleteRegisterCalculation(id);
+    case 'pingSessions':         return db.deletePingSession(id);
+    case 'trendSessions':        return db.deleteTrendSession(id);
+    case 'connectionProfiles':   return db.deleteConnectionProfile(id);
+    case 'dxrs':                 return db.deleteProjectDxr(id);
+    default: {
+      const exhaustive: never = localKey;
+      throw new Error(`deleteLocalItem: unhandled key ${exhaustive as string}`);
     }
   }
 }
