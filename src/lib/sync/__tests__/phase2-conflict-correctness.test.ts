@@ -50,6 +50,7 @@ const dbMocks = {
   updateSyncItem: vi.mocked(db.updateSyncItem),
   deleteSyncItem: vi.mocked(db.deleteSyncItem),
   addSyncConflict: vi.mocked(db.addSyncConflict),
+  bulkPutSilent: vi.mocked(db.bulkPutSilent),
 };
 
 Object.defineProperty(globalThis, 'navigator', {
@@ -354,6 +355,118 @@ describe('Fix C — sync_version is the primary conflict comparator (Finding #9)
 
     expect(dbMocks.addSyncConflict).not.toHaveBeenCalled();
     expect(supabase._mock.upsert).toHaveBeenCalledTimes(1);
+    manager.stop();
+  });
+});
+
+// ─── Hotfix: content-equality gate (the 140-spurious-conflicts flood) ───────
+// After Phase 2 made sync_version the primary comparator, a fullSync that
+// re-enqueues UNCHANGED rows (no dirty-tracking watermark on a device's first
+// run) flagged a conflict for every row whose cloud sync_version had been bumped
+// by another device — even though the content was byte-identical. That produced
+// a flood of "keep local / keep cloud" prompts for rows that hadn't diverged.
+// The gate: if the row we'd push is content-identical to the cloud row (ignoring
+// volatile server columns), silently adopt the cloud row — no conflict, no push.
+
+describe('Hotfix — identical content with a higher remote version is NOT a conflict', () => {
+  interface MockFrom {
+    select: ReturnType<typeof vi.fn>;
+    eq: ReturnType<typeof vi.fn>;
+    in: ReturnType<typeof vi.fn>;
+    maybeSingle: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
+  }
+  function createMockSupabase(remoteRow: Record<string, unknown> | null) {
+    const mockFrom: MockFrom = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      in: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: remoteRow, error: null }),
+      upsert: vi.fn().mockResolvedValue({ error: null }),
+    };
+    return { from: vi.fn(() => mockFrom), _mock: mockFrom };
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('silently reconciles (adopts cloud) when content matches but remote sync_version is higher', async () => {
+    // Cloud row: SAME content (device_name), but a higher version + older
+    // timestamp — the classic stale-version-after-another-device-bumped case.
+    const remoteRow = {
+      id: ID,
+      global_project_id: GPID,
+      device_name: 'VAV-2',
+      updated_at: '2026-03-01T00:00:00.000Z', // older
+      sync_version: 9,                          // higher than local
+    };
+    const supabase = createMockSupabase(remoteRow);
+    const manager = new SyncManager(supabase as never, TEST_USER_ID);
+
+    const item: SyncQueueItem = {
+      id: `globalDevices-${ID}`,
+      action: 'update',
+      entityType: 'globalDevices',
+      entityId: ID,
+      payload: {
+        id: ID,
+        globalProjectId: GPID,
+        deviceName: 'VAV-2',                   // ← identical content
+        updatedAt: '2026-03-20T00:00:00.000Z', // newer timestamp
+        syncVersion: 3,                          // lower version
+      },
+      userId: TEST_USER_ID,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      retriedCount: 0,
+    };
+    dbMocks.getPendingSyncItems.mockResolvedValueOnce([item]);
+
+    await manager.processQueue();
+
+    // No conflict prompt, no redundant push — just a silent local reconcile.
+    expect(dbMocks.addSyncConflict).not.toHaveBeenCalled();
+    expect(supabase._mock.upsert).not.toHaveBeenCalled();
+    expect(dbMocks.bulkPutSilent).toHaveBeenCalledTimes(1);
+    expect(dbMocks.deleteSyncItem).toHaveBeenCalledWith(item.id);
+    manager.stop();
+  });
+
+  it('STILL raises a conflict when content genuinely differs and remote version is higher', async () => {
+    const remoteRow = {
+      id: ID,
+      global_project_id: GPID,
+      device_name: 'VAV-2-CLOUD-EDIT',          // ← different content
+      updated_at: '2026-03-01T00:00:00.000Z',
+      sync_version: 9,
+    };
+    const supabase = createMockSupabase(remoteRow);
+    const manager = new SyncManager(supabase as never, TEST_USER_ID);
+
+    const item: SyncQueueItem = {
+      id: `globalDevices-${ID}`,
+      action: 'update',
+      entityType: 'globalDevices',
+      entityId: ID,
+      payload: {
+        id: ID,
+        globalProjectId: GPID,
+        deviceName: 'VAV-2-LOCAL-EDIT',          // ← genuinely diverged
+        updatedAt: '2026-03-20T00:00:00.000Z',
+        syncVersion: 3,
+      },
+      userId: TEST_USER_ID,
+      status: 'pending',
+      createdAt: new Date().toISOString(),
+      retriedCount: 0,
+    };
+    dbMocks.getPendingSyncItems.mockResolvedValueOnce([item]);
+
+    await manager.processQueue();
+
+    // Real divergence → real conflict (not silently reconciled away).
+    expect(dbMocks.addSyncConflict).toHaveBeenCalledTimes(1);
+    expect(dbMocks.bulkPutSilent).not.toHaveBeenCalled();
+    expect(supabase._mock.upsert).not.toHaveBeenCalled();
     manager.stop();
   });
 });

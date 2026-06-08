@@ -56,6 +56,65 @@ function rowMtime(row: Record<string, unknown>): string | undefined {
     | undefined;
 }
 
+// ─── Content-equality gate for conflict detection (post-Phase-2 hotfix) ──────
+// Server-owned / volatile columns that must be IGNORED when deciding whether a
+// local row and a cloud row actually differ. A higher cloud `sync_version` (or a
+// newer `updated_at`) with otherwise-identical content is NOT a real conflict —
+// it's just a stale version number (e.g. fullSync re-enqueued an unchanged row
+// whose version another device bumped). Without this gate, Phase 2's version-
+// primary comparator turns every such row into a spurious "keep local / keep
+// cloud" prompt.
+const CONFLICT_IGNORED_COLUMNS = new Set([
+  'updated_at',
+  'updated_by',
+  'created_at',
+  'created_by',
+  'sync_version',
+  'deleted_at',
+  'fts',
+]);
+
+/** Stable JSON stringify (sorted keys) so jsonb column comparison is order-insensitive. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`;
+}
+
+/** True if two column values are equivalent. null / undefined / '' all count as "empty". */
+function columnValuesEqual(a: unknown, b: unknown): boolean {
+  const na = a === '' ? null : a;
+  const nb = b === '' ? null : b;
+  if (na == null && nb == null) return true;
+  if (na == null || nb == null) return false;
+  if (na === nb) return true;
+  if (typeof na === 'object' || typeof nb === 'object') {
+    try { return stableStringify(na) === stableStringify(nb); } catch { return false; }
+  }
+  return false;
+}
+
+/**
+ * True if the row the client WOULD push (`pushRow`, already mapped to Supabase
+ * column shape by toSupabaseRow) is content-identical to the existing cloud row
+ * (`remoteRow`), ignoring server-owned/volatile columns. We only iterate the
+ * columns the client owns — extra server columns on remoteRow are irrelevant
+ * because the client never writes them. If every client-owned column matches,
+ * pushing would be a no-op, so a version/timestamp difference is NOT a conflict.
+ */
+function pushRowMatchesRemote(
+  pushRow: Record<string, unknown>,
+  remoteRow: Record<string, unknown>,
+): boolean {
+  for (const [key, value] of Object.entries(pushRow)) {
+    if (CONFLICT_IGNORED_COLUMNS.has(key)) continue;
+    if (!columnValuesEqual(value, remoteRow[key])) return false;
+  }
+  return true;
+}
+
 type StatusCallback = (status: 'idle' | 'syncing' | 'error', pendingCount: number) => void;
 type ConflictCallback = (count: number) => void;
 
@@ -615,6 +674,24 @@ export class SyncManager implements SyncManagerInterface {
                 : false;
 
               if (versionConflict || timestampConflict) {
+                // ── Content-equality gate (post-Phase-2 hotfix) ──────────────
+                // A higher remote version / newer timestamp is only a REAL
+                // conflict if the content actually diverged. If the row we'd
+                // push is byte-identical to the cloud row (ignoring volatile
+                // server columns), there's nothing to resolve — the local copy
+                // just has a stale version number (classic after a fullSync
+                // re-enqueues unchanged rows another device has since bumped).
+                // Silently reconcile: adopt the cloud row locally (so syncVersion
+                // catches up) and drop the queue item. No prompt, no push.
+                if (pushRowMatchesRemote(row, remoteRow)) {
+                  await bulkPutSilent(item.entityType, [fromSupabaseRow(item.entityType, remoteRow)]);
+                  await deleteSyncItem(item.id);
+                  console.info(
+                    `${LOG_PREFIX} No-op reconcile for ${item.entityType}/${item.entityId}: ` +
+                    `identical content, adopted cloud version (no conflict).`,
+                  );
+                  return true;
+                }
                 // Conflict: remote is a newer revision (by version, or by
                 // timestamp when versions are unavailable/equal) — store
                 // conflict, remove from queue
