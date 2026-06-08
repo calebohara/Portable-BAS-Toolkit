@@ -77,6 +77,24 @@ function fail<T>(message: string): ApiResult<T> {
   return { data: null, error: message };
 }
 
+/**
+ * True when a Supabase RPC call failed because the function doesn't exist on
+ * this database (i.e. the migration hasn't been applied yet) — so the caller can
+ * gracefully fall back to a client-side path. PostgREST returns PGRST202 for an
+ * unknown RPC; Postgres uses 42883 ("function does not exist"); some setups also
+ * surface a 404. Anything else is a REAL error and must NOT trigger a fallback.
+ */
+function isMissingRpcError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  const code = error.code ?? '';
+  if (code === 'PGRST202' || code === '42883') return true;
+  const msg = (error.message ?? '').toLowerCase();
+  return (
+    (msg.includes('could not find') && msg.includes('function'))
+    || (msg.includes('function') && msg.includes('does not exist'))
+  );
+}
+
 // ─── Generic CRUD Helpers ──────────────────────────────────────────────────
 // These eliminate per-entity boilerplate for fetch, update, and soft-delete.
 
@@ -365,63 +383,83 @@ export async function deleteGlobalProject(id: string): Promise<ApiResult<void>> 
       console.warn(`Failed to collect report attachment paths for project ${id}:`, collectErr);
     }
 
-    const { error } = await supabase
-      .from('global_projects')
-      .update({ deleted_at: new Date().toISOString() })
-      .eq('id', id)
-      .eq('created_by', userId);
+    // ── Atomic cascade (Phase 3b) ────────────────────────────────────────────
+    // Prefer the server-side SECURITY DEFINER RPC, which soft-deletes the parent
+    // AND every child table in ONE transaction (no partial-write orphans on a
+    // mid-cascade crash). The RPC enforces the same "admin or creator" auth in
+    // its body. If the RPC isn't deployed yet (older DB), fall back to the
+    // legacy per-statement cascade below so un-migrated devices keep working.
+    const rpcResult = await supabase.rpc('cascade_soft_delete_global_project', {
+      p_global_project_id: id,
+    });
+    const rpcMissing = isMissingRpcError(rpcResult.error);
 
-    if (error) return fail(error.message);
+    if (rpcResult.error && !rpcMissing) {
+      // RPC exists but failed (auth / not-found / DB error) — surface it.
+      return fail(rpcResult.error.message);
+    }
+
+    if (rpcMissing) {
+      // ── Legacy fallback: non-atomic per-statement cascade ──────────────────
+      const { error } = await supabase
+        .from('global_projects')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('created_by', userId);
+
+      if (error) return fail(error.message);
+
+      // Cascade soft-delete all child entities so they don't remain queryable
+      // after the parent project is soft-deleted. The parent row is only stamped
+      // with deleted_at (not hard-deleted), so Postgres ON DELETE CASCADE never
+      // fires — we must mirror the soft-delete explicitly for every child table
+      // that carries a deleted_at column.
+      //
+      // Tables WITHOUT a deleted_at column (global_activity_log,
+      // global_project_preferences) are intentionally excluded — they rely on
+      // Postgres FK ON DELETE CASCADE for cleanup when the parent is eventually
+      // hard-purged, and their RLS gates access by membership/user_id anyway.
+      const now = new Date().toISOString();
+      const childTables = [
+        // Originally cascaded (5)
+        'global_field_notes',
+        'global_devices',
+        'global_ip_plan',
+        'global_daily_reports',
+        'global_project_files',
+        // Previously missing from cascade (12) — Finding #3
+        'global_network_diagrams',
+        'global_ppcl_documents',
+        'global_terminal_session_logs',
+        'global_pid_tuning_sessions',
+        'global_psych_sessions',
+        'global_register_calculations',
+        'global_ping_sessions',
+        'global_trend_sessions',
+        'global_connection_profiles',
+        'global_field_panels',
+        'global_project_notepad_entries',
+        'global_dxrs',
+      ];
+      for (const table of childTables) {
+        const { error: childErr } = await supabase
+          .from(table)
+          .update({ deleted_at: now })
+          .eq('global_project_id', id)
+          .is('deleted_at', null);
+        if (childErr) {
+          console.warn(`Failed to cascade soft-delete ${table} for project ${id}:`, childErr.message);
+        }
+      }
+    }
 
     // Best-effort blob cleanup — failures must NOT block the project deletion.
+    // Runs AFTER the rows are tombstoned (atomic RPC or legacy fallback).
     if (storagePaths.length > 0) {
       try {
         await deleteManyFromStorage(storagePaths);
       } catch (storageErr) {
         console.warn(`Failed to delete ${storagePaths.length} storage blob(s) for project ${id}:`, storageErr);
-      }
-    }
-
-    // Cascade soft-delete all child entities so they don't remain queryable
-    // after the parent project is soft-deleted. The parent row is only stamped
-    // with deleted_at (not hard-deleted), so Postgres ON DELETE CASCADE never
-    // fires — we must mirror the soft-delete explicitly for every child table
-    // that carries a deleted_at column.
-    //
-    // Tables WITHOUT a deleted_at column (global_activity_log,
-    // global_project_preferences) are intentionally excluded — they rely on
-    // Postgres FK ON DELETE CASCADE for cleanup when the parent is eventually
-    // hard-purged, and their RLS gates access by membership/user_id anyway.
-    const now = new Date().toISOString();
-    const childTables = [
-      // Originally cascaded (5)
-      'global_field_notes',
-      'global_devices',
-      'global_ip_plan',
-      'global_daily_reports',
-      'global_project_files',
-      // Previously missing from cascade (12) — Finding #3
-      'global_network_diagrams',
-      'global_ppcl_documents',
-      'global_terminal_session_logs',
-      'global_pid_tuning_sessions',
-      'global_psych_sessions',
-      'global_register_calculations',
-      'global_ping_sessions',
-      'global_trend_sessions',
-      'global_connection_profiles',
-      'global_field_panels',
-      'global_project_notepad_entries',
-      'global_dxrs',
-    ];
-    for (const table of childTables) {
-      const { error: childErr } = await supabase
-        .from(table)
-        .update({ deleted_at: now })
-        .eq('global_project_id', id)
-        .is('deleted_at', null);
-      if (childErr) {
-        console.warn(`Failed to cascade soft-delete ${table} for project ${id}:`, childErr.message);
       }
     }
 

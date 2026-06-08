@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { SyncEntityType } from '@/types';
 import {
   toSupabaseRow,
@@ -8,6 +8,9 @@ import {
   entityTypeToTable,
   SYNC_ORDER,
   REQUIRES_PROJECT_ID,
+  _resetDroppedColumnWarnings,
+  orderPushBatch,
+  pushOrderIndex,
 } from '../field-map';
 
 const USER_ID = '00000000-1111-2222-3333-444444444444';
@@ -31,13 +34,15 @@ describe('field-map — toSupabaseRow', () => {
     expect(row.is_pinned).toBe(true);
   });
 
-  it('falls back to auto snake_case when no override defined', () => {
+  it('falls back to auto snake_case when no override defined (for a REAL column)', () => {
+    // bug_reports.user_name is a real schema column reached purely via
+    // auto-snake (no FIELD_OVERRIDES entry), so it survives the allowlist gate.
     const row = toSupabaseRow(
-      'projects',
-      { id: ENTITY_ID, randomFieldName: 'value' },
+      'bugReports',
+      { id: ENTITY_ID, title: 'x', userName: 'Alice' },
       USER_ID,
     );
-    expect(row.random_field_name).toBe('value');
+    expect(row.user_name).toBe('Alice');
   });
 
   it('strips globally local-only fields (isOfflineCached)', () => {
@@ -300,5 +305,219 @@ describe('field-map — structural invariants', () => {
     const filesIdx = SYNC_ORDER.indexOf('files');
     const notesIdx = SYNC_ORDER.indexOf('notes');
     expect(filesIdx).toBeLessThan(notesIdx);
+  });
+});
+
+// ─── Schema-driven column allowlist (Finding #10, Phase 3a) ──────────────────
+describe('field-map — schema column allowlist (Phase 3a default-deny gate)', () => {
+  const USER = '00000000-1111-2222-3333-444444444444';
+  const PID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+  const GPID = 'cccccccc-dddd-eeee-ffff-000000000000';
+  const ID = 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff';
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    _resetDroppedColumnWarnings();
+  });
+
+  it('drops an unknown/garbage key that is not a real Supabase column', () => {
+    const row = toSupabaseRow(
+      'projects',
+      { id: ID, name: 'Test', totallyMadeUpField: 'x', anotherGhost: 42 },
+      USER,
+    );
+    expect(row).not.toHaveProperty('totally_made_up_field');
+    expect(row).not.toHaveProperty('another_ghost');
+    // …but real columns on the same row survive.
+    expect(row.name).toBe('Test');
+    expect(row.id).toBe(ID);
+  });
+
+  it('drops a future pull-stamp leak (e.g. a stray join-only field) by default', () => {
+    // globalProjects join-only interface fields (memberCount/role/isPinned/
+    // isOfflineAvailable) are NOT columns on global_projects — they must never
+    // reach the table. The allowlist drops them with no hand-maintained entry.
+    const row = toSupabaseRow(
+      'globalProjects',
+      { id: ID, name: 'Shared', memberCount: 3, role: 'admin', isPinned: true, isOfflineAvailable: false },
+      USER,
+    );
+    expect(row).not.toHaveProperty('member_count');
+    expect(row).not.toHaveProperty('role');
+    expect(row).not.toHaveProperty('is_pinned');
+    expect(row).not.toHaveProperty('is_offline_available');
+    expect(row.name).toBe('Shared');
+  });
+
+  it('warns (dev) once per (entity, column) when dropping an unknown key', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    toSupabaseRow('projects', { id: ID, ghostColumn: 'a' }, USER);
+    toSupabaseRow('projects', { id: ID, ghostColumn: 'b' }, USER); // same sig → no 2nd warn
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0][0])).toContain('ghost_column');
+  });
+
+  it('preserves every legitimate column for a representative local entity (files)', () => {
+    const row = toSupabaseRow(
+      'files',
+      {
+        id: ID, projectId: PID, title: 'Plans', fileName: 'p.pdf', fileType: 'pdf',
+        mimeType: 'application/pdf', category: 'drawings', panelSystem: 'BACnet',
+        revisionNumber: '2', revisionDate: '2026-01-01', uploadedBy: 'Alice',
+        notes: 'n', tags: ['a'], status: 'active', isPinned: true, isFavorite: false,
+        currentVersionId: ID, versions: [], size: 1234,
+        createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z',
+      },
+      USER,
+    );
+    for (const col of [
+      'project_id', 'title', 'file_name', 'file_type', 'mime_type', 'category',
+      'panel_system', 'revision_number', 'revision_date', 'uploaded_by', 'notes',
+      'tags', 'status', 'is_pinned', 'is_favorite', 'current_version_id', 'versions',
+      'size', 'created_at', 'updated_at', 'id', 'user_id',
+    ]) {
+      expect(row, `expected column ${col} to survive`).toHaveProperty(col);
+    }
+  });
+
+  it('preserves override targets even when they would not auto-snake (projects)', () => {
+    const row = toSupabaseRow(
+      'projects',
+      { id: ID, customerName: 'Acme', siteAddress: '1 St', buildingArea: '10k', projectNumber: '44OP-1' },
+      USER,
+    );
+    expect(row.customer_name).toBe('Acme');
+    expect(row.site_address).toBe('1 St');
+    expect(row.building_area).toBe('10k');
+    expect(row.project_number).toBe('44OP-1');
+  });
+
+  it('preserves the global child stamp + payload columns (globalDevices)', () => {
+    const row = toSupabaseRow(
+      'globalDevices',
+      {
+        id: ID, globalProjectId: GPID, deviceName: 'AHU-1', controllerType: 'PXC',
+        macAddress: 'aa:bb', instanceNumber: '1', ipAddress: '10.0.0.1',
+        system: 'HVAC', panel: 'P1', area: 'Roof', floor: '3', notes: 'x',
+        status: 'online', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z',
+      },
+      USER,
+    );
+    expect(row.global_project_id).toBe(GPID);
+    expect(row.created_by).toBe(USER);
+    expect(row.updated_by).toBe(USER);
+    expect(row.device_name).toBe('AHU-1');
+    expect(row.ip_address).toBe('10.0.0.1');
+    expect(row.system).toBe('HVAC');
+  });
+
+  it('keeps the local-only / skip fields stripped (belt-and-suspenders intact)', () => {
+    const row = toSupabaseRow(
+      'files',
+      { id: ID, projectId: PID, fileName: 'p.pdf', isOfflineCached: true, deletedAt: null, syncVersion: 5, fts: 'x' },
+      USER,
+    );
+    // LOCAL_ONLY_FIELDS still strips these before the allowlist even sees them.
+    expect(row).not.toHaveProperty('is_offline_cached');
+    expect(row).not.toHaveProperty('deleted_at');
+    expect(row).not.toHaveProperty('sync_version');
+    expect(row).not.toHaveProperty('fts');
+  });
+
+  it('every SyncEntityType has an allowlist entry (no entity fails open silently)', () => {
+    // Proven indirectly: pushing a garbage key on every entity drops it (would
+    // pass through if the entity had no allowlist set).
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    for (const entityType of SYNC_ORDER) {
+      _resetDroppedColumnWarnings();
+      const row = toSupabaseRow(
+        entityType,
+        { id: ID, globalProjectId: GPID, projectId: PID, zzGarbageKey: 'nope' },
+        USER,
+      );
+      expect(row, `${entityType} should drop zz_garbage_key`).not.toHaveProperty('zz_garbage_key');
+    }
+    warn.mockRestore();
+  });
+});
+
+// ─── FK-ordered push queue (Phase 3c) ────────────────────────────────────────
+describe('field-map — FK-ordered push batch (Phase 3c)', () => {
+  type Item = { entityType: SyncEntityType; action: 'create' | 'update' | 'delete'; id: string };
+  const mk = (entityType: SyncEntityType, action: Item['action'], id: string): Item =>
+    ({ entityType, action, id });
+
+  it('orders a project + its device parent-first on create (project before device)', () => {
+    const batch: Item[] = [
+      mk('devices', 'create', 'd1'),
+      mk('projects', 'create', 'p1'),
+    ];
+    const ordered = orderPushBatch(batch);
+    expect(ordered.map((i) => i.id)).toEqual(['p1', 'd1']);
+  });
+
+  it('orders a global project + its global device parent-first on create', () => {
+    const batch: Item[] = [
+      mk('globalDevices', 'create', 'gd1'),
+      mk('globalProjects', 'create', 'gp1'),
+    ];
+    const ordered = orderPushBatch(batch);
+    expect(ordered.map((i) => i.id)).toEqual(['gp1', 'gd1']);
+  });
+
+  it('reverses ordering for a delete batch (child device deleted before parent project)', () => {
+    const batch: Item[] = [
+      mk('projects', 'delete', 'p1'),
+      mk('devices', 'delete', 'd1'),
+    ];
+    const ordered = orderPushBatch(batch);
+    expect(ordered.map((i) => i.id)).toEqual(['d1', 'p1']);
+  });
+
+  it('treats updates the same as creates (parent-first)', () => {
+    const batch: Item[] = [
+      mk('notes', 'update', 'n1'),
+      mk('projects', 'update', 'p1'),
+    ];
+    const ordered = orderPushBatch(batch);
+    expect(ordered.map((i) => i.id)).toEqual(['p1', 'n1']);
+  });
+
+  it('runs creates/updates before deletes within a mixed batch', () => {
+    const batch: Item[] = [
+      mk('projects', 'delete', 'pDel'),
+      mk('devices', 'delete', 'dDel'),
+      mk('devices', 'create', 'dNew'),
+      mk('projects', 'create', 'pNew'),
+    ];
+    const ordered = orderPushBatch(batch);
+    // Creates parent-first, then deletes child-first.
+    expect(ordered.map((i) => i.id)).toEqual(['pNew', 'dNew', 'dDel', 'pDel']);
+  });
+
+  it('is stable for items with the same entityType + action (preserves enqueue order)', () => {
+    const batch: Item[] = [
+      mk('devices', 'create', 'd1'),
+      mk('devices', 'create', 'd2'),
+      mk('devices', 'create', 'd3'),
+    ];
+    const ordered = orderPushBatch(batch);
+    expect(ordered.map((i) => i.id)).toEqual(['d1', 'd2', 'd3']);
+  });
+
+  it('does not mutate the input array', () => {
+    const batch: Item[] = [mk('devices', 'create', 'd1'), mk('projects', 'create', 'p1')];
+    const snapshot = batch.map((i) => i.id);
+    orderPushBatch(batch);
+    expect(batch.map((i) => i.id)).toEqual(snapshot);
+  });
+
+  it('pushOrderIndex: create index is ascending, delete index is the mirror', () => {
+    const projCreate = pushOrderIndex('projects', 'create');
+    const devCreate = pushOrderIndex('devices', 'create');
+    expect(projCreate).toBeLessThan(devCreate); // parent-first on create
+    const projDelete = pushOrderIndex('projects', 'delete');
+    const devDelete = pushOrderIndex('devices', 'delete');
+    expect(devDelete).toBeLessThan(projDelete); // child-first on delete
   });
 });

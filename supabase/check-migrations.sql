@@ -107,6 +107,8 @@ with probe(seq, migration, probe_desc, applied) as (
     exists(select 1 from information_schema.columns where table_schema='public' and table_name='daily_reports' and column_name='name')
   union all select 47, 'add-sync-version-insert-defaults.sql', 'function init_sync_version',
     exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='init_sync_version')
+  union all select 48, 'add-cascade-soft-delete-rpcs.sql', 'function cascade_soft_delete_global_project',
+    exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='cascade_soft_delete_global_project')
 )
 select
   seq            as "#",

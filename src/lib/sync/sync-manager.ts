@@ -13,7 +13,7 @@ import {
   resetSyncingItemsToPending,
 } from '@/lib/db';
 import {
-  entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER,
+  entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER, orderPushBatch,
   fromSupabaseRow, isDeletedRow, REQUIRES_PROJECT_ID,
   isGlobalEntity, GLOBAL_ENTITY_TYPES, GLOBAL_AUDITED_ENTITY_TYPES,
   REQUIRES_GLOBAL_PROJECT_ID, supportsSubtractivePull,
@@ -175,6 +175,51 @@ export class SyncManager implements SyncManagerInterface {
     // a device only ever holds its own rows; nothing foreign to guard.
     // Local (non-global) entities: nothing to guard.
     return undefined;
+  }
+
+  /**
+   * Atomic parent+child cascade soft-delete via the server RPC (Phase 3b).
+   *
+   * Calls `cascade_soft_delete_project` / `cascade_soft_delete_global_project`
+   * (SECURITY DEFINER, RLS-equivalent auth enforced in the function body), which
+   * tombstone the parent and every child table in ONE transaction.
+   *
+   * Returns:
+   *   • true  — the RPC ran successfully (cascade is atomic; caller does nothing more).
+   *   • false — the RPC does not exist on this DB yet (migration unapplied) →
+   *             the caller falls back to the legacy single-statement soft-delete.
+   * Throws on a REAL RPC error (auth/not-found/DB) so the normal retry/error
+   * path handles it — never silently fall back on a genuine failure.
+   */
+  private async tryCascadeDeleteRpc(
+    entityType: 'projects' | 'globalProjects',
+    entityId: string,
+  ): Promise<boolean> {
+    const fn = entityType === 'globalProjects'
+      ? 'cascade_soft_delete_global_project'
+      : 'cascade_soft_delete_project';
+    const args = entityType === 'globalProjects'
+      ? { p_global_project_id: entityId }
+      : { p_project_id: entityId };
+
+    const { error } = await this.client.rpc(fn, args);
+    if (!error) return true;
+
+    // PGRST202 / 42883 / "could not find function" → not deployed yet → fall back.
+    const code = (error as { code?: string }).code ?? '';
+    const msg = ((error as { message?: string }).message ?? '').toLowerCase();
+    const missing =
+      code === 'PGRST202' || code === '42883'
+      || (msg.includes('could not find') && msg.includes('function'))
+      || (msg.includes('function') && msg.includes('does not exist'));
+    if (missing) {
+      console.info(
+        `${LOG_PREFIX} ${fn} RPC not deployed — falling back to single-statement ` +
+        `soft-delete for ${entityType}/${entityId} (apply add-cascade-soft-delete-rpcs.sql for atomic cascade)`,
+      );
+      return false;
+    }
+    throw error; // real failure — let the caller's catch handle retry/drop.
   }
 
   private async reportConflictCount(): Promise<void> {
@@ -370,17 +415,16 @@ export class SyncManager implements SyncManagerInterface {
       console.info(`${LOG_PREFIX} Processing ${items.length} queued item(s)…`);
       this.onStatusChange?.('syncing', items.length);
 
-      // Sort: projects first to satisfy FK constraints
-      items.sort((a, b) => {
-        const orderA = SYNC_ORDER.indexOf(a.entityType);
-        const orderB = SYNC_ORDER.indexOf(b.entityType);
-        return orderA - orderB;
-      });
+      // FK-ordered push (Phase 3c): parents before children for creates/updates
+      // (so a child FK never references a not-yet-pushed parent → 23503), and
+      // children before parents for deletes (reverse). orderPushBatch returns a
+      // sorted copy; iterate it instead of mutating `items`.
+      const ordered = orderPushBatch(items);
 
       let successCount = 0;
       let failCount = 0;
 
-      for (const item of items) {
+      for (const item of ordered) {
         const ok = await this.processItem(item);
         if (ok) successCount++;
         else failCount++;
@@ -478,6 +522,24 @@ export class SyncManager implements SyncManagerInterface {
             .eq('user_id', this.userId)
             .eq('global_project_id', gpid);
           if (error) throw error;
+        } else if (item.entityType === 'projects' || item.entityType === 'globalProjects') {
+          // ── Atomic cascade soft-delete (Phase 3b) ────────────────────────
+          // A project/global-project delete must tombstone the parent AND every
+          // child in ONE server transaction, else a mid-cascade crash orphans
+          // children (deleted_at IS NULL) that keep pushing against RLS and can
+          // resurrect the parent on the next additive pull. Prefer the RPC; fall
+          // back to a single-statement parent soft-delete if the migration isn't
+          // applied yet (devices on an un-migrated DB keep working — the legacy
+          // child cleanup is still handled by purgeOrphans / api.ts).
+          const handled = await this.tryCascadeDeleteRpc(item.entityType, item.entityId);
+          if (!handled) {
+            let query = this.client.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', item.entityId);
+            if (!isGlobal) {
+              query = query.eq('user_id', this.userId);
+            }
+            const { error } = await query;
+            if (error) throw error;
+          }
         } else {
           let query = this.client.from(table).update({ deleted_at: new Date().toISOString() }).eq('id', item.entityId);
           if (!isGlobal) {

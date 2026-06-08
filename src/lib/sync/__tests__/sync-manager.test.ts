@@ -64,6 +64,28 @@ vi.mock('../field-map', () => ({
   ]),
   supportsSubtractivePull: vi.fn(() => true),
   REQUIRES_GLOBAL_PROJECT_ID: new Set<string>(),
+  // Phase 3c: the manager calls orderPushBatch on every batch. Mirror the real
+  // FK-safe ordering against the mock's SYNC_ORDER (parent-first for non-deletes,
+  // child-first for deletes; creates/updates before deletes; stable on ties).
+  orderPushBatch: vi.fn(<T extends { entityType: string; action: string }>(items: T[]): T[] => {
+    const order = ['projects', 'files', 'notes', 'devices'];
+    const idx = (t: string) => {
+      const i = order.indexOf(t);
+      return i === -1 ? order.length : i;
+    };
+    const rank = (a: string) => (a === 'delete' ? 1 : 0);
+    const key = (t: string, a: string) => (a === 'delete' ? order.length - idx(t) : idx(t));
+    return items
+      .map((item, i) => ({ item, i }))
+      .sort((a, b) => {
+        const r = rank(a.item.action) - rank(b.item.action);
+        if (r !== 0) return r;
+        const o = key(a.item.entityType, a.item.action) - key(b.item.entityType, b.item.action);
+        if (o !== 0) return o;
+        return a.i - b.i;
+      })
+      .map(({ item }) => item);
+  }),
 }));
 
 import { SyncManager } from '../sync-manager';
@@ -94,6 +116,7 @@ interface MockFrom {
 
 interface MockSupabaseClient {
   from: ReturnType<typeof vi.fn>;
+  rpc: ReturnType<typeof vi.fn>;
   _mock: MockFrom;
 }
 
@@ -130,6 +153,9 @@ function createMockSupabase(): MockSupabaseClient {
 
   return {
     from: vi.fn(() => mockFrom),
+    // Phase 3b: cascade RPC. Default = success (RPC deployed). Individual tests
+    // override to simulate "not deployed" (PGRST202) or a real error.
+    rpc: vi.fn().mockResolvedValue({ data: null, error: null }),
     _mock: mockFrom,
   };
 }
@@ -310,6 +336,52 @@ describe('SyncManager', () => {
       await manager.processQueue();
 
       expect(deleteSyncItem).toHaveBeenCalledWith(item.id);
+    });
+  });
+
+  // ─── Atomic cascade soft-delete RPC (Phase 3b) ─────────────
+  describe('cascade soft-delete RPC', () => {
+    const PID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const mkDelete = (entityType: 'projects' | 'globalProjects'): SyncQueueItem => ({
+      id: `${entityType}-${PID}`,
+      action: 'delete', entityType, entityId: PID,
+      payload: { id: PID }, userId: TEST_USER_ID, status: 'pending',
+      createdAt: new Date().toISOString(), retriedCount: 0,
+    });
+
+    it('calls cascade_soft_delete_project for a local project delete (RPC preferred)', async () => {
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([mkDelete('projects')]);
+      await manager.processQueue();
+      expect(supabase.rpc).toHaveBeenCalledWith('cascade_soft_delete_project', { p_project_id: PID });
+      // RPC handled it → no single-statement update() fallback on the projects table.
+      expect(supabase._mock.update).not.toHaveBeenCalled();
+      expect(deleteSyncItem).toHaveBeenCalledWith(`projects-${PID}`);
+    });
+
+    it('calls cascade_soft_delete_global_project for a global project delete', async () => {
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([mkDelete('globalProjects')]);
+      await manager.processQueue();
+      expect(supabase.rpc).toHaveBeenCalledWith('cascade_soft_delete_global_project', { p_global_project_id: PID });
+      expect(supabase._mock.update).not.toHaveBeenCalled();
+    });
+
+    it('falls back to single-statement soft-delete when the RPC is not deployed (PGRST202)', async () => {
+      supabase.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PGRST202', message: 'Could not find the function' } });
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([mkDelete('projects')]);
+      await manager.processQueue();
+      expect(supabase.rpc).toHaveBeenCalled();
+      // Fallback path issues the legacy parent-only update().
+      expect(supabase._mock.update).toHaveBeenCalledWith({ deleted_at: expect.any(String) });
+      expect(deleteSyncItem).toHaveBeenCalledWith(`projects-${PID}`);
+    });
+
+    it('does NOT fall back on a real RPC error (treated as a sync failure)', async () => {
+      supabase.rpc.mockResolvedValue({ data: null, error: { code: '42501', message: 'not authorized' } });
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([mkDelete('projects')]);
+      await manager.processQueue();
+      // Real error → no legacy fallback update(), item NOT deleted from queue (will retry).
+      expect(supabase._mock.update).not.toHaveBeenCalled();
+      expect(deleteSyncItem).not.toHaveBeenCalledWith(`projects-${PID}`);
     });
   });
 

@@ -115,3 +115,4 @@ Status legend: **L** = ledger-tracked once setup is run · **P** = pending (appl
 | 46 | add-bug-report-discord-notify.sql | `notify_discord_on_bug_report()` trigger fn | L (applied 2026-06-07; Vault secret set, ping verified) |
 | 47 | add-daily-report-name.sql | `daily_reports.name` + `global_daily_reports.name` cols | L (applied 2026-06-07) |
 | 48 | add-sync-version-insert-defaults.sql | `init_sync_version()` BEFORE INSERT trigger fn (server-owns `updated_at` + `sync_version` on insert) | L (pending) |
+| 49 | add-cascade-soft-delete-rpcs.sql | `cascade_soft_delete_global_project()` + `cascade_soft_delete_project()` SECURITY DEFINER RPCs (atomic parent+child soft-delete cascade) | P (pending) |
