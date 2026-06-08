@@ -134,7 +134,7 @@ interface DxrsViewProps {
 // ── Component ──────────────────────────────────────────────
 
 export function DxrsView({ projectId, readOnly = false }: DxrsViewProps) {
-  const { dxrs, loading, refresh, bulkImport, clearAll, bulkSetBaudRate } = useProjectDxrs(projectId);
+  const { dxrs, loading, refresh, bulkImport, clearAll, bulkSetBaudRate, updateDxr } = useProjectDxrs(projectId);
 
   const [search, setSearch]             = useState('');
   const [sortField, setSortField]       = useState<keyof DxrEntry>('name');
@@ -389,6 +389,15 @@ export function DxrsView({ projectId, readOnly = false }: DxrsViewProps) {
         onOpenChange={(o) => { if (!o) setDetailDxr(null); }}
         dxr={detailDxr}
         readOnly={readOnly}
+        onSave={async (updated) => {
+          try {
+            await updateDxr(updated);
+            toast.success('DXR updated');
+            setDetailDxr(null);
+          } catch (e) {
+            toast.error(`Failed to update DXR: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }}
       />
 
       {/* Export dialog */}
