@@ -73,7 +73,7 @@ async function buildUserBugsBlock() {
   const cols = 'id,created_at,severity,status,title,description,current_page,app_version,user_name';
   const endpoint =
     `${url.replace(/\/$/, '')}/rest/v1/bug_reports` +
-    `?deleted_at=is.null&status=neq.resolved&select=${cols}` +
+    `?deleted_at=is.null&status=not.in.(resolved,closed)&select=${cols}` +
     `&order=severity.asc,created_at.desc&limit=200`;
   let rows;
   try {

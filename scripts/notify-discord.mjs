@@ -32,7 +32,7 @@ const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (url && key) {
   try {
     const res = await fetch(
-      `${url.replace(/\/$/, '')}/rest/v1/bug_reports?deleted_at=is.null&status=neq.resolved` +
+      `${url.replace(/\/$/, '')}/rest/v1/bug_reports?deleted_at=is.null&status=not.in.(resolved,closed)` +
         `&select=severity,title,description,current_page&order=severity.asc,created_at.desc&limit=20`,
       { headers: { apikey: key, Authorization: `Bearer ${key}` } },
     );

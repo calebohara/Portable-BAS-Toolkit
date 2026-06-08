@@ -372,9 +372,20 @@ export class SyncManager implements SyncManagerInterface {
           ? 'user_id,global_project_id'
           : 'id';
 
+        // globalActivityLog is an append-only audit log: rows are never updated
+        // after insert. A plain upsert compiles to INSERT … ON CONFLICT (id) DO
+        // UPDATE, and on a re-push / retry of an already-synced row Postgres
+        // takes the UPDATE branch. The UPDATE RLS policy only allows the row's
+        // original author or a project admin, so re-pushing another member's
+        // activity row (pulled into IndexedDB, then re-queued) is rejected with
+        // 42501 → "[sync] rls-rejected on globalActivityLog". Make the push
+        // insert-only via ON CONFLICT DO NOTHING (ignoreDuplicates) so re-pushes
+        // are idempotent and never trip the UPDATE policy.
+        const ignoreDuplicates = item.entityType === 'globalActivityLog';
+
         const { error } = await this.client
           .from(table)
-          .upsert(row, { onConflict });
+          .upsert(row, { onConflict, ignoreDuplicates });
 
         if (error) throw error;
       }
