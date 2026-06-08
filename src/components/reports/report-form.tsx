@@ -51,6 +51,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
 
   // Form state
   const [projectId, setProjectId] = useState(initial?.projectId || '');
+  const [name, setName] = useState(initial?.name || '');
   const [date, setDate] = useState(initial?.date || today());
   const [technicianName, setTechnicianName] = useState(initial?.technicianName || '');
   const [status, setStatus] = useState<ReportStatus>(initial?.status || 'draft');
@@ -83,7 +84,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
     if (!initial || !onUpdate || status !== 'draft') return;
     const report: DailyReport = {
       ...initial,
-      projectId, date, technicianName, status,
+      projectId, name: name.trim() || undefined, date, technicianName, status,
       startTime, endTime, hoursOnSite, location, weather,
       workCompleted, issuesEncountered, workPlannedNext,
       coordinationNotes, equipmentWorkedOn, deviceIpChanges,
@@ -92,7 +93,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
     };
     await onUpdate(report);
     setLastSaved(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
-  }, [initial, onUpdate, projectId, date, technicianName, status, startTime, endTime, hoursOnSite, location, weather, workCompleted, issuesEncountered, workPlannedNext, coordinationNotes, equipmentWorkedOn, deviceIpChanges, safetyNotes, generalNotes, attachments]);
+  }, [initial, onUpdate, projectId, name, date, technicianName, status, startTime, endTime, hoursOnSite, location, weather, workCompleted, issuesEncountered, workPlannedNext, coordinationNotes, equipmentWorkedOn, deviceIpChanges, safetyNotes, generalNotes, attachments]);
 
   useEffect(() => {
     if (mode !== 'edit' || status !== 'draft') return;
@@ -146,13 +147,14 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
 
   /** Attempt to push the report data to the selected global project (best-effort). */
   const maybeLinkToGlobalProject = async (data: Pick<DailyReport,
-    'date' | 'technicianName' | 'status' | 'startTime' | 'endTime' | 'hoursOnSite' |
+    'name' | 'date' | 'technicianName' | 'status' | 'startTime' | 'endTime' | 'hoursOnSite' |
     'location' | 'weather' | 'workCompleted' | 'issuesEncountered' | 'workPlannedNext' |
     'coordinationNotes' | 'equipmentWorkedOn' | 'deviceIpChanges' | 'safetyNotes' | 'generalNotes'
   >, localReportId: string) => {
     if (!linkToGlobal || !selectedGlobalProjectId) return;
     try {
       const globalReportData = {
+        name: data.name,
         date: data.date,
         technicianName: data.technicianName,
         status: data.status,
@@ -190,7 +192,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
     try {
       const finalStatus = submitStatus || status;
       const data = {
-        projectId, date, technicianName, status: finalStatus,
+        projectId, name: name.trim() || undefined, date, technicianName, status: finalStatus,
         startTime, endTime, hoursOnSite, location, weather,
         workCompleted, issuesEncountered, workPlannedNext,
         coordinationNotes, equipmentWorkedOn, deviceIpChanges,
@@ -213,7 +215,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
 
   return (
     <>
-      <TopBar title={mode === 'create' ? 'New Daily Report' : `Edit Report #${initial?.reportNumber || ''}`} />
+      <TopBar title={mode === 'create' ? 'New Daily Report' : `Edit ${initial?.name?.trim() || `Report #${initial?.reportNumber || ''}`}`} />
       <div className="p-4 md:p-6 max-w-3xl space-y-6 pb-24">
         {/* Back button */}
         <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-1.5 -ml-2">
@@ -274,6 +276,10 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
                 )}
               </div>
             )}
+            <div className="sm:col-span-2">
+              <Label htmlFor="report-name">Report Name</Label>
+              <Input id="report-name" value={name} onChange={e => setName(e.target.value)} placeholder="e.g. VAV Commissioning — Floor 3 (optional)" disabled={isReadOnly} className="mt-1.5" />
+            </div>
             <div>
               <Label htmlFor="date">Date</Label>
               <Input id="date" type="date" value={date} onChange={e => setDate(e.target.value)} disabled={isReadOnly} className="mt-1.5" />

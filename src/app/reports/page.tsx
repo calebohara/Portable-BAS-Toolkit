@@ -136,7 +136,9 @@ export default function ReportsListPage() {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-sm font-medium">
-                      Report #{r.reportNumber} — {format(new Date(r.date + 'T00:00:00'), 'MMM d, yyyy')}
+                      {r.name?.trim() || `Report #${r.reportNumber}`}
+                      {r.name?.trim() ? <span className="text-muted-foreground font-normal"> · #{r.reportNumber}</span> : null}
+                      {' — '}{format(new Date(r.date + 'T00:00:00'), 'MMM d, yyyy')}
                     </p>
                   </div>
                   <p className="truncate text-xs text-muted-foreground">

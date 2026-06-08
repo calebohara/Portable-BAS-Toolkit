@@ -328,6 +328,7 @@ async function mapLocalReportToRow(
     global_project_id: globalProjectId,
     ...(isUpdate ? {} : { created_by: userId }),
     updated_by: userId,
+    name: r.name ?? null,
     date: r.date,
     report_number: r.reportNumber,
     technician_name: r.technicianName,
@@ -735,6 +736,7 @@ async function mapGlobalReportToLocal(r: GlobalDailyReport, projectId: string): 
   return {
     id: r.id,
     projectId,
+    name: r.name ?? undefined,
     date: r.date,
     reportNumber: r.reportNumber,
     technicianName: r.technicianName ?? '',

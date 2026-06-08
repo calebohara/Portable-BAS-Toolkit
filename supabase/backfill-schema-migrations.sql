@@ -56,6 +56,7 @@ select migration from (
   union all select 'hotfix-global-register-calculations-not-null.sql' where exists(select 1 from information_schema.columns where table_schema='public' and table_name='global_register_calculations' and column_name='global_project_id' and is_nullable='NO')
   union all select 'enforce-storage-bucket-size-limits.sql' where exists(select 1 from storage.buckets where id='project-files' and file_size_limit=52428800)
   union all select 'add-bug-report-discord-notify.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='notify_discord_on_bug_report')
+  union all select 'add-daily-report-name.sql' where exists(select 1 from information_schema.columns where table_schema='public' and table_name='daily_reports' and column_name='name')
 ) applied
 on conflict (id) do nothing;
 

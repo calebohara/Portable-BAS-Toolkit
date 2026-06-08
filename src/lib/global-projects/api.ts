@@ -743,6 +743,7 @@ export async function addGlobalReport(
       ...(localReportId ? { id: localReportId } : {}),
       global_project_id: projectId,
       created_by: userId,
+      name: data.name ?? null,
       date: data.date ?? new Date().toISOString().slice(0, 10),
       report_number: data.reportNumber ?? 1,
       technician_name: data.technicianName ?? '',

@@ -47,6 +47,7 @@ function fmtDateLong(iso: string): string {
  */
 export function buildReportSubject(report: DailyReport, project: Project, meta: ReportEmlMeta): string {
   if (meta.title) return meta.title;
+  if (report.name?.trim()) return `${report.name.trim()} – ${project.name} – ${fmtDateShort(report.date)}`;
   return `Daily Report #${report.reportNumber} – ${project.name} – ${fmtDateShort(report.date)}`;
 }
 
@@ -163,7 +164,7 @@ export function buildReportHtml(report: DailyReport, project: Project, meta: Rep
     ? `<div style="margin-top:4px;color:#6b7280;font-size:12px;">Prepared by ${escapeHtml(meta.preparedBy)}</div>`
     : '';
 
-  const titleText = meta.title || `Daily Report #${report.reportNumber}`;
+  const titleText = meta.title || report.name?.trim() || `Daily Report #${report.reportNumber}`;
 
   return (
     `<!DOCTYPE html><html><head><meta charset="utf-8"></head>` +

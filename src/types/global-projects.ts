@@ -176,6 +176,8 @@ export interface GlobalDailyReport {
   globalProjectId: string;
   createdBy: string;
   updatedBy: string | null;
+  /** Optional user-given title. Falls back to "Report #N" everywhere when blank. */
+  name?: string;
   date: string;
   reportNumber: number;
   technicianName: string;

@@ -2214,7 +2214,9 @@ function ReportsTab({ reports, getMemberName, currentUserId, onUpdate, onRemove 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <h3 className="text-sm font-semibold">
-                          Report #{report.reportNumber} &mdash; {format(new Date(report.date), 'MMM d, yyyy')}
+                          {report.name?.trim() || `Report #${report.reportNumber}`}
+                          {report.name?.trim() ? <span className="font-normal text-muted-foreground"> &middot; #{report.reportNumber}</span> : null}
+                          {' '}&mdash; {format(new Date(report.date), 'MMM d, yyyy')}
                         </h3>
                         <span
                           className={cn(
@@ -2326,7 +2328,7 @@ function ReportsTab({ reports, getMemberName, currentUserId, onUpdate, onRemove 
         open={deleteTarget !== null}
         onOpenChange={(v) => { if (!v) setDeleteTarget(null); }}
         title="Delete Report"
-        description={deleteTarget ? `Delete Report #${deleteTarget.reportNumber} from ${format(new Date(deleteTarget.date), 'MMM d, yyyy')}? This cannot be undone.` : ''}
+        description={deleteTarget ? `Delete ${deleteTarget.name?.trim() ? `"${deleteTarget.name.trim()}" (Report #${deleteTarget.reportNumber})` : `Report #${deleteTarget.reportNumber}`} from ${format(new Date(deleteTarget.date), 'MMM d, yyyy')}? This cannot be undone.` : ''}
         confirmLabel="Delete Report"
         variant="destructive"
         onConfirm={handleDelete}

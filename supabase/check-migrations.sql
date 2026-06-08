@@ -103,6 +103,8 @@ with probe(seq, migration, probe_desc, applied) as (
     exists(select 1 from storage.buckets where id='project-files' and file_size_limit=52428800)
   union all select 45, 'add-bug-report-discord-notify.sql', 'function notify_discord_on_bug_report',
     exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='notify_discord_on_bug_report')
+  union all select 46, 'add-daily-report-name.sql', 'column daily_reports.name',
+    exists(select 1 from information_schema.columns where table_schema='public' and table_name='daily_reports' and column_name='name')
 )
 select
   seq            as "#",

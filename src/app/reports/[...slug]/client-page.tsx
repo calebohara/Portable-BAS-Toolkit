@@ -123,10 +123,11 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
   }
 
   const formattedDate = format(new Date(report.date + 'T00:00:00'), 'EEEE, MMMM d, yyyy');
+  const reportLabel = report.name?.trim() || `Report #${report.reportNumber}`;
 
   return (
     <>
-      <TopBar title={`Report #${report.reportNumber}`} />
+      <TopBar title={reportLabel} />
       <div className="p-4 md:p-6 max-w-3xl space-y-6">
         {/* Back */}
         <Button variant="ghost" size="sm" onClick={() => router.push('/reports')} className="gap-1.5 -ml-2">
@@ -137,8 +138,11 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
         <div className="rounded-xl border border-border p-4 md:p-5 space-y-3">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <h1 className="text-lg font-semibold">Daily Report #{report.reportNumber}</h1>
+              <div className="flex items-center gap-2 mb-1 flex-wrap">
+                <h1 className="text-lg font-semibold">{report.name?.trim() || `Daily Report #${report.reportNumber}`}</h1>
+                {report.name?.trim() && (
+                  <span className="text-sm font-normal text-muted-foreground">#{report.reportNumber}</span>
+                )}
                 <Badge className={`text-[10px] gap-1 ${STATUS_COLORS[report.status]}`}>
                   {STATUS_ICONS[report.status]}
                   {report.status.charAt(0).toUpperCase() + report.status.slice(1)}
@@ -269,7 +273,7 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
           <DialogHeader>
             <DialogTitle>Delete Report</DialogTitle>
             <DialogDescription>
-              This will permanently delete Daily Report #{report.reportNumber} for {formattedDate}. This action cannot be undone.
+              This will permanently delete {report.name?.trim() ? `"${report.name.trim()}" (Report #${report.reportNumber})` : `Daily Report #${report.reportNumber}`} for {formattedDate}. This action cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

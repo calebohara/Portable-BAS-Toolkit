@@ -231,6 +231,8 @@ export interface ReportAttachment {
 export interface DailyReport {
   id: string;
   projectId: string;
+  /** Optional user-given title. Falls back to "Report #N" everywhere when blank. */
+  name?: string;
   date: string; // YYYY-MM-DD
   reportNumber: number;
   technicianName: string;

@@ -66,7 +66,7 @@ function formatReportForTeams(
 ): string {
   const lines: string[] = [];
 
-  lines.push(`## ${meta.title || `Daily Report #${report.reportNumber}`}`);
+  lines.push(`## ${meta.title || report.name?.trim() || `Daily Report #${report.reportNumber}`}`);
   if (meta.coverNote) lines.push('', meta.coverNote);
   lines.push('---');
 
@@ -127,7 +127,9 @@ function formatReportForOutlook(
   project: Project,
   meta: ReportExportMetadata,
 ): { subject: string; body: string } {
-  const subject = meta.title || `Daily Report #${report.reportNumber} – ${project.name} – ${fmtDate(report.date)}`;
+  const subject = meta.title
+    || (report.name?.trim() ? `${report.name.trim()} – ${project.name} – ${fmtDate(report.date)}` : '')
+    || `Daily Report #${report.reportNumber} – ${project.name} – ${fmtDate(report.date)}`;
   const lines: string[] = [];
 
   if (meta.coverNote) lines.push(meta.coverNote, '');
@@ -244,7 +246,7 @@ function ReportPdfView({ report, project, meta }: {
       {/* Header */}
       <div className="border-b-2 border-gray-800 pb-4 mb-6">
         <h1 className="text-2xl font-bold text-gray-900">
-          {meta.title || `Daily Report #${report.reportNumber}`}
+          {meta.title || report.name?.trim() || `Daily Report #${report.reportNumber}`}
         </h1>
         {meta.coverNote && <p className="mt-2 text-gray-600">{meta.coverNote}</p>}
         <div className="mt-2 flex gap-4 text-xs text-gray-500">
@@ -573,7 +575,7 @@ export function ReportExportDialog({ open, onOpenChange, report, project }: Prop
             <Label htmlFor="report-export-title">Title (optional)</Label>
             <Input
               id="report-export-title"
-              placeholder={`Daily Report #${report.reportNumber} – ${project.name}`}
+              placeholder={report.name?.trim() ? `${report.name.trim()} – ${project.name}` : `Daily Report #${report.reportNumber} – ${project.name}`}
               value={metadata.title}
               onChange={e => setMetadata(m => ({ ...m, title: e.target.value }))}
             />
