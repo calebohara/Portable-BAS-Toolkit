@@ -76,3 +76,4 @@ docs/**/*.md
 # Claude Code machine-local settings (permission allowlist) — never commit
 .claude/settings.local.json
 docs/Portable-BAS-Toolkit.code-workspace
+!docs/SyncAuditAgents-findings-*.md
