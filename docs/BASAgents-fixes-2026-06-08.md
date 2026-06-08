@@ -76,7 +76,20 @@
 ### ⚠️ Manual step required
 `supabase/migrations/add-cascade-soft-delete-rpcs.sql` is **PENDING** — apply via the **Supabase SQL Editor** (probe #48 in `check-migrations.sql`, MIGRATIONS.md row #49). Until applied, the cascade falls back to the single-statement soft-delete (the prior, non-atomic behavior) — no regression, just not yet atomic.
 
-## Follow-up
-- One-time legacy demo-row purge: SQL provided (soft-delete the 5 demo `44OP-` projects). Apply after devices are on v4.26.0+ so the tombstone propagates and sticks.
-- **Two pending migrations to apply in the SQL Editor:** `add-sync-version-insert-defaults.sql` (Phase 2) and `add-cascade-soft-delete-rpcs.sql` (Phase 3).
-- **Remaining:** Phase 4 (verification suite + multi-device manual test script).
+## Phase 4 — verification (audit Phase 4) — v4.31.0
+
+**Files:** new `src/lib/sync/__tests__/phase4-verification.test.ts` (23 tests) + new doc `docs/SYNC-VERIFICATION.md` + `.gitignore` whitelist line. **471 tests pass** (+23). Closes the audit's verification phase: every Phase 1–3 guarantee now has both an automated invariant and a human-runnable check.
+
+- **Coverage gap-audit + fill (4a):** mapped all 8 invariant areas to existing tests; the existing suite was already solid on 5 of 8. Closed 3 real gaps: (1) **parent cascade on a pulled tombstone** — all prior delete tests used a *leaf* table (`devices`); added tests proving a pulled tombstoned `projects`/`globalProjects` routes to `cascadeDeleteProject`/`cascadeDeleteGlobalProject` (not a flat delete). (2) **cross-user drop across ALL 17 `GLOBAL_AUDITED_ENTITY_TYPES`** — only `globalActivityLog`/`globalDevices`/`globalProjects` were pinned; parametrized the drop-as-no-op + own-author-still-upserts across the whole audited set. (3) **cascade-RPC fallback signals** — only `PGRST202` was pinned; added `42883` and message-only ("could not find the function") fallback tests.
+- **Multi-device manual test script (4b):** new `docs/SYNC-VERIFICATION.md` — a numbered, operator-runnable plan covering basic propagation, delete-sticks/anti-resurrection (the demo-project bug), concurrent-offline-edit `sync_version` winner, shared-laptop user-switch isolation, foreign-global-row no-42501-storm, offline-create-survives-"Update from cloud", and parent-with-children cascade (no orphans). Includes a pre-flight checklist for the two PENDING migrations (how to apply + confirm via `check-migrations.sql` probes #47/#48), a "where to watch" section (Sync Error Inspector, syncErrors store, Discord, `ACTIVE-BUGS.md`), and a table mapping each manual scenario to its automated counterpart. Whitelisted in `.gitignore` per the docs gotcha.
+- **No implementation gaps found.** Every expected-pass test passed; the one initial failure was a test-harness membership-cache artifact (fixed by using a distinct user id), not a real bug — the Phase 1a/1c/3 contracts behave exactly as claimed.
+
+## Sync hardening — DONE (Phases 1–4)
+All four phases of the [SyncAuditAgents audit](./SyncAuditAgents-findings-2026-06-08.md) are shipped: every P0 (delete propagation/resurrection, user isolation, cross-user push, ingress dirty-guard, queue amplifier, error dedup), every P1 (preferences hard-delete, restore-from-cloud, `sync_version` conflict correctness, schema allowlist), and the P2 hardening (backoff/auto-recovery, atomic cascade RPC, FK ordering) — plus full automated + manual verification.
+
+## Follow-up for the owner — two manual SQL steps remain
+1. **Apply the two pending migrations** in the Supabase SQL Editor (no CLI in this project), then confirm with `supabase/check-migrations.sql`:
+   - `add-sync-version-insert-defaults.sql` (Phase 2, probe #47) — server-owned `updated_at`/`sync_version` on INSERT.
+   - `add-cascade-soft-delete-rpcs.sql` (Phase 3, probe #48) — atomic cascade soft-delete RPCs.
+   Until applied, the app runs in a documented degraded-but-working fallback (client-stamped version / non-atomic cascade) — no breakage.
+2. **One-time legacy demo-row purge:** SQL provided (soft-delete the 5 demo `44OP-` projects). Apply after devices are on v4.26.0+ so the tombstone propagates and sticks.
