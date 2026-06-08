@@ -251,6 +251,30 @@ export class SyncManager implements SyncManagerInterface {
       const table = entityTypeToTable[item.entityType];
       const isGlobal = isGlobalEntity(item.entityType);
 
+      // ── globalActivityLog ownership guard ───────────────────────────────
+      // global_activity_log is an append-only audit table. Its INSERT RLS policy
+      // is `with check (is_global_project_member(global_project_id) AND
+      // user_id = auth.uid())` and it has no UPDATE policy for non-authors.
+      // The timeline pulls EVERY member's activity into IndexedDB; if a pulled
+      // row (authored by another user) ever gets enqueued for push, the row's
+      // user_id ≠ auth.uid(), so the INSERT WITH CHECK fails with 42501 —
+      // forever (ON CONFLICT DO NOTHING doesn't suppress WITH CHECK on INSERT).
+      // We can never push another member's activity row, and we don't need to:
+      // it already lives in the cloud. Drop it as a successful no-op.
+      if (item.entityType === 'globalActivityLog' && item.action !== 'delete') {
+        const payload = (item.payload ?? {}) as Record<string, unknown>;
+        const rowUserId = (payload.userId ?? payload.user_id) as string | undefined;
+        if (rowUserId && rowUserId !== this.userId) {
+          console.info(
+            `${LOG_PREFIX} Skipping globalActivityLog/${item.entityId} push — ` +
+            `authored by another user (${rowUserId.substring(0, 8)}…), already in cloud`,
+          );
+          await deleteSyncItem(item.id);
+          this.authRefreshedItemIds.delete(item.id);
+          return true; // not a failure — futile + RLS-forbidden, drop silently
+        }
+      }
+
       if (item.action === 'delete') {
         // Hard delete for append-only logs (no deleted_at column).
         // Soft delete (deleted_at = now()) for everything else.
@@ -542,6 +566,19 @@ export class SyncManager implements SyncManagerInterface {
           if (reason) {
             storeSkipped++;
             continue;
+          }
+          // globalActivityLog is append-only with an INSERT-only RLS policy
+          // (user_id = auth.uid()). The timeline pulls every member's activity
+          // into IndexedDB, so this store holds rows authored by other users.
+          // Re-pushing those is futile (already in cloud) and RLS-rejected
+          // (42501) — skip any row this device doesn't own. Own-authored rows
+          // still re-push insert-only as before.
+          if (entityType === 'globalActivityLog') {
+            const rowUserId = (item.userId ?? item.user_id) as string | undefined;
+            if (rowUserId && rowUserId !== this.userId) {
+              storeSkipped++;
+              continue;
+            }
           }
           await this.enqueue('update', entityType, item.id as string, item);
           storeEnqueued++;

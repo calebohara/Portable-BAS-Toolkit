@@ -37,6 +37,7 @@ vi.mock('../field-map', () => ({
     pidTuningSessions: 'pid_tuning_sessions',
     ppclDocuments: 'ppcl_documents',
     bugReports: 'bug_reports',
+    globalActivityLog: 'global_activity_log',
   },
   toSupabaseRow: vi.fn((_type: string, payload: Record<string, unknown>, userId: string) => ({
     ...payload,
@@ -297,6 +298,79 @@ describe('SyncManager', () => {
 
       await manager.processQueue();
 
+      expect(deleteSyncItem).toHaveBeenCalledWith(item.id);
+    });
+  });
+
+  // ─── globalActivityLog ownership guard ─────────────────────
+  // Reopened bug (v4.25.0): recurring 42501 rls-rejected on global_activity_log
+  // push. The timeline pulls every member's activity into IndexedDB; a pulled
+  // row authored by another user was getting enqueued and re-pushed, but the
+  // INSERT RLS policy (user_id = auth.uid()) rejects it forever. The fix drops
+  // foreign-authored globalActivityLog push items as a successful no-op.
+  describe('globalActivityLog ownership guard', () => {
+    const FOREIGN_USER_ID = '7c5ca76d-fee2-40ea-b70b-5723fb0a6c15';
+    const GAL_ID = '9f312a49-1111-2222-3333-444444444444';
+
+    it('drops a globalActivityLog push item authored by another user (no upsert, no retry)', async () => {
+      const item: SyncQueueItem = {
+        id: `globalActivityLog-${GAL_ID}`,
+        action: 'update', entityType: 'globalActivityLog',
+        entityId: GAL_ID,
+        payload: {
+          id: GAL_ID,
+          globalProjectId: '861ac1ed-aaaa-bbbb-cccc-dddddddddddd',
+          userId: FOREIGN_USER_ID, // ← authored by ANOTHER user
+          action: 'joined the project',
+          timestamp: '2026-03-19T00:00:00.000Z',
+        },
+        userId: TEST_USER_ID, status: 'pending',
+        createdAt: new Date().toISOString(), retriedCount: 3, // already stuck retrying
+      };
+
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([item]);
+
+      await manager.processQueue();
+
+      // Dropped as a successful no-op: removed from queue …
+      expect(deleteSyncItem).toHaveBeenCalledWith(item.id);
+      // … never upserted (would trip the RLS WITH CHECK) …
+      expect((supabase as { _mock: { upsert: ReturnType<typeof vi.fn> } })._mock.upsert)
+        .not.toHaveBeenCalled();
+      // … and never re-queued with a bumped retry count.
+      expect(updateSyncItem).not.toHaveBeenCalledWith(
+        expect.objectContaining({ retriedCount: 4 }),
+      );
+    });
+
+    it('still pushes the user\'s OWN globalActivityLog row', async () => {
+      const ownId = 'aaaaaaaa-1111-2222-3333-555555555555';
+      const item: SyncQueueItem = {
+        id: `globalActivityLog-${ownId}`,
+        action: 'update', entityType: 'globalActivityLog',
+        entityId: ownId,
+        payload: {
+          id: ownId,
+          globalProjectId: '861ac1ed-aaaa-bbbb-cccc-dddddddddddd',
+          userId: TEST_USER_ID, // ← authored by THIS device
+          action: 'added a note',
+          timestamp: '2026-03-19T00:00:00.000Z',
+        },
+        userId: TEST_USER_ID, status: 'pending',
+        createdAt: new Date().toISOString(), retriedCount: 0,
+      };
+
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([item]);
+
+      await manager.processQueue();
+
+      // Own row pushes insert-only (ignoreDuplicates) and is removed on success.
+      const upsert = (supabase as { _mock: { upsert: ReturnType<typeof vi.fn> } })._mock.upsert;
+      expect(upsert).toHaveBeenCalledTimes(1);
+      expect(upsert).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ ignoreDuplicates: true }),
+      );
       expect(deleteSyncItem).toHaveBeenCalledWith(item.id);
     });
   });
