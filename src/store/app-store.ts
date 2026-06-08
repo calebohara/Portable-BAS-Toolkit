@@ -33,6 +33,16 @@ interface AppState {
   setLastSyncedAt: (ts: string | null) => void;
   lastPulledAt: string | null;
   setLastPulledAt: (ts: string | null) => void;
+  // Last authenticated Supabase user id (persisted). Used to detect a
+  // same-device user SWITCH so IndexedDB + sync cursors can be wiped before the
+  // new user's SyncManager starts (Finding #2, Phase 1c). null = no prior auth
+  // user this device (first-ever login or local-only use).
+  lastAuthUserId: string | null;
+  setLastAuthUserId: (id: string | null) => void;
+  // Reset all sync cursors to a clean "never synced" state. Called on a user
+  // switch / sign-out so the next user gets a full first-login hydration of
+  // THEIR data and no stale lastPulledAt suppresses it.
+  resetSyncCursors: () => void;
   // Conflicts
   syncConflictCount: number;
   setSyncConflictCount: (count: number) => void;
@@ -95,6 +105,17 @@ export const useAppStore = create<AppState>()(
       setLastSyncedAt: (ts) => set({ lastSyncedAt: ts }),
       lastPulledAt: null,
       setLastPulledAt: (ts) => set({ lastPulledAt: ts }),
+      lastAuthUserId: null,
+      setLastAuthUserId: (id) => set({ lastAuthUserId: id }),
+      resetSyncCursors: () =>
+        set({
+          lastPulledAt: null,
+          lastSyncedAt: null,
+          lastConsistencyCheckAt: null,
+          consistencyBehindCount: 0,
+          pendingSyncCount: 0,
+          syncConflictCount: 0,
+        }),
       // Conflicts
       syncConflictCount: 0,
       setSyncConflictCount: (count) => set({ syncConflictCount: count }),
@@ -139,6 +160,7 @@ export const useAppStore = create<AppState>()(
         hasCompletedTour: state.hasCompletedTour,
         lastSyncedAt: state.lastSyncedAt,
         lastPulledAt: state.lastPulledAt,
+        lastAuthUserId: state.lastAuthUserId,
         lastConsistencyCheckAt: state.lastConsistencyCheckAt,
         consistencyBehindCount: state.consistencyBehindCount,
         pwslRemindOnLoad: state.pwslRemindOnLoad,

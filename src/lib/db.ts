@@ -1537,6 +1537,25 @@ export async function getUnpushedSyncItemKeys(): Promise<Set<string>> {
   return keys;
 }
 
+/**
+ * Does the given `(entityType, entityId)` have an UN-PUSHED sync-queue item?
+ *
+ * "Un-pushed" = any status that is not `completed`: `pending`, `syncing`, or
+ * `failed` — local work that has not yet landed in the cloud. Ingress paths
+ * (pullSync / realtime) use this as a per-row dirty-guard so an incoming (often
+ * older) remote row can't silently clobber a local edit the user made offline
+ * and hasn't pushed yet (Finding #4, Phase 1c). The syncQueue id is the
+ * deterministic `${entityType}-${entityId}`, so a single keyed lookup suffices.
+ */
+export async function hasUnpushedSyncItem(
+  entityType: SyncEntityType,
+  entityId: string,
+): Promise<boolean> {
+  const db = await getDB();
+  const item = await db.get('syncQueue', `${entityType}-${entityId}`);
+  return !!item && item.status !== 'completed';
+}
+
 export async function updateSyncItem(item: SyncQueueItem): Promise<void> {
   const db = await getDB();
   await db.put('syncQueue', item);

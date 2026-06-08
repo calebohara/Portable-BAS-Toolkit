@@ -134,7 +134,11 @@ export function isGlobalEntity(entityType: SyncEntityType): boolean {
 //   - globalProjects: has created_by only (no updated_by column)
 //   - globalActivityLog: append-only log, uses user_id (no created_by/updated_by)
 //   - globalProjectPreferences: composite PK on (user_id, global_project_id), no created_by/updated_by
-const GLOBAL_AUDITED_ENTITY_TYPES: Set<SyncEntityType> = new Set([
+//
+// Exported so the sync-manager's cross-user push guard (Finding #3, Phase 1c)
+// can identify the global rows whose UPDATE RLS policy requires
+// `created_by = auth.uid()` — and drop foreign-authored re-pushes as a no-op.
+export const GLOBAL_AUDITED_ENTITY_TYPES: Set<SyncEntityType> = new Set([
   'globalNotes', 'globalDevices', 'globalIpPlan', 'globalDailyReports',
   'globalNetworkDiagrams', 'globalProjectFiles', 'globalPpclDocuments',
   'globalTerminalLogs', 'globalPidTuningSessions', 'globalPsychSessions',

@@ -240,6 +240,13 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       manager.stop();
       unregisterSyncManager();
       managerRef.current = null;
+      // Re-arm the one-shot auto-pull / consistency guards so a user SWITCH
+      // (userId changes without first dropping to unauthenticated) re-fires the
+      // clean first-login hydration for the NEW user. Without this, the refs
+      // would stay `true` from the previous user and the new user's cursor-reset
+      // (lastPulledAt → null) would be ignored. (Finding #2, Phase 1c.)
+      autoPullFiredRef.current = false;
+      autoConsistencyFiredRef.current = false;
     };
   }, [mode, userId, authProfile?.subscriptionTier, authProfile?.subscriptionExpiresAt, setSyncStatus, setPendingSyncCount, setLastSyncedAt, setLastPulledAt, setSyncConflictCount, checkConsistency, triggerFullPull]);
 

@@ -31,6 +31,16 @@
 ## Verification
 - `npx tsc --noEmit` clean; `eslint` clean; `npx vitest run` — **387 passed**, including 7 new tests: incremental pull applies a local delete for a tombstoned row; full pull subtractively removes a stale row (and clears on empty cloud); push strips `deleted_at` (no resurrection); and **un-pushed pending `create`/`update` rows survive a full pull** while truly-stale rows are reaped.
 
+---
+
+## Phase 1c — data-integrity / isolation (audit Findings #2, #3, #4, all P0) — v4.27.0
+
+**Files:** sync-manager, field-map, db, auth-provider, sync-provider, app-store + 2 new test files. **404 tests pass** (17 new).
+
+- **Same-device user isolation (#2):** persist `lastAuthUserId`; on a genuine user *change* (or sign-out) the app now `clearAllData()` + resets sync cursors (`lastPulledAt`/`lastSyncedAt`/`lastConsistencyCheckAt`) **before** the new SyncManager starts — so the new user gets a clean hydration of their own data and the previous user's queued items can never be pushed under the new identity. Carefully does NOT wipe on same-user re-auth/token-refresh, first-ever login, or an offline-only/never-signed-in user (all covered by tests). Pure `decideUserIsolation()` truth-table is unit-tested.
+- **Cross-user push guard for ALL global entities (#3):** generalized the `globalActivityLog`-only guard to every `GLOBAL_AUDITED_ENTITY_TYPES` member + `globalProjects` via `foreignGlobalAuthor()` (keys on `createdBy`/`created_by`, or `userId` for the activity log). A push of a row authored by another member (and you're not editing via the admin live-path) is **dropped as a successful no-op** — no retry, no syncError. `fullSync` no longer enqueues foreign-authored global rows, and a `42501` on a global update is now a non-retryable drop backstop. (Admin edits still succeed through the direct `api.ts` write path; only futile sync-queue re-pushes of foreign rows are suppressed.)
+- **Ingress dirty-guard (#4):** before `bulkPutSilent` overwrites a local row on pull/realtime, it checks the un-pushed queue (`hasUnpushedSyncItem` / `getUnpushedSyncItemKeys`) and **skips the overwrite if the row has an un-pushed local edit** (keeps the user's offline edit; it resolves on push). Fail-safe: if the queue read fails, no overwrites. Remote deletes still apply (a delete-vs-edit conflict is deferred to Phase 2).
+
 ## Follow-up
 - One-time legacy demo-row purge (the historical demo projects already in some cloud accounts) is a separate cleanup — will provide a targeted SQL once the propagation fix is deployed so a manual delete actually sticks.
-- **Remaining phases:** 1b (queue amplifier: fullSync dirty-tracking, error dedup, backoff), 1c (same-device isolation, cross-user push guard for all global entities, pull/realtime dirty-guard), Phase 2 (preferences delete, restore-from-cloud, conflict logic on sync_version), Phase 3 (field-map allowlist, atomic cascades, FK ordering), Phase 4 (verification suite).
+- **Remaining phases:** 1b (queue amplifier: fullSync dirty-tracking, error dedup, backoff), Phase 2 (preferences delete, restore-from-cloud, conflict logic on sync_version), Phase 3 (field-map allowlist, atomic cascades, FK ordering), Phase 4 (verification suite).

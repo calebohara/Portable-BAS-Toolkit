@@ -3,6 +3,8 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from 'react';
 import type { User, Session, AuthError } from '@supabase/supabase-js';
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
+import { clearAllData } from '@/lib/db';
+import { useAppStore } from '@/store/app-store';
 
 // ─── Types ──────────────────────────────────────────────────
 export type AuthMode = 'local' | 'authenticated';
@@ -59,6 +61,41 @@ export interface AuthState {
 
 // ─── Not-configured error helper ────────────────────────────
 const notConfiguredError = { message: 'Supabase not configured', name: 'AuthError', status: 0 } as AuthError;
+
+// ─── Same-device user isolation decision (Finding #2, Phase 1c) ─────────────
+/**
+ * Pure decision for whether an auth transition requires wiping IndexedDB +
+ * resetting sync cursors before the new identity's SyncManager starts.
+ *
+ * Returns `{ wipe }`:
+ *   • wipe = true  → a DIFFERENT user signed in, or an explicit sign-out:
+ *                    clear local data + reset cursors so the new (or absent)
+ *                    user can't see / re-push the previous user's rows.
+ *   • wipe = false → same-user re-auth (token refresh / re-login → ids match),
+ *                    OR a first-ever login on a device with no recorded prior
+ *                    id (legitimately-hydrated local-only store; only record).
+ *
+ * Keying strictly on a real auth user-id CHANGE means an offline/anonymous
+ * local-only user (who never signed in → prevAuthUserId stays null) is never
+ * wiped.
+ */
+export function decideUserIsolation(
+  event: string,
+  prevAuthUserId: string | null,
+  newUserId: string | null,
+): { wipe: boolean } {
+  // Same user (token refresh, USER_UPDATED, repeated SIGNED_IN): no isolation.
+  if (newUserId && newUserId === prevAuthUserId) return { wipe: false };
+
+  // Sign-out only matters if there WAS an authenticated user to isolate from.
+  // A null→null transition (local-only session that never signed in) must NOT
+  // wipe — otherwise every cold start of an offline user nukes their data.
+  const isSignOut = newUserId === null && prevAuthUserId !== null;
+  // Only a recorded, DIFFERENT prior id counts as a switch — a null prior id is
+  // a first-ever login (or pre-tracking store); don't wipe a legit local store.
+  const isUserSwitch = !!newUserId && !!prevAuthUserId && newUserId !== prevAuthUserId;
+  return { wipe: isSignOut || isUserSwitch };
+}
 
 // ─── Context ────────────────────────────────────────────────
 const AuthContext = createContext<AuthState | null>(null);
@@ -120,13 +157,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [client]);
 
+  // ── Same-device user isolation (Finding #2, Phase 1c) ──────────────────────
+  // On a shared device, signing out then in as a DIFFERENT user must not leak
+  // the previous user's IndexedDB data, must not let the previous user's pending
+  // syncQueue items push under the NEW identity, and must not let a stale
+  // lastPulledAt suppress the new user's clean first-login pull.
+  //
+  // We persist the last authenticated user id (app-store, survives reload). When
+  // a genuinely different user signs in — OR on an explicit sign-out — we wipe
+  // IndexedDB (clearAllData also clears syncQueue + syncConflicts) and reset the
+  // sync cursors to "never synced" BEFORE the new user's auth state propagates
+  // (we only call setUser/setSession after the wipe resolves), so the new
+  // SyncManager spins up against a clean store and does a full first-login pull.
+  //
+  // Deliberately NOT cleared on:
+  //   • SAME-user re-auth (token refresh, re-login) — id matches the stored id.
+  //   • First-ever login on a device with no stored id — could be a legitimately
+  //     hydrated local-only store the user is now signing in to claim; we only
+  //     RECORD the id, never wipe (avoids destroying offline local-only work).
+  const reconcileUserIsolation = useCallback(
+    async (event: string, newUser: User | null): Promise<void> => {
+      const store = useAppStore.getState();
+      const newUserId = newUser?.id ?? null;
+      const { wipe } = decideUserIsolation(event, store.lastAuthUserId, newUserId);
+
+      if (wipe) {
+        try {
+          await clearAllData();
+        } catch (e) {
+          console.warn('[auth] Failed to clear local data on user isolation:', e);
+        }
+        store.resetSyncCursors();
+      }
+
+      // Record the new identity (null on sign-out) so the next transition is
+      // measured against it.
+      store.setLastAuthUserId(newUserId);
+    },
+    [],
+  );
+
   // Restore session on mount + listen for auth changes
   useEffect(() => {
     // No client → loading was initialized to false; nothing to restore.
     if (!client) return;
 
     // Get initial session
-    client.auth.getSession().then(({ data: { session: s } }) => {
+    client.auth.getSession().then(async ({ data: { session: s } }) => {
+      // Reconcile isolation BEFORE propagating the user so a stale-store device
+      // (restored as a different user than last time) wipes before sync starts.
+      await reconcileUserIsolation('INITIAL_SESSION', s?.user ?? null);
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) fetchProfile(s.user.id);
@@ -137,23 +217,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Subscribe to auth state changes (sign in, sign out, token refresh, password recovery)
     const { data: { subscription } } = client.auth.onAuthStateChange((event, s) => {
-      setSession(s);
-      setUser(s?.user ?? null);
-      if (s?.user) fetchProfile(s.user.id);
-      else setProfile(null);
+      // Run isolation reconciliation FIRST and only propagate the new user once
+      // any required wipe + cursor reset has resolved — guaranteeing the new
+      // SyncManager (gated on `user.id` in SyncProvider) never starts against
+      // the previous user's data or cursors.
+      reconcileUserIsolation(event, s?.user ?? null)
+        .catch((e) => console.warn('[auth] User isolation reconciliation failed:', e))
+        .finally(() => {
+          setSession(s);
+          setUser(s?.user ?? null);
+          if (s?.user) fetchProfile(s.user.id);
+          else setProfile(null);
 
-      // PASSWORD_RECOVERY: the user landed via a valid reset link. Flag it so the
-      // reset-password form unlocks. Any other event (normal SIGNED_IN, token
-      // refresh, sign-out) clears the flag so an ordinary session can't reuse it.
-      if (event === 'PASSWORD_RECOVERY') {
-        setIsPasswordRecovery(true);
-      } else if (event === 'SIGNED_OUT') {
-        setIsPasswordRecovery(false);
-      }
+          // PASSWORD_RECOVERY: the user landed via a valid reset link. Flag it so
+          // the reset-password form unlocks. Any other event (normal SIGNED_IN,
+          // token refresh, sign-out) clears the flag so an ordinary session can't
+          // reuse it.
+          if (event === 'PASSWORD_RECOVERY') {
+            setIsPasswordRecovery(true);
+          } else if (event === 'SIGNED_OUT') {
+            setIsPasswordRecovery(false);
+          }
+        });
     });
 
     return () => { subscription.unsubscribe(); };
-  }, [client, fetchProfile]);
+  }, [client, fetchProfile, reconcileUserIsolation]);
 
   // Bootstrap user profile on first sign-in (upsert to Supabase profiles table)
   useEffect(() => {

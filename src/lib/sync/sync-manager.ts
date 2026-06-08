@@ -1,7 +1,8 @@
 import type { SupabaseClient, RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import type { SyncEntityType, SyncQueueItem, SyncConflict, SyncError } from '@/types';
 import {
-  addSyncItem, getPendingSyncItems, getUnpushedSyncItemKeys, updateSyncItem, deleteSyncItem,
+  addSyncItem, getPendingSyncItems, getUnpushedSyncItemKeys, hasUnpushedSyncItem,
+  updateSyncItem, deleteSyncItem,
   getSyncQueueCount, getAllFromStore, clearSyncQueue,
   bulkPutSilent, bulkDeleteSilent,
   addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
@@ -12,8 +13,8 @@ import {
 import {
   entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER,
   fromSupabaseRow, isDeletedRow, REQUIRES_PROJECT_ID,
-  isGlobalEntity, GLOBAL_ENTITY_TYPES, REQUIRES_GLOBAL_PROJECT_ID,
-  supportsSubtractivePull,
+  isGlobalEntity, GLOBAL_ENTITY_TYPES, GLOBAL_AUDITED_ENTITY_TYPES,
+  REQUIRES_GLOBAL_PROJECT_ID, supportsSubtractivePull,
 } from './field-map';
 import { emitPullComplete, type SyncManagerInterface } from './sync-bridge';
 import { formatPostgrestError, sanitizeForLog } from './sync-error-utils';
@@ -96,6 +97,53 @@ export class SyncManager implements SyncManagerInterface {
 
   setConflictCallback(cb: ConflictCallback): void {
     this.onConflictCountChange = cb;
+  }
+
+  /**
+   * Cross-user push guard (Finding #3, Phase 1c).
+   *
+   * Returns the foreign author's user-id if a global push item's row was
+   * authored by SOMEONE ELSE (so this device can neither create nor update it),
+   * or null when the row is the current user's own (or authorship can't be
+   * determined → fail open and let the push proceed).
+   *
+   * Why this matters: every global audited child table's UPDATE RLS policy
+   * requires `created_by = auth.uid()` (or project-admin). A plain upsert of a
+   * pulled foreign-authored row takes the `ON CONFLICT DO UPDATE` branch and is
+   * rejected with 42501 — forever. globalProjects (created_by) and
+   * globalActivityLog (user_id, the actor) are the same class of problem.
+   *
+   * Admin handling: we deliberately do NOT try to detect project-admin offline.
+   * A genuine admin edit still succeeds when made through the live `api.ts`
+   * write path (which goes straight to Supabase under the admin's session). The
+   * ONLY thing this guard suppresses is the *sync-queue re-push* of a row this
+   * device merely pulled and doesn't author — which is always futile and never
+   * something an admin needs the queue to do. So the safe default is: drop any
+   * foreign-authored global row from the push queue.
+   */
+  private foreignGlobalAuthor(item: SyncQueueItem): string | undefined {
+    if (item.action === 'delete') return undefined;
+    const payload = (item.payload ?? {}) as Record<string, unknown>;
+
+    // Keyed explicitly on the entity type (not isGlobalEntity) so the check is
+    // robust regardless of how isGlobalEntity is configured.
+    if (item.entityType === 'globalActivityLog') {
+      // Append-only audit log keyed on the actor's user_id.
+      const rowUserId = (payload.userId ?? payload.user_id) as string | undefined;
+      return rowUserId && rowUserId !== this.userId ? rowUserId : undefined;
+    }
+
+    // globalProjects (created_by) + every global audited child table
+    // (created_by) gate UPDATE on `created_by = auth.uid()`.
+    if (item.entityType === 'globalProjects' || GLOBAL_AUDITED_ENTITY_TYPES.has(item.entityType)) {
+      const createdBy = (payload.createdBy ?? payload.created_by) as string | undefined;
+      return createdBy && createdBy !== this.userId ? createdBy : undefined;
+    }
+
+    // globalProjectPreferences is per-user (composite PK includes user_id) —
+    // a device only ever holds its own rows; nothing foreign to guard.
+    // Local (non-global) entities: nothing to guard.
+    return undefined;
   }
 
   private async reportConflictCount(): Promise<void> {
@@ -252,28 +300,27 @@ export class SyncManager implements SyncManagerInterface {
       const table = entityTypeToTable[item.entityType];
       const isGlobal = isGlobalEntity(item.entityType);
 
-      // ── globalActivityLog ownership guard ───────────────────────────────
-      // global_activity_log is an append-only audit table. Its INSERT RLS policy
-      // is `with check (is_global_project_member(global_project_id) AND
-      // user_id = auth.uid())` and it has no UPDATE policy for non-authors.
-      // The timeline pulls EVERY member's activity into IndexedDB; if a pulled
-      // row (authored by another user) ever gets enqueued for push, the row's
-      // user_id ≠ auth.uid(), so the INSERT WITH CHECK fails with 42501 —
-      // forever (ON CONFLICT DO NOTHING doesn't suppress WITH CHECK on INSERT).
-      // We can never push another member's activity row, and we don't need to:
-      // it already lives in the cloud. Drop it as a successful no-op.
-      if (item.entityType === 'globalActivityLog' && item.action !== 'delete') {
-        const payload = (item.payload ?? {}) as Record<string, unknown>;
-        const rowUserId = (payload.userId ?? payload.user_id) as string | undefined;
-        if (rowUserId && rowUserId !== this.userId) {
-          console.info(
-            `${LOG_PREFIX} Skipping globalActivityLog/${item.entityId} push — ` +
-            `authored by another user (${rowUserId.substring(0, 8)}…), already in cloud`,
-          );
-          await deleteSyncItem(item.id);
-          this.authRefreshedItemIds.delete(item.id);
-          return true; // not a failure — futile + RLS-forbidden, drop silently
-        }
+      // ── Cross-user push guard for ALL global entities (Finding #3, 1c) ──
+      // Generalized from the original globalActivityLog-only guard. Every global
+      // audited child table + globalProjects gates its UPDATE/INSERT RLS policy
+      // on the row's author (`created_by = auth.uid()`, or `user_id = auth.uid()`
+      // for the append-only activity log). The timeline / shared-project pulls
+      // bring EVERY member's rows into IndexedDB; if a foreign-authored pulled
+      // row gets enqueued for push, the upsert's ON CONFLICT DO UPDATE branch is
+      // rejected with 42501 — forever. We can never push another member's row,
+      // and don't need to: it already lives in the cloud. Drop as a no-op.
+      // (Admin: not detected offline — see foreignGlobalAuthor() docs. A real
+      // admin edit succeeds via the live api.ts path; only the queue re-push of
+      // a foreign row is the problem this suppresses.)
+      const foreignAuthor = this.foreignGlobalAuthor(item);
+      if (foreignAuthor) {
+        console.info(
+          `${LOG_PREFIX} Skipping ${item.entityType}/${item.entityId} push — ` +
+          `authored by another user (${foreignAuthor.substring(0, 8)}…), already in cloud`,
+        );
+        await deleteSyncItem(item.id);
+        this.authRefreshedItemIds.delete(item.id);
+        return true; // not a failure — futile + RLS-forbidden, drop silently
       }
 
       if (item.action === 'delete') {
@@ -471,6 +518,24 @@ export class SyncManager implements SyncManagerInterface {
         return true; // Don't retry — table doesn't exist
       }
 
+      // ── 42501 RLS rejection on a global update — non-retryable drop ───────
+      // Backstop for Finding #3 (Phase 1c): any foreign-authored global row
+      // that slipped past the foreignGlobalAuthor() pre-check (e.g. a row with a
+      // missing/empty createdBy that still fails the WITH CHECK server-side)
+      // would otherwise retry 5× and spam the syncErrors store. The RLS policy
+      // is deterministic — retrying can never make a forbidden write succeed —
+      // so park/drop it immediately instead. Scoped to global entities so a
+      // genuine transient permission blip on a local table still gets retries.
+      if (errorCode === '42501' && isGlobalEntity(item.entityType) && item.action !== 'delete') {
+        console.warn(
+          `${LOG_PREFIX} RLS-rejected (42501) on ${item.entityType}/${item.entityId} — ` +
+          `dropping as non-retryable (cannot push a row you don't own)`,
+        );
+        await deleteSyncItem(item.id);
+        this.authRefreshedItemIds.delete(item.id);
+        return true; // Don't retry — RLS forbids it deterministically
+      }
+
       // ── Token-expired (401 / JWT expired) — refresh and retry once ─────────
       // Supabase JS captures the access token at request issue time; on a long
       // push the token can expire mid-batch (1h default), returning a 401 with
@@ -568,15 +633,22 @@ export class SyncManager implements SyncManagerInterface {
             storeSkipped++;
             continue;
           }
-          // globalActivityLog is append-only with an INSERT-only RLS policy
-          // (user_id = auth.uid()). The timeline pulls every member's activity
-          // into IndexedDB, so this store holds rows authored by other users.
-          // Re-pushing those is futile (already in cloud) and RLS-rejected
-          // (42501) — skip any row this device doesn't own. Own-authored rows
-          // still re-push insert-only as before.
-          if (entityType === 'globalActivityLog') {
-            const rowUserId = (item.userId ?? item.user_id) as string | undefined;
-            if (rowUserId && rowUserId !== this.userId) {
+          // Cross-user authorship skip (Finding #3, Phase 1c). Global stores
+          // hold rows authored by OTHER members (the timeline / shared-project
+          // pulls mirror everyone's rows into IndexedDB). Re-pushing a foreign
+          // row is futile (already in cloud) and RLS-rejected (42501 on the
+          // ON CONFLICT DO UPDATE / INSERT WITH CHECK) — skip it. Own-authored
+          // rows still re-enqueue as before. Reuses the same author check as the
+          // push-path guard so the two never diverge. (`item` here is a raw
+          // store row, not a SyncQueueItem; wrap it so foreignGlobalAuthor can
+          // read its payload.)
+          if (isGlobalEntity(entityType)) {
+            const foreign = this.foreignGlobalAuthor({
+              action: 'update',
+              entityType,
+              payload: item,
+            } as SyncQueueItem);
+            if (foreign) {
               storeSkipped++;
               continue;
             }
@@ -684,22 +756,22 @@ export class SyncManager implements SyncManagerInterface {
     const memberProjectIds = await fetchMyGlobalProjectIds(this.client, this.userId);
 
     // Pre-fetch the set of `${entityType}-${entityId}` keys for every UN-PUSHED
-    // sync-queue item (status pending/syncing/failed) once per pull cycle. The
-    // subtractive full-pull reconciliation below must NEVER reap a local row
-    // that still has un-pushed work queued — otherwise "Update from cloud" run
-    // on a device with offline-created/edited rows would destroy them (they're
-    // absent from the cloud live set only because they haven't synced YET).
-    // Only matters for a full pull (where subtractive reconciliation runs); skip
-    // the read entirely on incremental pulls.
-    const isFullPullCycle = lastPulledAt == null;
-    const unpushedKeys = isFullPullCycle
-      ? await getUnpushedSyncItemKeys().catch((e) => {
-          // Fail SAFE: if we can't determine pending work, do NOT subtractively
-          // delete anything this cycle (returning a sentinel disables the reap).
-          console.warn(`${LOG_PREFIX} Could not load pending sync queue; skipping subtractive deletes this pull:`, e);
-          return null;
-        })
-      : new Set<string>();
+    // sync-queue item (status pending/syncing/failed) once per pull cycle. Used
+    // for TWO ingress guards:
+    //   1. Subtractive full-pull reconciliation must NEVER reap a local row that
+    //      still has un-pushed work queued — otherwise "Update from cloud" on a
+    //      device with offline-created/edited rows would destroy them (absent
+    //      from the cloud live set only because they haven't synced YET).
+    //   2. Dirty-row overwrite guard (Finding #4, Phase 1c): an incoming remote
+    //      row must NOT clobber a local row that has a pending local edit. This
+    //      applies on EVERY pull (incremental too), so we now always read the
+    //      keys — previously they were only read for full pulls.
+    // unpushedKeys === null means the read failed; both guards then fail SAFE
+    // (no subtractive delete, no overwrite of any locally-dirty row this cycle).
+    const unpushedKeys = await getUnpushedSyncItemKeys().catch((e) => {
+      console.warn(`${LOG_PREFIX} Could not load pending sync queue; skipping subtractive deletes + dirty-guard this pull:`, e);
+      return null;
+    });
 
     for (const entityType of SYNC_ORDER) {
       // Skip entity types whose tables are missing from Supabase
@@ -805,6 +877,7 @@ export class SyncManager implements SyncManagerInterface {
         const toUpsert: Record<string, unknown>[] = [];
         const toDeleteIds: string[] = [];
         let orphanCount = 0;
+        let dirtySkipCount = 0;
 
         for (const row of allRows) {
           if (!isAppendOnlyLog && isDeletedRow(row)) {
@@ -846,6 +919,34 @@ export class SyncManager implements SyncManagerInterface {
             if (typeof row.id === 'string') liveCloudIds.add(row.id);
             orphanCount++;
           } else {
+            // ── Dirty-row overwrite guard (Finding #4, Phase 1c) ──────────
+            // A live remote row must NOT clobber a local row the user edited
+            // offline but hasn't pushed yet. If this (entityType, id) has an
+            // un-pushed sync-queue item, SKIP the overwrite — the local edit is
+            // newer-or-equal intent and will push (and conflict-resolve) on the
+            // push path. We still record the id as a live cloud row so the
+            // subtractive reconciler doesn't reap the local copy.
+            //   • Append-only logs (globalActivityLog) have no user edits — never
+            //     dirty; the lookup is harmless but skipped for clarity.
+            //   • globalProjectPreferences keys on a composite prefKey, not a
+            //     plain id, so it's excluded from the queue-key dirty check
+            //     (its queue items key on the row id, which differs) — it is
+            //     per-user state with no offline-edit-clobber concern here.
+            //   • unpushedKeys === null (queue read failed) → fail safe: don't
+            //     overwrite anything this cycle.
+            const rowId = typeof row.id === 'string' ? row.id : undefined;
+            const isDirtyGuarded =
+              !isAppendOnlyLog && entityType !== 'globalProjectPreferences' && rowId !== undefined;
+            if (
+              isDirtyGuarded
+              && (unpushedKeys === null || unpushedKeys.has(`${entityType}-${rowId}`))
+            ) {
+              // Keep the local edit; still a live cloud row for reconciliation.
+              if (rowId) liveCloudIds.add(rowId);
+              dirtySkipCount++;
+              continue;
+            }
+
             const entity = fromSupabaseRow(entityType, row);
             // Wave 1 TS interfaces expose `deletedAt: string | null` on every
             // global entity, but fromSupabaseRow strips `deleted_at` from every
@@ -878,6 +979,12 @@ export class SyncManager implements SyncManagerInterface {
         if (orphanCount > 0) {
           const fkLabel = isGlobal ? 'global_project_id' : 'project_id';
           console.info(`${LOG_PREFIX} ${entityType}: skipped ${orphanCount} orphaned row(s) with null ${fkLabel}`);
+        }
+        if (dirtySkipCount > 0) {
+          console.info(
+            `${LOG_PREFIX} ${entityType}: kept ${dirtySkipCount} locally-edited row(s) ` +
+            `with un-pushed changes (skipped remote overwrite)`,
+          );
         }
 
         // Write to IndexedDB silently (no sync bridge trigger)
@@ -1441,6 +1548,32 @@ export class SyncManager implements SyncManagerInterface {
       }
       emitPullComplete();
       return;
+    }
+
+    // ── Dirty-row overwrite guard (Finding #4, Phase 1c) ──────────────────
+    // Mirror the pull loop: a realtime INSERT/UPDATE must not clobber a local
+    // row the user edited offline but hasn't pushed yet. If this (entityType,
+    // id) has an un-pushed queue item, skip the overwrite and keep the local
+    // edit (it will push + conflict-resolve on the push path).
+    //   • Append-only logs have no user edits — never dirty.
+    //   • globalProjectPreferences keys on a composite prefKey, not a plain id;
+    //     its queue items key on the row id, so the lookup wouldn't match — and
+    //     it's per-user state with no offline-edit-clobber concern. Skip the
+    //     check for it.
+    const rtId = newRow.id as string | undefined;
+    const dirtyGuarded =
+      entityType !== 'globalActivityLog'
+      && entityType !== 'globalProjectPreferences'
+      && typeof rtId === 'string';
+    if (dirtyGuarded && rtId) {
+      const dirty = await hasUnpushedSyncItem(entityType, rtId).catch(() => false);
+      if (dirty) {
+        console.info(
+          `${LOG_PREFIX} realtime: kept locally-edited ${entityType}/${rtId} ` +
+          `(un-pushed changes pending) — skipped remote overwrite`,
+        );
+        return;
+      }
     }
 
     const entity = fromSupabaseRow(entityType, newRow);

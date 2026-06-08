@@ -50,8 +50,19 @@ vi.mock('../field-map', () => ({
   REQUIRES_PROJECT_ID: new Set(['notes', 'devices']),
   // Wave 3a added these — the sync-manager imports them at module load time
   // so the mock must expose them or the entire module fails to import.
-  isGlobalEntity: vi.fn(() => false),
-  GLOBAL_ENTITY_TYPES: new Set<string>(),
+  isGlobalEntity: vi.fn((t: string) => t.startsWith('global')),
+  GLOBAL_ENTITY_TYPES: new Set<string>(['globalActivityLog']),
+  // Phase 1c: the cross-user push guard reads these at runtime — the mock must
+  // expose them (Set.has on undefined would throw for every queued item).
+  GLOBAL_AUDITED_ENTITY_TYPES: new Set<string>([
+    'globalNotes', 'globalDevices', 'globalIpPlan', 'globalDailyReports',
+    'globalNetworkDiagrams', 'globalProjectFiles', 'globalPpclDocuments',
+    'globalTerminalLogs', 'globalPidTuningSessions', 'globalPsychSessions',
+    'globalRegisterCalculations', 'globalPingSessions', 'globalTrendSessions',
+    'globalConnectionProfiles', 'globalFieldPanels', 'globalNotepadEntries',
+    'globalDxrs',
+  ]),
+  supportsSubtractivePull: vi.fn(() => true),
   REQUIRES_GLOBAL_PROJECT_ID: new Set<string>(),
 }));
 
