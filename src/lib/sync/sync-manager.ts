@@ -1,12 +1,14 @@
 import type { SupabaseClient, RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js';
 import type { SyncEntityType, SyncQueueItem, SyncConflict, SyncError } from '@/types';
 import {
-  addSyncItem, getPendingSyncItems, getUnpushedSyncItemKeys, hasUnpushedSyncItem,
+  addSyncItem, addSyncItemPreservingRetry,
+  getPendingSyncItems, getUnpushedSyncItemKeys, hasUnpushedSyncItem,
   updateSyncItem, deleteSyncItem,
-  getSyncQueueCount, getAllFromStore, clearSyncQueue,
+  getSyncQueueCount, getAllFromStore, clearSyncQueueExceptFailed,
   bulkPutSilent, bulkDeleteSilent,
   addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
-  addSyncError,
+  addSyncError, recoverTransientFailedItems,
+  getSyncMeta, setSyncMeta,
   cascadeDeleteProject, cascadeDeleteGlobalProject,
   resetSyncingItemsToPending,
 } from '@/lib/db';
@@ -17,13 +19,42 @@ import {
   REQUIRES_GLOBAL_PROJECT_ID, supportsSubtractivePull,
 } from './field-map';
 import { emitPullComplete, type SyncManagerInterface } from './sync-bridge';
-import { formatPostgrestError, sanitizeForLog } from './sync-error-utils';
+import { formatPostgrestError, sanitizeForLog, isTransientSyncError } from './sync-error-utils';
 
 const MAX_RETRIES = 5;
 const PROCESS_INTERVAL_MS = 5000;
 const BATCH_SIZE = 20;
 const LOG_PREFIX = '[sync]';
 const MEMBERSHIP_CACHE_TTL_MS = 30_000;
+
+// ─── Exponential backoff (Phase 1b) ──────────────────────────
+// A transiently-failing item is gated by nextRetryAt = now + BACKOFF_BASE_MS *
+// 2^retriedCount, capped at BACKOFF_MAX_MS. So instead of 5 retries in ~25s
+// (one per 5s tick), attempts spread out: ~5s, ~10s, ~20s, ~40s, … (cap).
+const BACKOFF_BASE_MS = 5_000;
+const BACKOFF_MAX_MS = 5 * 60_000; // 5 minutes
+
+/** Compute the next-retry gate for an item that just failed its Nth attempt. */
+function computeNextRetryAt(retriedCount: number, now = Date.now()): string {
+  const delay = Math.min(BACKOFF_BASE_MS * 2 ** retriedCount, BACKOFF_MAX_MS);
+  return new Date(now + delay).toISOString();
+}
+
+// fullSync dirty-tracking high-water-mark key (Phase 1b). One syncMeta row per
+// entity type records the newest row-mtime pushed in the last full sync; the
+// next full sync only enqueues rows strictly newer than this.
+function lastFullPushKey(entityType: string): string {
+  return `lastFullPush:${entityType}`;
+}
+
+// Extract a row's modification timestamp for dirty comparison. Mirrors the
+// conflict-detection precedence (updatedAt → completedAt → createdAt) and adds
+// `timestamp` for append-only logs which carry no updatedAt.
+function rowMtime(row: Record<string, unknown>): string | undefined {
+  return (row.updatedAt ?? row.completedAt ?? row.createdAt ?? row.timestamp) as
+    | string
+    | undefined;
+}
 
 type StatusCallback = (status: 'idle' | 'syncing' | 'error', pendingCount: number) => void;
 type ConflictCallback = (count: number) => void;
@@ -155,6 +186,63 @@ export class SyncManager implements SyncManagerInterface {
     }
   }
 
+  /**
+   * Capture a push/pull failure into the syncErrors store with per-signature
+   * dedup (Phase 1b, Finding #6).
+   *
+   * The id is the deterministic signature `${entityType}-${entityId}-${code}` so
+   * a recurring failure UPSERTS one row (occurrences++) instead of inserting a
+   * fresh random-id row on every retry (which churned the 100-row cap and
+   * evicted distinct errors). The `bau-suite:sync-error-added` window event is
+   * fired ONLY when addSyncError reports a NEW signature (first occurrence), so
+   * the inspector doesn't re-render on every duplicate.
+   *
+   * Callers gate WHEN this runs (first occurrence and/or terminal failure) — it
+   * is no longer invoked on every transient retry.
+   */
+  private async captureSyncError(
+    err: unknown,
+    opts: {
+      entityType: SyncEntityType;
+      entityId: string;
+      action: SyncError['action'];
+      payload?: unknown;
+      retryCount: number;
+    },
+  ): Promise<void> {
+    try {
+      const { code, message, hint, details } = formatPostgrestError(err);
+      const signatureCode = code ?? 'none';
+      const syncError: SyncError = {
+        // Deterministic signature key (Phase 1b dedup).
+        id: `${opts.entityType}-${opts.entityId}-${signatureCode}`,
+        entityType: opts.entityType,
+        entityId: opts.entityId,
+        action: opts.action,
+        table: entityTypeToTable[opts.entityType] ?? opts.entityType,
+        errorCode: code,
+        errorMessage: message,
+        hint,
+        details,
+        payload: opts.payload
+          ? (sanitizeForLog(opts.payload) as Record<string, unknown>)
+          : null,
+        retryCount: opts.retryCount,
+        userId: this.userId,
+        appVersion: (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_APP_VERSION) || 'unknown',
+        createdAt: new Date().toISOString(),
+      };
+      const isNewSignature = await addSyncError(syncError);
+      // Only emit on a NEW signature — avoids inspector re-render storms when the
+      // same failure recurs.
+      if (isNewSignature && typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('bau-suite:sync-error-added', { detail: syncError }));
+      }
+    } catch (captureErr) {
+      console.warn(`${LOG_PREFIX} Failed to capture sync error to syncErrors store:`, captureErr);
+    }
+  }
+
   start(): void {
     if (this.intervalId) return;
     console.info(`${LOG_PREFIX} Manager started (user=${this.userId.substring(0, 8)}…)`);
@@ -195,6 +283,7 @@ export class SyncManager implements SyncManagerInterface {
     entityType: SyncEntityType,
     entityId: string,
     payload: unknown,
+    options?: { preserveRetry?: boolean },
   ): Promise<void> {
     // Pre-flight: entity ID must be a valid UUID (non-UUID = demo/seed data
     // that never existed in Supabase, so there's nothing to create/update/delete)
@@ -221,8 +310,41 @@ export class SyncManager implements SyncManagerInterface {
       createdAt: new Date().toISOString(),
       retriedCount: 0,
     };
-    await addSyncItem(item);
+    // Phase 1b (Finding #5): fullSync re-enqueues changed rows with
+    // preserveRetry so a poison item parked at `failed` keeps its retry
+    // bookkeeping instead of being reset to a clean pending/0 every full sync
+    // (the "stuck at 3" loop). A normal user edit (no options) enqueues fresh.
+    if (options?.preserveRetry) {
+      await addSyncItemPreservingRetry(item);
+    } else {
+      await addSyncItem(item);
+    }
     this.reportStatus();
+  }
+
+  /**
+   * Auto-recover `failed` items whose last error is TRANSIENT (Phase 1b).
+   *
+   * `failed` items are otherwise only retried via the manual "Retry" button or a
+   * fullSync recreating them. On reconnect (and periodically) we re-pend the
+   * ones that failed for a transient reason (network down, server 5xx, JWT
+   * expiry) — leaving PERMANENT failures (RLS 42501, FK 23503, missing-column
+   * 42703 / PGRST204) parked, since retrying those can never succeed. Uses the
+   * persisted `lastErrorCode` / `lastError` on each item via the sync-error
+   * classifier. Returns the count re-pended.
+   */
+  async autoRecoverFailedItems(): Promise<number> {
+    try {
+      const recovered = await recoverTransientFailedItems(isTransientSyncError);
+      if (recovered > 0) {
+        console.info(`${LOG_PREFIX} Auto-recovery: re-pended ${recovered} transient failed item(s)`);
+        this.reportStatus();
+      }
+      return recovered;
+    } catch (e) {
+      console.warn(`${LOG_PREFIX} Auto-recovery sweep failed:`, e);
+      return 0;
+    }
   }
 
   async processQueue(): Promise<void> {
@@ -474,36 +596,19 @@ export class SyncManager implements SyncManagerInterface {
           ? String((err as { message: string }).message)
           : JSON.stringify(err);
 
-      // ── Capture push error into syncErrors store ────────────────────────
-      try {
-        const { code: capturedCode, message: capturedMessage, hint: capturedHint, details: capturedDetails } =
-          formatPostgrestError(err);
-        const pushSyncError: SyncError = {
-          id: crypto.randomUUID(),
-          entityType: item.entityType,
-          entityId: item.entityId,
-          action: item.action,
-          table: entityTypeToTable[item.entityType] ?? item.entityType,
-          errorCode: capturedCode,
-          errorMessage: capturedMessage,
-          hint: capturedHint,
-          details: capturedDetails,
-          payload: item.payload
-            ? (sanitizeForLog(item.payload) as Record<string, unknown>)
-            : null,
-          retryCount: item.retriedCount,
-          userId: this.userId,
-          appVersion: (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_APP_VERSION) || 'unknown',
-          createdAt: new Date().toISOString(),
-        };
-        await addSyncError(pushSyncError);
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('bau-suite:sync-error-added', { detail: pushSyncError }));
-        }
-      } catch (captureErr) {
-        console.warn(`${LOG_PREFIX} Failed to capture push error to syncErrors store:`, captureErr);
-      }
-      // ── End capture ─────────────────────────────────────────────────────
+      // ── syncErrors capture moved to TERMINAL / first-occurrence only ──────
+      // (Phase 1b, Finding #6). The old code captured on EVERY retry before the
+      // terminal check, writing a fresh random-id row every 5s and churning the
+      // 100-row cap. Capture now fires:
+      //   • at each non-retryable DROP branch below (these are terminal), and
+      //   • once on the first transient failure + again at terminal `failed`,
+      // all via this.captureSyncError() which dedups by signature.
+      const captureCtx = {
+        entityType: item.entityType,
+        entityId: item.entityId,
+        action: item.action,
+        payload: item.payload,
+      };
 
       // Detect "relation does not exist" — table missing from Supabase.
       // Mark this entity type as broken to prevent retry storms that freeze the UI.
@@ -513,6 +618,7 @@ export class SyncManager implements SyncManagerInterface {
         console.error(
           `${LOG_PREFIX} Table missing for "${item.entityType}" — disabling sync for this entity type this session`,
         );
+        await this.captureSyncError(err, { ...captureCtx, retryCount: item.retriedCount });
         this.brokenEntityTypes.add(item.entityType);
         await deleteSyncItem(item.id);
         return true; // Don't retry — table doesn't exist
@@ -531,6 +637,7 @@ export class SyncManager implements SyncManagerInterface {
           `${LOG_PREFIX} RLS-rejected (42501) on ${item.entityType}/${item.entityId} — ` +
           `dropping as non-retryable (cannot push a row you don't own)`,
         );
+        await this.captureSyncError(err, { ...captureCtx, retryCount: item.retriedCount });
         await deleteSyncItem(item.id);
         this.authRefreshedItemIds.delete(item.id);
         return true; // Don't retry — RLS forbids it deterministically
@@ -577,22 +684,43 @@ export class SyncManager implements SyncManagerInterface {
         errorMsg,
       );
 
-      if (newRetryCount >= MAX_RETRIES) {
+      const isTerminal = newRetryCount >= MAX_RETRIES;
+
+      // ── syncErrors capture (Phase 1b, Finding #6) ─────────────────────────
+      // Capture on the FIRST occurrence (so a distinct error surfaces promptly)
+      // and again at TERMINAL `failed` (so the retryCount is recorded correctly).
+      // Transient middle retries are NOT captured — the signature dedup would
+      // only bump occurrences, but skipping them avoids needless writes/churn.
+      if (item.retriedCount === 0 || isTerminal) {
+        await this.captureSyncError(err, { ...captureCtx, retryCount: newRetryCount });
+      }
+
+      if (isTerminal) {
         await updateSyncItem({
           ...item,
           status: 'failed',
           retriedCount: newRetryCount,
           lastError: errorMsg,
+          lastErrorCode: errorCode || undefined,
+          // Terminal — clear any backoff gate (the auto-recovery sweep owns it now).
+          nextRetryAt: undefined,
         });
         console.error(
           `${LOG_PREFIX} Permanently failed: ${item.entityType}/${item.entityId} — ${errorMsg}`,
         );
       } else {
+        // ── Exponential backoff (Phase 1b) ────────────────────────────────
+        // Gate the next attempt instead of letting it fire on the very next 5s
+        // tick. nextRetryAt = now + base * 2^retriedCount (capped); the eligible
+        // filter in getPendingSyncItems skips the item until then.
+        const nextRetryAt = computeNextRetryAt(item.retriedCount);
         await updateSyncItem({
           ...item,
           status: 'pending',
           retriedCount: newRetryCount,
           lastError: errorMsg,
+          lastErrorCode: errorCode || undefined,
+          nextRetryAt,
         });
       }
       return false;
@@ -609,11 +737,14 @@ export class SyncManager implements SyncManagerInterface {
     // Step 0: Purge orphaned demo data from Supabase (null project_id rows, soft-deleted projects)
     await this.purgeOrphans();
 
-    // Step 1: Clear the entire queue to prevent duplicates.
-    // This is safe because fullSync re-enqueues everything that needs syncing.
-    const cleared = await clearSyncQueue();
+    // Step 1: Clear the queue to prevent duplicates — but KEEP `failed` items
+    // (Phase 1b, Finding #5). Wiping them would reset their retriedCount to 0 on
+    // re-enqueue, so a deterministically-doomed write never stays terminal and
+    // re-enters the 5-retry loop forever. addSyncItemPreservingRetry below
+    // carries over the retry bookkeeping of any surviving failed row.
+    const cleared = await clearSyncQueueExceptFailed();
     if (cleared > 0) {
-      console.info(`${LOG_PREFIX} Cleared ${cleared} stale queue item(s)`);
+      console.info(`${LOG_PREFIX} Cleared ${cleared} stale queue item(s) (kept failed items)`);
     }
 
     let totalEnqueued = 0;
@@ -626,6 +757,23 @@ export class SyncManager implements SyncManagerInterface {
         let storeEnqueued = 0;
         let storeSkipped = 0;
 
+        // ── Dirty-tracking high-water mark (Phase 1b, Finding #5) ──────────
+        // Only enqueue rows MODIFIED since the last full push. We compare each
+        // row's mtime (updatedAt → completedAt → createdAt → timestamp) to the
+        // per-entity high-water mark persisted in syncMeta. A full sync of an
+        // unchanged dataset therefore enqueues ~0 rows — instead of re-pushing
+        // every row (with a conflict-SELECT each) on every full sync.
+        //
+        // Caveat: rows with NO usable mtime can't be dirty-tracked — they are
+        // enqueued conservatively (always) so we never silently drop a write.
+        // The watermark is advanced to the newest mtime SEEN this scan (across
+        // all syncable rows, including ones skipped as unchanged or foreign), so
+        // the next full sync's "newer than" comparison stays correct.
+        const prevMark = await getSyncMeta(lastFullPushKey(entityType));
+        const prevMarkTime = prevMark ? new Date(prevMark).getTime() : -Infinity;
+        let maxMtime: string | undefined = prevMark ?? undefined;
+        let maxMtimeTime = prevMarkTime;
+
         for (const item of items) {
           // validateSyncable checks ID format, projectId FK, etc.
           const reason = validateSyncable(entityType, item);
@@ -633,6 +781,15 @@ export class SyncManager implements SyncManagerInterface {
             storeSkipped++;
             continue;
           }
+
+          const mtime = rowMtime(item);
+          const mtimeMs = mtime ? new Date(mtime).getTime() : NaN;
+          // Track the newest mtime among syncable rows for the next watermark.
+          if (!Number.isNaN(mtimeMs) && mtimeMs > maxMtimeTime) {
+            maxMtimeTime = mtimeMs;
+            maxMtime = mtime;
+          }
+
           // Cross-user authorship skip (Finding #3, Phase 1c). Global stores
           // hold rows authored by OTHER members (the timeline / shared-project
           // pulls mirror everyone's rows into IndexedDB). Re-pushing a foreign
@@ -653,8 +810,25 @@ export class SyncManager implements SyncManagerInterface {
               continue;
             }
           }
-          await this.enqueue('update', entityType, item.id as string, item);
+
+          // Dirty check: skip rows NOT newer than the last full-push mark.
+          // Rows with a usable mtime that is <= the mark are unchanged → skip.
+          // Rows with no usable mtime (NaN) fall through and are enqueued.
+          if (!Number.isNaN(mtimeMs) && mtimeMs <= prevMarkTime) {
+            storeSkipped++;
+            continue;
+          }
+
+          // preserveRetry: carry over the retriedCount/status of any surviving
+          // `failed` queue row so a poison item isn't reset to a clean 0.
+          await this.enqueue('update', entityType, item.id as string, item, { preserveRetry: true });
           storeEnqueued++;
+        }
+
+        // Advance the high-water mark so the next full sync skips everything not
+        // modified after this point. Only persist when it actually moved forward.
+        if (maxMtime && maxMtimeTime > prevMarkTime) {
+          await setSyncMeta(lastFullPushKey(entityType), maxMtime);
         }
 
         totalEnqueued += storeEnqueued;
@@ -663,7 +837,7 @@ export class SyncManager implements SyncManagerInterface {
         if (storeEnqueued > 0) {
           console.info(`${LOG_PREFIX} ${entityType}: ${storeEnqueued} enqueued, ${storeSkipped} skipped`);
         } else if (items.length > 0) {
-          console.info(`${LOG_PREFIX} ${entityType}: all ${items.length} skipped (demo/invalid data)`);
+          console.info(`${LOG_PREFIX} ${entityType}: all ${items.length} skipped (unchanged/invalid/foreign)`);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -1069,34 +1243,17 @@ export class SyncManager implements SyncManagerInterface {
             ? String((err as { message: string }).message)
             : String(err);
 
-        // ── Capture pull error into syncErrors store ──────────────────────
-        try {
-          const { code: pullCode, message: pullMessage, hint: pullHint, details: pullDetails } =
-            formatPostgrestError(err);
-          const pullSyncError: SyncError = {
-            id: crypto.randomUUID(),
-            entityType,
-            entityId: '*',
-            action: 'pull',
-            table: entityTypeToTable[entityType] ?? entityType,
-            errorCode: pullCode,
-            errorMessage: pullMessage,
-            hint: pullHint,
-            details: pullDetails,
-            payload: null,
-            retryCount: 0,
-            userId: this.userId,
-            appVersion: (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_APP_VERSION) || 'unknown',
-            createdAt: new Date().toISOString(),
-          };
-          await addSyncError(pullSyncError);
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('bau-suite:sync-error-added', { detail: pullSyncError }));
-          }
-        } catch (captureErr) {
-          console.warn(`${LOG_PREFIX} Failed to capture pull error to syncErrors store:`, captureErr);
-        }
-        // ── End capture ───────────────────────────────────────────────────
+        // ── Capture pull error into syncErrors store (signature-deduped) ──
+        // entityId '*' means the signature collapses per (entityType, code), so
+        // a recurring per-table pull failure upserts one row (occurrences++)
+        // rather than inserting a new random-id row every pull (Finding #6).
+        await this.captureSyncError(err, {
+          entityType,
+          entityId: '*',
+          action: 'pull',
+          payload: undefined,
+          retryCount: 0,
+        });
 
         // Detect missing table — disable this entity type for the session
         const errCode = (err && typeof err === 'object' && 'code' in err)

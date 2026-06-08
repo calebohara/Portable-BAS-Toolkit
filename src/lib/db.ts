@@ -276,6 +276,14 @@ interface BasToolkitDB extends DBSchema {
       'by-error-code': string;
     };
   };
+  // ─── Sync metadata keyval (v22) ──
+  // Small key/value store for sync-engine bookkeeping. Currently holds the
+  // per-entity-type "last full push" high-water mark used by fullSync
+  // dirty-tracking (Phase 1b) so an unchanged dataset enqueues ~0 rows.
+  syncMeta: {
+    key: string;
+    value: { key: string; value: string };
+  };
 }
 
 /** Union of all object-store names in the schema — use instead of bare `string`. */
@@ -294,7 +302,9 @@ export type BasToolkitStoreName =
   // ── DXR stores (v20) ──
   | 'dxrs' | 'globalDxrs'
   // ── Sync Error log (v21) ──
-  | 'syncErrors';
+  | 'syncErrors'
+  // ── Sync metadata keyval (v22) ──
+  | 'syncMeta';
 
 /**
  * Runtime mirror of the `BasToolkitStoreName` union. Used to guard runtime
@@ -317,6 +327,7 @@ export const BAS_TOOLKIT_STORE_NAMES = new Set<BasToolkitStoreName>([
   'globalFieldPanels', 'globalNotepadEntries', 'globalProjectPreferences',
   'dxrs', 'globalDxrs',
   'syncErrors',
+  'syncMeta',
 ] satisfies BasToolkitStoreName[]);
 
 /** Runtime guard: is `value` a known IndexedDB store name? */
@@ -325,7 +336,7 @@ export function isBasToolkitStoreName(value: string): value is BasToolkitStoreNa
 }
 
 /** Current schema version — bump this and add a new `if (oldVersion < N)` block when changing the schema. */
-export const DB_VERSION = 21;
+export const DB_VERSION = 22;
 
 let dbPromise: Promise<IDBPDatabase<BasToolkitDB>> | null = null;
 
@@ -575,6 +586,13 @@ function getDB() {
           syncErrorStore.createIndex('by-created-at', 'createdAt');
           syncErrorStore.createIndex('by-entity-type', 'entityType');
           syncErrorStore.createIndex('by-error-code', 'errorCode');
+        }
+
+        if (oldVersion < 22) {
+          // ─── Sync metadata keyval ──────────────────────────────────────────
+          // Holds the per-entity-type "last full push" high-water mark used by
+          // fullSync dirty-tracking (Phase 1b). Plain keyPath keyval store.
+          db.createObjectStore('syncMeta', { keyPath: 'key' });
         }
       },
     }).catch((err) => {
@@ -1501,16 +1519,91 @@ export async function searchGlobal(query: string): Promise<{
   };
 }
 
+// ─── Sync metadata keyval (Phase 1b) ────────────────────────
+/**
+ * Read a sync-metadata value by key (e.g. a per-entity "last full push"
+ * high-water mark). Returns `null` if unset.
+ */
+export async function getSyncMeta(key: string): Promise<string | null> {
+  const db = await getDB();
+  const row = await db.get('syncMeta', key);
+  return row?.value ?? null;
+}
+
+/** Write a sync-metadata value by key. */
+export async function setSyncMeta(key: string, value: string): Promise<void> {
+  const db = await getDB();
+  await db.put('syncMeta', { key, value });
+}
+
+/**
+ * Drop ALL sync-metadata (Phase 1b). Used by the "Reset Sync State" recovery
+ * action so the next full sync re-enqueues every row — otherwise the fullSync
+ * dirty-tracking high-water marks would suppress the re-push the user is trying
+ * to force. Returns the count removed.
+ */
+export async function clearSyncMeta(): Promise<number> {
+  const db = await getDB();
+  const tx = db.transaction('syncMeta', 'readwrite');
+  const count = await tx.store.count();
+  await tx.store.clear();
+  await tx.done;
+  return count;
+}
+
 // ─── Sync Queue ─────────────────────────────────────────────
 export async function addSyncItem(item: SyncQueueItem): Promise<void> {
   const db = await getDB();
   await db.put('syncQueue', item);
 }
 
+/**
+ * Enqueue an item but PRESERVE the retry bookkeeping of any existing queue row
+ * for the same `(entityType, entityId)` id (Phase 1b, Finding #5).
+ *
+ * `fullSync` re-scans every store and re-enqueues changed rows. The naive path
+ * (a fresh `addSyncItem` with `retriedCount: 0`) RESETS a poison item parked at
+ * `failed` back to a clean `pending` 0 — so it never stays terminal and
+ * re-enters the 5-retry/5-error loop forever ("stuck at 3"). This variant reads
+ * the existing row first and carries over its `retriedCount` / `status` /
+ * `lastError*` / `nextRetryAt`, only refreshing the payload + action. A row with
+ * no prior queue entry is inserted as-is (fresh `retriedCount: 0`).
+ */
+export async function addSyncItemPreservingRetry(item: SyncQueueItem): Promise<void> {
+  const db = await getDB();
+  const existing = await db.get('syncQueue', item.id);
+  if (existing) {
+    await db.put('syncQueue', {
+      ...item,
+      // Carry over poison-item bookkeeping so fullSync can't reset it to 0.
+      status: existing.status,
+      retriedCount: existing.retriedCount,
+      lastError: existing.lastError,
+      lastErrorCode: existing.lastErrorCode,
+      nextRetryAt: existing.nextRetryAt,
+      createdAt: existing.createdAt,
+    });
+    return;
+  }
+  await db.put('syncQueue', item);
+}
+
+/**
+ * Pending items eligible for processing NOW.
+ *
+ * Phase 1b: an item carrying a future `nextRetryAt` (set by exponential backoff
+ * after a transient failure) is SKIPPED until that time passes — so a failing
+ * item no longer retries on the very next 5s tick. Items with no `nextRetryAt`
+ * (the common case) are always eligible.
+ */
 export async function getPendingSyncItems(limit = 20): Promise<SyncQueueItem[]> {
   const db = await getDB();
   const all = await db.getAllFromIndex('syncQueue', 'by-status', 'pending');
-  return all.slice(0, limit);
+  const now = Date.now();
+  const eligible = all.filter(
+    (item) => !item.nextRetryAt || new Date(item.nextRetryAt).getTime() <= now,
+  );
+  return eligible.slice(0, limit);
 }
 
 /**
@@ -1609,10 +1702,52 @@ export async function resetFailedSyncItems(): Promise<number> {
   const failed = await db.getAllFromIndex('syncQueue', 'by-status', 'failed');
   const tx = db.transaction('syncQueue', 'readwrite');
   for (const item of failed) {
-    await tx.store.put({ ...item, status: 'pending', retriedCount: 0, lastError: undefined });
+    await tx.store.put({
+      ...item,
+      status: 'pending',
+      retriedCount: 0,
+      lastError: undefined,
+      lastErrorCode: undefined,
+      nextRetryAt: undefined,
+    });
   }
   await tx.done;
   return failed.length;
+}
+
+/**
+ * Auto-recovery sweep (Phase 1b): re-pend `failed` items whose last error is
+ * TRANSIENT, leaving permanent failures parked.
+ *
+ * Called on reconnect (and periodically) so a write that failed only because
+ * the network was down / the server 5xx'd / the JWT expired self-heals once
+ * conditions improve — without the user manually hitting "Retry". A permanent
+ * failure (RLS 42501, FK 23503, missing-column 42703 / PGRST204) can never
+ * succeed on retry, so it stays `failed`.
+ *
+ * The caller supplies `isTransient` (wired to the sync-error classifier) so the
+ * db layer stays free of sync-semantics. Retry bookkeeping is RESET on the
+ * re-pended item (fresh `retriedCount: 0`, cleared `nextRetryAt`) so it gets a
+ * clean run of attempts. Returns the count re-pended.
+ */
+export async function recoverTransientFailedItems(
+  isTransient: (errorCode: string | undefined, lastError: string | undefined) => boolean,
+): Promise<number> {
+  const db = await getDB();
+  const failed = await db.getAllFromIndex('syncQueue', 'by-status', 'failed');
+  const toRecover = failed.filter((item) => isTransient(item.lastErrorCode, item.lastError));
+  if (toRecover.length === 0) return 0;
+  const tx = db.transaction('syncQueue', 'readwrite');
+  for (const item of toRecover) {
+    await tx.store.put({
+      ...item,
+      status: 'pending',
+      retriedCount: 0,
+      nextRetryAt: undefined,
+    });
+  }
+  await tx.done;
+  return toRecover.length;
 }
 
 // Clear the entire sync queue (used before fullSync to prevent duplicates)
@@ -1623,6 +1758,32 @@ export async function clearSyncQueue(): Promise<number> {
   await tx.store.clear();
   await tx.done;
   return count;
+}
+
+/**
+ * Clear every sync-queue item EXCEPT those parked at `failed` (Phase 1b).
+ *
+ * fullSync clears the queue before re-scanning stores, but blindly wiping
+ * `failed` poison items resets their `retriedCount` to 0 on the re-enqueue — so
+ * a deterministically-doomed write never stays terminal and re-enters the
+ * 5-retry/5-error loop forever ("stuck at 3"). Keeping `failed` rows lets
+ * `addSyncItemPreservingRetry` carry over their retry bookkeeping. Returns the
+ * count removed (pending/syncing/completed only).
+ */
+export async function clearSyncQueueExceptFailed(): Promise<number> {
+  const db = await getDB();
+  const tx = db.transaction('syncQueue', 'readwrite');
+  let removed = 0;
+  let cursor = await tx.store.openCursor();
+  while (cursor) {
+    if (cursor.value.status !== 'failed') {
+      await cursor.delete();
+      removed++;
+    }
+    cursor = await cursor.continue();
+  }
+  await tx.done;
+  return removed;
 }
 
 // ─── Sync Conflicts ─────────────────────────────────────────
@@ -1835,6 +1996,10 @@ export async function clearAllData(): Promise<void> {
     'dxrs', 'globalDxrs',
     // Sync Error log (v21)
     'syncErrors',
+    // Sync metadata keyval (v22) — clear the fullSync dirty-tracking
+    // high-water marks too, so a different user signing in on the same device
+    // gets a clean full push (their unchanged-since marks must not carry over).
+    'syncMeta',
   ] as const;
   for (const name of storeNames) {
     const tx = db.transaction(name, 'readwrite');
@@ -1938,19 +2103,51 @@ export async function bulkDeleteSilent(
 const SYNC_ERROR_CAP = 100;
 
 /**
- * Persist a SyncError and enforce the 100-row rotation cap.
- * The `id` and `createdAt` fields must be populated by the caller before
- * this function is invoked (capture point owns UUID generation).
- * After insert, deletes oldest rows until count <= 100.
+ * Persist a SyncError with per-signature DEDUP (Phase 1b, Finding #6) and
+ * enforce the 100-row rotation cap.
+ *
+ * The caller MUST set `error.id` to a deterministic signature
+ * (`${entityType}-${entityId}-${errorCode}`). If a row with that signature
+ * already exists, this UPSERTS it — bumping `occurrences`, refreshing
+ * `lastSeenAt` / `createdAt` / message / payload, and preserving `firstSeenAt` —
+ * instead of inserting a fresh random-id row every retry (which churned the
+ * 100-row cap and evicted genuinely distinct errors). A brand-new signature is
+ * inserted with `occurrences: 1`.
+ *
+ * Returns `true` when this was a NEW signature (first occurrence) and `false`
+ * when it merely incremented an existing one. The capture point uses this to
+ * fire the `bau-suite:sync-error-added` window event ONLY on a new signature,
+ * avoiding inspector re-render storms on a recurring failure.
+ *
+ * The whole upsert + count + overflow-delete runs in ONE readwrite transaction
+ * so the cap can't race.
  */
-export async function addSyncError(error: SyncError): Promise<void> {
+export async function addSyncError(error: SyncError): Promise<boolean> {
   const db = await getDB();
-  // Put + count + overflow-delete all happen in ONE readwrite transaction so
-  // the cap can't race: two errors firing in quick succession would otherwise
-  // both observe count = CAP+1 in separate txs and both delete the same oldest
-  // row, drifting the store above the cap.
   const tx = db.transaction('syncErrors', 'readwrite');
-  await tx.store.put(error);
+
+  const existing = await tx.store.get(error.id);
+  const isNew = !existing;
+  const nowIso = error.createdAt ?? new Date().toISOString();
+
+  if (existing) {
+    await tx.store.put({
+      ...error,
+      occurrences: (existing.occurrences ?? 1) + 1,
+      firstSeenAt: existing.firstSeenAt ?? existing.createdAt ?? nowIso,
+      lastSeenAt: nowIso,
+      // Keep createdAt anchored to the FIRST sighting so the cap's
+      // oldest-first eviction reflects genuine age, not last-recurrence churn.
+      createdAt: existing.createdAt ?? nowIso,
+    });
+  } else {
+    await tx.store.put({
+      ...error,
+      occurrences: 1,
+      firstSeenAt: nowIso,
+      lastSeenAt: nowIso,
+    });
+  }
 
   const total = await tx.store.count();
   if (total > SYNC_ERROR_CAP) {
@@ -1966,6 +2163,7 @@ export async function addSyncError(error: SyncError): Promise<void> {
     }
   }
   await tx.done;
+  return isNew;
 }
 
 /**

@@ -18,6 +18,7 @@ import {
   clearSyncQueue,
   clearSyncErrors,
   clearAllSyncConflicts,
+  clearSyncMeta,
 } from '@/lib/db';
 import { useSyncContext } from '@/providers/sync-provider';
 import { emitPullComplete } from '@/lib/sync/sync-bridge';
@@ -51,6 +52,9 @@ export function ResetSyncStateCard() {
       // Also clear any stuck sync conflicts — these are equally sticky and the
       // user can't otherwise recover them from this card.
       await clearAllSyncConflicts();
+      // Clear fullSync dirty-tracking high-water marks (Phase 1b) so the next
+      // full sync re-enqueues every row instead of skipping "unchanged" rows.
+      await clearSyncMeta();
 
       // Reset lastPulledAt so the next pull is a full (non-incremental) refresh.
       setLastPulledAt(null);

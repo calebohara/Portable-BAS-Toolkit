@@ -155,8 +155,16 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     // Report initial conflict count
     manager.getConflictCount().then((count) => setSyncConflictCount(count));
 
-    // On reconnect: pull remote changes first, then flush push queue
+    // On reconnect: re-pend transient `failed` items, pull remote changes,
+    // then flush the push queue.
     const handleOnline = () => {
+      // Phase 1b auto-recovery: a write that failed only because the network was
+      // down / the server 5xx'd / the JWT expired should self-heal now that
+      // we're back online — without the user hitting "Retry". Permanent failures
+      // (RLS / FK / missing-column) stay parked. Fire before pull+flush so the
+      // re-pended items are picked up by the processQueue below.
+      manager.autoRecoverFailedItems().catch(() => { /* logged inside */ });
+
       const storedPulledAt = useAppStore.getState().lastPulledAt;
       if (storedPulledAt) {
         console.info('[sync] Back online — pulling remote changes then flushing queue…');
@@ -175,6 +183,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
       }
     };
     window.addEventListener('online', handleOnline);
+
+    // Periodic auto-recovery sweep (Phase 1b): re-pend transient `failed` items
+    // every few minutes even without an `online` event — covers a server that
+    // recovered from a 5xx blip while the connection never dropped. Permanent
+    // failures stay parked. Cleared on unmount alongside the listeners below.
+    const autoRecoverIntervalId = setInterval(() => {
+      manager.autoRecoverFailedItems().catch(() => { /* logged inside */ });
+    }, 3 * 60_000);
 
     // Auto-pull on first login (new device scenario) — only once per session
     const storedLastPulledAt = useAppStore.getState().lastPulledAt;
@@ -232,6 +248,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener(GLOBAL_MEMBERSHIP_CHANGED_EVENT, handleMembershipChanged);
+      clearInterval(autoRecoverIntervalId);
       // Tear down realtime explicitly first; `manager.stop()` also calls
       // `unsubscribeFromGlobalRealtime` for belt-and-suspenders.
       realtimeCleanupRef.current?.();

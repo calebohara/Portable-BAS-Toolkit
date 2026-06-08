@@ -325,6 +325,20 @@ export interface SyncQueueItem {
   createdAt: string;
   retriedCount: number;
   lastError?: string;
+  /**
+   * Exponential-backoff gate (Phase 1b). ISO 8601 timestamp before which this
+   * item is NOT eligible for processing. Set after a transient failure to
+   * `now + base * 2^retriedCount` (capped). `undefined` = immediately eligible.
+   * `getPendingSyncItems` skips items whose `nextRetryAt` is in the future.
+   */
+  nextRetryAt?: string;
+  /**
+   * SQLSTATE / category code of the last failure (Phase 1b). Persisted so the
+   * auto-recovery sweep can tell a transient failure (network / 5xx / JWT) from
+   * a permanent one (RLS 42501, FK 23503, missing-column 42703 / PGRST204) and
+   * only re-pend the transient ones. `undefined` until the first failure.
+   */
+  lastErrorCode?: string;
 }
 
 export interface SyncConflict {
@@ -342,8 +356,21 @@ export interface SyncConflict {
 // Persistent log of every push/pull failure captured by SyncManager.
 // Keyed by UUID; rotated to a max of 100 rows (oldest-first).
 export interface SyncError {
-  /** UUID — primary key in the syncErrors IndexedDB store */
+  /**
+   * Deterministic signature key — primary key in the syncErrors IndexedDB store
+   * (Phase 1b). Built from `${entityType}-${entityId}-${errorCode}` so a
+   * recurring failure UPSERTS one row (bumping `occurrences`) instead of
+   * inserting a fresh random-id row every retry and churning the 100-row cap.
+   * Pull-side errors use `entityId = '*'`, so the signature collapses per
+   * (entityType, errorCode).
+   */
   id: string;
+  /** Number of times this exact signature has been observed (Phase 1b). */
+  occurrences?: number;
+  /** ISO 8601 timestamp of the FIRST observation of this signature (Phase 1b). */
+  firstSeenAt?: string;
+  /** ISO 8601 timestamp of the MOST RECENT observation of this signature (Phase 1b). */
+  lastSeenAt?: string;
   /** IndexedDB entity type (mirrors SyncQueueItem.entityType) */
   entityType: SyncEntityType;
   /** UUID of the entity that failed to sync */
