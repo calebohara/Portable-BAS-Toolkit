@@ -10,12 +10,16 @@ import { PpclStatusBar } from '@/components/ppcl-editor/ppcl-status-bar';
 import type { CursorPosition } from '@/components/ppcl-editor/ppcl-editor';
 import { usePpclDocuments } from '@/hooks/use-ppcl-documents';
 import { usePpclEditorStore } from '@/store/ppcl-editor-store';
+import { useP2InspectorStore, useP2DataForDoc } from '@/store/p2-inspector-store';
 import { useAppStore } from '@/store/app-store';
 import { useProjects } from '@/hooks/use-projects';
 import { cn, sanitizeFilename } from '@/lib/utils';
+import { parseP2, looksLikeP2 } from '@/lib/p2-parser';
+import { PpclP2Inspector } from '@/components/ppcl-editor/ppcl-p2-inspector';
+import { v4 as uuid } from 'uuid';
 import { toast } from 'sonner';
 import {
-  Maximize2, Minimize2, Download, Upload, FileCode,
+  Maximize2, Minimize2, Download, Upload, FileCode, Database,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,6 +68,14 @@ function PpclEditorPageInner() {
   const setFullscreen = usePpclEditorStore(s => s.setFullscreen);
   const resetTransientUi = usePpclEditorStore(s => s.resetTransientUi);
   const sidebarOpen = useAppStore(s => s.sidebarOpen);
+
+  // P2 panel inspector (points & trends extracted from imported .p2 files).
+  const showInspector = useP2InspectorStore(s => s.showInspector);
+  const setShowInspector = useP2InspectorStore(s => s.setShowInspector);
+  const addP2Import = useP2InspectorStore(s => s.addImport);
+  const removeP2Doc = useP2InspectorStore(s => s.removeDoc);
+  const p2Data = useP2DataForDoc(activeTabId);
+  const hideInspector = useCallback(() => setShowInspector(false), [setShowInspector]);
 
   // Defense in depth: reset transient UI flags (isFullscreen) on unmount so
   // navigating away from the PPCL editor can never strand the user in a
@@ -185,9 +197,10 @@ function PpclEditorPageInner() {
 
   const handleDeleteDocument = useCallback(async (id: string) => {
     closeTab(id);
+    removeP2Doc(id);
     await removeDocument(id);
     toast.success('Program deleted');
-  }, [closeTab, removeDocument]);
+  }, [closeTab, removeDocument, removeP2Doc]);
 
   const handleRenameDocument = useCallback(async (id: string, name: string) => {
     await updateDocument(id, { name });
@@ -200,9 +213,41 @@ function PpclEditorPageInner() {
     toast.success(projectName ? `Assigned to "${projectName}"` : 'Removed from project');
   }, [updateDocument, projects]);
 
-  // Import .pcl file
+  // Import a .pcl/.txt program or a binary .p2 panel database.
   const handleImportFile = useCallback(async (file: File) => {
     try {
+      // ── .p2 panel database: decode, reconstruct programs, extract points/trends ──
+      if (looksLikeP2(file.name)) {
+        const bytes = new Uint8Array(await file.arrayBuffer());
+        const parsed = parseP2(bytes, file.name);
+        if (parsed.programs.length === 0 && parsed.points.length === 0) {
+          toast.error(`Couldn't read any programs or points from "${file.name}".`);
+          return;
+        }
+        // Open the largest program first; the rest land in the file panel.
+        const programs = [...parsed.programs].sort((a, b) => b.lineCount - a.lineCount);
+        const docIds: string[] = [];
+        let firstId: string | null = null;
+        for (const prog of programs) {
+          const doc = await addDocument(`${prog.system}.pcl`, prog.source, 'pxc-tc', '');
+          if (doc) { docIds.push(doc.id); firstId ??= doc.id; }
+        }
+        addP2Import(uuid(), {
+          fileName: file.name,
+          meta: parsed.meta,
+          points: parsed.points,
+          trends: parsed.trends,
+        }, docIds);
+        if (firstId) openTab(firstId);
+        setShowInspector(true);
+        toast.success(
+          `Imported ${programs.length} program${programs.length === 1 ? '' : 's'}, ` +
+          `${parsed.points.length} points, ${parsed.trends.length} trends from "${file.name}"`,
+        );
+        return;
+      }
+
+      // ── Plain-text PPCL program ──
       const text = await file.text();
       const name = file.name.endsWith('.pcl') ? file.name : file.name + '.pcl';
       const doc = await addDocument(name, text);
@@ -211,7 +256,7 @@ function PpclEditorPageInner() {
     } catch {
       toast.error('Failed to import file');
     }
-  }, [addDocument, openTab]);
+  }, [addDocument, openTab, addP2Import, setShowInspector]);
 
   // Export / download as .pcl
   const handleExportDocument = useCallback(() => {
@@ -305,6 +350,17 @@ function PpclEditorPageInner() {
         <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border bg-muted/30 shrink-0">
           <FileCode className="h-4 w-4 text-primary" />
           <span className="text-sm font-semibold flex-1">PPCL Editor</span>
+          {p2Data && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowInspector(!showInspector)}
+              className={cn('h-7 gap-1.5 text-xs', showInspector && 'text-primary')}
+              aria-pressed={showInspector}
+            >
+              <Database className="h-3.5 w-3.5" /> Inspector
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => setFullscreen(false)} className="h-7 gap-1.5 text-xs">
             <Minimize2 className="h-3.5 w-3.5" /> Exit Fullscreen
           </Button>
@@ -328,7 +384,7 @@ function PpclEditorPageInner() {
           <div className="absolute inset-0 z-20 flex items-center justify-center bg-primary/5 border-2 border-dashed border-primary rounded-lg pointer-events-none">
             <div className="text-center">
               <Upload className="h-8 w-8 text-primary mx-auto mb-2" />
-              <p className="text-sm font-medium text-primary">Drop .pcl file to import</p>
+              <p className="text-sm font-medium text-primary">Drop a .pcl program or .p2 panel file</p>
             </div>
           </div>
         )}
@@ -372,7 +428,7 @@ function PpclEditorPageInner() {
                 <p className="text-xs mt-1">
                   {documents.length > 0
                     ? 'Select a program from the file panel, or create a new one.'
-                    : 'Create your first PPCL program or upload a .pcl file.'}
+                    : 'Create a PPCL program, or upload a .pcl program or .p2 panel file.'}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -393,6 +449,18 @@ function PpclEditorPageInner() {
             />
           )}
         </div>
+
+        {showInspector && p2Data && isMobileViewport && (
+          <div className="fixed inset-0 bg-black/40 z-30" onClick={() => setShowInspector(false)} aria-hidden="true" />
+        )}
+
+        {showInspector && p2Data && (
+          // bg-background gives the mobile fixed overlay an opaque backing so the
+          // panel's translucent bg-muted/20 can't reveal the editor behind it.
+          <div className="shrink-0 z-30 bg-background max-md:fixed max-md:right-0 max-md:top-0 max-md:bottom-0">
+            <PpclP2Inspector data={p2Data} onClose={hideInspector} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -403,6 +471,22 @@ function PpclEditorPageInner() {
     <>
       <TopBar title="PPCL Editor">
         <div className="flex items-center gap-1">
+          {p2Data && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowInspector(!showInspector)}
+              className={cn(
+                'h-8 w-8 p-0 text-muted-foreground hover:text-foreground',
+                showInspector && 'text-primary bg-primary/10',
+              )}
+              title="Panel inspector — points & trends"
+              aria-label="Toggle panel inspector"
+              aria-pressed={showInspector}
+            >
+              <Database className="h-4 w-4" />
+            </Button>
+          )}
           {activeDoc && (
             <Button
               variant="ghost"

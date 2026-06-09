@@ -53,7 +53,7 @@ export const toolGroups: ToolGroup[] = [
     items: [
       { icon: TerminalSquare, name: 'Telnet HMI', desc: 'Direct terminal access with session logging & ANSI' },
       { icon: Globe, name: 'Web Interface', desc: 'Controller web panels in embedded tabs' },
-      { icon: FileCode, name: 'PPCL Editor', desc: 'Write & validate Carrier PPCL with syntax highlighting' },
+      { icon: FileCode, name: 'PPCL Editor', desc: 'Write PPCL, or import .p2 panels to view programs, points & trends' },
     ],
   },
   {

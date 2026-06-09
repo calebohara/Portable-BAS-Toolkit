@@ -94,7 +94,7 @@ export function PpclFilePanel({ documents, projects, onNewDocument, onDeleteDocu
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pcl,.txt"
+            accept=".pcl,.txt,.p2"
             className="hidden"
             onChange={handleFileInput}
           />

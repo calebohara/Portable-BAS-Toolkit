@@ -145,12 +145,14 @@ export const featureGuides: FeatureGuide[] = [
   {
     icon: FileCode,
     title: 'PPCL Editor',
-    summary: 'Edit Siemens PPCL with syntax highlighting and multi-tab.',
+    summary: 'Edit Siemens PPCL, or import a .p2 panel to view its programs, points & trends.',
     category: 'engineering-tools',
     items: [
       'Code editor for Siemens PPCL (Powers Process Control Language)',
       'Syntax highlighting for PPCL keywords, operators, and comments',
       'Multi-tab support for working on multiple files simultaneously',
+      'Import a Siemens .p2 panel database (upload or drag-and-drop) — its PPCL programs are reconstructed into editable tabs',
+      'Panel Inspector lists the panel’s points (type, descriptor, units/states) and trends, with a Physical-I/O filter and CSV export',
       'Cloud sync to save editor content and associate files with projects',
       'Copy editor content to the clipboard and download files with a .pcl extension',
     ],

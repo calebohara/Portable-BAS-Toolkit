@@ -19,6 +19,10 @@
 
 ## What's New
 
+### v4.39.0
+
+- **Import `.p2` panel databases into the PPCL Editor** — The editor now opens Siemens APOGEE/Desigo `.PXCM.P2` controller backups directly (upload or drag-and-drop). The proprietary binary container is decoded entirely in the browser: each panel's PPCL programs are reconstructed into editable `.pcl` tabs, and a new **Panel Inspector** side panel lists the panel's full point database and trends. The **Points** tab shows every logical point with a colour-coded type badge (LAI/LAO/LDI/LDO and setpoint/calc values), descriptor, and engineering units or state text, with a one-click *Physical I/O only* filter and CSV export. The **Trends** tab lists logged points with interval (`15 min`) or change-of-value (`COV`) markers. Point/program/trend extraction is covered by unit tests; the inspector is local-only (no sync changes).
+
 ### v4.12.0 – v4.21.0
 
 - **Full code-review remediation (ReviewAgents P0–P3)** — Closed every priority tier from the 2026-05-20 audit: data-loss/security P0s (proxy/iframe sandboxing, IDB transaction safety, sync queue recovery, `sync_version` tiebreak, reset-password hardening), ~38 P1 visible bugs, ~43 P2 consistency fixes, and ~40 P3 cleanups (incl. removing 11 unused dependencies). See `docs/BASAgents-fixes-*` and `docs/ReviewAgents-findings-*`.
@@ -188,7 +192,7 @@
 - **Web Interface** — access BAS controller web panels with saved endpoints and security handling
 - **Telnet HMI** — browser-based Telnet terminal with session tabs, logging, and command history
 - **Command Snippets** — reusable commands for BACnet, Modbus, Niagara, Siemens, and more
-- **PPCL Editor** — syntax-highlighted editor for PPCL programs with multi-tab support, line-length enforcement (198 chars for PXC/TC, 80 for PTEC), GOTO navigation, duplicate-line-number warning on save, and cloud sync
+- **PPCL Editor** — syntax-highlighted editor for PPCL programs with multi-tab support, line-length enforcement (198 chars for PXC/TC, 80 for PTEC), GOTO navigation, duplicate-line-number warning on save, and cloud sync. Imports Siemens `.p2` panel databases — reconstructs the panel's PPCL programs and opens a Panel Inspector listing its points (type, descriptor, units/states) and trends, with CSV export
 - **PPCL Preview & Download** — preview PPCL programs directly from a project's PPCL tab in a read-only modal with full syntax highlighting, resizable viewer, sticky scrollbars, and a Download button that produces a proper `.pcl` file — no round-trip through the editor route required
 
 ### Cloud Sync & Offline
