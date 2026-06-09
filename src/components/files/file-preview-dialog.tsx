@@ -7,7 +7,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { FileIcon, formatFileSize } from '@/components/shared/file-icon';
-import { getFileBlob } from '@/lib/db';
+import { resolveFileBlob } from '@/lib/file-roaming';
 import type { ProjectFile } from '@/types';
 import { sanitizeFilename } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -65,12 +65,8 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
       setState('loading');
       try {
         const version = file.versions.find(v => v.id === file.currentVersionId);
-        if (!version?.blobKey) {
-          setState('error');
-          return;
-        }
-
-        const fileBlob = await getFileBlob(version.blobKey);
+        // GAP-1: resolve locally, else download from Storage (second device).
+        const fileBlob = await resolveFileBlob(file, version);
         if (cancelled) return;
 
         if (!fileBlob) {
@@ -119,9 +115,8 @@ export function FilePreviewDialog({ open, onOpenChange, file }: Props) {
       let downloadBlob = blob;
       if (!downloadBlob) {
         const version = file.versions.find(v => v.id === file.currentVersionId);
-        if (!version?.blobKey) { toast.error('No file data available'); return; }
-        downloadBlob = (await getFileBlob(version.blobKey)) || null;
-        if (!downloadBlob) { toast.error('File not found in local storage'); return; }
+        downloadBlob = (await resolveFileBlob(file, version)) || null;
+        if (!downloadBlob) { toast.error('File not available on this device yet'); return; }
       }
       const url = URL.createObjectURL(downloadBlob);
       const a = document.createElement('a');

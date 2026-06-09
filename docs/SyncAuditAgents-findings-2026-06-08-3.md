@@ -28,7 +28,7 @@ Fixes applied from this doc: [`SyncAuditAgents-fixes-2026-06-08-3.md`](./SyncAud
 
 | Priority | Count | Top theme |
 |----------|-------|-----------|
-| **P0** | 0 (1 pending product decision — GAP-1) | Regular file *content* never roams (metadata-only sync) |
+| **P0** | 0 (GAP-1 fixed in v4.38.0) | Regular file *content* now roams via Storage (was metadata-only) |
 | **P1** | 5 | Multi-user seams: blind global overwrite, FK-ordering strand, cross-user push, realtime re-subscribe, two-writer divergence |
 | **P2** | 15 | Clock-skew cursors, blob leaks, revoke retention, realtime teardown, db-terminate, conflict-test gaps |
 | **P3** | 17 | Cosmetics, dead branches, god-files, over-engineering, Tauri online events |
@@ -61,8 +61,12 @@ shared-field-laptop seams the prior audits under-covered. **Not "sync is done."*
 - **Decision (2026-06-08):** **Files should roam.** → implement Storage upload-on-save +
   download-on-read for regular files (mirror the global path), populate `storage_path`,
   and plan a backfill for already-uploaded metadata-only files.
-- **Handoff:** ShareAgents / BASAgents — **scheduled as its own focused build** (a
-  subsystem, not a one-line fix). Not done in session 3.
+- **Status:** ✅ **FIXED** (session 3, v4.38.0) — centralized roaming in
+  `src/lib/file-roaming.ts`: upload-on-save (forward), download-on-read (second device),
+  and lazy backfill-on-access for pre-roaming files. `storagePath` added to `FileVersion`
+  (rides the synced `versions` JSON — no migration; existing `project-files` bucket policies
+  already permit it). 8 unit tests. Cross-device behavior still wants a real two-device check
+  (see SYNC-VERIFICATION).
 
 ---
 

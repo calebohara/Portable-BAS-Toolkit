@@ -28,7 +28,8 @@ import {
 } from '@/components/ui/select';
 import { FILE_CATEGORY_LABELS, type ProjectFile, type Project } from '@/types';
 import { cn, sanitizeFilename } from '@/lib/utils';
-import { getUnassignedFiles, getAllProjects, deleteFile, getFileBlob, saveFile, addActivity } from '@/lib/db';
+import { getUnassignedFiles, getAllProjects, deleteFile, saveFile, addActivity } from '@/lib/db';
+import { resolveFileBlob } from '@/lib/file-roaming';
 import { toast } from 'sonner';
 
 export default function DocumentsPage() {
@@ -99,9 +100,8 @@ export default function DocumentsPage() {
 
   const handleDownload = async (file: ProjectFile) => {
     const version = file.versions.find(v => v.id === file.currentVersionId);
-    if (!version?.blobKey) { toast.error('No file data available'); return; }
-    const blob = await getFileBlob(version.blobKey);
-    if (!blob) { toast.error('File not found in local storage'); return; }
+    const blob = await resolveFileBlob(file, version);
+    if (!blob) { toast.error('File not available on this device yet'); return; }
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

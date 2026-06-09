@@ -27,6 +27,7 @@ import {
 import { parseDxrXlsx } from '@/lib/dxr/xlsx-parser';
 import type { DxrImportRow } from '@/lib/dxr/xlsx-parser';
 import { bulkUpsertProjectDxrs, saveFile, saveFileBlob, addActivity } from '@/lib/db';
+import { roamFileToStorage } from '@/lib/file-roaming';
 import type { ProjectFile, FileVersion } from '@/types';
 import { sanitizeFilename } from '@/lib/utils';
 import { cn } from '@/lib/utils';
@@ -175,6 +176,8 @@ export function DxrImportDialog({ open, onOpenChange, projectId, onImported }: P
 
           await saveFileBlob(blobKey, file);
           await saveFile(projectFile);
+          // GAP-1: roam the source blob to Storage for other devices (best-effort).
+          void roamFileToStorage(projectFile, versionId, file).catch(() => {});
           await addActivity({
             id: crypto.randomUUID(),
             projectId,

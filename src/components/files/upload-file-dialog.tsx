@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Progress } from '@/components/ui/progress';
 import { saveFile, saveFileBlob, addActivity } from '@/lib/db';
+import { roamFileToStorage } from '@/lib/file-roaming';
 import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile, type FileVersion } from '@/types';
 import { formatFileSize, FileIcon } from '@/components/shared/file-icon';
 import { ACCEPTED_TYPES, getFileExtension } from '@/components/files/accepted-file-types';
@@ -175,6 +176,9 @@ export function UploadFileDialog({ open, onOpenChange, projectId, category, onUp
 
         await saveFileBlob(blobKey, file);
         await saveFile(projectFile);
+        // GAP-1: push the blob to Storage so it's reachable on other devices.
+        // Best-effort — offline leaves it local until a later access backfills it.
+        void roamFileToStorage(projectFile, versionId, file).catch(() => {});
         await addActivity({
           id: crypto.randomUUID(),
           projectId,

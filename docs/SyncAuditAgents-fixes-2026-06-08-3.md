@@ -94,11 +94,41 @@ deferred** (see findings doc → Out of scope).
   ENG-2 parent-first ordering).
 - `npx eslint` (touched files) → clean.
 
+---
+
+## Addendum — GAP-1 file roaming (v4.38.0)
+
+After the safe-fix cluster, the GAP-1 P0-class finding was implemented (user decision:
+"files should roam"; backfill strategy: lazy/on-access).
+
+- **Problem:** a regular (non-global) file upload stored bytes only in the origin device's
+  IndexedDB and synced just the metadata row, so the file was a dead link on any other
+  device / after a user-switch wipe. Global-project files already roamed via Storage.
+- **Fix:** new module `src/lib/file-roaming.ts` centralizes roaming (one shared path, not a
+  fork of the global logic):
+  - `roamFileToStorage(file, versionId, blob)` — uploads to the `project-files` bucket and
+    persists `storagePath` on the version. Called best-effort after every new-blob save
+    (`upload-file-dialog`, `dxr-import-dialog`).
+  - `resolveFileBlob(file, version)` — read path: local blob → else download from Storage +
+    cache → else undefined. Swapped in at every regular-file read site
+    (`file-preview-dialog` ×2, `file-list-view`, `documents/page`).
+  - **Lazy backfill:** when a device holds the only local copy of a pre-roaming file and
+    opens it, `resolveFileBlob` fires a background upload so peers can fetch it.
+- **Data model:** `storagePath?: string` added to `FileVersion` — rides the already-synced
+  `versions` JSON column, so **no migration**. The existing `project-files` bucket policies
+  already permit authenticated upload + public read.
+- **Tests:** `src/lib/__tests__/file-roaming.test.ts` (8) — local-hit, download+cache,
+  stranded, backfill-on-access, upload+persist, no-op-when-roamed, no-op-when-unconfigured,
+  reachability.
+- **Files changed:** `src/lib/file-roaming.ts` (new), `src/types/index.ts`,
+  `src/components/files/{file-preview-dialog,file-list-view,upload-file-dialog}.tsx`,
+  `src/components/dxrs/dxr-import-dialog.tsx`, `src/app/documents/page.tsx`, + test.
+- **Follow-up:** validate cross-device on real devices (per SYNC-VERIFICATION); consider a
+  small UI badge for genuinely-stranded versions (`isBlobReachable` is exported for it).
+
 ## Deferred (tracked in the findings doc)
 
 - **CFM-1 / ARCH-1** — unify the two global writers onto one conflict authority (the
   strategic data-loss root cause). Architectural; not a fix-pass change.
-- **GAP-1** — regular file roaming (Storage upload + download + backfill). Green-lit; its own
-  focused build.
 - **CFM-2, ENG-1/3/4, DEL-2/3, GLOBAL-1, RT-2, MIG-1/2, SEC-2, TEST-2** — open P2s for a
   follow-up pass; several are small (DEL-2 `{silent:true}`, RT-2 topic suffix).

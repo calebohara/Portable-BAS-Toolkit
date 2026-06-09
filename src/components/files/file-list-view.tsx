@@ -20,7 +20,8 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { FILE_CATEGORY_LABELS, type FileCategory, type ProjectFile } from '@/types';
 import { cn, sanitizeFilename } from '@/lib/utils';
-import { deleteFile, getFileBlob, saveFile } from '@/lib/db';
+import { deleteFile, saveFile } from '@/lib/db';
+import { resolveFileBlob } from '@/lib/file-roaming';
 import { UploadFileDialog } from '@/components/files/upload-file-dialog';
 import { FilePreviewDialog } from '@/components/files/file-preview-dialog';
 import { toast } from 'sonner';
@@ -189,9 +190,8 @@ export function FileListView({ projectId, category, files, onRefresh }: Props) {
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={async () => {
                           const version = selectedFile.versions.find(v => v.id === selectedFile.currentVersionId);
-                          if (!version?.blobKey) { toast.error('No file data available'); return; }
-                          const blob = await getFileBlob(version.blobKey);
-                          if (!blob) { toast.error('File not found in local storage'); return; }
+                          const blob = await resolveFileBlob(selectedFile, version);
+                          if (!blob) { toast.error('File not available on this device yet'); return; }
                           const url = URL.createObjectURL(blob);
                           const a = document.createElement('a');
                           a.href = url;

@@ -76,7 +76,12 @@ export interface FileVersion {
   notes: string;
   size: number;
   status: FileStatus;
-  blobKey?: string; // key in IndexedDB blob store
+  blobKey?: string; // key in IndexedDB blob store (local copy)
+  // GAP-1: Supabase Storage path once the blob has roamed to the cloud. Set on
+  // upload (or lazily on first access for pre-roaming files). Rides in the
+  // already-synced `versions` JSON, so every device can download the bytes even
+  // when its local IndexedDB copy is absent (second device / post-wipe).
+  storagePath?: string;
 }
 
 export interface ProjectFile {
