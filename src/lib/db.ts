@@ -17,6 +17,7 @@ import type {
   GlobalDxrEntry,
 } from '@/types/global-projects';
 import { notifySync } from '@/lib/sync/sync-bridge';
+import { orderPushBatch } from '@/lib/sync/field-map';
 import type { SyncEntityType } from '@/types';
 
 interface BasToolkitDB extends DBSchema {
@@ -345,6 +346,16 @@ function getDB() {
     dbPromise = openDB<BasToolkitDB>('bas-toolkit', DB_VERSION, {
       blocked(currentVersion, blockedVersion) {
         console.warn(`IndexedDB upgrade blocked: v${currentVersion} → v${blockedVersion}. Close other tabs to proceed.`);
+      },
+      // GAP-7: the browser can abnormally terminate a *resolved* connection
+      // (memory pressure on iOS/Safari, an eviction, or a versionchange upgrade
+      // from another tab). Without this hook the cached `dbPromise` keeps
+      // resolving to a dead IDBPDatabase and every subsequent read/write/sync op
+      // throws InvalidStateError until a manual reload. Null the promise so the
+      // next getDB() transparently re-opens the connection.
+      terminated() {
+        console.warn('IndexedDB connection terminated by the browser; will reopen on next access.');
+        dbPromise = null;
       },
       upgrade(db, oldVersion) {
         if (oldVersion < 1) {
@@ -1614,7 +1625,15 @@ export async function getPendingSyncItems(limit = 20): Promise<SyncQueueItem[]> 
   const eligible = all.filter(
     (item) => !item.nextRetryAt || new Date(item.nextRetryAt).getTime() <= now,
   );
-  return eligible.slice(0, limit);
+  // FK-safe batching (ENG-2): order the WHOLE eligible set parent-first (and
+  // child-first for deletes) BEFORE slicing the batch. The index cursor returns
+  // rows in lexicographic key order (`${entityType}-${id}`), which puts most
+  // children ahead of their parent — so a naive slice could fill a batch with
+  // children whose parent sits in a later batch, producing a 23503 FK violation
+  // that is (correctly) classified PERMANENT and strands the child forever.
+  // Sorting by SYNC_ORDER first guarantees a parent is never deferred behind its
+  // own child across a batch boundary.
+  return orderPushBatch(eligible).slice(0, limit);
 }
 
 /**
@@ -2035,10 +2054,16 @@ export async function bulkPutSilent(
 export async function clearAllData(): Promise<void> {
   const db = await getDB();
   const storeNames = [
+    // SEC-1: clear the outbound sync queue + conflicts FIRST. These are the
+    // highest-risk stores on a user switch — an un-cleared queue item from the
+    // previous user could be pushed under the new user's identity. Emptying them
+    // before any other (potentially throwing) store keeps the leak window minimal
+    // even if a later store's clear fails.
+    'syncQueue', 'syncConflicts',
     'projects', 'files', 'fileBlobs', 'notes', 'devices', 'ipPlan',
     'activityLog', 'dailyReports', 'networkDiagrams', 'commandSnippets',
     'pingSessions', 'terminalLogs', 'connectionProfiles', 'registerCalculations',
-    'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions', 'bugReports', 'reviews', 'syncQueue', 'syncConflicts',
+    'pidTuningSessions', 'ppclDocuments', 'psychSessions', 'trendSessions', 'bugReports', 'reviews',
     // Global mirror stores (v19)
     'globalProjects', 'globalNotes', 'globalDevices', 'globalIpPlan',
     'globalDailyReports', 'globalActivityLog', 'globalNetworkDiagrams',
@@ -2055,10 +2080,24 @@ export async function clearAllData(): Promise<void> {
     // gets a clean full push (their unchanged-since marks must not carry over).
     'syncMeta',
   ] as const;
+  // SEC-1: clear each store in its OWN transaction so a single failing store
+  // (e.g. a quota/abort error on the large fileBlobs store) cannot abort the loop
+  // and leave the remaining stores — including the previous user's data — intact.
+  // Collect failures and rethrow at the end so the caller still learns the wipe
+  // was incomplete.
+  const failures: string[] = [];
   for (const name of storeNames) {
-    const tx = db.transaction(name, 'readwrite');
-    await tx.store.clear();
-    await tx.done;
+    try {
+      const tx = db.transaction(name, 'readwrite');
+      await tx.store.clear();
+      await tx.done;
+    } catch (e) {
+      failures.push(name);
+      console.warn(`clearAllData: failed to clear store "${name}":`, e);
+    }
+  }
+  if (failures.length > 0) {
+    throw new Error(`clearAllData: ${failures.length} store(s) failed to clear: ${failures.join(', ')}`);
   }
 }
 

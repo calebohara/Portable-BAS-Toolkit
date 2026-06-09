@@ -480,6 +480,58 @@ describe('SyncManager', () => {
     });
   });
 
+  // ─── Cross-user queue-item guard (SEC-1) ───────────────────
+  // A queue item stamped with a DIFFERENT user than the active manager can only
+  // be a previous user's item that survived an incomplete user-switch wipe.
+  // Pushing it would re-stamp it with the current user's id (toSupabaseRow) and
+  // leak the prior user's content into the cloud under the new identity. It must
+  // be dropped as a no-op, never upserted.
+  describe('cross-user queue-item guard (SEC-1)', () => {
+    const PREV_USER_ID = '11112222-3333-4444-5555-666677778888';
+    const NID = 'cccccccc-1111-2222-3333-444444444444';
+
+    it('drops a pending item enqueued by a different user (no upsert)', async () => {
+      const item: SyncQueueItem = {
+        id: `notes-${NID}`,
+        action: 'update', entityType: 'notes',
+        entityId: NID,
+        payload: { id: NID, projectId: '861ac1ed-aaaa-bbbb-cccc-dddddddddddd', content: 'prev user note' },
+        userId: PREV_USER_ID, // ← enqueued by the PREVIOUS user, not the active manager
+        status: 'pending',
+        createdAt: new Date().toISOString(), retriedCount: 0,
+      };
+
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([item]);
+
+      await manager.processQueue();
+
+      // Dropped as a successful no-op …
+      expect(deleteSyncItem).toHaveBeenCalledWith(item.id);
+      // … and never pushed (which would leak the prior user's row under the new id).
+      expect((supabase as { _mock: { upsert: ReturnType<typeof vi.fn> } })._mock.upsert)
+        .not.toHaveBeenCalled();
+    });
+
+    it('still pushes an item enqueued by the active user', async () => {
+      const item: SyncQueueItem = {
+        id: `notes-${NID}`,
+        action: 'update', entityType: 'notes',
+        entityId: NID,
+        payload: { id: NID, projectId: '861ac1ed-aaaa-bbbb-cccc-dddddddddddd', content: 'my note' },
+        userId: TEST_USER_ID, // ← the active manager's user
+        status: 'pending',
+        createdAt: new Date().toISOString(), retriedCount: 0,
+      };
+
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([item]);
+
+      await manager.processQueue();
+
+      expect((supabase as { _mock: { upsert: ReturnType<typeof vi.fn> } })._mock.upsert)
+        .toHaveBeenCalledTimes(1);
+    });
+  });
+
   // ─── Race condition demonstration ──────────────────────────
 
   describe('race condition', () => {

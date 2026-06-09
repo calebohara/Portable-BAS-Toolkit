@@ -188,6 +188,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('[auth] Failed to clear local data on user isolation:', e);
         }
         store.resetSyncCursors();
+        // SEC-3: the persisted Zustand store (localStorage) survives the
+        // IndexedDB wipe. Clear the previous user's per-user UI residue —
+        // recentSearches is verbatim free text the prior tech typed (site /
+        // customer names, IPs) surfaced as suggestions; recentProjectIds are
+        // their project ids. Device-level prefs (theme, sidebar, tour) are kept.
+        useAppStore.setState({ recentSearches: [], recentProjectIds: [] });
       }
 
       // Record the new identity (null on sign-out) so the next transition is

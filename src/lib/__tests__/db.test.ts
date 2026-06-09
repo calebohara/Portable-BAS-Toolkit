@@ -26,6 +26,8 @@ import {
   bulkPutSilent,
   bulkDeleteSilent,
   clearAllData,
+  addSyncItem,
+  getPendingSyncItems,
 } from '../db';
 import { notifySync } from '@/lib/sync/sync-bridge';
 import type { Project, ProjectFile, FieldNote, DeviceEntry, IpPlanEntry, ActivityLogEntry } from '@/types';
@@ -333,5 +335,50 @@ describe('clearAllData', () => {
     await clearAllData();
 
     expect(await getAllProjects()).toHaveLength(0);
+  });
+
+  // SEC-1 / TEST-1: the user-switch leak-stopper depends on clearAllData
+  // actually emptying the syncQueue (otherwise a prior user's pending item could
+  // push under the new user). Pin it so a future store-list refactor can't drop
+  // 'syncQueue' silently.
+  it('clears the sync queue (cross-user leak-stopper)', async () => {
+    await addSyncItem({
+      id: 'projects-q1', action: 'update', entityType: 'projects', entityId: 'q1',
+      payload: { id: 'q1' }, userId: 'u1', status: 'pending',
+      createdAt: new Date().toISOString(), retriedCount: 0,
+    });
+    expect(await getAllFromStore('syncQueue')).toHaveLength(1);
+
+    await clearAllData();
+
+    expect(await getAllFromStore('syncQueue')).toHaveLength(0);
+  });
+});
+
+// ─── getPendingSyncItems FK-safe ordering (ENG-2) ────────────
+
+describe('getPendingSyncItems (ENG-2 FK-safe ordering)', () => {
+  const PID = 'aaaaaaaa-1111-2222-3333-444444444444';
+  const DID = 'bbbbbbbb-1111-2222-3333-444444444444';
+
+  it('returns a parent before its child even when the child key sorts first lexicographically', async () => {
+    await clearAllData();
+    // 'devices-…' < 'projects-…' lexicographically, so the index cursor would
+    // otherwise return the child first — pushing it before its parent exists in
+    // the cloud → 23503 (classified PERMANENT → stranded). SYNC_ORDER sorting
+    // must hoist the parent ahead of the child.
+    await addSyncItem({
+      id: `devices-${DID}`, action: 'create', entityType: 'devices', entityId: DID,
+      payload: { id: DID, projectId: PID }, userId: 'u1', status: 'pending',
+      createdAt: new Date().toISOString(), retriedCount: 0,
+    });
+    await addSyncItem({
+      id: `projects-${PID}`, action: 'create', entityType: 'projects', entityId: PID,
+      payload: { id: PID }, userId: 'u1', status: 'pending',
+      createdAt: new Date().toISOString(), retriedCount: 0,
+    });
+
+    const ordered = await getPendingSyncItems(10);
+    expect(ordered.map((i) => i.entityType)).toEqual(['projects', 'devices']);
   });
 });

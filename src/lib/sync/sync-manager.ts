@@ -197,6 +197,14 @@ export class SyncManager implements SyncManagerInterface {
   // generation and aborts after the await if a newer call has superseded it.
   private realtimeSubscribeGen = 0;
 
+  // GAP-4: set true by stop(). A SyncManager is per-user and never restarted —
+  // a new user gets a fresh instance. handleRealtimeChange straddles awaits, so
+  // an event for the previous user can still be mid-flight when stop() runs
+  // during a user-switch wipe. Checking this flag right before each silent write
+  // prevents the torn-down manager from re-seeding the previous user's rows into
+  // the now-wiped store (a cross-user leak on shared devices).
+  private stopped = false;
+
   constructor(client: SupabaseClient, userId: string) {
     this.client = client;
     this.userId = userId;
@@ -431,6 +439,9 @@ export class SyncManager implements SyncManagerInterface {
   }
 
   stop(): void {
+    // GAP-4: mark stopped BEFORE tearing down channels so any in-flight realtime
+    // handler (parked at an await) sees the flag and skips its terminal write.
+    this.stopped = true;
     if (this.intervalId) {
       clearInterval(this.intervalId);
       this.intervalId = null;
@@ -563,6 +574,22 @@ export class SyncManager implements SyncManagerInterface {
   }
 
   private async processItem(item: SyncQueueItem): Promise<boolean> {
+    // ── Cross-user safety backstop (SEC-1) ──────────────────────────────────
+    // Every queue item is stamped (in enqueue) with the userId that created it.
+    // If this item belongs to a DIFFERENT user than the manager's current user,
+    // it can only be a previous user's item that survived an incomplete
+    // user-switch wipe. Never push it — `toSupabaseRow` would stamp it with the
+    // CURRENT user's id, leaking the prior user's content into the cloud under
+    // the new identity (the shared-field-laptop breach). Drop it as a no-op.
+    if (item.userId && item.userId !== this.userId) {
+      console.warn(
+        `${LOG_PREFIX} Dropping queue item ${item.entityType}/${item.entityId} — ` +
+        `enqueued by a different user (${item.userId.substring(0, 8)}…), not the active user`,
+      );
+      await deleteSyncItem(item.id);
+      return true; // not a failure — correctly suppressed cross-user push
+    }
+
     // Skip entity types whose Supabase tables are missing (prevents retry storm / UI freeze)
     if (this.brokenEntityTypes.has(item.entityType)) {
       console.warn(`${LOG_PREFIX} Skipping ${item.entityType}/${item.entityId} — table does not exist in Supabase`);
@@ -1897,7 +1924,13 @@ export class SyncManager implements SyncManagerInterface {
     const idList = memberProjectIds.join(',');
 
     // Channel 1 — project-level tables (global_projects + preferences).
-    const projectChannel = this.client.channel(`bau-sync-global-projects-${this.userId}`);
+    // RT-1: include the subscribe generation in the topic. supabase-js dedups
+    // channels by topic and removeChannel() leaves asynchronously, so a fixed
+    // topic re-subscribe (after a membership change) can reuse a channel still in
+    // its 'leaving' state — whose .subscribe() then no-ops, leaving NO live
+    // subscription. A per-generation suffix guarantees a fresh, non-colliding
+    // topic every time (the pattern already used by useRealtimeRefresh).
+    const projectChannel = this.client.channel(`bau-sync-global-projects-${this.userId}-g${gen}`);
 
     if (hasMemberships) {
       projectChannel.on(
@@ -1936,7 +1969,7 @@ export class SyncManager implements SyncManagerInterface {
 
     // Channel 2 — global child tables. Skip if user has no memberships.
     if (hasMemberships) {
-      const childChannel = this.client.channel(`bau-sync-global-children-${this.userId}`);
+      const childChannel = this.client.channel(`bau-sync-global-children-${this.userId}-g${gen}`);
       // Subscribe to every global child entity type that filters by
       // global_project_id (i.e. everything in REQUIRES_GLOBAL_PROJECT_ID
       // except globalActivityLog handles the same filter).
@@ -2000,6 +2033,11 @@ export class SyncManager implements SyncManagerInterface {
     entityType: SyncEntityType,
     payload: RealtimePostgresChangesPayload<Record<string, unknown>>,
   ): Promise<void> {
+    // GAP-4: a stopped (torn-down) manager must not apply writes — on a
+    // user-switch this event belongs to the previous user and would re-seed the
+    // freshly-wiped store. Re-checked before the terminal write below too, since
+    // this method awaits in between.
+    if (this.stopped) return;
     const event = payload.eventType;
 
     if (event === 'DELETE') {
@@ -2094,6 +2132,9 @@ export class SyncManager implements SyncManagerInterface {
       const gpid = entity.globalProjectId as string | undefined;
       if (uid && gpid) entity.prefKey = `${uid}|${gpid}`;
     }
+    // GAP-4: re-check after the awaits above — stop() may have fired (user
+    // switch) while this handler was parked, and the wipe may have already run.
+    if (this.stopped) return;
     await bulkPutSilent(entityType, [entity]);
     emitPullComplete();
   }
