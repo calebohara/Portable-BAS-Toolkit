@@ -114,8 +114,8 @@ Status legend: **L** = ledger-tracked once setup is run · **P** = pending (appl
 | 45 | enforce-storage-bucket-size-limits.sql | `project-files` bucket `file_size_limit = 50MB` | L |
 | 46 | add-bug-report-discord-notify.sql | `notify_discord_on_bug_report()` trigger fn | L (applied 2026-06-07; Vault secret set, ping verified) |
 | 47 | add-daily-report-name.sql | `daily_reports.name` + `global_daily_reports.name` cols | L (applied 2026-06-07) |
-| 48 | add-sync-version-insert-defaults.sql | `init_sync_version()` BEFORE INSERT trigger fn (server-owns `updated_at` + `sync_version` on insert) | L (pending) |
-| 49 | add-cascade-soft-delete-rpcs.sql | `cascade_soft_delete_global_project()` + `cascade_soft_delete_project()` SECURITY DEFINER RPCs (atomic parent+child soft-delete cascade) | P (pending) |
+| 48 | add-sync-version-insert-defaults.sql | `init_sync_version()` BEFORE INSERT trigger fn (server-owns `updated_at` + `sync_version` on insert) | L (applied 2026-06-11) |
+| 49 | add-cascade-soft-delete-rpcs.sql | `cascade_soft_delete_global_project()` + `cascade_soft_delete_project()` SECURITY DEFINER RPCs (atomic parent+child soft-delete cascade) | P (applied 2026-06-11) |
 | 50 | add-global-activity-log-server-timestamp.sql | `force_global_activity_timestamp()` BEFORE INSERT trigger (server-owns `global_activity_log.timestamp` so slow-clock devices' rows aren't skipped by the incremental cursor) — P2-3 | P (applied 2026-06-11, checker-verified) |
 | 51 | add-last-admin-guard.sql | `prevent_last_admin_removal()` BEFORE DELETE/UPDATE trigger on `global_project_members` (rejects removing/demoting the last admin while other members remain) — P2-2 | P (applied 2026-06-11, checker-verified) |
 | 52 | add-activity-log-server-timestamp.sql | `force_activity_timestamp()` BEFORE INSERT trigger (server-owns LOCAL `activity_log.timestamp` — same slow-clock cursor-skip fix as #50, local twin) — MIG-1 | P (applied 2026-06-11, checker-verified) |
