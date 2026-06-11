@@ -4,7 +4,7 @@ import {
   addSyncItem, addSyncItemPreservingRetry,
   getPendingSyncItems, getUnpushedSyncItemKeys, hasUnpushedSyncItem,
   updateSyncItem, deleteSyncItem, deleteSyncItemIfToken, updateSyncItemIfToken,
-  getSyncQueueCount, getAllFromStore, clearSyncQueueExceptFailed,
+  getSyncQueueCount, getAllFromStore, getRowFromStore, clearSyncQueueExceptFailed,
   bulkPutSilent, bulkDeleteSilent,
   addSyncConflict, getSyncConflictCount, deleteSyncConflict, getAllSyncConflicts,
   addSyncError, recoverTransientFailedItems,
@@ -16,7 +16,7 @@ import {
   entityTypeToTable, toSupabaseRow, validateSyncable, SYNC_ORDER, orderPushBatch,
   fromSupabaseRow, isDeletedRow, REQUIRES_PROJECT_ID,
   isGlobalEntity, GLOBAL_ENTITY_TYPES, GLOBAL_AUDITED_ENTITY_TYPES,
-  REQUIRES_GLOBAL_PROJECT_ID, supportsSubtractivePull, entityOwnedColumns,
+  REQUIRES_GLOBAL_PROJECT_ID, supportsSubtractivePull, pushRowMatchesRemote,
 } from './field-map';
 import { emitPullComplete, type SyncManagerInterface } from './sync-bridge';
 import { formatPostgrestError, sanitizeForLog, isTransientSyncError } from './sync-error-utils';
@@ -56,70 +56,50 @@ function rowMtime(row: Record<string, unknown>): string | undefined {
     | undefined;
 }
 
-// ─── Content-equality gate for conflict detection (post-Phase-2 hotfix) ──────
-// Server-owned / volatile columns that must be IGNORED when deciding whether a
-// local row and a cloud row actually differ. A higher cloud `sync_version` (or a
-// newer `updated_at`) with otherwise-identical content is NOT a real conflict —
-// it's just a stale version number (e.g. fullSync re-enqueued an unchanged row
-// whose version another device bumped). Without this gate, Phase 2's version-
-// primary comparator turns every such row into a spurious "keep local / keep
-// cloud" prompt.
-const CONFLICT_IGNORED_COLUMNS = new Set([
-  'updated_at',
-  'updated_by',
-  'created_at',
-  'created_by',
-  'sync_version',
-  'deleted_at',
-  'fts',
-]);
-
-/** Stable JSON stringify (sorted keys) so jsonb column comparison is order-insensitive. */
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') return JSON.stringify(value);
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
-  const obj = value as Record<string, unknown>;
-  const keys = Object.keys(obj).sort();
-  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`;
-}
-
-/** True if two column values are equivalent. null / undefined / '' all count as "empty". */
-function columnValuesEqual(a: unknown, b: unknown): boolean {
-  const na = a === '' ? null : a;
-  const nb = b === '' ? null : b;
-  if (na == null && nb == null) return true;
-  if (na == null || nb == null) return false;
-  if (na === nb) return true;
-  if (typeof na === 'object' || typeof nb === 'object') {
-    try { return stableStringify(na) === stableStringify(nb); } catch { return false; }
-  }
-  return false;
-}
-
 /**
- * True if the row the client WOULD push (`pushRow`, already mapped to Supabase
- * column shape by toSupabaseRow) is content-identical to the existing cloud row
- * (`remoteRow`), ignoring server-owned/volatile columns.
+ * ENG-4: roll the fullSync dirty-tracking watermark back below a row's mtime.
  *
- * We iterate the entity's FULL client-owned column allowlist — NOT just the keys
- * present in `pushRow` (P3-3). `toSupabaseRow` drops `undefined`-valued fields,
- * so a column the user CLEARED is absent from `pushRow`; iterating only pushRow
- * keys would never compare it against the remote's non-empty value, the gate
- * would report "identical", and the clear would be silently discarded by
- * adopting the cloud row. Comparing every allowlisted column (an absent pushRow
- * column reads as empty) makes a real clear register as a divergence.
+ * fullSync advances the watermark at SCAN time, not on push success. When the
+ * user discards a failed queue item from the Sync Error Inspector ("remove" —
+ * the local row is preserved), the row's mtime is already behind the watermark,
+ * so no future "Sync Now" would ever re-enqueue that edit: it is stranded until
+ * the row happens to be edited again. Rolling the watermark back to 1ms before
+ * the row's mtime makes the next fullSync re-consider exactly this row (and
+ * anything newer, which would re-enqueue anyway). No-ops safely when the row,
+ * its mtime, or the watermark is missing, or when the watermark is already
+ * below the row's mtime.
  */
-function pushRowMatchesRemote(
+export async function rollbackFullSyncWatermarkForRow(
   entityType: SyncEntityType,
-  pushRow: Record<string, unknown>,
-  remoteRow: Record<string, unknown>,
-): boolean {
-  for (const col of entityOwnedColumns(entityType)) {
-    if (CONFLICT_IGNORED_COLUMNS.has(col)) continue;
-    if (!columnValuesEqual(pushRow[col], remoteRow[col])) return false;
+  entityId: string,
+): Promise<void> {
+  try {
+    const row = await getRowFromStore(entityType, entityId);
+    if (!row) return;
+    const mtime = rowMtime(row);
+    if (!mtime) return;
+    const mtimeMs = new Date(mtime).getTime();
+    if (Number.isNaN(mtimeMs)) return;
+    const key = lastFullPushKey(entityType);
+    const mark = await getSyncMeta(key);
+    if (!mark) return; // no watermark yet → every row is re-considered anyway
+    const markMs = new Date(mark).getTime();
+    if (Number.isNaN(markMs) || markMs < mtimeMs) return; // already below — nothing stranded
+    await setSyncMeta(key, new Date(mtimeMs - 1).toISOString());
+    console.info(
+      `[Sync] Watermark for ${entityType} rolled back below ${mtime} ` +
+      `so a future full sync re-enqueues ${entityId}`,
+    );
+  } catch (e) {
+    console.warn(`[Sync] Watermark rollback failed for ${entityType}/${entityId} (non-fatal):`, e);
   }
-  return true;
 }
+
+// ─── Content-equality gate for conflict detection ────────────────────────────
+// `pushRowMatchesRemote` (and its CONFLICT_IGNORED_COLUMNS / columnValuesEqual
+// helpers) moved to field-map.ts so it is the SHARED conflict authority for both
+// global writers — this queue push path AND reconcile's Share-to-Global path
+// (CFM-1/ARCH-1). Import it from there; never re-implement a comparator here.
 
 type StatusCallback = (status: 'idle' | 'syncing' | 'error', pendingCount: number) => void;
 type ConflictCallback = (count: number) => void;
@@ -349,6 +329,30 @@ export class SyncManager implements SyncManagerInterface {
       return false;
     }
     throw error; // real failure — let the caller's catch handle retry/drop.
+  }
+
+  /**
+   * ENG-3: stamp the server's post-write `sync_version` onto the local store
+   * row so the next self-edit pushes with the CURRENT version instead of the
+   * stale pre-push one (which would raise a spurious version conflict).
+   *
+   * CAS-guarded: only writes when the store row's mtime still equals the
+   * pushed payload's mtime. If the user edited the row again mid-flight, the
+   * store row is newer than what we pushed — leave it untouched (its own push
+   * will adopt the version then). Writes via bulkPutSilent (no re-enqueue) and
+   * changes ONLY syncVersion, so the dirty-tracking watermark is unaffected.
+   */
+  private async adoptServerSyncVersion(
+    entityType: SyncEntityType,
+    entityId: string,
+    serverVersion: number,
+    pushedPayload: Record<string, unknown>,
+  ): Promise<void> {
+    const stored = await getRowFromStore(entityType, entityId);
+    if (!stored) return;
+    if (rowMtime(stored) !== rowMtime(pushedPayload)) return; // newer mid-flight edit — hands off
+    if (stored.syncVersion === serverVersion) return; // already current
+    await bulkPutSilent(entityType, [{ ...stored, syncVersion: serverVersion }]);
   }
 
   private async reportConflictCount(): Promise<void> {
@@ -859,6 +863,43 @@ export class SyncManager implements SyncManagerInterface {
           .upsert(row, { onConflict, ignoreDuplicates });
 
         if (error) throw error;
+
+        // ── ENG-3: adopt the server's post-write sync_version locally ───────
+        // The DB trigger bumps sync_version on every UPDATE. Without reading it
+        // back, the local store keeps the PRE-push version, so the user's NEXT
+        // edit pushes with a stale version → versionConflict above → a spurious
+        // "keep local / keep cloud" prompt for their own back-to-back edits
+        // (until the ~90s pull catches the store up). A separate keyed select
+        // (not a chained `.select()`) keeps the upsert contract untouched; the
+        // tiny window where a peer updates between our upsert and this read
+        // degrades to the timestamp comparator — never to silent loss. CAS-
+        // guarded in adoptServerSyncVersion: the store row is only stamped if
+        // its mtime still equals the pushed payload's, so a newer mid-flight
+        // edit is never touched. Entirely non-fatal: any failure just leaves
+        // the pre-existing pull-catches-up behavior in place.
+        if (
+          item.entityType !== 'globalActivityLog'
+          && item.entityType !== 'globalProjectPreferences'
+        ) {
+          try {
+            const { data: written } = await this.client
+              .from(table)
+              .select('sync_version')
+              .eq('id', item.entityId)
+              .maybeSingle();
+            const serverVersion = (written as Record<string, unknown> | null)?.sync_version;
+            if (typeof serverVersion === 'number') {
+              await this.adoptServerSyncVersion(
+                item.entityType,
+                item.entityId,
+                serverVersion,
+                item.payload as Record<string, unknown>,
+              );
+            }
+          } catch (e) {
+            console.warn(`${LOG_PREFIX} sync_version adoption failed (non-fatal):`, e);
+          }
+        }
       }
 
       // Success — remove from queue (only if no newer edit/delete was enqueued
@@ -1383,7 +1424,21 @@ export class SyncManager implements SyncManagerInterface {
               const gpid = row.global_project_id as string | undefined;
               if (uid && gpid) toDeleteIds.push(`${uid}|${gpid}`);
             } else {
-              toDeleteIds.push(row.id as string);
+              // ── ENG-1: dirty-guard for tombstone ingress ────────────────
+              // Mirror the live-row guard below: a remote tombstone must not
+              // silently remove a local row whose own create/update push is
+              // still pending — the user's offline edit would vanish before it
+              // ever reached the cloud. Defer instead: the pending push bumps
+              // the cloud row's updated_at, so the tombstone is re-fetched on
+              // the NEXT incremental pull, by which time the queue item is
+              // gone and the delete applies (or the push surfaced a conflict).
+              // unpushedKeys === null (queue read failed) → fail safe: defer.
+              const tombstoneId = row.id as string;
+              if (unpushedKeys === null || unpushedKeys.has(`${entityType}-${tombstoneId}`)) {
+                dirtySkipCount++;
+                continue;
+              }
+              toDeleteIds.push(tombstoneId);
             }
           } else if (!isGlobal && entityType !== 'projects' && REQUIRES_PROJECT_ID.has(entityType) && !row.project_id) {
             // Orphaned local row: requires project_id but has none.
@@ -2060,7 +2115,21 @@ export class SyncManager implements SyncManagerInterface {
         }
       } else {
         const id = oldRow.id as string | undefined;
-        if (id) await bulkDeleteSilent(entityType, [id]);
+        if (id) {
+          // ENG-1: same tombstone dirty-guard as the pull loop — never remove a
+          // local row whose own push is still pending. Defer; the periodic pull
+          // re-delivers the tombstone once the queue item has flushed. A failed
+          // queue read counts as dirty (fail safe: keep the row).
+          const dirty = await hasUnpushedSyncItem(entityType, id).catch(() => true);
+          if (dirty) {
+            console.info(
+              `${LOG_PREFIX} realtime: deferred remote DELETE of ${entityType}/${id} ` +
+              `(un-pushed local changes pending)`,
+            );
+            return;
+          }
+          await bulkDeleteSilent(entityType, [id]);
+        }
       }
       emitPullComplete();
       return;
@@ -2089,7 +2158,18 @@ export class SyncManager implements SyncManagerInterface {
         }
       } else {
         const id = newRow.id as string | undefined;
-        if (id) await bulkDeleteSilent(entityType, [id]);
+        if (id) {
+          // ENG-1: tombstone dirty-guard — see the hard-DELETE branch above.
+          const dirty = await hasUnpushedSyncItem(entityType, id).catch(() => true);
+          if (dirty) {
+            console.info(
+              `${LOG_PREFIX} realtime: deferred remote soft-delete of ${entityType}/${id} ` +
+              `(un-pushed local changes pending)`,
+            );
+            return;
+          }
+          await bulkDeleteSilent(entityType, [id]);
+        }
       }
       emitPullComplete();
       return;

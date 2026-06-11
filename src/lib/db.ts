@@ -1863,6 +1863,15 @@ export async function clearSyncQueueExceptFailed(): Promise<number> {
 export async function addSyncConflict(conflict: SyncConflict): Promise<void> {
   const db = await getDB();
   await db.put('syncConflicts', conflict);
+  // Notify the UI so the conflict badge refreshes even when the conflict was
+  // raised OUTSIDE the SyncManager's own push cycle (e.g. the reconcile /
+  // Share-to-Global path, CFM-1) — the manager's reportConflictCount() only
+  // fires on its own writes. Listener: sync-provider.
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('bau-suite:sync-conflict-added'));
+    } catch { /* non-fatal — badge refreshes on the next manager cycle */ }
+  }
 }
 
 export async function getAllSyncConflicts(): Promise<SyncConflict[]> {
@@ -2023,6 +2032,21 @@ export async function getAllFromStore(storeName: BasToolkitStoreName): Promise<u
   // Dynamic store access requires cast — caller provides the typed store name
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return db.getAll(storeName as any);
+}
+
+/**
+ * Get ONE row from any store by primary key. Read-only, keyed lookup.
+ * Used by the push path to CAS-check a store row before adopting server
+ * metadata (ENG-3) and by the watermark rollback helper (ENG-4).
+ */
+export async function getRowFromStore(
+  storeName: BasToolkitStoreName,
+  id: string,
+): Promise<Record<string, unknown> | undefined> {
+  const db = await getDB();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const row = await db.get(storeName as any, id);
+  return row as Record<string, unknown> | undefined;
 }
 
 // ── Pull sync helpers (bypass notifySync to avoid re-pushing pulled data) ──

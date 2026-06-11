@@ -28,6 +28,11 @@ const dbMocks = vi.hoisted(() => {
     getSyncMeta: vi.fn(async (k: string) => state.meta.get(k) ?? null),
     setSyncMeta: vi.fn(async (k: string, v: string) => { state.meta.set(k, v); }),
     hasUnpushedSyncItem: vi.fn(async (et: string, id: string) => state.pending.has(`${et}-${id}`)),
+    // CFM-2: the auto-mirror live-upsert dirty-guard reads the whole un-pushed
+    // key set once per pair — back it with the same stateful `pending` set so
+    // the guard is genuinely exercised.
+    getUnpushedSyncItemKeys: vi.fn(async () => new Set(state.pending)),
+    addSyncConflict: vi.fn(),
     addActivity: vi.fn(),
     // devices — stateful (the pair under test)
     getProjectDevices: vi.fn(async (pid: string) => state.devices.filter((d) => d.projectId === pid)),
@@ -132,6 +137,32 @@ describe('reconcileGlobalToLocalAuto — automatic global→local mirror', () =>
     expect(r.pulled).toBe(1);
     expect(dbMocks.saveDevice).toHaveBeenCalledTimes(1);
     expect(state.devices[0].deviceName).toBe('AHU-1-RENAMED');
+  });
+
+  it('CFM-2 dirty-guard: a newer global row must NOT overwrite a local row with a pending (un-pushed) edit', async () => {
+    // Mirror the device down, then the user edits it locally — the edit is
+    // still in the push queue (pending). A peer's global edit arrives that
+    // looks newer by wall-clock (possibly skew). The auto mirror must keep the
+    // local edit; it will push and conflict-resolve through the push path.
+    supa.live['global_devices'] = [globalDevice()];
+    await reconcileGlobalToLocalAuto(GID, LID);
+    dbMocks.saveDevice.mockClear();
+
+    state.devices[0].deviceName = 'MY-UNSHARED-EDIT';
+    state.pending.add(`devices-${DEV}`); // un-pushed local queue item
+
+    supa.live['global_devices'] = [globalDevice({ device_name: 'PEER-EDIT', updated_at: '2026-07-01T00:00:00.000Z' })];
+    const r = await reconcileGlobalToLocalAuto(GID, LID);
+
+    expect(dbMocks.saveDevice).not.toHaveBeenCalled();
+    expect(state.devices[0].deviceName).toBe('MY-UNSHARED-EDIT');
+    expect(r.pulled).toBe(0);
+
+    // Once the local edit has flushed (no pending item), the global row applies.
+    state.pending.delete(`devices-${DEV}`);
+    const r2 = await reconcileGlobalToLocalAuto(GID, LID);
+    expect(r2.pulled).toBe(1);
+    expect(state.devices[0].deviceName).toBe('PEER-EDIT');
   });
 
   it('propagates a GLOBAL tombstone down to a local delete + advances the cursor', async () => {

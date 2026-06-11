@@ -18,6 +18,7 @@
 
 import { getSupabaseClient, isSupabaseConfigured } from '@/lib/supabase/client';
 import { getAllFromStore } from '@/lib/db';
+import { entityTypeToTable } from './field-map';
 import type { SyncEntityType, SyncQueueItem } from '@/types';
 
 export type ConsistencyStatus = 'in-sync' | 'behind' | 'ahead' | 'diverged' | 'error';
@@ -62,16 +63,25 @@ export interface ConsistencyReport {
  *                             noise, not a problem worth flagging.
  *  - bugReports, reviews    → app-feedback artifacts, not project data; low value
  *                             for a "your project data is out of date" prompt.
- *  - global_* tables        → multi-user, membership-RLS, REALTIME-synced via the
- *                             realtime channel + first-login hydration. They have
- *                             no per-user count parity (every member sees the same
- *                             rows) and their freshness is managed live, so they
- *                             are out of scope for this device-vs-cloud check in v1.
+ *  - globalActivityLog      → append-only, same churn reasoning as activityLog.
+ *  - globalProjectPreferences → per-user UI state on a composite PK; trivial and
+ *                             self-healing, not worth a "behind" prompt.
  *  - field_panels,
  *    notepad_documents,
  *    user_settings          → no corresponding local synced store in
  *                             entityTypeToTable, so there is nothing local to
  *                             compare against.
+ *
+ * GLOBAL TABLES (v2 — audit s3 cross-cutting finding): previously ALL global_*
+ * tables were excluded, which meant the one read-only safety net opted out of
+ * exactly the multi-user path the audits flagged as lossy. They are now
+ * INCLUDED: the local global-store mirror holds every member-visible row (the
+ * pull + realtime paths hydrate it), and the remote query under membership RLS
+ * returns exactly the same member-visible scope — so count/maxUpdated parity is
+ * well-defined per device, same as the user-owned tables. A local mirror that
+ * retains rows from projects the user has LEFT shows as 'ahead' (informational,
+ * never flagged 'behind') — which deliberately surfaces the known revoke-
+ * retention gap (GLOBAL-1) instead of hiding it.
  */
 interface EntityCheck {
   entityType: SyncEntityType;
@@ -99,6 +109,43 @@ const ENTITY_CHECKS: readonly EntityCheck[] = [
   { entityType: 'trendSessions', table: 'trend_sessions', label: 'Trend Sessions', hasSoftDelete: true },
   { entityType: 'dxrs', table: 'dxrs', label: 'DXRs', hasSoftDelete: true },
 ];
+
+// Global (membership-RLS) tables — v2. Table names come from the canonical
+// entityTypeToTable map so this list can never drift from the sync layer.
+// Every table below carries `deleted_at` (verified against the migrations);
+// the append-only global_activity_log and composite-PK preferences table are
+// intentionally excluded (see the header comment).
+const GLOBAL_ENTITY_LABELS: ReadonlyArray<readonly [SyncEntityType, string]> = [
+  ['globalProjects', 'Global Projects'],
+  ['globalNotes', 'Global Field Notes'],
+  ['globalDevices', 'Global Devices'],
+  ['globalIpPlan', 'Global IP Plan'],
+  ['globalDailyReports', 'Global Daily Reports'],
+  ['globalNetworkDiagrams', 'Global Network Diagrams'],
+  ['globalProjectFiles', 'Global Files'],
+  ['globalPpclDocuments', 'Global PPCL Documents'],
+  ['globalTerminalLogs', 'Global Terminal Logs'],
+  ['globalPidTuningSessions', 'Global PID Tuning Sessions'],
+  ['globalPsychSessions', 'Global Psychrometric Sessions'],
+  ['globalRegisterCalculations', 'Global Register Calculations'],
+  ['globalPingSessions', 'Global Ping Sessions'],
+  ['globalTrendSessions', 'Global Trend Sessions'],
+  ['globalConnectionProfiles', 'Global Connection Profiles'],
+  ['globalDxrs', 'Global DXRs'],
+  ['globalFieldPanels', 'Global Field Panels'],
+  ['globalNotepadEntries', 'Global Notepad'],
+];
+
+const GLOBAL_ENTITY_CHECKS: readonly EntityCheck[] = GLOBAL_ENTITY_LABELS.map(
+  ([entityType, label]) => ({
+    entityType,
+    table: entityTypeToTable[entityType],
+    label,
+    hasSoftDelete: true,
+  }),
+);
+
+const ALL_ENTITY_CHECKS: readonly EntityCheck[] = [...ENTITY_CHECKS, ...GLOBAL_ENTITY_CHECKS];
 
 // Clock-skew tolerance: only treat remote as "newer" when the remote max-updated
 // timestamp leads the local one by more than this margin. Absorbs device/server
@@ -252,7 +299,7 @@ export async function runConsistencyCheck(): Promise<ConsistencyReport> {
   }
 
   const entities = await Promise.all(
-    ENTITY_CHECKS.map(async (check): Promise<EntityConsistency> => {
+    ALL_ENTITY_CHECKS.map(async (check): Promise<EntityConsistency> => {
       const base: EntityConsistency = {
         entityType: check.entityType,
         label: check.label,

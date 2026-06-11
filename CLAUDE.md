@@ -1,5 +1,25 @@
 # BAU Suite — Claude Code Project Rules
 
+## Sync Feature Freeze (2026-06-11)
+
+**No new sync modes and no new global entity types** until the remaining
+multi-user audit debt is closed. The 2026-06-08 audits established that sync
+bugs cluster at the seams between writer paths and per-entity special cases —
+every added sync surface multiplies both.
+
+- ❌ Do NOT add: new `global_*` tables/entity types, new reconcile directions,
+  new selective-sync modes, or any new code path that writes to `global_*`
+  tables outside the two existing writers (sync-manager queue + reconcile).
+- ✅ OK: bug fixes, hardening of existing paths, tests, UI surfacing of
+  existing sync state (status badges, conflict UI).
+- Conflict logic lives in ONE place: `pushRowMatchesRemote` + comparator
+  helpers in `src/lib/sync/field-map.ts`. Both global writers (queue push and
+  reconcile Share-to-Global) import it. Never re-implement a comparator, and
+  never compare a LOCAL table's `syncVersion` against a GLOBAL table's
+  `sync_version` (independent counters — caused the v4.32.0 P0).
+- Lift this freeze only when the open SyncAuditAgents findings (s3) are
+  resolved or explicitly waived by the owner.
+
 ## BASAgents Fix Documentation Rule
 
 **Whenever BASAgents run an audit and fixes are applied, create a new dated log file:**

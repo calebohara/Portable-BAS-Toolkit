@@ -786,6 +786,77 @@ export function entityOwnedColumns(entityType: SyncEntityType): Set<string> {
   return ENTITY_COLUMN_ALLOWLIST[entityType] ?? new Set<string>();
 }
 
+// ─── Content-equality gate for conflict detection (post-Phase-2 hotfix) ──────
+// Server-owned / volatile columns that must be IGNORED when deciding whether a
+// local row and a cloud row actually differ. A higher cloud `sync_version` (or a
+// newer `updated_at`) with otherwise-identical content is NOT a real conflict —
+// it's just a stale version number (e.g. fullSync re-enqueued an unchanged row
+// whose version another device bumped). Without this gate, Phase 2's version-
+// primary comparator turns every such row into a spurious "keep local / keep
+// cloud" prompt.
+//
+// CFM-1/ARCH-1: this gate (and `pushRowMatchesRemote`) lives HERE — not in
+// sync-manager — because it is the shared conflict authority for BOTH global
+// writers: the queue push path (sync-manager.processItem) AND the reconcile
+// Share-to-Global path (reconcile.reconcilePairLocalToGlobal). Keep them on
+// the same comparator so the two writers can never diverge again.
+const CONFLICT_IGNORED_COLUMNS = new Set([
+  'updated_at',
+  'updated_by',
+  'created_at',
+  'created_by',
+  'sync_version',
+  'deleted_at',
+  'fts',
+]);
+
+/** Stable JSON stringify (sorted keys) so jsonb column comparison is order-insensitive. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') return JSON.stringify(value);
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`;
+  const obj = value as Record<string, unknown>;
+  const keys = Object.keys(obj).sort();
+  return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(',')}}`;
+}
+
+/** True if two column values are equivalent. null / undefined / '' all count as "empty". */
+function columnValuesEqual(a: unknown, b: unknown): boolean {
+  const na = a === '' ? null : a;
+  const nb = b === '' ? null : b;
+  if (na == null && nb == null) return true;
+  if (na == null || nb == null) return false;
+  if (na === nb) return true;
+  if (typeof na === 'object' || typeof nb === 'object') {
+    try { return stableStringify(na) === stableStringify(nb); } catch { return false; }
+  }
+  return false;
+}
+
+/**
+ * True if the row the client WOULD push (`pushRow`, already mapped to Supabase
+ * column shape by toSupabaseRow) is content-identical to the existing cloud row
+ * (`remoteRow`), ignoring server-owned/volatile columns.
+ *
+ * We iterate the entity's FULL client-owned column allowlist — NOT just the keys
+ * present in `pushRow` (P3-3). `toSupabaseRow` drops `undefined`-valued fields,
+ * so a column the user CLEARED is absent from `pushRow`; iterating only pushRow
+ * keys would never compare it against the remote's non-empty value, the gate
+ * would report "identical", and the clear would be silently discarded by
+ * adopting the cloud row. Comparing every allowlisted column (an absent pushRow
+ * column reads as empty) makes a real clear register as a divergence.
+ */
+export function pushRowMatchesRemote(
+  entityType: SyncEntityType,
+  pushRow: Record<string, unknown>,
+  remoteRow: Record<string, unknown>,
+): boolean {
+  for (const col of entityOwnedColumns(entityType)) {
+    if (CONFLICT_IGNORED_COLUMNS.has(col)) continue;
+    if (!columnValuesEqual(pushRow[col], remoteRow[col])) return false;
+  }
+  return true;
+}
+
 /**
  * Converts a local IndexedDB entity to a Supabase-compatible row.
  * Adds user_id (local) or created_by/updated_by (global membership-RLS entities),

@@ -19,6 +19,10 @@
 
 ## What's New
 
+### v4.40.0
+
+- **Sync hardening: one conflict authority for shared projects** — "Share to Global" no longer trusts wall-clock timestamps alone: if a teammate edited a row since your device last pulled it, the share **surfaces a conflict to resolve** (keep yours / keep theirs) instead of silently overwriting their edit — closing the long-deferred two-writer gap (CFM-1/ARCH-1). Also fixed four data-stranding edge cases: the auto-mirror and remote-delete paths now respect un-pushed local edits, back-to-back self-edits no longer raise spurious conflict prompts, and an edit dismissed from the Sync Error Inspector can be re-synced later with "Sync Now". The read-only consistency check now covers all Global Project tables too. 10 new regression tests; full audit trail in `docs/SyncAuditAgents-fixes-2026-06-11.md`.
+
 ### v4.39.0
 
 - **Import `.p2` panel databases into the PPCL Editor** — The editor now opens Siemens APOGEE/Desigo `.PXCM.P2` controller backups directly (upload or drag-and-drop). The proprietary binary container is decoded entirely in the browser: each panel's PPCL programs are reconstructed into editable `.pcl` tabs, and a new **Panel Inspector** side panel lists the panel's full point database and trends. The **Points** tab shows every logical point with a colour-coded type badge (LAI/LAO/LDI/LDO and setpoint/calc values), descriptor, and engineering units or state text, with a one-click *Physical I/O only* filter and CSV export. The **Trends** tab lists logged points with interval (`15 min`) or change-of-value (`COV`) markers. Point/program/trend extraction is covered by unit tests; the inspector is local-only (no sync changes).

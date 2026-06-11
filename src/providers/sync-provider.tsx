@@ -200,6 +200,14 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
     // Report initial conflict count
     manager.getConflictCount().then((count) => setSyncConflictCount(count));
 
+    // Refresh the conflict badge when a conflict is raised OUTSIDE the
+    // manager's own push cycle — e.g. the reconcile / Share-to-Global
+    // divergence gate (CFM-1). db.addSyncConflict dispatches this event.
+    const handleConflictAdded = () => {
+      manager.getConflictCount().then((count) => setSyncConflictCount(count)).catch(() => {});
+    };
+    window.addEventListener('bau-suite:sync-conflict-added', handleConflictAdded);
+
     // On reconnect: re-pend transient `failed` items, pull remote changes,
     // then flush the push queue.
     const handleOnline = () => {
@@ -303,6 +311,7 @@ export function SyncProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       window.removeEventListener('online', handleOnline);
+      window.removeEventListener('bau-suite:sync-conflict-added', handleConflictAdded);
       window.removeEventListener(GLOBAL_MEMBERSHIP_CHANGED_EVENT, handleMembershipChanged);
       clearInterval(autoRecoverIntervalId);
       clearInterval(periodicPullIntervalId);

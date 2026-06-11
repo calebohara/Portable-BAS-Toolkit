@@ -136,6 +136,31 @@ describe('Delete propagation (Finding #1, Phase 1a)', () => {
     expect(devFilter?.gte).toBe(true);
   });
 
+  // ── ENG-1: tombstone ingress dirty-guard ──────────────────────────────────
+  it('defers a cloud tombstone for a row with an un-pushed local edit (dirty-guard)', async () => {
+    const TOMBSTONED_DIRTY_ID = 'cccccccc-1111-2222-3333-444444444444';
+
+    const { client } = makePullClient({
+      [entityTypeToTable.devices]: [
+        { id: TOMBSTONED_DIRTY_ID, project_id: '99999999-1111-2222-3333-444444444444', deleted_at: '2026-06-08T00:00:00.000Z' },
+      ],
+    });
+
+    // The user edited this device offline — its push is still pending.
+    dbMocks.getUnpushedSyncItemKeys.mockResolvedValue(
+      new Set([`devices-${TOMBSTONED_DIRTY_ID}`]),
+    );
+
+    const manager = new SyncManager(client, TEST_USER_ID);
+    await manager.pullSync('2026-06-01T00:00:00.000Z');
+
+    // The tombstone is DEFERRED, not applied — the un-pushed edit survives.
+    const deletedDeviceIds = dbMocks.bulkDeleteSilent.mock.calls
+      .filter((c) => c[0] === 'devices')
+      .flatMap((c) => c[1] as string[]);
+    expect(deletedDeviceIds).not.toContain(TOMBSTONED_DIRTY_ID);
+  });
+
   // ── Test 2: full pull subtractively removes a stale local row ────────────
   it('full pull removes a local row absent from the cloud live set (subtractive)', async () => {
     const CLOUD_ID = 'cccccccc-1111-2222-3333-444444444444';

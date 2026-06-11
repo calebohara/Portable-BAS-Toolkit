@@ -37,7 +37,10 @@ import { v4 as uuid } from 'uuid';
 import * as db from '@/lib/db';
 import { logGlobalActivity } from '@/lib/global-projects/api';
 import { buildStoragePath, downloadFromStorage, uploadBlobToStorage } from '@/lib/storage';
+import { fromSupabaseRow, pushRowMatchesRemote } from '@/lib/sync/field-map';
 import { getSupabaseClient } from '@/lib/supabase/client';
+
+import type { SyncConflict } from '@/types';
 
 import type {
   DailyReport,
@@ -91,6 +94,13 @@ export interface EntityReconcileCounts {
   failed: number;
   /** Rows deleted locally because a matching GLOBAL tombstone arrived (auto-mirror). */
   deleted?: number;
+  /**
+   * Rows NOT pushed because the cloud row advanced past what this device last
+   * pulled (a peer edited it) and the content genuinely diverged — surfaced as
+   * a SyncConflict for the user to resolve instead of blind-overwriting the
+   * peer's edit (CFM-1).
+   */
+  conflicts?: number;
 }
 
 // ── Manual-reconcile in-flight gate (auto-mirror coordination) ──────────────
@@ -1561,6 +1571,36 @@ async function reconcilePairLocalToGlobal(
     });
   }
 
+  // ── CFM-1: last-seen GLOBAL version base (shared conflict authority) ──────
+  // The device's GLOBAL IndexedDB mirror holds each global row AS LAST PULLED,
+  // including its server-side `sync_version` — the SAME counter `existingMap`
+  // carries, so comparing the two is valid. (This is NOT the forbidden local-
+  // vs-global counter comparison documented below: the LOCAL row's syncVersion
+  // never participates here.) If the cloud's version has advanced past what
+  // this device last pulled, a peer edited the row since we last saw it — a
+  // blind upsert would overwrite that edit silently on every device with no
+  // conflict surfaced anywhere (CFM-1/ARCH-1). When that happens we apply the
+  // SAME authority the queue push path uses: pushRowMatchesRemote content gate,
+  // then a surfaced SyncConflict instead of a silent overwrite.
+  //
+  // Rows with NO mirror entry (never pulled here — e.g. first share, or a
+  // legacy link) have no base to compare → fall through to the timestamp-only
+  // behavior below (status quo; no false conflicts, no regression).
+  const lastSeenVersionById = new Map<string, number>();
+  try {
+    const mirrored = (await db.getAllFromStore(pair.global)) as Array<{
+      id?: string; globalProjectId?: string; syncVersion?: number;
+    }>;
+    for (const m of mirrored) {
+      if (m.id && m.globalProjectId === globalProjectId && typeof m.syncVersion === 'number') {
+        lastSeenVersionById.set(m.id, m.syncVersion);
+      }
+    }
+  } catch (e) {
+    // No mirror available → timestamp-only gate (status quo).
+    console.warn(`[reconcile] ${pair.global} mirror read failed (divergence gate degraded):`, e);
+  }
+
   for (const item of localItems) {
     try {
       const id = (item as { id: string }).id;
@@ -1604,6 +1644,66 @@ async function reconcilePairLocalToGlobal(
       }
 
       const row = await buildLocalToGlobalRow(pair.key, item, globalProjectId, userId, isUpdate, existing?.storage_path ?? null);
+
+      // ── CFM-1 divergence gate (same authority as the queue push path) ──────
+      // We are about to overwrite an EXISTING cloud row because the local copy
+      // looks newer by wall-clock. If the cloud's sync_version has advanced past
+      // what this device last pulled, that "newer" can be pure clock skew over a
+      // peer's genuine edit — the exact silent-loss path CFM-1 documents.
+      const baseVersion = lastSeenVersionById.get(id);
+      const remoteVersion = existing?.sync_version ?? null;
+      if (
+        existing
+        && typeof baseVersion === 'number'
+        && typeof remoteVersion === 'number'
+        && remoteVersion > baseVersion
+      ) {
+        // Cloud advanced since our last pull. Fetch the full row and apply the
+        // shared content-equality gate before deciding anything.
+        const { data: remoteRow, error: remoteErr } = await supabase
+          .from(globalTable)
+          .select('*')
+          .eq('id', id)
+          .maybeSingle();
+        if (remoteErr || !remoteRow) {
+          // We KNOW the cloud diverged but can't inspect it — never blind-push
+          // over evidence of a peer edit. Count as failed (retryable by
+          // re-running Share); the row is untouched on both sides.
+          console.warn(
+            `[reconcile] ${pair.key}/${id}: cloud advanced (v${baseVersion}→v${remoteVersion}) ` +
+            `but remote fetch failed — push withheld`, remoteErr?.message,
+          );
+          counts.failed++;
+          continue;
+        }
+        if (pushRowMatchesRemote(pair.global, row, remoteRow as Record<string, unknown>)) {
+          // Identical content — nothing to resolve (stale version only).
+          counts.skipped++;
+          continue;
+        }
+        // Genuine divergence: surface it through the SAME conflict store/UI the
+        // queue path uses (deterministic id → re-detections coalesce), instead
+        // of silently overwriting the peer's edit.
+        const remoteUpdatedAtIso = (remoteRow as Record<string, unknown>).updated_at as string | undefined;
+        const conflict: SyncConflict = {
+          id: `${pair.global}-${id}`,
+          entityType: pair.global,
+          entityId: id,
+          localData: fromSupabaseRow(pair.global, row),
+          remoteData: fromSupabaseRow(pair.global, remoteRow as Record<string, unknown>),
+          localUpdatedAt: localUpdatedAt ?? nowIso(),
+          remoteUpdatedAt: remoteUpdatedAtIso ?? localUpdatedAt ?? nowIso(),
+          detectedAt: nowIso(),
+        };
+        await db.addSyncConflict(conflict);
+        counts.conflicts = (counts.conflicts ?? 0) + 1;
+        console.warn(
+          `[reconcile] ${pair.key}/${id}: peer edit detected (cloud v${baseVersion}→v${remoteVersion}) ` +
+          `— conflict surfaced, push withheld`,
+        );
+        continue;
+      }
+
       await upsertGlobalRow(globalTable, row);
       counts.pushed++;
     } catch (e) {
@@ -1704,7 +1804,17 @@ async function reconcilePairGlobalToLocal(
   // computed from the RAW snake_case row BEFORE convertGlobalToLocal so an
   // unchanged file/attachment never re-downloads its blob.
   let localUpdatedById: Map<string, string | undefined> | null = null;
+  // ── CFM-2: dirty-guard for the AUTO mirror (manual Save-to-Local forces) ──
+  // The auto path's "GLOBAL WINS when strictly newer" timestamp gate below is
+  // skew-vulnerable: a fast global clock can make a peer's edit look newer than
+  // the user's own un-shared local edit and silently overwrite it. Mirror the
+  // sync engine's ingress rule: never overwrite a local row whose own
+  // create/update push is still pending — the local edit will push (and
+  // conflict-resolve) through the push path. null = queue read failed → fail
+  // safe: the auto mirror writes nothing this round (next pull retries).
+  let unpushedKeys: Set<string> | null = null;
   if (opts?.skipUnchanged) {
+    unpushedKeys = await db.getUnpushedSyncItemKeys().catch(() => null);
     const localItems = await loadLocalItems(pair.local, pair.key, localProjectId);
     localUpdatedById = new Map();
     for (const it of localItems as Array<{ id: string; updatedAt?: string; createdAt?: string }>) {
@@ -1714,6 +1824,13 @@ async function reconcilePairGlobalToLocal(
 
   for (const raw of rows as Record<string, unknown>[]) {
     try {
+      if (opts?.skipUnchanged) {
+        const id = raw.id as string;
+        if (unpushedKeys === null || unpushedKeys.has(`${pair.local}-${id}`)) {
+          counts.skipped++;
+          continue;
+        }
+      }
       if (localUpdatedById) {
         const id = raw.id as string;
         const localStored = localUpdatedById.get(id);

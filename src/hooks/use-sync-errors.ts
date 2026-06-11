@@ -10,6 +10,7 @@ import {
   bulkDeleteSilent,
   isBasToolkitStoreName,
 } from '@/lib/db';
+import { rollbackFullSyncWatermarkForRow } from '@/lib/sync/sync-manager';
 
 export interface UseSyncErrorsResult {
   errors: SyncError[];
@@ -18,8 +19,10 @@ export interface UseSyncErrorsResult {
   clearAll: () => Promise<void>;
   /**
    * Delete the captured SyncError record AND the underlying syncQueue item
-   * (if any). After this, the SyncManager won't retry the failing entity
-   * again — the local IndexedDB row is preserved.
+   * (if any). The SyncManager stops auto-retrying the failing entity, but the
+   * local IndexedDB row is preserved — and the fullSync watermark is rolled
+   * back below the row's mtime (ENG-4) so an explicit "Sync Now" later can
+   * re-enqueue the edit instead of leaving it stranded forever.
    */
   removeOne: (error: SyncError) => Promise<void>;
   /**
@@ -104,6 +107,12 @@ export function useSyncErrors(): UseSyncErrorsResult {
     try {
       await deleteSyncError(error.id);
       await deleteUnderlyingQueueItem(error);
+      // ENG-4: the row stays local but its mtime is already behind the fullSync
+      // watermark — roll the watermark back so a future "Sync Now" re-enqueues
+      // the preserved edit instead of stranding it. No-op for pull-side errors.
+      if (error.entityId !== PULL_SENTINEL && isBasToolkitStoreName(error.entityType)) {
+        await rollbackFullSyncWatermarkForRow(error.entityType, error.entityId);
+      }
       await refresh();
     } catch (e) {
       console.error('Failed to delete sync error:', e);

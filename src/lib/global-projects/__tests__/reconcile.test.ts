@@ -47,6 +47,11 @@ const dbMocks = vi.hoisted(() => ({
   addActivity: vi.fn(),
   getFileBlob: vi.fn(),
   saveFileBlob: vi.fn(),
+  // CFM-1 divergence gate: last-seen GLOBAL mirror read + conflict surfacing.
+  getAllFromStore: vi.fn(),
+  addSyncConflict: vi.fn(),
+  // CFM-2: auto-mirror dirty-guard batched queue-key read.
+  getUnpushedSyncItemKeys: vi.fn(),
 }));
 
 vi.mock('@/lib/db', () => dbMocks);
@@ -133,6 +138,12 @@ function makeFromQuery(table: string) {
       _terminalRows = s.existingChildRowsByTable[table] ?? [];
     } else {
       _terminalRows = s.childRowsByTable[table] ?? [];
+      // CFM-1 divergence gate: `select('*').eq('id', x).maybeSingle()` against a
+      // child table fetches the full remote row for the content-equality check.
+      // Resolve it from the same childRowsByTable fixture (single-row tests).
+      if (table !== 'global_projects' && _selectedFields === '*') {
+        _maybeSingle = (s.childRowsByTable[table] ?? [])[0] ?? null;
+      }
     }
   };
 
@@ -270,6 +281,9 @@ describe('reconcile.ts', () => {
     dbMocks.addActivity.mockResolvedValue(undefined);
     dbMocks.getFileBlob.mockResolvedValue(null);
     dbMocks.saveFileBlob.mockResolvedValue(undefined);
+    dbMocks.getAllFromStore.mockResolvedValue([]); // no global mirror by default → timestamp-only gate
+    dbMocks.addSyncConflict.mockResolvedValue(undefined);
+    dbMocks.getUnpushedSyncItemKeys.mockResolvedValue(new Set());
     for (const fn of [
       dbMocks.getProjectNotes, dbMocks.getProjectDevices, dbMocks.getProjectIpPlan,
       dbMocks.getProjectDailyReports, dbMocks.getProjectDiagrams, dbMocks.getProjectFiles,
@@ -450,6 +464,104 @@ describe('reconcile.ts', () => {
       (u) => u.table === 'global_field_notes' && (u.row as { id?: string }).id === 'note-uuid-ver2',
     );
     expect(noteUpsert).toBeUndefined();
+  });
+
+  // ─── (c3) CFM-1 divergence gate — shared conflict authority ────────────────
+  // The device's GLOBAL mirror records each row's last-pulled sync_version (the
+  // GLOBAL counter — same counter as the prefetch, so comparing them is valid;
+  // this is NOT the forbidden local-vs-global comparison above). When the cloud
+  // version advanced past that base AND the local copy looks newer by wall-clock
+  // (the skew-vulnerable case), reconcile must NOT blind-overwrite the peer's
+  // edit: identical content → skip; diverged content → surface a SyncConflict.
+
+  function makeDivergenceFixture(content: string, remoteContent: string) {
+    dbMocks.getProject.mockResolvedValue(
+      makeLocalProject({ syncedGlobalId: 'global-uuid-1' }),
+    );
+    supabaseState.current!.projectLookupResult = { id: 'global-uuid-1', access_code: 'ABC-1234' };
+    const note: FieldNote = {
+      id: 'note-cfm1',
+      projectId: 'local-uuid-1',
+      content,
+      category: 'general',
+      author: 'tech',
+      isPinned: false,
+      createdAt: '2025-01-01T00:00:00.000Z',
+      updatedAt: '2025-06-02T00:00:00.000Z', // looks newer than remote (possibly skew)
+      tags: [],
+    };
+    dbMocks.getProjectNotes.mockResolvedValue([note]);
+    // Mirror: this device last pulled the row at GLOBAL version 4.
+    dbMocks.getAllFromStore.mockResolvedValue([
+      { id: 'note-cfm1', globalProjectId: 'global-uuid-1', syncVersion: 4 },
+    ]);
+    // Cloud: a peer bumped it to version 9 since our last pull (older wall-clock).
+    supabaseState.current!.existingChildRowsByTable['global_field_notes'] = [
+      { id: 'note-cfm1', updated_at: '2025-06-01T00:00:00.000Z', sync_version: 9 },
+    ];
+    // Full remote row for the content-equality check.
+    supabaseState.current!.childRowsByTable['global_field_notes'] = [
+      {
+        id: 'note-cfm1', global_project_id: 'global-uuid-1', file_id: null,
+        content: remoteContent, category: 'general', is_pinned: false, tags: [],
+        created_at: '2025-01-01T00:00:00.000Z', updated_at: '2025-06-01T00:00:00.000Z',
+        sync_version: 9, created_by: USER_ID, updated_by: USER_ID, deleted_at: null,
+      },
+    ];
+  }
+
+  it('CFM-1: withholds the push and surfaces a SyncConflict when the cloud advanced past the last-pulled version and content diverged', async () => {
+    makeDivergenceFixture('my local edit', 'peer edit from another device');
+
+    const result = await reconcileLocalToGlobal('local-uuid-1');
+
+    // No blind overwrite of the peer's edit…
+    const noteUpsert = supabaseState.current!.upserts.find(
+      (u) => u.table === 'global_field_notes' && (u.row as { id?: string }).id === 'note-cfm1',
+    );
+    expect(noteUpsert).toBeUndefined();
+    // …the divergence is surfaced through the SAME conflict store the queue
+    // push path uses (deterministic id so re-detections coalesce)…
+    expect(dbMocks.addSyncConflict).toHaveBeenCalledTimes(1);
+    const conflict = dbMocks.addSyncConflict.mock.calls[0][0] as {
+      id: string; entityType: string; entityId: string;
+    };
+    expect(conflict.id).toBe('globalNotes-note-cfm1');
+    expect(conflict.entityType).toBe('globalNotes');
+    expect(conflict.entityId).toBe('note-cfm1');
+    // …and the share summary reports it.
+    expect(result.counts.notes.conflicts).toBe(1);
+    expect(result.counts.notes.pushed).toBe(0);
+  });
+
+  it('CFM-1: skips silently (no conflict) when the cloud advanced but the content is identical', async () => {
+    makeDivergenceFixture('same content', 'same content');
+
+    const result = await reconcileLocalToGlobal('local-uuid-1');
+
+    const noteUpsert = supabaseState.current!.upserts.find(
+      (u) => u.table === 'global_field_notes' && (u.row as { id?: string }).id === 'note-cfm1',
+    );
+    expect(noteUpsert).toBeUndefined();
+    expect(dbMocks.addSyncConflict).not.toHaveBeenCalled();
+    expect(result.counts.notes.skipped).toBe(1);
+    expect(result.counts.notes.conflicts ?? 0).toBe(0);
+  });
+
+  it('CFM-1: still pushes when the cloud version equals the last-pulled base (informed overwrite — no peer edit underneath)', async () => {
+    makeDivergenceFixture('my local edit', 'irrelevant');
+    // Mirror base = cloud version → nothing changed since we last pulled.
+    dbMocks.getAllFromStore.mockResolvedValue([
+      { id: 'note-cfm1', globalProjectId: 'global-uuid-1', syncVersion: 9 },
+    ]);
+
+    await reconcileLocalToGlobal('local-uuid-1');
+
+    const noteUpsert = supabaseState.current!.upserts.find(
+      (u) => u.table === 'global_field_notes' && (u.row as { id?: string }).id === 'note-cfm1',
+    );
+    expect(noteUpsert).toBeDefined();
+    expect(dbMocks.addSyncConflict).not.toHaveBeenCalled();
   });
 
   // ─── (d) Global→Local preserves entity UUIDs ──────────────────────────────

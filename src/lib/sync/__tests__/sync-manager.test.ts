@@ -18,6 +18,10 @@ vi.mock('@/lib/db', () => ({
   getSyncConflictCount: vi.fn().mockResolvedValue(0),
   deleteSyncConflict: vi.fn().mockResolvedValue(undefined),
   getAllSyncConflicts: vi.fn().mockResolvedValue([]),
+  // ENG-3 (server sync_version adoption) + ENG-4 (watermark rollback)
+  getRowFromStore: vi.fn().mockResolvedValue(undefined),
+  getSyncMeta: vi.fn().mockResolvedValue(null),
+  setSyncMeta: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock field-map
@@ -66,6 +70,9 @@ vi.mock('../field-map', () => ({
   ]),
   supportsSubtractivePull: vi.fn(() => true),
   REQUIRES_GLOBAL_PROJECT_ID: new Set<string>(),
+  // CFM-1: the comparator now lives in field-map (shared by both global
+  // writers). Treat any divergence as real in these tests (no silent adopt).
+  pushRowMatchesRemote: vi.fn(() => false),
   // Phase 3c: the manager calls orderPushBatch on every batch. Mirror the real
   // FK-safe ordering against the mock's SYNC_ORDER (parent-first for non-deletes,
   // child-first for deletes; creates/updates before deletes; stable on ties).
@@ -90,8 +97,12 @@ vi.mock('../field-map', () => ({
   }),
 }));
 
-import { SyncManager } from '../sync-manager';
-import { addSyncItem, getPendingSyncItems, deleteSyncItem, updateSyncItem, deleteSyncItemIfToken, updateSyncItemIfToken } from '@/lib/db';
+import { SyncManager, rollbackFullSyncWatermarkForRow } from '../sync-manager';
+import {
+  addSyncItem, getPendingSyncItems, deleteSyncItem, updateSyncItem,
+  deleteSyncItemIfToken, updateSyncItemIfToken,
+  getRowFromStore, getSyncMeta, setSyncMeta, bulkPutSilent,
+} from '@/lib/db';
 import type { SyncQueueItem } from '@/types';
 
 // Mock navigator.onLine so processQueue doesn't bail out
@@ -341,6 +352,80 @@ describe('SyncManager', () => {
       await manager.processQueue();
 
       expect(deleteSyncItemIfToken).toHaveBeenCalledWith(item.id, expect.any(String));
+    });
+  });
+
+  // ─── ENG-3: server sync_version adoption after a successful push ──────────
+  describe('ENG-3 sync_version adoption', () => {
+    const EID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+    const mkCreate = (payload: Record<string, unknown>): SyncQueueItem => ({
+      id: `projects-${EID}`,
+      action: 'create', entityType: 'projects', entityId: EID,
+      payload, userId: TEST_USER_ID, status: 'pending',
+      createdAt: new Date().toISOString(), retriedCount: 0,
+    });
+
+    it('stamps the server sync_version onto the store row when its mtime still matches the pushed payload', async () => {
+      const payload = { id: EID, updatedAt: '2026-06-10T00:00:00.000Z', syncVersion: 1 };
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([mkCreate(payload)]);
+      // Post-push read-back: server bumped the version to 5.
+      supabase._mock.maybeSingle.mockResolvedValueOnce({ data: { sync_version: 5 }, error: null });
+      // Store row unchanged since the push snapshot (same mtime).
+      vi.mocked(getRowFromStore).mockResolvedValueOnce({ ...payload });
+
+      await manager.processQueue();
+
+      expect(bulkPutSilent).toHaveBeenCalledWith('projects', [
+        expect.objectContaining({ id: EID, syncVersion: 5 }),
+      ]);
+    });
+
+    it('leaves the store row alone when the user edited it again mid-flight (mtime CAS)', async () => {
+      const payload = { id: EID, updatedAt: '2026-06-10T00:00:00.000Z', syncVersion: 1 };
+      vi.mocked(getPendingSyncItems).mockResolvedValueOnce([mkCreate(payload)]);
+      supabase._mock.maybeSingle.mockResolvedValueOnce({ data: { sync_version: 5 }, error: null });
+      // Store row is NEWER than the pushed snapshot — a mid-flight edit.
+      vi.mocked(getRowFromStore).mockResolvedValueOnce({
+        ...payload, updatedAt: '2026-06-10T00:00:05.000Z',
+      });
+
+      await manager.processQueue();
+
+      expect(bulkPutSilent).not.toHaveBeenCalled();
+    });
+  });
+
+  // ─── ENG-4: fullSync watermark rollback (inspector "remove" un-strands edits) ─
+  describe('ENG-4 rollbackFullSyncWatermarkForRow', () => {
+    const EID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+
+    it('rolls the watermark back to 1ms below the row mtime when the watermark is ahead', async () => {
+      vi.mocked(getRowFromStore).mockResolvedValueOnce({ id: EID, updatedAt: '2026-06-10T00:00:00.000Z' });
+      vi.mocked(getSyncMeta).mockResolvedValueOnce('2026-06-11T00:00:00.000Z'); // ahead → row stranded
+
+      await rollbackFullSyncWatermarkForRow('notes', EID);
+
+      expect(setSyncMeta).toHaveBeenCalledWith(
+        'lastFullPush:notes',
+        '2026-06-09T23:59:59.999Z',
+      );
+    });
+
+    it('no-ops when the watermark is already below the row mtime (nothing stranded)', async () => {
+      vi.mocked(getRowFromStore).mockResolvedValueOnce({ id: EID, updatedAt: '2026-06-10T00:00:00.000Z' });
+      vi.mocked(getSyncMeta).mockResolvedValueOnce('2026-06-01T00:00:00.000Z');
+
+      await rollbackFullSyncWatermarkForRow('notes', EID);
+
+      expect(setSyncMeta).not.toHaveBeenCalled();
+    });
+
+    it('no-ops when the row is gone (forgetRow path deletes the row itself)', async () => {
+      vi.mocked(getRowFromStore).mockResolvedValueOnce(undefined);
+
+      await rollbackFullSyncWatermarkForRow('notes', EID);
+
+      expect(setSyncMeta).not.toHaveBeenCalled();
     });
   });
 

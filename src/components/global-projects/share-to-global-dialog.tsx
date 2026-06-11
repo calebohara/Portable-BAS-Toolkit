@@ -200,6 +200,9 @@ export function ShareToGlobalDialog({
   const totalSkipped = result
     ? Object.values(result.counts).reduce((sum, c) => sum + c.skipped, 0)
     : 0;
+  const totalConflicts = result
+    ? Object.values(result.counts).reduce((sum, c) => sum + (c.conflicts ?? 0), 0)
+    : 0;
 
   // State 3: Success
   if (state === 'success' && result) {
@@ -249,8 +252,29 @@ export function ShareToGlobalDialog({
                 <span className="font-mono">{totalSkipped}</span>
                 <span>Rows failed:</span>
                 <span className="font-mono">{totalFailed}</span>
+                {totalConflicts > 0 && (
+                  <>
+                    <span>Conflicts to resolve:</span>
+                    <span className="font-mono">{totalConflicts}</span>
+                  </>
+                )}
               </div>
             </div>
+
+            {totalConflicts > 0 && (
+              <div className="rounded-md border border-orange-500/30 bg-orange-500/10 p-3 flex items-start gap-2 text-sm">
+                <AlertTriangle className="h-4 w-4 text-orange-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-medium text-orange-600 dark:text-orange-400">
+                    A teammate edited {totalConflicts === 1 ? 'a row' : `${totalConflicts} rows`} you also changed
+                  </p>
+                  <p className="text-muted-foreground mt-0.5">
+                    Those rows were not overwritten. Resolve them from the sync
+                    conflicts panel (keep yours, keep theirs, or delete both).
+                  </p>
+                </div>
+              </div>
+            )}
 
             {totalFailed > 0 && (
               <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 flex items-start gap-2 text-sm">
