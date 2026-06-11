@@ -879,8 +879,32 @@ export function updateGlobalFile(
   return updateEntity<GlobalProjectFile>('global_project_files', id, data as Record<string, unknown>);
 }
 
-export function deleteGlobalFile(id: string): Promise<ApiResult<void>> {
-  return softDelete('global_project_files', id);
+export async function deleteGlobalFile(id: string): Promise<ApiResult<void>> {
+  // DEL-3/GLOBAL-2: a single-file delete must also remove the Storage blob —
+  // soft-deleting only the row leaves the object live at its public URL forever
+  // (privacy + unbounded quota leak; the project-level delete already cleans
+  // its blobs, but per-file deletes leaked). Collect the path BEFORE the
+  // soft-delete, remove the blob AFTER it succeeds, best-effort: a Storage
+  // failure must never resurrect the row or fail the delete the user asked for.
+  let storagePath: string | null = null;
+  try {
+    const { data } = await getClient()
+      .from('global_project_files')
+      .select('storage_path')
+      .eq('id', id)
+      .maybeSingle();
+    storagePath = (data as { storage_path?: string | null } | null)?.storage_path ?? null;
+  } catch {
+    // Row lookup failed — proceed with the soft-delete; blob cleanup is best-effort.
+  }
+
+  const result = await softDelete('global_project_files', id);
+  if (result.error === null && storagePath) {
+    await deleteManyFromStorage([storagePath]).catch((e) =>
+      console.warn(`[api] storage blob cleanup failed for global file ${id} (non-fatal):`, e),
+    );
+  }
+  return result;
 }
 
 // ─── Activity Log ───────────────────────────────────────────────────────────

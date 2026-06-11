@@ -61,6 +61,8 @@ select migration from (
   union all select 'add-cascade-soft-delete-rpcs.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='cascade_soft_delete_global_project')
   union all select 'add-global-activity-log-server-timestamp.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='force_global_activity_timestamp')
   union all select 'add-last-admin-guard.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='prevent_last_admin_removal')
+  union all select 'add-activity-log-server-timestamp.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='force_activity_timestamp')
+  union all select 'pin-security-definer-search-path.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='is_global_project_member' and p.proconfig is not null and array_to_string(p.proconfig, ',') like '%search_path%')
 ) applied
 on conflict (id) do nothing;
 

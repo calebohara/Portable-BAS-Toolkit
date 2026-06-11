@@ -286,8 +286,14 @@ export function useInbox() {
     const client = getSupabaseClient();
     if (!client || mode !== 'authenticated' || !user) return;
 
+    // RT-2: PER-INSTANCE topic. supabase-js dedups channels by topic and
+    // removeChannel() leaves asynchronously — with a static 'inbox-realtime'
+    // topic, a second concurrent mount (inbox page + top-bar unread badge)
+    // reuses/then-kills the first mount's channel, silencing its subscription.
+    // A unique suffix per effect run guarantees non-colliding channels (the
+    // same pattern as the sync manager's per-generation global topics).
     const channel = client
-      .channel('inbox-realtime')
+      .channel(`inbox-realtime-${user.id}-${crypto.randomUUID().slice(0, 8)}`)
       .on(
         'postgres_changes',
         {

@@ -519,3 +519,142 @@ describe('Hotfix — identical content with a higher remote version is NOT a con
     manager.stop();
   });
 });
+
+// ─── TEST-2 (SyncAudit s3): conflict CONTENT + resolution flows ──────────────
+// The suites above assert addSyncConflict call-COUNTS; these assert the actual
+// conflict payload (the loser's localData must be preserved verbatim so the
+// user can still choose it) and exercise resolveKeepLocal / resolveKeepRemote /
+// resolveDeleteBoth end-to-end against the mock client.
+
+describe('TEST-2 — conflict payload preserves the loser + resolution flows', () => {
+  interface MockFrom {
+    select: ReturnType<typeof vi.fn>;
+    eq: ReturnType<typeof vi.fn>;
+    maybeSingle: ReturnType<typeof vi.fn>;
+    upsert: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
+    delete: ReturnType<typeof vi.fn>;
+  }
+  function createMockSupabase(remoteRow: Record<string, unknown> | null) {
+    const mockFrom: MockFrom = {
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      maybeSingle: vi.fn().mockResolvedValue({ data: remoteRow, error: null }),
+      upsert: vi.fn().mockResolvedValue({ error: null }),
+      update: vi.fn().mockReturnThis(),
+      delete: vi.fn().mockReturnThis(),
+    };
+    return { from: vi.fn(() => mockFrom), _mock: mockFrom };
+  }
+
+  const REMOTE_ROW = {
+    id: ID,
+    global_project_id: GPID,
+    device_name: 'PEER-NAME',
+    updated_at: '2026-03-01T00:00:00.000Z',
+    sync_version: 5,
+    created_by: TEST_USER_ID,
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('stores the LOSER (local payload) verbatim in conflict.localData and the cloud row in remoteData', async () => {
+    const supabase = createMockSupabase(REMOTE_ROW);
+    const manager = new SyncManager(supabase as never, TEST_USER_ID);
+
+    const localPayload = {
+      id: ID, globalProjectId: GPID, createdBy: TEST_USER_ID, updatedBy: TEST_USER_ID,
+      deviceName: 'MY-LOCAL-NAME', updatedAt: '2026-03-20T00:00:00.000Z', syncVersion: 3,
+    };
+    dbMocks.getPendingSyncItems.mockResolvedValueOnce([{
+      id: `globalDevices-${ID}`, action: 'update', entityType: 'globalDevices',
+      entityId: ID, payload: localPayload, userId: TEST_USER_ID,
+      status: 'pending', createdAt: new Date().toISOString(), retriedCount: 0,
+    } as SyncQueueItem]);
+
+    await manager.processQueue();
+
+    expect(dbMocks.addSyncConflict).toHaveBeenCalledTimes(1);
+    const conflict = dbMocks.addSyncConflict.mock.calls[0][0];
+    // The loser's content survives byte-for-byte — resolveKeepLocal depends on it.
+    expect(conflict.localData).toEqual(localPayload);
+    expect((conflict.localData as Record<string, unknown>).deviceName).toBe('MY-LOCAL-NAME');
+    // The remote side is the camel-mapped cloud row (real fromSupabaseRow).
+    expect((conflict.remoteData as Record<string, unknown>).deviceName).toBe('PEER-NAME');
+    expect(conflict.entityType).toBe('globalDevices');
+    expect(conflict.entityId).toBe(ID);
+    expect(conflict.localUpdatedAt).toBe('2026-03-20T00:00:00.000Z');
+    expect(conflict.remoteUpdatedAt).toBe('2026-03-01T00:00:00.000Z');
+    manager.stop();
+  });
+
+  function storedConflict() {
+    return {
+      id: `globalDevices-${ID}`,
+      entityType: 'globalDevices' as const,
+      entityId: ID,
+      localData: {
+        id: ID, globalProjectId: GPID, deviceName: 'MY-LOCAL-NAME',
+        updatedAt: '2026-03-20T00:00:00.000Z',
+      },
+      remoteData: {
+        id: ID, globalProjectId: GPID, deviceName: 'PEER-NAME',
+        updatedAt: '2026-03-01T00:00:00.000Z',
+      },
+      localUpdatedAt: '2026-03-20T00:00:00.000Z',
+      remoteUpdatedAt: '2026-03-01T00:00:00.000Z',
+      detectedAt: new Date().toISOString(),
+    };
+  }
+
+  it('resolveKeepLocal force-pushes the local row (update semantics) and clears the conflict', async () => {
+    const supabase = createMockSupabase(null);
+    const manager = new SyncManager(supabase as never, TEST_USER_ID);
+    vi.mocked(db.getAllSyncConflicts).mockResolvedValueOnce([storedConflict()]);
+
+    await manager.resolveKeepLocal(`globalDevices-${ID}`);
+
+    expect(supabase._mock.upsert).toHaveBeenCalledTimes(1);
+    const [row, opts] = supabase._mock.upsert.mock.calls[0];
+    // Real toSupabaseRow: camel → snake, update semantics (no created_by stamp).
+    expect(row.device_name).toBe('MY-LOCAL-NAME');
+    expect(row.id).toBe(ID);
+    expect(row.created_by).toBeUndefined();
+    expect(opts).toEqual({ onConflict: 'id' });
+    expect(vi.mocked(db.deleteSyncConflict)).toHaveBeenCalledWith(`globalDevices-${ID}`);
+    manager.stop();
+  });
+
+  it('resolveKeepRemote writes the cloud row to IndexedDB silently (no re-push) and clears the conflict', async () => {
+    const supabase = createMockSupabase(null);
+    const manager = new SyncManager(supabase as never, TEST_USER_ID);
+    const conflict = storedConflict();
+    vi.mocked(db.getAllSyncConflicts).mockResolvedValueOnce([conflict]);
+
+    await manager.resolveKeepRemote(`globalDevices-${ID}`);
+
+    expect(dbMocks.bulkPutSilent).toHaveBeenCalledWith('globalDevices', [conflict.remoteData]);
+    expect(supabase._mock.upsert).not.toHaveBeenCalled(); // never re-pushes
+    expect(vi.mocked(db.deleteSyncConflict)).toHaveBeenCalledWith(`globalDevices-${ID}`);
+    manager.stop();
+  });
+
+  it('resolveDeleteBoth soft-deletes in the cloud (no user_id filter on a global table) and removes the local row', async () => {
+    const supabase = createMockSupabase(null);
+    const manager = new SyncManager(supabase as never, TEST_USER_ID);
+    vi.mocked(db.getAllSyncConflicts).mockResolvedValueOnce([storedConflict()]);
+
+    await manager.resolveDeleteBoth(`globalDevices-${ID}`);
+
+    // Cloud: soft-delete (update deleted_at), keyed on id only — membership RLS
+    // tables have no user_id column (Fix B precedent).
+    expect(supabase._mock.update).toHaveBeenCalledTimes(1);
+    expect((supabase._mock.update.mock.calls[0][0] as Record<string, unknown>).deleted_at).toBeTruthy();
+    expect(supabase._mock.eq).toHaveBeenCalledWith('id', ID);
+    expect(supabase._mock.eq).not.toHaveBeenCalledWith('user_id', TEST_USER_ID);
+    // Local: silent delete + conflict cleared.
+    expect(vi.mocked(db.bulkDeleteSilent)).toHaveBeenCalledWith('globalDevices', [ID]);
+    expect(vi.mocked(db.deleteSyncConflict)).toHaveBeenCalledWith(`globalDevices-${ID}`);
+    manager.stop();
+  });
+});

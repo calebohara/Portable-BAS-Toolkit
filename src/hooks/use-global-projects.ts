@@ -304,7 +304,12 @@ export function useGlobalProject(id: string | undefined) {
     // Cascade-delete local IndexedDB child rows so orphaned children don't
     // keep pushing against RLS. The Supabase delete already cascades server-side;
     // this ensures the local mirror is clean immediately (before the next pull).
-    await cascadeDeleteGlobalProject(id).catch((e) =>
+    // SILENT (DEL-2): deleteGlobalProject above already tombstoned every child
+    // in the cloud — a non-silent local cascade re-enqueues an outbound delete
+    // for each child, which then hits the already-tombstoned rows (and 42501s
+    // on foreign-authored ones), churning the queue + Sync Error Inspector for
+    // no effect. Same pattern as `leave()` below.
+    await cascadeDeleteGlobalProject(id, { silent: true }).catch((e) =>
       console.warn('[useGlobalProject] local cascade failed (non-fatal):', e),
     );
     notifyMembershipChanged();

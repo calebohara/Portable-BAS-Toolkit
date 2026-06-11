@@ -1261,8 +1261,30 @@ export class SyncManager implements SyncManagerInterface {
   }> {
     console.info(`${LOG_PREFIX} Pull sync started (since=${lastPulledAt ?? 'never'})…`);
 
-    // Capture timestamp BEFORE querying so rows modified during pull aren't missed
-    const newPulledAt = new Date().toISOString();
+    // ── MIG-2: server-derived pull cursor ────────────────────────────────────
+    // The cursor used to be the DEVICE clock captured here — but the rows'
+    // `updated_at`/`timestamp` are stamped by the SERVER clock. A fast device
+    // clock advanced the cursor past genuinely-newer server rows, silently
+    // skipping remote edits/tombstones in the skew window (healed only by a
+    // full pull). Instead, track the MAX server timestamp actually seen this
+    // pull and use that as the next cursor (same clock domain as the rows —
+    // immune to device skew; `gte` makes the boundary row re-fetch idempotent).
+    // Fallbacks: zero rows on an incremental pull → keep the previous cursor
+    // (no advance = nothing skipped); zero rows on a first-hydration full pull
+    // → device clock (no server signal yet; documented residual).
+    const clientNowIso = new Date().toISOString();
+    let maxServerTsMs = NaN;
+    let maxServerTsIso: string | null = null;
+    const trackServerTs = (row: Record<string, unknown>) => {
+      const ts = (row.updated_at ?? row.timestamp ?? row.created_at) as string | undefined;
+      if (!ts) return;
+      const ms = Date.parse(ts);
+      if (Number.isNaN(ms)) return;
+      if (Number.isNaN(maxServerTsMs) || ms > maxServerTsMs) {
+        maxServerTsMs = ms;
+        maxServerTsIso = ts;
+      }
+    };
     const PAGE_SIZE = 1000;
 
     let totalPulled = 0;
@@ -1378,6 +1400,8 @@ export class SyncManager implements SyncManagerInterface {
         // through so any stale local rows get removed — so only short-circuit
         // here when this is an incremental pull (nothing to reconcile).
         const isFullPull = lastPulledAt == null;
+        // MIG-2: fold this table's server timestamps into the next pull cursor.
+        for (const row of allRows) trackServerTs(row);
         if (allRows.length === 0 && !isFullPull) continue;
 
         // Track the cloud's LIVE id set for subtractive reconciliation. On a
@@ -1636,6 +1660,9 @@ export class SyncManager implements SyncManagerInterface {
       console.warn(`${LOG_PREFIX} membership-revocation reconcile failed (non-fatal):`, e),
     );
 
+    // MIG-2: prefer the server clock domain for the next cursor (see above).
+    const newPulledAt = maxServerTsIso ?? lastPulledAt ?? clientNowIso;
+
     return { pulled: totalPulled, deleted: totalDeleted, errors, newPulledAt };
   }
 
@@ -1679,12 +1706,48 @@ export class SyncManager implements SyncManagerInterface {
       return;
     }
 
+    const revokedIds: string[] = [];
     for (const gp of localGlobalProjects) {
       if (!gp?.id || memberIds.has(gp.id)) continue;
       console.info(`${LOG_PREFIX} No longer a member of global project ${gp.id} — removing local mirror`);
       await cascadeDeleteGlobalProject(gp.id, { silent: true }).catch((e) =>
         console.warn(`${LOG_PREFIX} membership-revocation cleanup for ${gp.id} failed:`, e),
       );
+      revokedIds.push(gp.id);
+    }
+
+    // ── GLOBAL-1: unlink LOCAL projects still pointing at a revoked global ──
+    // The mirror reap above removes the global rows, but a linked LOCAL project
+    // keeps its `syncedGlobalId` forever — so the auto-mirror keeps trying to
+    // pull a project the user can no longer access (RLS noise), and a re-share
+    // would target a global project they were removed from. UNLINK, never
+    // delete: the local project is the user's own data and stays intact as a
+    // personal copy. The unlink is a real (enqueued) update so it propagates to
+    // the personal cloud and other devices converge; `syncedGlobalId: null`
+    // (not undefined — toSupabaseRow drops undefined fields, which would leave
+    // the stale link in the cloud column).
+    if (revokedIds.length > 0) {
+      try {
+        const revoked = new Set(revokedIds);
+        const localProjects = (await getAllFromStore('projects')) as Array<Record<string, unknown>>;
+        for (const lp of localProjects) {
+          if (typeof lp?.id !== 'string') continue;
+          if (typeof lp.syncedGlobalId !== 'string' || !revoked.has(lp.syncedGlobalId)) continue;
+          const unlinked = {
+            ...lp,
+            syncedGlobalId: null,
+            updatedAt: new Date().toISOString(),
+          };
+          await bulkPutSilent('projects', [unlinked]);
+          await this.enqueue('update', 'projects', lp.id, unlinked);
+          console.info(
+            `${LOG_PREFIX} Unlinked local project ${lp.id} from revoked global ` +
+            `${lp.syncedGlobalId} (local data kept as a personal copy)`,
+          );
+        }
+      } catch (e) {
+        console.warn(`${LOG_PREFIX} GLOBAL-1 unlink pass failed (non-fatal):`, e);
+      }
     }
   }
 

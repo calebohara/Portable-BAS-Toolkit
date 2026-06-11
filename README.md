@@ -19,6 +19,10 @@
 
 ## What's New
 
+### v4.41.0
+
+- **Sync hardening, round 2 — remaining audit debt cleared** — Deleting a shared project no longer churns the sync queue with futile re-deletes; deleting a single shared file now also removes its Storage blob (no more quota/privacy leak); being removed from a Global Project cleanly **unlinks** your local copy (your data stays, the dead link goes); the inbox unread badge no longer goes silent when the inbox page is open; and the incremental pull cursor now lives in the **server's clock domain**, so a device with a fast clock can no longer silently skip teammates' edits. Two new migrations (pending manual apply): server-stamped local activity timestamps and pinned `search_path` on the original SECURITY DEFINER helpers. Conflict resolution (keep mine / keep theirs / delete both) is now fully covered by tests.
+
 ### v4.40.0
 
 - **Sync hardening: one conflict authority for shared projects** — "Share to Global" no longer trusts wall-clock timestamps alone: if a teammate edited a row since your device last pulled it, the share **surfaces a conflict to resolve** (keep yours / keep theirs) instead of silently overwriting their edit — closing the long-deferred two-writer gap (CFM-1/ARCH-1). Also fixed four data-stranding edge cases: the auto-mirror and remote-delete paths now respect un-pushed local edits, back-to-back self-edits no longer raise spurious conflict prompts, and an edit dismissed from the Sync Error Inspector can be re-synced later with "Sync Now". The read-only consistency check now covers all Global Project tables too. 10 new regression tests; full audit trail in `docs/SyncAuditAgents-fixes-2026-06-11.md`.

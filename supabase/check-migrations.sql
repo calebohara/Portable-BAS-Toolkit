@@ -113,6 +113,12 @@ with probe(seq, migration, probe_desc, applied) as (
     exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='force_global_activity_timestamp')
   union all select 50, 'add-last-admin-guard.sql', 'function prevent_last_admin_removal',
     exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='prevent_last_admin_removal')
+  union all select 51, 'add-activity-log-server-timestamp.sql', 'function force_activity_timestamp',
+    exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='force_activity_timestamp')
+  union all select 52, 'pin-security-definer-search-path.sql', 'is_global_project_member has pinned search_path',
+    exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+           where n.nspname='public' and p.proname='is_global_project_member'
+             and p.proconfig is not null and array_to_string(p.proconfig, ',') like '%search_path%')
 )
 select
   seq            as "#",
