@@ -76,4 +76,6 @@ Move fixed items here (with the commit/version that fixed them) so there's a pap
 
 | ID | Resolved | Fixed in | Description |
 |----|----------|----------|-------------|
-| _none yet_ | | | |
+| SYNC-PREFS-42703 | 2026-06-11 | v4.21.0 + v4.30.0 | `[sync] missing-column on globalProjectPreferences` (3 reports, stamped 4.28.0/4.31.1/4.35.0) — pre-4.21 clients pushed `deleted_at`/`sync_version` to a table without those columns. Fixed by `SKIP_FIELDS` (v4.21.0) and hardened by the push column-allowlist gate (v4.30.0). Prod schema probed 2026-06-11: exactly the 8 expected columns, no drift. Version stamps are report-time (Sync Error Inspector re-reports of old errors), not occurrence-time. |
+| SYNC-GDEV-42501 | 2026-06-11 | v4.25.1/v4.27.0 + v4.31.2 | `[sync] rls-rejected on globalDevices` (1 report, stamped 4.31.1) — foreign-authored pulled rows re-pushed by fullSync hit the `created_by = auth.uid()` UPDATE policy. Fixed by the `foreignGlobalAuthor()` drop guard (v4.25.1, generalized v4.27.0) and the coalesced create→update `created_by` stamp (v4.31.2). |
+| SYNC-GACT-42501 | 2026-06-11 | v4.25.0/v4.25.1 | `[sync] rls-rejected on globalActivityLog` (1 report, stamped 4.25.0) — generic upsert took the `ON CONFLICT DO UPDATE` branch on the append-only log, tripping the author-only UPDATE policy. Fixed by insert-only push (`ignoreDuplicates`, v4.25.0) plus the foreign-`userId` ownership drop (v4.25.1). |
