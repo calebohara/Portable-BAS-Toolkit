@@ -5,20 +5,16 @@ import { useRouter } from 'next/navigation';
 import { TopBar } from '@/components/layout/top-bar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { PRO_TIER, TEAM_TIER, priceSummary, type TierPricing } from '@/lib/pricing';
 
 interface UpgradeRequiredPageProps {
   feature: string;
   requiredTier: 'pro' | 'team';
 }
 
-const TIER_LABELS: Record<string, string> = {
-  pro: 'Pro',
-  team: 'Team',
-};
-
-const TIER_PRICES: Record<string, string> = {
-  pro: '$8/month or $79/year',
-  team: '$15/month or $149/year',
+const TIERS: Record<'pro' | 'team', TierPricing> = {
+  pro: PRO_TIER,
+  team: TEAM_TIER,
 };
 
 export function UpgradeRequiredPage({ feature, requiredTier }: UpgradeRequiredPageProps) {
@@ -37,8 +33,8 @@ export function UpgradeRequiredPage({ feature, requiredTier }: UpgradeRequiredPa
             <div>
               <h2 className="text-lg font-bold">{feature}</h2>
               <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                This feature requires the <strong className="text-foreground">{TIER_LABELS[requiredTier]}</strong> plan
-                ({TIER_PRICES[requiredTier]}).
+                This feature requires the <strong className="text-foreground">{TIERS[requiredTier].name}</strong> plan
+                ({priceSummary(TIERS[requiredTier])}).
               </p>
             </div>
 

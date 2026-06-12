@@ -16,7 +16,7 @@ import { SyncStatusIndicator } from './sync-status';
 import { OnlineUsers } from './online-users';
 import { APP_VERSION } from '@/lib/version';
 import { useAuth } from '@/providers/auth-provider';
-import { hasSyncAccess } from '@/lib/paywall';
+import { hasCollabAccess } from '@/lib/paywall';
 
 const navGroups = [
   {
@@ -70,7 +70,8 @@ export function Sidebar() {
   const toggleSidebar = useAppStore((s) => s.toggleSidebar);
   const isOnline = useAppStore((s) => s.isOnline);
   const { profile } = useAuth();
-  const showOnlineUsers = hasSyncAccess(profile?.subscriptionTier);
+  // Online presence is a Team-tier collaboration feature.
+  const showOnlineUsers = hasCollabAccess(profile?.subscriptionTier);
 
   // Collapsible group state — persisted via the app store (bau-suite-app).
   const collapsedGroups = useAppStore((s) => s.collapsedNavGroups);

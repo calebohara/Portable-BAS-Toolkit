@@ -7,6 +7,13 @@
       "runtimeArgs": ["node_modules/next/dist/bin/next", "dev"],
       "port": 3000,
       "autoPort": true
+    },
+    {
+      "name": "next-dev-paywall",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["cross-env", "NEXT_PUBLIC_SYNC_PAYWALL=true", "next", "dev"],
+      "port": 3000,
+      "autoPort": true
     }
   ]
 }

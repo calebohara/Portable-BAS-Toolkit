@@ -9,26 +9,11 @@ import { useAuth } from '@/providers/auth-provider';
 import { toast } from 'sonner';
 import { isTauri } from '@/lib/tauri-bridge';
 import { APP_BASE_URL } from '@/lib/stripe-config';
+import { PRO_TIER, TEAM_TIER, TRIAL_DAYS, yearlySavingsPct } from '@/lib/pricing';
 
 interface UpgradeCTAProps {
   currentTier: string;
 }
-
-const PRO_FEATURES = [
-  'Cloud sync across devices',
-  'Automatic cloud backup',
-  'Cloud restore & recovery',
-  'Sync conflict resolution',
-  'Direct messaging & inbox',
-];
-
-const TEAM_FEATURES = [
-  'Everything in Pro',
-  'Global (shared) projects',
-  'Team messaging & DMs',
-  'Knowledge Base access',
-  'Online presence',
-];
 
 export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
   const { user } = useAuth();
@@ -97,12 +82,12 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
             </div>
 
             <div className="space-y-1 mt-4">
-              <p className="text-2xl font-bold">$8<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-              <p className="text-xs text-muted-foreground">or $79/year (save 18%)</p>
+              <p className="text-2xl font-bold">${PRO_TIER.monthly}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+              <p className="text-xs text-muted-foreground">or ${PRO_TIER.yearly}/year (save {yearlySavingsPct(PRO_TIER)}%)</p>
             </div>
 
             <ul className="space-y-1.5 mt-4 flex-1">
-              {PRO_FEATURES.map((f) => (
+              {PRO_TIER.features.map((f) => (
                 <li key={f} className="flex items-start gap-2 text-xs text-muted-foreground">
                   <Check className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
                   {f}
@@ -118,7 +103,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
                 disabled={!!loading}
               >
                 {loading === 'pro-year' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Zap className="h-3.5 w-3.5" />}
-                Get Pro — $79/year
+                Get Pro — ${PRO_TIER.yearly}/year
               </Button>
               <Button
                 variant="outline"
@@ -128,7 +113,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
                 disabled={!!loading}
               >
                 {loading === 'pro-month' && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                $8/month — 30 days free
+                ${PRO_TIER.monthly}/month — {TRIAL_DAYS} days free
               </Button>
             </div>
           </CardContent>
@@ -148,12 +133,12 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
             </div>
 
             <div className="space-y-1 mt-4">
-              <p className="text-2xl font-bold">$15<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-              <p className="text-xs text-muted-foreground">or $149/year (save 17%)</p>
+              <p className="text-2xl font-bold">${TEAM_TIER.monthly}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+              <p className="text-xs text-muted-foreground">or ${TEAM_TIER.yearly}/year (save {yearlySavingsPct(TEAM_TIER)}%)</p>
             </div>
 
             <ul className="space-y-1.5 mt-4 flex-1">
-              {TEAM_FEATURES.map((f) => (
+              {TEAM_TIER.features.map((f) => (
                 <li key={f} className="flex items-start gap-2 text-xs text-muted-foreground">
                   <Check className="h-3.5 w-3.5 text-blue-500 shrink-0 mt-0.5" />
                   {f}
@@ -170,7 +155,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
                 disabled={!!loading}
               >
                 {loading === 'team-year' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Users className="h-3.5 w-3.5" />}
-                Get Team — $149/year
+                Get Team — ${TEAM_TIER.yearly}/year
               </Button>
               <Button
                 variant="ghost"
@@ -180,7 +165,7 @@ export function UpgradeCTA({ currentTier }: UpgradeCTAProps) {
                 disabled={!!loading}
               >
                 {loading === 'team-month' && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                $15/month — 30 days free
+                ${TEAM_TIER.monthly}/month — {TRIAL_DAYS} days free
               </Button>
             </div>
           </CardContent>

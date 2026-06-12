@@ -68,6 +68,13 @@ export const toolGroups: ToolGroup[] = [
   },
 ];
 
+/**
+ * Total tool count across all groups. Use this anywhere marketing copy cites
+ * a tool count ("19 integrated tools") so the number can't drift from the
+ * canonical list above.
+ */
+export const toolCount = toolGroups.reduce((n, g) => n + g.items.length, 0);
+
 export interface FieldHighlight {
   icon: LucideIcon;
   title: string;

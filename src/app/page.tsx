@@ -13,7 +13,8 @@ import { Button } from '@/components/ui/button';
 import { APP_VERSION } from '@/lib/version';
 import { useScrollReveal } from '@/hooks/use-scroll-reveal';
 import { getSupabaseClient } from '@/lib/supabase/client';
-import { toolGroups, fieldHighlights } from './landing-content';
+import { PRO_TIER, TEAM_TIER, TRIAL_DAYS, yearlySavingsPct } from '@/lib/pricing';
+import { toolGroups, fieldHighlights, toolCount } from './landing-content';
 
 // ─── Page Component ──────────────────────────────────────────────────────────
 
@@ -50,6 +51,7 @@ export default function HomePage() {
   const goSignup = () => isTauri ? window.location.assign('/login?tab=signup') : router.push('/login?tab=signup');
   const goLogin = () => isTauri ? window.location.assign('/login') : router.push('/login');
   const scrollToTools = () => document.getElementById('tools')?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToPricing = () => document.getElementById('pricing')?.scrollIntoView({ behavior: 'smooth' });
 
   // Short-circuit on Tauri: this landing page is the web marketing surface only.
   // Without this guard the desktop app paints the full DOM, runs every
@@ -151,7 +153,7 @@ export default function HomePage() {
             style={{ animation: 'hp-fade-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards', animationDelay: '0.65s', opacity: 0 }}
           >
             {[
-              { value: '19', label: 'Integrated tools' },
+              { value: String(toolCount), label: 'Integrated tools' },
               { value: '100%', label: 'Offline-capable' },
               { value: 'Free', label: 'To get started' },
             ].map(({ value, label }) => (
@@ -370,7 +372,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Pricing / Support ────────────────────────────────────────── */}
-      <section className="py-16 sm:py-20">
+      <section id="pricing" className="py-16 sm:py-20 scroll-mt-16">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="hp-reveal">
             <div className="grid lg:grid-cols-5 gap-8 lg:gap-12 items-center">
@@ -399,7 +401,7 @@ export default function HomePage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <Wrench className="h-4 w-4 text-primary" />
-                    <span>19+ field tools</span>
+                    <span>{toolCount} field tools</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <WifiOff className="h-4 w-4 text-primary" />
@@ -422,7 +424,7 @@ export default function HomePage() {
                         <p className="text-xl font-bold">$0</p>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> 19+ tools</span>
+                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> {toolCount} tools</span>
                         <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Offline-first</span>
                         <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Desktop app</span>
                       </div>
@@ -440,14 +442,15 @@ export default function HomePage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-xl font-bold">$8<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-                          <p className="text-[10px] text-primary font-medium">30-day free trial</p>
+                          <p className="text-xl font-bold">${PRO_TIER.monthly}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+                          <p className="text-[10px] text-muted-foreground">or ${PRO_TIER.yearly}/yr — save {yearlySavingsPct(PRO_TIER)}%</p>
+                          <p className="text-[10px] text-primary font-medium">{TRIAL_DAYS}-day free trial on monthly</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Multi-device sync</span>
-                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Cloud backup</span>
-                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> Messaging</span>
+                        {PRO_TIER.highlights.map((h) => (
+                          <span key={h} className="flex items-center gap-1"><Check className="h-3 w-3 text-primary" /> {h}</span>
+                        ))}
                       </div>
                     </div>
 
@@ -462,26 +465,41 @@ export default function HomePage() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-xl font-bold">$15<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
-                          <p className="text-[10px] text-primary font-medium">30-day free trial</p>
+                          <p className="text-xl font-bold">${TEAM_TIER.monthly}<span className="text-sm font-normal text-muted-foreground">/mo</span></p>
+                          <p className="text-[10px] text-muted-foreground">or ${TEAM_TIER.yearly}/yr — save {yearlySavingsPct(TEAM_TIER)}%</p>
+                          <p className="text-[10px] text-primary font-medium">{TRIAL_DAYS}-day free trial on monthly</p>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-field-info" /> Global Projects</span>
-                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-field-info" /> Knowledge Base</span>
-                        <span className="flex items-center gap-1"><Check className="h-3 w-3 text-field-info" /> Team messaging</span>
+                        {TEAM_TIER.highlights.map((h) => (
+                          <span key={h} className="flex items-center gap-1"><Check className="h-3 w-3 text-field-info" /> {h}</span>
+                        ))}
                       </div>
                     </div>
 
                     {/* Authed: manage subscription. Unauthed: signup tab so the CTA
-                        matches its label. */}
+                        matches its label — the trial itself starts at Stripe
+                        checkout (in settings), not at signup. */}
                     <Button size="lg" onClick={user ? () => router.push('/settings') : goSignup} className="w-full gap-2 hp-btn-glow">
                       {user ? (
                         <><Zap className="h-4 w-4" /> Manage Subscription</>
                       ) : (
-                        <><UserPlus className="h-4 w-4" /> Start Free Trial</>
+                        <><UserPlus className="h-4 w-4" /> Get Started Free</>
                       )}
                     </Button>
+                    <p className="text-[11px] text-muted-foreground text-center">
+                      Cancel anytime — your local data stays on your device.
+                    </p>
+                    <p className="text-[11px] text-muted-foreground text-center">
+                      Prefer to just support the project?{' '}
+                      <button
+                        onClick={() => router.push('/donate')}
+                        className="underline underline-offset-2 hover:text-foreground transition-colors"
+                      >
+                        Donate
+                      </button>
+                      {' '}— no account needed.
+                    </p>
                   </div>
                 ) : (
                   <div className="hp-card-surface p-6 sm:p-8 text-center">
@@ -566,7 +584,7 @@ export default function HomePage() {
                 <button onClick={() => router.push('/projects')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Projects</button>
                 <button onClick={() => router.push('/help')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Help & Guides</button>
                 {isPaywallEnabled() && (
-                  <button onClick={() => router.push('/settings')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Pricing</button>
+                  <button onClick={scrollToPricing} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Pricing</button>
                 )}
               </div>
             </div>
@@ -585,9 +603,7 @@ export default function HomePage() {
                   <button onClick={goApp} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Go to Dashboard</button>
                 )}
                 <button onClick={() => router.push('/settings')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Settings</button>
-                {!isPaywallEnabled() && (
-                  <button onClick={() => router.push('/donate')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Donate</button>
-                )}
+                <button onClick={() => router.push('/donate')} className="hp-link-btn block py-1.5 -my-1.5 hover:text-foreground transition-colors">Donate</button>
               </div>
             </div>
           </div>
