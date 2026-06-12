@@ -352,6 +352,41 @@
   animation: hp-glow-pulse 8s ease-in-out infinite;
 }
 
+/* Cursor-following glow (landing page). Pure gradient — no blur filter — so
+   moving it is compositor-only work. Page sections are positioned and paint
+   above it; cursor-glow.tsx drives transform/opacity and disables itself for
+   non-mouse pointers and reduced motion. */
+.hp-cursor-glow {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 34rem;
+  height: 34rem;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform, opacity;
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--color-siemens-teal) 26%, transparent) 0%,
+    color-mix(in oklch, var(--color-siemens-teal) 10%, transparent) 40%,
+    transparent 70%
+  );
+}
+
+.dark .hp-cursor-glow {
+  background: radial-gradient(
+    circle,
+    color-mix(in oklch, var(--color-siemens-teal) 30%, transparent) 0%,
+    color-mix(in oklch, var(--color-siemens-teal) 11%, transparent) 40%,
+    transparent 70%
+  );
+}
+
+@media (pointer: coarse) {
+  .hp-cursor-glow { display: none; }
+}
+
 /* Glass nav */
 .hp-glass-nav {
   backdrop-filter: blur(16px) saturate(1.4);
@@ -469,6 +504,7 @@
   .hp-orb {
     animation: none;
   }
+  .hp-cursor-glow { display: none; }
   .hp-card-surface:hover {
     transform: none;
   }

@@ -15,6 +15,7 @@ import { useScrollReveal } from '@/hooks/use-scroll-reveal';
 import { getSupabaseClient } from '@/lib/supabase/client';
 import { PRO_TIER, TEAM_TIER, TRIAL_DAYS, yearlySavingsPct } from '@/lib/pricing';
 import { toolGroups, fieldHighlights, toolCount } from './landing-content';
+import { CursorGlow } from './cursor-glow';
 
 // ─── Page Component ──────────────────────────────────────────────────────────
 
@@ -62,6 +63,10 @@ export default function HomePage() {
 
   return (
     <div ref={scrollRef} className="min-h-screen bg-background">
+
+      {/* Cursor-following glow. Mounted first so every positioned section
+          below paints above it — cards occlude it, text floats over it. */}
+      <CursorGlow />
 
       {/* ── Glass Navigation ─────────────────────────────────────────── */}
       <header className="hp-glass-nav sticky top-0 z-40">
@@ -192,7 +197,7 @@ export default function HomePage() {
           proof section signals "no one uses this". Authed users still see the
           soft prompt to seed the first review. */}
       {(reviews.length > 0 || isAuthed) && (
-      <section className="border-t border-border/50 py-12 sm:py-16">
+      <section className="relative border-t border-border/50 py-12 sm:py-16">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           {reviews.length > 0 ? (
             <>
@@ -257,7 +262,7 @@ export default function HomePage() {
       {/* ── What's inside / the tools ────────────────────────────────── */}
       {/* Merges the old Workflow + Tool Ecosystem + Platform sections into one
           information-rich tool catalogue. The tool list is the substance. */}
-      <section id="tools" className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20 scroll-mt-16">
+      <section id="tools" className="relative bg-muted/30 dark:bg-muted/10 py-16 sm:py-20 scroll-mt-16">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="hp-reveal max-w-2xl mb-12">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">What&apos;s inside</p>
@@ -295,7 +300,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Built for the field (differentiators strip) ──────────────── */}
-      <section className="py-16 sm:py-20">
+      <section className="relative py-16 sm:py-20">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="hp-reveal max-w-xl mb-10">
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-3">Built for the field</p>
@@ -316,7 +321,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Desktop App ──────────────────────────────────────────────── */}
-      <section className="bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
+      <section className="relative bg-muted/30 dark:bg-muted/10 py-16 sm:py-20">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="hp-reveal">
             <div
@@ -372,7 +377,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Pricing / Support ────────────────────────────────────────── */}
-      <section id="pricing" className="py-16 sm:py-20 scroll-mt-16">
+      <section id="pricing" className="relative py-16 sm:py-20 scroll-mt-16">
         <div className="mx-auto max-w-5xl px-4 sm:px-6">
           <div className="hp-reveal">
             <div className="grid lg:grid-cols-5 gap-8 lg:gap-12 items-center">
@@ -526,7 +531,7 @@ export default function HomePage() {
 
       {/* ── Closing CTA ──────────────────────────────────────────────── */}
       {/* One calm, low-pressure close — informative, not a hard sell. */}
-      <section className="border-t border-border/50 py-14 sm:py-20">
+      <section className="relative border-t border-border/50 py-14 sm:py-20">
         <div className="mx-auto max-w-5xl px-4 sm:px-6 text-center">
           {isAuthed ? (
             <>
@@ -559,7 +564,7 @@ export default function HomePage() {
       </section>
 
       {/* ── Footer ───────────────────────────────────────────────────── */}
-      <footer className="border-t border-border/50 py-10 px-4 sm:px-6">
+      <footer className="relative border-t border-border/50 py-10 px-4 sm:px-6">
         <div className="mx-auto max-w-5xl">
           <div className="grid sm:grid-cols-3 gap-8 mb-8">
             {/* Brand */}
