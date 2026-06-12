@@ -19,6 +19,11 @@
 
 ## What's New
 
+### v4.42.0
+
+- **Landing page: cursor glow** — A soft teal glow now trails the mouse on the marketing page, slipping behind cards and text. It tightens over buttons and cards, fades out when the mouse leaves, and turns itself off on touch devices and for reduced-motion users.
+- **Pricing cards corrected** — The landing page now shows yearly prices ($79 / $149) alongside monthly, scopes the "30-day free trial" claim to monthly plans, and pulls all prices and feature lists from one shared file so pages can't drift. Online presence is now correctly a Team feature, and the Donate link is always visible — no account needed.
+
 ### v4.41.1
 
 - **Fix: Global Project preferences sync again** — every pull of `global_project_preferences` failed with Postgres 42703 (`column global_project_preferences.id does not exist`): the deterministic pull pagination ordered all non-log tables by `id`, but that table's primary key is composite (`user_id`, `global_project_id`) with no `id` column. The pull now orders it by `global_project_id`, so pinned/offline-available flags and last-viewed tabs roam across devices again. Covered by a new regression test asserting the order column per table.
