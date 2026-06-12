@@ -19,6 +19,10 @@
 
 ## What's New
 
+### v4.41.1
+
+- **Fix: Global Project preferences sync again** — every pull of `global_project_preferences` failed with Postgres 42703 (`column global_project_preferences.id does not exist`): the deterministic pull pagination ordered all non-log tables by `id`, but that table's primary key is composite (`user_id`, `global_project_id`) with no `id` column. The pull now orders it by `global_project_id`, so pinned/offline-available flags and last-viewed tabs roam across devices again. Covered by a new regression test asserting the order column per table.
+
 ### v4.41.0
 
 - **Sync hardening, round 2 — remaining audit debt cleared** — Deleting a shared project no longer churns the sync queue with futile re-deletes; deleting a single shared file now also removes its Storage blob (no more quota/privacy leak); being removed from a Global Project cleanly **unlinks** your local copy (your data stays, the dead link goes); the inbox unread badge no longer goes silent when the inbox page is open; and the incremental pull cursor now lives in the **server's clock domain**, so a device with a fast clock can no longer silently skip teammates' edits. Two new migrations (pending manual apply): server-stamped local activity timestamps and pinned `search_path` on the original SECURITY DEFINER helpers. Conflict resolution (keep mine / keep theirs / delete both) is now fully covered by tests.

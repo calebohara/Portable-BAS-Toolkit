@@ -1384,7 +1384,16 @@ export class SyncManager implements SyncManagerInterface {
           // deterministic. Without it Postgres may return rows in arbitrary
           // order across pages, causing rows to be duplicated or skipped if a
           // concurrent insert happens mid-pull (broken audit trail for logs).
-          query = query.order(isAppendOnlyLog ? 'timestamp' : 'id', { ascending: true });
+          // globalProjectPreferences has no `id` column (composite PK
+          // user_id + global_project_id — ordering by `id` raises 42703 and
+          // fails every pull); with user_id pinned by the filter above,
+          // global_project_id alone is unique and stable.
+          const orderCol = isAppendOnlyLog
+            ? 'timestamp'
+            : entityType === 'globalProjectPreferences'
+              ? 'global_project_id'
+              : 'id';
+          query = query.order(orderCol, { ascending: true });
 
           const { data, error } = await query.range(offset, offset + PAGE_SIZE - 1);
           if (error) throw error;
