@@ -19,13 +19,16 @@ codebase. Two layers keep it honest:
 ## Latest semantic review
 
 <!-- WEEKLY-AI-REVIEW:START -->
-**Review date:** 2026-06-22
+**Review date:** 2026-07-06
 **Deterministic check (`npm run check:readme`):** ✅ PASS — all **19** canonical tools are
 referenced (coverage ✅) and the "What's New" top entry **v4.42.0** matches `package.json`.
 
-The changelog lag flagged on 2026-06-08 is now resolved — "What's New" leads with v4.42.0.
-However, **two stale version pointers** and the **macOS desktop phantom** from prior weeks are
-still present and unaddressed. Tool *coverage* and *descriptions* are otherwise accurate.
+No change since 2026-06-22: the **two stale version pointers** and the **macOS desktop phantom**
+remain unaddressed (all three carried over from 2026-06-08). Tool *coverage* and *descriptions*
+are otherwise accurate. Both code claims re-verified this run: the terminal still supports serial
+mode (`connectionMode: 'serial'` + baud rate in `src/app/terminal/page.tsx`), and the release
+matrix in `.github/workflows/release.yml` is still `windows-latest`-only (`.msi` only, no macOS
+runner).
 
 ### (a) Missing — tools in code/landing-content not documented in README
 ✅ None. Every `toolGroups` entry and every sidebar tool is documented. (Command Snippets,
