@@ -27,7 +27,7 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 ## 🤖 Daily health check
 
 <!-- AUTOMATED-CHECKS:START -->
-**Last run:** 2026-08-05 13:40 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/31010996541)
+**Last run:** 2026-08-06 15:20 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/31114903954)
 
 > ✅ All automated checks passed.
 
@@ -47,7 +47,7 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 Open rows from the Supabase `bug_reports` table (submitted via the in-app Bug Report dialog).
 
 <!-- USER-REPORTS:START -->
-**2** open reports as of 2026-08-05 13:40 UTC.
+**2** open reports as of 2026-08-06 15:20 UTC.
 
 | Opened | Sev | Status | Title | Page | Version | By |
 |--------|-----|--------|-------|------|---------|----|
