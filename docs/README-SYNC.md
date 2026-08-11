@@ -19,21 +19,34 @@ codebase. Two layers keep it honest:
 ## Latest semantic review
 
 <!-- WEEKLY-AI-REVIEW:START -->
-**Review date:** 2026-07-06
+**Review date:** 2026-08-10
 **Deterministic check (`npm run check:readme`):** ✅ PASS — all **19** canonical tools are
 referenced (coverage ✅) and the "What's New" top entry **v4.42.0** matches `package.json`.
 
-No change since 2026-06-22: the **two stale version pointers** and the **macOS desktop phantom**
-remain unaddressed (all three carried over from 2026-06-08). Tool *coverage* and *descriptions*
-are otherwise accurate. Both code claims re-verified this run: the terminal still supports serial
-mode (`connectionMode: 'serial'` + baud rate in `src/app/terminal/page.tsx`), and the release
-matrix in `.github/workflows/release.yml` is still `windows-latest`-only (`.msi` only, no macOS
-runner).
+No change since 2026-07-06 on the carried-over items: the **two stale version pointers** and the
+**macOS desktop phantom** remain unaddressed (all three now carried since 2026-06-08). Both code
+claims re-verified this run: the terminal still supports serial mode (`connectionMode: 'serial'` +
+baud rate in `src/app/terminal/page.tsx`), and the release matrix in
+`.github/workflows/release.yml` is still `windows-latest`-only (`.msi` only, no macOS runner).
+**One new finding this run:** the DXRs project tab is undocumented in the Features section (below).
 
 ### (a) Missing — tools in code/landing-content not documented in README
-✅ None. Every `toolGroups` entry and every sidebar tool is documented. (Command Snippets,
-which lives inside the Telnet HMI / terminal page via `useCommandSnippets`, *is* documented
-under "Access & Diagnostics" — not a phantom.)
+1. **DXRs project tab is undocumented.** Both the local and the global project pages ship a
+   first-class **DXRs** tab (`src/app/projects/[...slug]/client-page.tsx:53` and the global
+   equivalent) backed by eight components under `src/components/dxrs/` — a wide Siemens DXR
+   schema (device instance #, MAC, network, application template, room/segment hierarchy, baud
+   rate, auto-addressing, …), plus **smart paste**, import/export dialogs, a row-detail dialog,
+   and an analysis panel. The README's **Features → Project Management** section (lines 171–175)
+   lists "devices, IP entries, contacts, notes, and project metadata" but never mentions DXRs;
+   the only occurrence of the term in the whole README is incidental, inside the v4.11.0
+   consistency-check enumeration (line 55).
+   → *Correction:* add a DXR bullet to **Features → Project Management** (or to Network & Device
+   Tools), e.g. "**DXR schedules** — Siemens DXR room-controller tables with smart paste,
+   import/export, per-row detail, and an analysis panel; available on local and Global Projects."
+   Not a `toolGroups` entry, so the deterministic check cannot catch this.
+
+   *(Command Snippets, which lives inside the Telnet HMI / terminal page via `useCommandSnippets`,
+   **is** documented under "Access & Diagnostics" — not a gap.)*
 
 ### (b) Stale — README descriptions inaccurate vs the real tool
 1. **Version badge + Versioning section still read v4.11.0.** The "What's New" changelog is now
@@ -72,6 +85,6 @@ under "Access & Diagnostics" — not a phantom.)
   README's register-tool description (line 203) does **not** make this claim, so the README is fine
   — the drift is in the *landing page copy* and is worth a human glance.
 
-**Summary:** deterministic ✅ PASS · missing **0** · stale **2** · phantom **1** (all three carried
-over from 2026-06-08 and still unfixed; only the changelog-lag warning has been resolved).
+**Summary:** deterministic ✅ PASS · missing **1** · stale **2** · phantom **1** (the stale and
+phantom items are carried over from 2026-06-08 and still unfixed; the DXRs gap is new this run).
 <!-- WEEKLY-AI-REVIEW:END -->
