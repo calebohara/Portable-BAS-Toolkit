@@ -40,7 +40,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { useAppStore } from '@/store/app-store';
 import { useAuth } from '@/providers/auth-provider';
 import { useSyncContext } from '@/providers/sync-provider';
-import { getStorageEstimate, clearFileCache, resetFailedSyncItems, getFirstSyncError } from '@/lib/db';
+import { getStorageEstimate, clearFileCache, resetFailedSyncItems, getFirstSyncError, getSyncQueueCount } from '@/lib/db';
 import { reportError } from '@/lib/error-reporting';
 import { formatFileSize } from '@/components/shared/file-icon';
 import { APP_VERSION } from '@/lib/version';
@@ -53,6 +53,10 @@ export default function SettingsPage() {
   const router = useRouter();
   const { mode, user, session, profile, signOut, updatePassword, updateEmail, updateProfile } = useAuth();
   const { triggerFullSync, triggerPullSync } = useSyncContext();
+  // Un-pushed-work guard for sign-out. Signing out clears IndexedDB (same-device
+  // user isolation), and the sync queue goes with it — so a tech who worked all
+  // day offline could discard the lot with one unlabelled click.
+  const [pendingSignOutCount, setPendingSignOutCount] = useState<number | null>(null);
   const syncStatus = useAppStore((s) => s.syncStatus);
   const pendingSyncCount = useAppStore((s) => s.pendingSyncCount);
   const lastSyncedAt = useAppStore((s) => s.lastSyncedAt);
@@ -104,8 +108,13 @@ export default function SettingsPage() {
   const storagePercent = storage.quota > 0 ? (storage.used / storage.quota) * 100 : 0;
 
   const handleClearCache = async () => {
-    const count = await clearFileCache();
-    toast.success(`Cleared ${count} cached file(s)`);
+    const { cleared, keptOnlyCopies } = await clearFileCache();
+    toast.success(
+      `Cleared ${cleared} cached file(s)` +
+      (keptOnlyCopies > 0
+        ? ` — kept ${keptOnlyCopies} that exist only on this device`
+        : ''),
+    );
     getStorageEstimate().then(setStorage).catch((e) => reportError('load storage estimate', e, { silent: true }));
   };
 
@@ -224,7 +233,21 @@ export default function SettingsPage() {
                 variant="ghost"
                 size="sm"
                 className="gap-1.5 shrink-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                onClick={async () => { await signOut(); }}
+                onClick={async () => {
+                  // Check for un-pushed work BEFORE signing out. Zero → sign out
+                  // immediately (no dialog for the common case).
+                  try {
+                    const { pending, failed } = await getSyncQueueCount();
+                    if (pending + failed > 0) {
+                      setPendingSignOutCount(pending + failed);
+                      return;
+                    }
+                  } catch {
+                    // Queue unreadable — fall through and sign out rather than
+                    // trapping the user on a broken database.
+                  }
+                  await signOut();
+                }}
               >
                 <LogOut className="h-3.5 w-3.5" />
                 <span className="hidden sm:inline">Sign Out</span>
@@ -861,10 +884,25 @@ export default function SettingsPage() {
         open={showClearConfirm}
         onOpenChange={setShowClearConfirm}
         title="Clear File Cache"
-        description="All cached file previews will be removed. Your project data and notes are preserved."
+        description="Removes cached copies of files that can be re-downloaded from the cloud. Files that exist only on this device — anything uploaded offline, plus daily-report photos — are kept. Your project data and notes are preserved."
         confirmLabel="Clear Cache"
         variant="destructive"
         onConfirm={handleClearCache}
+      />
+
+      <ConfirmDialog
+        open={pendingSignOutCount !== null}
+        onOpenChange={(open) => { if (!open) setPendingSignOutCount(null); }}
+        title="Unsynced changes will be lost"
+        description={
+          `${pendingSignOutCount ?? 0} change${pendingSignOutCount === 1 ? '' : 's'} ` +
+          'on this device have not reached the cloud yet. Signing out clears local data, ' +
+          'so they will be permanently lost. Sync first, or export a backup, if you need them.'
+        }
+        confirmLabel="Sign Out Anyway"
+        cancelLabel="Stay Signed In"
+        variant="destructive"
+        onConfirm={async () => { setPendingSignOutCount(null); await signOut(); }}
       />
 
       <BackupDialog

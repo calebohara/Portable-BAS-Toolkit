@@ -20,143 +20,75 @@ every added sync surface multiplies both.
 - Lift this freeze only when the open SyncAuditAgents findings (s3) are
   resolved or explicitly waived by the owner.
 
-## BASAgents Fix Documentation Rule
+## Agent Team Documentation Rule
 
-**Whenever BASAgents run an audit and fixes are applied, create a new dated log file:**
+Every agent team writes ONE dated log per session under `docs/`. Never overwrite
+an existing log — create a new file each time. For a second session on the same
+day, append a numeric suffix (`-2`, `-3`).
 
-```
-docs/BASAgents-fixes-YYYY-MM-DD.md
-```
+| Team | Roster | Log file | Mode |
+|------|--------|----------|------|
+| BASAgents | `.claude/BASAgents.md` | `docs/BASAgents-fixes-YYYY-MM-DD.md` | audit + fix |
+| DesignAgents | `.claude/DesignAgents.md` | `docs/DesignAgents-fixes-YYYY-MM-DD.md` | audit + fix |
+| LandingAgents | `.claude/LandingAgents.md` | `docs/LandingAgents-fixes-YYYY-MM-DD.md` | audit + fix |
+| ShareAgents | `.claude/ShareAgents.md` | `docs/ShareAgents-fixes-YYYY-MM-DD.md` | audit + fix |
+| SyncAgents | `.claude/SyncAgents.md` | `docs/SyncAgents-fixes-YYYY-MM-DD.md` | audit + fix |
+| DxrAgents | _log convention only_ | `docs/DxrAgents-fixes-YYYY-MM-DD.md` | audit + fix |
+| SyncErrorAgents | _log convention only_ | `docs/SyncErrorAgents-fixes-YYYY-MM-DD.md` | audit + fix |
+| SyncAuditAgents | _log convention only_ | `docs/SyncAuditAgents-findings-*.md` + `-fixes-*.md` | audit + fix |
+| ReviewAgents | _log convention only_ | `docs/ReviewAgents-findings-YYYY-MM-DD.md` | **read-only** |
 
-Use the current date at the time of the fix session. Create a new file each time — never overwrite an existing log. If multiple sessions occur on the same day, append a suffix: `BASAgents-fixes-2026-05-09-2.md`.
+"_log convention only_" means there is no roster file in `.claude/` — that name is
+a label for a single-session effort, not a standing team. (`SyncErrorAgents`'
+own log records "Agents engaged: 1"; `SyncAuditAgents-fixes-2026-06-11.md` says
+"single session, no agent team fan-out".) Do not invent a roster to match the
+name; either work solo under the label or promote it to a real roster file and
+move its row up.
 
 ### Required sections in every fix log
 
-1. **Header block** — date, agent count, files changed, insertions/deletions
-2. **Audit Phase** — table of agents, ownership areas, and files read
+1. **Header block** — date, agent count, files changed, insertions/deletions,
+   and the verification status (typecheck / lint / tests / build).
+2. **Audit Phase** — table of agents, ownership areas, and files read.
 3. **Fixes Applied** — grouped by priority (P0 / P1 / P2 / P3), each with:
    - File path
    - Issue description (what was wrong and why it mattered)
    - Fix description (what changed and how)
-4. **Housekeeping** — any cleanup tasks done outside the fix scope
-5. **Verification** — test results, lint output, TypeScript compile status
+4. **Housekeeping** — cleanup done outside the fix scope.
+5. **Verification** — test results, lint output, TypeScript compile status.
+6. **Deferred** — findings deliberately NOT fixed this session, with the reason.
+   A finding that is dropped silently is indistinguishable from one that was
+   never found.
 
-### Reference
+### Read-only teams
 
-- Agent team definition: `.claude/BASAgents.md`
-- Fix log archive: `docs/BASAgents-fixes-*.md`
+ReviewAgents never edits code; its session produces a findings doc instead of a
+fix log. In addition to the sections above (minus "Fixes Applied"), a findings
+doc carries, per finding: location (`file:line`), owning agent, current
+behavior, why it is a defect, suggested fix (described, not applied), and the
+handoff target. When another team later applies those fixes, that team writes
+its own fix log referencing the originating findings doc.
 
----
+### Rules for running any team
 
-## DesignAgents Fix Documentation Rule
-
-**Whenever DesignAgents run an audit and fixes are applied, create a new dated log file:**
-
-```
-docs/DesignAgents-fixes-YYYY-MM-DD.md
-```
-
-Use the current date at the time of the fix session. Create a new file each time — never overwrite an existing log. If multiple sessions occur on the same day, append a suffix: `DesignAgents-fixes-2026-05-09-2.md`.
-
-Same required sections as BASAgents fix logs: header block, audit phase, fixes by priority, housekeeping, verification.
-
-### Reference
-
-- Agent team definition: `.claude/DesignAgents.md`
-- Fix log archive: `docs/DesignAgents-fixes-*.md`
-
----
-
-## DxrAgents Fix Documentation Rule
-
-**Whenever DxrAgents run an audit and fixes are applied, create a new dated log file:**
-
-```
-docs/DxrAgents-fixes-YYYY-MM-DD.md
-```
-
-Use the current date at the time of the fix session. Create a new file each time — never overwrite an existing log. If multiple sessions occur on the same day, append a suffix: `DxrAgents-fixes-2026-05-09-2.md`.
-
-Same required sections as BASAgents fix logs: header block, audit phase, fixes by priority, housekeeping, verification.
-
-### Reference
-
-- Agent team definition: `.claude/DxrAgents.md`
-- Fix log archive: `docs/DxrAgents-fixes-*.md`
-
----
-
-## SyncErrorAgents Fix Documentation Rule
-
-**Whenever SyncErrorAgents run an audit and fixes are applied, create a new dated log file:**
-
-```
-docs/SyncErrorAgents-fixes-YYYY-MM-DD.md
-```
-
-Use the current date at the time of the fix session. Create a new file each time — never overwrite an existing log. If multiple sessions occur on the same day, append a suffix: `SyncErrorAgents-fixes-2026-05-09-2.md`.
-
-Same required sections as BASAgents fix logs: header block, audit phase, fixes by priority, housekeeping, verification.
-
-### Reference
-
-- Agent team definition: `.claude/SyncErrorAgents.md`
-- Fix log archive: `docs/SyncErrorAgents-fixes-*.md`
-
----
-
-## SyncAuditAgents Fix Documentation Rule
-
-**Whenever SyncAuditAgents run an audit and fixes are applied, create a new dated log file:**
-
-```
-docs/SyncAuditAgents-fixes-YYYY-MM-DD.md
-```
-
-Use the current date at the time of the fix session. Create a new file each time — never overwrite an existing log. If multiple sessions occur on the same day, append a suffix: `SyncAuditAgents-fixes-2026-05-09-2.md`.
-
-Same required sections as BASAgents fix logs: header block, audit phase, fixes by priority, housekeeping, verification.
-
-### Reference
-
-- Agent team definition: `.claude/SyncAuditAgents.md`
-- Findings doc: `docs/SyncAuditAgents-findings-*.md`
-- Fix log archive: `docs/SyncAuditAgents-fixes-*.md`
-
----
-
-## ReviewAgents Findings Documentation Rule
-
-**ReviewAgents is read-only.** It never edits code. Each audit session produces one dated findings doc:
-
-```
-docs/ReviewAgents-findings-YYYY-MM-DD.md
-```
-
-Use the current date at the time of the audit. Create a new file each time — never overwrite an existing findings doc. If multiple sessions occur on the same day, append a suffix: `ReviewAgents-findings-2026-05-20-2.md`.
-
-### Required sections in every findings doc
-
-1. **Header block** — date, agent count (6), files reviewed, LOC reviewed, mode (read-only)
-2. **Executive Summary** — table of P0/P1/P2/P3 counts and the top theme per priority
-3. **Findings grouped by priority** (P0 → P1 → P2 → P3), each with:
-   - Location (`file:line`)
-   - Owner agent (which of the 6 found it)
-   - Current behavior
-   - Why it's a bug / inconsistency / bloat
-   - Suggested fix (described, not applied)
-   - Handoff target (which fix-team agent should own remediation)
-4. **Cross-cutting findings** — items spanning multiple agents' slices, owned by the Cross-Cutting Pattern Auditor
-5. **Out of scope / deferred** — explicit list of items not recommended for fixing this round, with reasons
-
-### No fix log from ReviewAgents itself
-
-When fixes are subsequently applied by a different team (typically BASAgents), that team writes its own fix log under its own rule above (e.g., `docs/BASAgents-fixes-YYYY-MM-DD.md`). The fix log should reference the originating findings doc.
-
-### Reference
-
-- Agent team definition: `.claude/ReviewAgents.md`
-- Findings doc archive: `docs/ReviewAgents-findings-*.md`
+- **Audit read-only first, then fix.** Spawn the audit agents with an explicit
+  "do not edit any file" instruction and collect findings; apply fixes in a
+  second pass. Parallel agents editing at once conflict on shared files
+  (`src/types/index.ts`, `src/lib/utils.ts`), and a findings-then-fixes split is
+  what the log format above already assumes.
+- **Establish a green baseline before auditing.** Run `npm run health` first and
+  record the result, so a failure found later is attributable. Check exit codes
+  directly — `npm run typecheck | tail` reports *tail's* exit status, not tsc's.
+- **Verify a finding before acting on it.** Agent reports are input, not truth.
+  Read the cited `file:line` yourself; a confident, wrong finding costs more than
+  a missed one.
+- **A test that pins buggy behavior must be updated, not worked around** — and
+  the change must be called out in the log, because it looks like a weakened
+  test in review.
+- **Respect the Sync Feature Freeze above.** Any proposal that adds a `global_*`
+  table, entity type, reconcile direction, selective-sync mode, or a new writer
+  to `global_*` is out of scope; mark it BLOCKED BY FREEZE rather than routing
+  around it.
 
 ---
 

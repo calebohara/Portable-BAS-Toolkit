@@ -62,6 +62,29 @@ export interface AuthState {
 // ─── Not-configured error helper ────────────────────────────
 const notConfiguredError = { message: 'Supabase not configured', name: 'AuthError', status: 0 } as AuthError;
 
+// ─── Sign-out intent tracking ───────────────────────────────────────────────
+/**
+ * Was the in-flight SIGNED_OUT caused by the user pressing Sign Out?
+ *
+ * Supabase emits an identical `SIGNED_OUT` event whether the user asked to sign
+ * out or the session was revoked underneath them (expired refresh token, a
+ * server-side revocation, or — self-inflicted — this app's own
+ * `signOut({ scope: 'others' })` after a password change, which kills every
+ * OTHER device for the account). Treating those the same meant a routine
+ * password reset on a laptop silently wiped a field tech's iPad, queue and all.
+ *
+ * Module-level rather than a ref: AuthProvider is mounted once, and the flag has
+ * to survive the async gap between `signOut()` and the event landing in the
+ * `onAuthStateChange` listener. It is consumed (reset to false) by the first
+ * reconciliation that reads it, so it cannot leak into a later transition.
+ */
+let userInitiatedSignOut = false;
+
+/** Test seam: reset the module-level sign-out intent flag. */
+export function __resetSignOutIntentForTests(): void {
+  userInitiatedSignOut = false;
+}
+
 // ─── Same-device user isolation decision (Finding #2, Phase 1c) ─────────────
 /**
  * Pure decision for whether an auth transition requires wiping IndexedDB +
@@ -83,9 +106,10 @@ export function decideUserIsolation(
   event: string,
   prevAuthUserId: string | null,
   newUserId: string | null,
-): { wipe: boolean } {
+  opts: { userInitiatedSignOut?: boolean } = {},
+): { wipe: boolean; retainPrevUserId: boolean } {
   // Same user (token refresh, USER_UPDATED, repeated SIGNED_IN): no isolation.
-  if (newUserId && newUserId === prevAuthUserId) return { wipe: false };
+  if (newUserId && newUserId === prevAuthUserId) return { wipe: false, retainPrevUserId: false };
 
   // Sign-out only matters if there WAS an authenticated user to isolate from.
   // A null→null transition (local-only session that never signed in) must NOT
@@ -94,7 +118,22 @@ export function decideUserIsolation(
   // Only a recorded, DIFFERENT prior id counts as a switch — a null prior id is
   // a first-ever login (or pre-tracking store); don't wipe a legit local store.
   const isUserSwitch = !!newUserId && !!prevAuthUserId && newUserId !== prevAuthUserId;
-  return { wipe: isSignOut || isUserSwitch };
+
+  if (isSignOut && !opts.userInitiatedSignOut) {
+    // INVOLUNTARY sign-out (revoked/expired session). Do NOT destroy local work
+    // the user never chose to discard — an offline day's sync queue can be
+    // sitting in IndexedDB, and clearAllData() takes the queue with it.
+    //
+    // Privacy is still preserved, just deferred: by RETAINING the previous
+    // user's id instead of recording null, the next sign-in is measured against
+    // it — so a DIFFERENT user signing in hits the isUserSwitch branch above and
+    // wipes before their SyncManager starts, while the SAME user signing back in
+    // matches and keeps their un-pushed work. Recording null here would defeat
+    // that: a null prior id reads as a first-ever login and would NOT wipe.
+    return { wipe: false, retainPrevUserId: true };
+  }
+
+  return { wipe: isSignOut || isUserSwitch, retainPrevUserId: false };
 }
 
 // ─── Context ────────────────────────────────────────────────
@@ -179,7 +218,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (event: string, newUser: User | null): Promise<void> => {
       const store = useAppStore.getState();
       const newUserId = newUser?.id ?? null;
-      const { wipe } = decideUserIsolation(event, store.lastAuthUserId, newUserId);
+      // Consume the intent flag: whichever transition reads it first clears it,
+      // so a deliberate sign-out can never be mistaken for a later involuntary
+      // one (or vice versa).
+      const wasUserInitiated = userInitiatedSignOut;
+      userInitiatedSignOut = false;
+      const { wipe, retainPrevUserId } = decideUserIsolation(
+        event, store.lastAuthUserId, newUserId,
+        { userInitiatedSignOut: wasUserInitiated },
+      );
 
       if (wipe) {
         try {
@@ -196,9 +243,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         useAppStore.setState({ recentSearches: [], recentProjectIds: [] });
       }
 
-      // Record the new identity (null on sign-out) so the next transition is
-      // measured against it.
-      store.setLastAuthUserId(newUserId);
+      if (retainPrevUserId) {
+        // Involuntary sign-out: keep the previous id so the NEXT sign-in is
+        // still measured against it (see decideUserIsolation). Recording null
+        // would make a different user's sign-in look like a first-ever login
+        // and skip the wipe.
+        console.info(
+          '[auth] Session ended without a user-initiated sign-out — keeping local data ' +
+          'and the recorded identity so un-pushed work survives. A different user signing ' +
+          'in will still trigger the isolation wipe.',
+        );
+      } else {
+        // Record the new identity (null on a deliberate sign-out) so the next
+        // transition is measured against it.
+        store.setLastAuthUserId(newUserId);
+      }
     },
     [],
   );
@@ -295,6 +354,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     if (!client) return;
+    // Mark this as deliberate BEFORE the call: the SIGNED_OUT event can land
+    // synchronously inside signOut(), and reconcileUserIsolation reads the flag
+    // to decide whether wiping local data is what the user actually asked for.
+    userInitiatedSignOut = true;
     await client.auth.signOut();
     setUser(null);
     setSession(null);

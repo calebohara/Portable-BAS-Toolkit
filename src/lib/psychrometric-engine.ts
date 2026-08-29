@@ -58,20 +58,35 @@ export function saturationPressure(T_F: number): number {
 }
 
 // ─── Humidity Ratio Calculations ─────────────────────────────
+/**
+ * Saturation humidity ratio at a dry bulb temperature (lb_w/lb_da) — the
+ * physical ceiling for W at this temperature and pressure.
+ *
+ * This replaces the former hard-coded 0.03 lb/lb "practical maximum". 0.03 is
+ * only 210 gr/lb, which is well inside ordinary HVAC territory: 95°F/90% RH
+ * (Gulf Coast, cooling-tower plume) is W = 0.0327, and 120°F/60% (laundry
+ * exhaust) is 0.0462. Clamping those silently reported ~82% RH for a 90% RH
+ * entry, with a wrong enthalpy and dew point to match, and the only signal was
+ * a console.warn no field tech will ever see.
+ */
+export function saturationHumidityRatio(T_db_F: number, P_atm: number): number {
+  const pws = saturationPressure(T_db_F);
+  // Above the boiling point for this pressure there is no saturated moist-air
+  // state. Floor the denominator so callers still receive a finite number;
+  // validateInputsIP caps dry bulb at 200°F, below boiling at every supported
+  // altitude, so this branch is not reachable through the UI.
+  const denom = Math.max(P_atm - pws, P_atm * 1e-3);
+  return 0.621945 * pws / denom;
+}
+
 /** Humidity ratio from relative humidity (%). Returns lb_w/lb_da. */
 export function humidityRatioFromRH(T_db_F: number, rh: number, P_atm: number): number {
   const pws = saturationPressure(T_db_F);
-  const pw = (rh / 100) * pws;
-  if (pw >= P_atm) {
-    console.warn('[psychrometric] Humidity ratio clamped to 0.03 lb/lb (practical maximum) — vapor pressure exceeded atmospheric pressure at T_db=' + T_db_F.toFixed(1) + '°F, RH=' + rh.toFixed(1) + '%');
-    return 0.03; // clamp at practical max
-  }
-  const W = 0.621945 * pw / (P_atm - pw);
-  if (W > 0.03) {
-    console.warn('[psychrometric] Humidity ratio clamped from', W.toFixed(4), 'to 0.03 lb/lb (practical maximum)');
-    return 0.03;
-  }
-  return W;
+  // RH <= 100 implies pw <= pws, so W is bounded by saturation by construction;
+  // no artificial ceiling is needed. Only guard the non-physical case where the
+  // vapor pressure would meet or exceed atmospheric.
+  const pw = Math.min((rh / 100) * pws, P_atm * (1 - 1e-3));
+  return 0.621945 * pw / (P_atm - pw);
 }
 
 /** Humidity ratio from wet bulb temperature (°F). Returns lb_w/lb_da. */
@@ -92,33 +107,23 @@ export function humidityRatioFromWetBulb(T_db_F: number, T_wb_F: number, P_atm: 
 
 /** Humidity ratio from dew point temperature (°F). Returns lb_w/lb_da. */
 export function humidityRatioFromDewPoint(T_dp_F: number, P_atm: number): number {
-  const pws_dp = saturationPressure(T_dp_F);
-  if (pws_dp >= P_atm) {
-    console.warn('[psychrometric] Humidity ratio clamped to 0.03 lb/lb (practical maximum) — saturation pressure exceeded atmospheric pressure at T_dp=' + T_dp_F.toFixed(1) + '°F');
-    return 0.03;
-  }
-  const W = 0.621945 * pws_dp / (P_atm - pws_dp);
-  if (W > 0.03) {
-    console.warn('[psychrometric] Humidity ratio clamped from', W.toFixed(4), 'to 0.03 lb/lb (practical maximum)');
-    return 0.03;
-  }
-  return W;
+  // A dew point is by definition a saturated state, so W is physically bounded
+  // already; only the above-boiling case needs a guard.
+  const pws_dp = Math.min(saturationPressure(T_dp_F), P_atm * (1 - 1e-3));
+  return 0.621945 * pws_dp / (P_atm - pws_dp);
 }
 
 /** Humidity ratio from enthalpy (BTU/lb_da) and dry bulb (°F). Returns lb_w/lb_da. */
-export function humidityRatioFromEnthalpy(T_db_F: number, h: number): number {
+export function humidityRatioFromEnthalpy(T_db_F: number, h: number, P_atm: number = P_STD): number {
   // h = 0.240 * T_db + W * (1061 + 0.444 * T_db)
   // Solve: W = (h - 0.240 * T_db) / (1061 + 0.444 * T_db)
   const denom = 1061 + 0.444 * T_db_F;
   if (Math.abs(denom) < 1e-10) return 0;
   const W = (h - 0.240 * T_db_F) / denom;
-  // Mirror the upper clamp used by humidityRatioFromRH / humidityRatioFromDewPoint:
-  // unphysical input pairs (e.g. high enthalpy at low dry bulb) overshoot saturation.
-  if (W > 0.03) {
-    console.warn('[psychrometric] Humidity ratio clamped from', W.toFixed(4), 'to 0.03 lb/lb (practical maximum)');
-    return 0.03;
-  }
-  return W;
+  // Unlike the RH and dew-point paths, an arbitrary (T_db, h) pair genuinely can
+  // overshoot saturation, so a ceiling is needed here — but it is the physical
+  // one at this temperature and pressure, not a flat 0.03.
+  return Math.min(W, saturationHumidityRatio(T_db_F, P_atm));
 }
 
 // ─── Derived Properties ──────────────────────────────────────
@@ -372,6 +377,37 @@ export function feetToMeters(ft: number): number { return ft * 0.3048; }
 export function metersToFeet(m: number): number { return m / 0.3048; }
 
 /** Convert a full PsychState from IP → SI display units. */
+/** BTU/lb → kJ/kg scale factor. */
+export const BTU_LB_TO_KJ_KG = 2.326;
+
+/**
+ * Datum offset between the IP and SI moist-air enthalpy conventions (kJ/kg).
+ *
+ * IP enthalpy is referenced to 0°F dry air:  h = 0.240·t_F + W(1061 + 0.444·t_F)
+ * SI enthalpy is referenced to 0°C:          h = 1.006·t_C + W(2501 + 1.86·t_C)
+ *
+ * Expanding the IP form in °C and scaling by 2.326 gives
+ *   1.0048·t_C + 17.864 + W(2500.9 + 1.859·t_C)
+ * — the SI form PLUS this constant. So the conversion is affine, not a pure
+ * scale. Using the scale alone overstated SI enthalpy by 17.86 kJ/kg (37% at
+ * ordinary return-air conditions) and, on the `db-h` input path, turned a
+ * correct 47.5 kJ/kg entry into ~12% RH instead of 50%.
+ *
+ * Derived as 0.240 BTU/lb·°F × 32°F × 2.326 rather than hard-coded, so the
+ * relationship to the IP datum stays visible.
+ */
+export const ENTHALPY_DATUM_OFFSET_KJ_KG = 0.240 * 32 * BTU_LB_TO_KJ_KG;
+
+/** Convert moist-air enthalpy BTU/lb (IP datum) → kJ/kg (SI datum). */
+export function enthalpyIpToSi(h_ip: number): number {
+  return h_ip * BTU_LB_TO_KJ_KG - ENTHALPY_DATUM_OFFSET_KJ_KG;
+}
+
+/** Convert moist-air enthalpy kJ/kg (SI datum) → BTU/lb (IP datum). */
+export function enthalpySiToIp(h_si: number): number {
+  return (h_si + ENTHALPY_DATUM_OFFSET_KJ_KG) / BTU_LB_TO_KJ_KG;
+}
+
 export function ipToSi(s: PsychState): PsychState {
   return {
     dryBulb: fahrenheitToCelsius(s.dryBulb),
@@ -379,7 +415,7 @@ export function ipToSi(s: PsychState): PsychState {
     dewPoint: fahrenheitToCelsius(s.dewPoint),
     relativeHumidity: s.relativeHumidity,
     humidityRatio: s.humidityRatio * 1000, // lb/lb → g/kg
-    enthalpy: s.enthalpy * 2.326, // BTU/lb → kJ/kg
+    enthalpy: enthalpyIpToSi(s.enthalpy), // BTU/lb → kJ/kg (datum-corrected)
     specificVolume: s.specificVolume * 0.0624279606, // ft³/lb → m³/kg (inverse of density conversion)
     vaporPressure: s.vaporPressure * 6.89476, // psi → kPa
     saturationPressure: s.saturationPressure * 6.89476,
@@ -395,7 +431,7 @@ export function siToIp(s: PsychState): PsychState {
     dewPoint: celsiusToFahrenheit(s.dewPoint),
     relativeHumidity: s.relativeHumidity,
     humidityRatio: s.humidityRatio / 1000, // g/kg → lb/lb
-    enthalpy: s.enthalpy / 2.326,
+    enthalpy: enthalpySiToIp(s.enthalpy),
     specificVolume: s.specificVolume / 0.0624279606,
     vaporPressure: s.vaporPressure / 6.89476,
     saturationPressure: s.saturationPressure / 6.89476,

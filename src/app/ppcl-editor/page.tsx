@@ -141,9 +141,13 @@ function PpclEditorPageInner() {
     if (!activeTabId) return;
     setDirtyIds(prev => new Set(prev).add(activeTabId));
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    // Bind the target id at schedule time. The debounce previously closed over
+    // `activeTabId`, so a pending write could land against whichever document
+    // was active 500ms later rather than the one actually edited.
+    const targetId = activeTabId;
     saveTimerRef.current = setTimeout(() => {
-      updateDocument(activeTabId, { content: newContent }).then(() => {
-        setDirtyIds(prev => { const next = new Set(prev); next.delete(activeTabId); return next; });
+      updateDocument(targetId, { content: newContent }).then(() => {
+        setDirtyIds(prev => { const next = new Set(prev); next.delete(targetId); return next; });
       });
     }, 500);
   }, [activeTabId, updateDocument]);
@@ -412,6 +416,14 @@ function PpclEditorPageInner() {
           {activeDoc ? (
             <div className="flex-1 min-h-0 overflow-hidden">
               <PpclEditorComponent
+                // Remount per document so each one gets a fresh EditorState and
+                // its OWN undo history. Without this the tab switch dispatches a
+                // full-document replacement into the shared CodeMirror history,
+                // so Ctrl+Z after switching from program A to program B reverted
+                // B's buffer to A's text — and because that undo is not tagged as
+                // an external change, onContentChange fired and persisted A's
+                // program into B's record, then synced it.
+                key={activeDoc.id}
                 content={localContent}
                 onContentChange={handleContentChange}
                 onCursorChange={setCursor}

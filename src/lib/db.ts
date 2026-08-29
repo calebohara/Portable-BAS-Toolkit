@@ -976,9 +976,16 @@ export async function getFilesByCategory(projectId: string, category: string): P
 export async function deleteFile(id: string): Promise<void> {
   const db = await getDB();
   const file = await db.get('files', id);
+  const storagePaths: string[] = [];
   if (file) {
     for (const version of file.versions) {
       if (version.blobKey) await db.delete('fileBlobs', version.blobKey);
+      // GAP-1 added forward roaming of project files to Supabase Storage but
+      // never updated the delete paths, so the bytes of a "deleted" file stayed
+      // live at their Storage URL forever — an unbounded quota leak, and (while
+      // the bucket is public) a deleted customer drawing still downloadable by
+      // anyone holding the URL.
+      if (version.storagePath) storagePaths.push(version.storagePath);
     }
   }
   // Clean up notes attached to this file
@@ -989,14 +996,76 @@ export async function deleteFile(id: string): Promise<void> {
   }
   await db.delete('files', id);
   notifySync('delete', 'files', id, null);
+
+  // Best-effort, post-commit: never let a Storage hiccup fail the local delete.
+  // Dynamically imported so db.ts keeps no module-level dependency on the
+  // Supabase client (db is the lower-level module and is unit-tested without it).
+  if (storagePaths.length > 0) {
+    try {
+      const { deleteManyFromStorage } = await import('@/lib/storage');
+      await deleteManyFromStorage(storagePaths);
+    } catch (e) {
+      console.warn('[db] Failed to remove roamed file objects from Storage (non-fatal):', e);
+    }
+  }
 }
 
 // ─── File Blobs ─────────────────────────────────────────────
 
 /**
+ * Blob keys whose IndexedDB copy is the ONLY copy — deleting them destroys user
+ * data outright rather than evicting a re-downloadable cache entry.
+ *
+ * `fileBlobs` is treated as a cache by three separate paths (eviction, "Clear
+ * File Cache", and file delete), but for two kinds of content it is the system
+ * of record:
+ *
+ *   • **Daily-report attachments.** `ReportAttachment` has only a `blobKey` —
+ *     no `storagePath` — so those bytes are not roamed anywhere. They are the
+ *     site photos that prove work was done.
+ *   • **Un-roamed file versions.** `roamFileToStorage()` is best-effort and
+ *     no-ops entirely when Supabase isn't configured, so any file uploaded
+ *     offline, on a local-only install, or during a failed upload has no
+ *     `storagePath`. Its blob is the only copy in existence.
+ *
+ * A version WITH a `storagePath` is genuinely cache-like: evicting it costs a
+ * re-download, nothing more.
+ */
+async function collectIrreplaceableBlobKeys(
+  db: IDBPDatabase<BasToolkitDB>,
+): Promise<Set<string>> {
+  const keys = new Set<string>();
+
+  const reports = await db.getAll('dailyReports');
+  for (const r of reports) {
+    for (const att of (r.attachments || [])) {
+      if (att.blobKey) keys.add(att.blobKey);
+    }
+  }
+
+  const files = await db.getAll('files');
+  for (const f of files) {
+    for (const v of (f.versions || [])) {
+      // Only un-roamed versions are irreplaceable; a storagePath means the
+      // bytes can be pulled back down.
+      if (v.blobKey && !v.storagePath) keys.add(v.blobKey);
+    }
+  }
+
+  return keys;
+}
+
+/**
  * Evict the oldest cached blobs (by `cachedAt`) when storage is >80% full.
  * Uses the storage estimate API; no-ops on browsers that don't support it.
  * The `fileBlobs` store has no `by-cached-at` index, so we sort in-memory.
+ *
+ * Eviction is REFERENCE-AWARE: it will never drop a blob that is the only copy
+ * (see collectIrreplaceableBlobKeys). Previously this deleted the oldest
+ * max(5, 10%) blobs regardless of what referenced them, so a tech near quota
+ * attaching one more photo to today's report silently destroyed several of last
+ * week's report photos — the reports still listed them, and download/export then
+ * failed with "File not found in local storage".
  */
 async function evictOldBlobsIfNeeded(db: IDBPDatabase<BasToolkitDB>): Promise<void> {
   if (!navigator.storage?.estimate) return;
@@ -1004,10 +1073,24 @@ async function evictOldBlobsIfNeeded(db: IDBPDatabase<BasToolkitDB>): Promise<vo
   if (quota === 0 || usage / quota < 0.8) return;
   const blobs = await db.getAll('fileBlobs');
   if (blobs.length === 0) return;
+
+  const irreplaceable = await collectIrreplaceableBlobKeys(db);
+  const evictable = blobs.filter(b => !irreplaceable.has(b.id));
+  if (evictable.length === 0) {
+    // Nothing may be safely dropped. Surface it rather than deleting the user's
+    // only copies to make room — the caller's write still proceeds, and the
+    // browser will raise QuotaExceededError if it genuinely cannot fit.
+    console.warn(
+      '[db] Storage is over 80% but every cached blob is an only-copy ' +
+      '(un-roamed file version or daily-report attachment). Nothing evicted.',
+    );
+    return;
+  }
+
   // Sort ascending by cachedAt (oldest first)
-  blobs.sort((a, b) => a.cachedAt.localeCompare(b.cachedAt));
-  const evictCount = Math.max(5, Math.floor(blobs.length * 0.1));
-  for (const entry of blobs.slice(0, evictCount)) {
+  evictable.sort((a, b) => a.cachedAt.localeCompare(b.cachedAt));
+  const evictCount = Math.min(evictable.length, Math.max(5, Math.floor(blobs.length * 0.1)));
+  for (const entry of evictable.slice(0, evictCount)) {
     await db.delete('fileBlobs', entry.id);
   }
 }
@@ -1295,27 +1378,29 @@ export async function getStorageEstimate(): Promise<{ used: number; quota: numbe
   return { used: 0, quota: 0 };
 }
 
-export async function clearFileCache(): Promise<number> {
+export async function clearFileCache(): Promise<{ cleared: number; keptOnlyCopies: number }> {
   const d = await getDB();
-  const reports = await d.getAll('dailyReports');
-  const attachmentKeys = new Set<string>();
-  for (const r of reports) {
-    for (const att of (r.attachments || [])) {
-      if (att.blobKey) attachmentKeys.add(att.blobKey);
-    }
-  }
+  // Previously this kept ONLY daily-report attachments, so every project-file
+  // blob was deleted — including un-roamed ones whose IndexedDB copy is the only
+  // copy that exists. The confirm dialog told the user "your project data is
+  // preserved" while their offline-uploaded panel backup was destroyed.
+  const irreplaceable = await collectIrreplaceableBlobKeys(d);
+
   const tx = d.transaction('fileBlobs', 'readwrite');
   let cursor = await tx.store.openCursor();
-  let count = 0;
+  let cleared = 0;
+  let keptOnlyCopies = 0;
   while (cursor) {
-    if (!attachmentKeys.has(cursor.key as string)) {
+    if (irreplaceable.has(cursor.key as string)) {
+      keptOnlyCopies++;
+    } else {
       await cursor.delete();
-      count++;
+      cleared++;
     }
     cursor = await cursor.continue();
   }
   await tx.done;
-  return count;
+  return { cleared, keptOnlyCopies };
 }
 
 // ─── Search ─────────────────────────────────────────────────

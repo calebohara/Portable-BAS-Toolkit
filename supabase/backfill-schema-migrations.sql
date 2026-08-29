@@ -63,6 +63,10 @@ select migration from (
   union all select 'add-last-admin-guard.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='prevent_last_admin_removal')
   union all select 'add-activity-log-server-timestamp.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='force_activity_timestamp')
   union all select 'pin-security-definer-search-path.sql' where exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='is_global_project_member' and p.proconfig is not null and array_to_string(p.proconfig, ',') like '%search_path%')
+  union all select 'add-schema-migrations-ledger.sql' where exists(select 1 from information_schema.tables where table_schema='public' and table_name='schema_migrations')
+  union all select 'harden-project-files-storage-policies.sql' where exists(select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='Users can delete own project files')
+  union all select 'guard-profile-privilege-columns.sql' where exists(select 1 from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname='profiles' and t.tgname='profiles_guard_privilege_columns')
+  union all select 'make-project-files-bucket-private.sql' where exists(select 1 from storage.buckets where id='project-files' and public = false)
 ) applied
 on conflict (id) do nothing;
 

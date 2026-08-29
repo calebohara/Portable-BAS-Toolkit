@@ -828,3 +828,50 @@ describe('detectAnomalies', () => {
     expect(types.has('stuck-sensor')).toBe(true);
   });
 });
+
+
+// ─── Gap detection with duplicate timestamps ─────────────────
+describe('detectGaps with duplicate timestamps', () => {
+  // When >=50% of consecutive intervals are 0 (duplicate timestamps, which are
+  // routine: two points logged in the same second, two COV records at one
+  // timestamp), the plain median interval is 0. The threshold then became 0,
+  // every nonzero interval was flagged, and the description rendered
+  // "Infinity x normal interval" -- while the Statistics tab, which already
+  // guarded for this, reported 0 gaps from the same data.
+  const series: TrendSeries = {
+    id: 's1', name: 'SAT', unit: 'F', color: '#000',
+    visible: true, yAxisSide: 'left', valueType: 'numeric', sourceFile: 'f.csv',
+  };
+
+  it('reports no gaps and no Infinity when every timestamp is duplicated', () => {
+    const data: TrendDataPoint[] = [];
+    for (let i = 0; i < 10; i++) {
+      const t = i * 60_000;
+      data.push({ timestamp: t, values: { s1: 55 + i } });
+      data.push({ timestamp: t, values: { s1: 55 + i } });
+    }
+
+    const gaps = detectAnomalies(data, [series], defaultAnomalyConfig())
+      .filter(a => a.type === 'gap');
+
+    expect(gaps).toHaveLength(0);
+    expect(gaps.some(a => a.description.includes('Infinity'))).toBe(false);
+  });
+
+  it('still finds a real gap when duplicates are present', () => {
+    const data: TrendDataPoint[] = [];
+    for (let i = 0; i < 10; i++) {
+      const t = i * 60_000;
+      data.push({ timestamp: t, values: { s1: 55 } });
+      data.push({ timestamp: t, values: { s1: 55 } });
+    }
+    // A genuine 30-minute outage after the duplicated run.
+    data.push({ timestamp: 9 * 60_000 + 30 * 60_000, values: { s1: 55 } });
+
+    const gaps = detectAnomalies(data, [series], defaultAnomalyConfig())
+      .filter(a => a.type === 'gap');
+
+    expect(gaps).toHaveLength(1);
+    expect(gaps[0].description).not.toContain('Infinity');
+  });
+});

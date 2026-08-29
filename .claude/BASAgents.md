@@ -102,6 +102,10 @@ src/components/files/
 src/components/notes/
 src/components/inbox/
 src/components/share/
+src/components/devices/
+src/components/dxrs/
+src/components/safety/
+src/lib/dxr/
 src/hooks/use-projects.ts
 src/hooks/use-global-projects.ts
 src/hooks/use-knowledge-base.ts
@@ -139,6 +143,7 @@ src/app/pending-approval/
 src/app/donate/
 src/app/settings/
 src/components/settings/
+src/components/sync/
 src/providers/auth-provider.tsx
 src/providers/sync-provider.tsx
 src/hooks/use-auth-gate.ts
@@ -178,6 +183,7 @@ bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --traits "security,analyti
 src-tauri/                         (except main.rs ICMP commands → Field Connectivity)
 src/app/layout.tsx
 src/app/globals.css
+src/app/dashboard/
 src/app/desktop/
 src/app/offline/
 src/app/help/
@@ -202,6 +208,7 @@ src/lib/updater.ts
 src/lib/version.ts
 src/lib/utils.ts
 src/store/ppcl-editor-store.ts
+src/store/p2-inspector-store.ts
 scripts/
 next.config.ts
 next-env.d.ts
@@ -223,6 +230,46 @@ bun run ~/.claude/skills/Agents/Tools/ComposeAgent.ts --traits "technical,skepti
 ## Spawn All Agents (Parallel)
 
 To launch all 5 agents simultaneously on independent tasks, pass them to the Agent tool in a single message with separate `subagent_type: "general-purpose"` calls and inject the composed prompt as the system prompt context.
+
+## Audit Protocol
+
+Run an audit in two passes. Do not let five agents edit at once — their
+ownership lists overlap on shared files (`src/types/index.ts`, `src/lib/utils.ts`,
+`src-tauri/src/lib.rs`), and the fix-log format in `CLAUDE.md` already assumes a
+findings-then-fixes split.
+
+1. **Baseline.** `npm run health` (typecheck + lint + tests) BEFORE spawning, and
+   record the result in the log's header block. Read exit codes directly —
+   `npm run typecheck | tail` reports *tail's* status, not tsc's, so a piped
+   command can look green while the check fails. If `package.json` changed since
+   the last install, run `npm install` first; a stale `node_modules` surfaces as
+   phantom "Cannot find module" errors that look like code defects.
+2. **Audit (read-only).** Spawn all 5 with an explicit *"do not edit, write, or
+   create any file"* instruction. Each returns findings only: `file:line`,
+   current behavior, why it is wrong, the concrete trigger, and a described fix.
+   Tell each agent to verify numeric or behavioral claims by executing the code,
+   not by reading it.
+3. **Triage.** Verify each P0/P1 against the cited `file:line` yourself before
+   acting. Agent reports are input, not truth — a confident wrong finding costs
+   more than a missed one. Note duplicates: independent agents finding the same
+   defect from different directions is the strongest available signal.
+4. **Fix.** Apply in the owning agent's area, add a regression test that FAILS
+   against the old code (verify this — a test that passes both ways is worthless),
+   then re-run the full health check.
+5. **Log.** Write `docs/BASAgents-fixes-YYYY-MM-DD.md` per `CLAUDE.md`, including
+   the **Deferred** section. Findings dropped silently are indistinguishable from
+   findings never made.
+
+## Ownership Coverage
+
+The ownership lists below must cover every directory under `src/app/`,
+`src/components/`, `src/lib/`, and `src/store/`. When a new feature area is
+added, assign it here in the same commit — an unowned directory is one no agent
+reads, and it will not appear in any audit. Verify with:
+
+```bash
+ls -d src/app/*/ src/components/*/ src/lib/*/
+```
 
 ## Ownership Rules
 

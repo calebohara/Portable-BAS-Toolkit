@@ -18,6 +18,7 @@ import { GlobalModeBanner } from '@/components/global-projects/global-mode-banne
 import {
   computeAllProperties, validateInputsIP, checkComfortZone,
   ipToSi, celsiusToFahrenheit, metersToFeet,
+  enthalpyIpToSi, enthalpySiToIp,
 } from '@/lib/psychrometric-engine';
 
 export default function PsychrometricPage() {
@@ -70,7 +71,7 @@ function PsychrometricPageInner() {
           val2_ip = v2 / 1000;
           break;
         case 'db-h':
-          val2_ip = v2 / 2.326;
+          val2_ip = enthalpySiToIp(v2);
           break;
       }
     } else if (inputMode === 'db-w') {
@@ -100,13 +101,22 @@ function PsychrometricPageInner() {
       const v2 = parseFloat(input2);
       const alt = altitude;
 
+      // Altitude is independent of the input fields. It used to be converted
+      // only inside the `!isNaN(v1)` guard, so toggling units with the dry-bulb
+      // field blank left e.g. 5000 ft to be reinterpreted as 5000 m — 16,404 ft,
+      // i.e. every subsequent property computed at 8.0 psi instead of 12.2 psi,
+      // with no visible error.
+      if (next === 'si') {
+        setAltitude(Math.round(alt * 0.3048));
+      } else {
+        setAltitude(Math.round(alt / 0.3048));
+      }
+
       if (!isNaN(v1)) {
         if (next === 'si') {
           setInput1(((v1 - 32) * 5 / 9).toFixed(1));
-          setAltitude(Math.round(alt * 0.3048));
         } else {
           setInput1((v1 * 9 / 5 + 32).toFixed(1));
-          setAltitude(Math.round(alt / 0.3048));
         }
       }
 
@@ -122,8 +132,8 @@ function PsychrometricPageInner() {
             else setInput2((v2 / 1000 * 7000).toFixed(1));
             break;
           case 'db-h':
-            if (next === 'si') setInput2((v2 * 2.326).toFixed(2));
-            else setInput2((v2 / 2.326).toFixed(2));
+            if (next === 'si') setInput2(enthalpyIpToSi(v2).toFixed(2));
+            else setInput2(enthalpySiToIp(v2).toFixed(2));
             break;
         }
       }

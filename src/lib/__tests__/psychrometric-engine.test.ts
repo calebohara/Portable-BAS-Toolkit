@@ -6,6 +6,7 @@ import {
   humidityRatioFromWetBulb,
   humidityRatioFromDewPoint,
   humidityRatioFromEnthalpy,
+  saturationHumidityRatio,
   relativeHumidityFromW,
   relativeHumidityRawFromW,
   enthalpyFromW,
@@ -23,6 +24,9 @@ import {
   siToIp,
   calculateMixedAir,
   calculateCoilLoad,
+  enthalpyIpToSi,
+  enthalpySiToIp,
+  ENTHALPY_DATUM_OFFSET_KJ_KG,
 } from '../psychrometric-engine';
 
 const P_SEA = 14.696; // psi at sea level
@@ -144,10 +148,40 @@ describe('humidityRatioFromEnthalpy', () => {
     expect(W).toBeCloseTo(0, 4);
   });
 
-  it('clamps unphysical (supersaturated) results to 0.03 lb/lb', () => {
-    // 75°F dry bulb with 80 BTU/lb enthalpy => W ~0.058 lb/lb, well above saturation.
+  it('clamps unphysical (supersaturated) results to the SATURATION ratio', () => {
+    // 75°F dry bulb with 80 BTU/lb enthalpy => W ~0.058 lb/lb, well above
+    // saturation. The ceiling is the physical bound at this temperature and
+    // pressure (W_sat(75°F, 14.696 psi) = 0.01875), not the former flat 0.03 —
+    // which was itself ABOVE saturation at 75°F, i.e. more moisture than the
+    // air can hold.
     const W = humidityRatioFromEnthalpy(75, 80);
-    expect(W).toBe(0.03);
+    expect(W).toBeCloseTo(saturationHumidityRatio(75, 14.696), 6);
+    expect(W).toBeCloseTo(0.01875, 5);
+  });
+});
+
+describe('saturationHumidityRatio', () => {
+  it('does not clamp ordinary hot-humid conditions to 0.03', () => {
+    // Gulf Coast design day / cooling-tower plume. The former hard-coded
+    // 0.03 lb/lb ceiling truncated this and back-computed ~82% RH from a 90%
+    // RH entry, with no user-visible warning.
+    expect(humidityRatioFromRH(95, 90, 14.696)).toBeCloseTo(0.0327, 3);
+    expect(humidityRatioFromRH(100, 85, 14.696)).toBeGreaterThan(0.03);
+    expect(humidityRatioFromRH(120, 60, 14.696)).toBeGreaterThan(0.04);
+  });
+
+  it('round-trips RH at saturation to the saturation ratio', () => {
+    for (const t of [40, 75, 95, 120]) {
+      expect(humidityRatioFromRH(t, 100, 14.696)).toBeCloseTo(
+        saturationHumidityRatio(t, 14.696), 6,
+      );
+    }
+  });
+
+  it('rises with temperature and falls with pressure', () => {
+    expect(saturationHumidityRatio(95, 14.696)).toBeGreaterThan(saturationHumidityRatio(75, 14.696));
+    // Lower pressure (altitude) holds MORE moisture per lb of dry air.
+    expect(saturationHumidityRatio(75, 12.23)).toBeGreaterThan(saturationHumidityRatio(75, 14.696));
   });
 });
 
@@ -546,5 +580,62 @@ describe('calculateCoilLoad', () => {
 
     expect(entering.dryBulb).toBeLessThan(leaving.dryBulb); // panel => 'Heating mode'
     expect(result.totalLoad).toBeLessThan(0);
+  });
+});
+
+
+// ─── SI enthalpy datum ───────────────────────────────────────
+describe('enthalpy IP<->SI datum conversion', () => {
+  // IP enthalpy is referenced to 0°F dry air, SI to 0°C. The conversion is
+  // affine (x2.326 then -17.864), not a pure scale. The pre-existing
+  // ipToSi->siToIp round-trip test cannot catch a missing datum offset,
+  // because it passes for ANY invertible transform — these are absolute
+  // assertions against the independently-derived ASHRAE SI form.
+  const hSiRef = (tC: number, W: number) => 1.006 * tC + W * (2501 + 1.86 * tC);
+
+  it('has the datum offset 0.240 * 32 * 2.326', () => {
+    expect(ENTHALPY_DATUM_OFFSET_KJ_KG).toBeCloseTo(17.8637, 4);
+  });
+
+  it('matches the SI moist-air formula for standard return air', () => {
+    // 75°F / 50% RH -> h_IP = 28.11 BTU/lb. The pure x2.326 scale gave
+    // 65.38 kJ/kg; the correct SI value is ~47.5 kJ/kg (a 37% overstatement).
+    const state = computeAllProperties('db-rh', 75, 50, 0);
+    const si = ipToSi(state);
+
+    expect(si.enthalpy).toBeCloseTo(hSiRef(si.dryBulb, si.humidityRatio / 1000), 1);
+    expect(si.enthalpy).toBeCloseTo(47.5, 0);
+    expect(si.enthalpy).toBeLessThan(60); // would be 65.4 under the old scale
+  });
+
+  it('matches the SI formula across the HVAC range', () => {
+    // Tolerance is 0.15 kJ/kg absolute rather than a decimal place: the IP
+    // coefficients (0.240 / 1061 / 0.444) and the SI ones (1.006 / 2501 / 1.86)
+    // are not exactly equivalent, leaving ~0.05 kJ/kg of inherent residual at
+    // high humidity ratio. Still ~120x tighter than the 17.86 kJ/kg datum
+    // offset this guards against.
+    for (const [tF, rh] of [[40, 60], [55, 90], [75, 50], [95, 40], [110, 20]]) {
+      const si = ipToSi(computeAllProperties('db-rh', tF, rh, 0));
+      const diff = Math.abs(si.enthalpy - hSiRef(si.dryBulb, si.humidityRatio / 1000));
+      expect(diff).toBeLessThan(0.15);
+    }
+  });
+
+  it('round-trips a scalar enthalpy through both directions', () => {
+    for (const h of [-5, 0, 12.5, 28.107, 45]) {
+      expect(enthalpySiToIp(enthalpyIpToSi(h))).toBeCloseTo(h, 9);
+    }
+  });
+
+  it('recovers 50% RH from an SI db-h entry (the input-side failure)', () => {
+    // A tech entering the CORRECT SI enthalpy for 23.9°C / 50% RH used to get
+    // ~12% RH back, because the entered kJ/kg was divided by 2.326 with no
+    // datum correction.
+    const state = computeAllProperties('db-rh', 75, 50, 0);
+    const hSi = enthalpyIpToSi(state.enthalpy);
+
+    const backToIp = enthalpySiToIp(hSi);
+    const recovered = computeAllProperties('db-h', 75, backToIp, 0);
+    expect(recovered.relativeHumidity).toBeCloseTo(50, 0);
   });
 });

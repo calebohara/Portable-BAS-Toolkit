@@ -12,6 +12,7 @@ import { useGlobalProjectsList } from '@/hooks/use-global-projects';
 import { addGlobalReport } from '@/lib/global-projects/api';
 import { saveFileBlob, deleteFileBlob } from '@/lib/db';
 import { TopBar } from '@/components/layout/top-bar';
+import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
@@ -71,6 +72,24 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
   const [generalNotes, setGeneralNotes] = useState(initial?.generalNotes || '');
 
   const [attachments, setAttachments] = useState<ReportAttachment[]>(initial?.attachments || []);
+  // Blob keys that were already persisted on the report when this form mounted.
+  // Removing one of these must NOT delete the bytes until the removal is saved —
+  // otherwise abandoning the edit destroys a site photo the report still lists.
+  const persistedBlobKeys = useRef<Set<string>>(
+    new Set((initial?.attachments || []).map(a => a.blobKey).filter(Boolean) as string[]),
+  );
+  // Removals staged for deletion once the save succeeds.
+  const pendingBlobDeletions = useRef<Set<string>>(new Set());
+  // Blobs created by THIS session that were never committed — deleted on unmount
+  // so an abandoned draft doesn't leak them into fileBlobs forever.
+  const uncommittedBlobKeys = useRef<Set<string>>(new Set());
+  // Auto-calculated hours must not overwrite a manual correction. Only fill in
+  // after the user actually edits a time field.
+  const timesTouched = useRef(false);
+  // Unsaved-changes tracking. `autosave`'s identity changes whenever any field
+  // changes, so it doubles as a cheap change signal.
+  const [dirty, setDirty] = useState(false);
+  const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
 
   // Global project linking
   const [linkToGlobal, setLinkToGlobal] = useState(false);
@@ -95,21 +114,70 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
     setLastSaved(new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }));
   }, [initial, onUpdate, projectId, name, date, technicianName, status, startTime, endTime, hoursOnSite, location, weather, workCompleted, issuesEncountered, workPlannedNext, coordinationNotes, equipmentWorkedOn, deviceIpChanges, safetyNotes, generalNotes, attachments]);
 
+  // Keep the newest autosave closure reachable from cleanup without making the
+  // unmount effect depend on it (which would re-run on every keystroke).
+  const autosaveRef = useRef(autosave);
+  autosaveRef.current = autosave;
+  const autosavePending = useRef(false);
+
   useEffect(() => {
     if (mode !== 'edit' || status !== 'draft') return;
     if (autosaveTimer.current) clearTimeout(autosaveTimer.current);
-    autosaveTimer.current = setTimeout(autosave, 30000);
+    autosavePending.current = true;
+    autosaveTimer.current = setTimeout(() => {
+      autosavePending.current = false;
+      autosave().catch(e => {
+        console.warn('[report-form] Autosave failed:', e);
+        toast.error('Autosave failed — use Save Draft to keep your changes');
+      });
+    }, 30000);
     return () => { if (autosaveTimer.current) clearTimeout(autosaveTimer.current); };
   }, [mode, status, autosave]);
 
-  // Auto-calculate hours
+  // FLUSH the pending autosave on unmount. The cleanup above only cancels the
+  // timer, so ~30s of typing was discarded by navigating away — while the
+  // "Saved 4:15 PM" label implied autosave had it covered. Not awaited: unmount
+  // is synchronous, and the write only needs to be issued.
+  useEffect(() => () => {
+    if (autosavePending.current) {
+      autosavePending.current = false;
+      autosaveRef.current().catch(e => console.warn('[report-form] Unmount autosave flush failed:', e));
+    }
+  }, []);
+
+  // Mark dirty on any field change (skipping the initial seed render).
+  const dirtySeeded = useRef(false);
   useEffect(() => {
+    if (!dirtySeeded.current) { dirtySeeded.current = true; return; }
+    setDirty(true);
+  }, [autosave]);
+
+  // Browser/tab close + Tauri window close. Every dynamic-route navigation in
+  // the desktop build is a full document load, so this covers in-app navigation
+  // there too.
+  useEffect(() => {
+    if (!dirty || isReadOnly) return;
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [dirty, isReadOnly]);
+
+  // Auto-calculate hours.
+  //
+  // Gated on timesTouched: this effect used to run on MOUNT too, so reopening a
+  // report where the tech had manually corrected 9.0 -> 8.0 (excluding lunch)
+  // silently rewrote it back to 9.0, and autosave persisted the change. A
+  // billable-hours field must never move without the user touching something.
+  useEffect(() => {
+    if (!timesTouched.current) return;
     if (startTime && endTime) {
       const [sh, sm] = startTime.split(':').map(Number);
       const [eh, em] = endTime.split(':').map(Number);
       if (!isNaN(sh) && !isNaN(sm) && !isNaN(eh) && !isNaN(em)) {
         const diff = (eh * 60 + em) - (sh * 60 + sm);
-        const adjustedDiff = diff <= 0 ? diff + 1440 : diff;
+        // Only a NEGATIVE difference means an overnight shift. A zero difference
+        // (identical start and end) is 0.0h — it used to report 24.0.
+        const adjustedDiff = diff < 0 ? diff + 1440 : diff;
         setHoursOnSite((adjustedDiff / 60).toFixed(1));
       }
     }
@@ -125,6 +193,7 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
       }
       const blobKey = uuid();
       await saveFileBlob(blobKey, file);
+      uncommittedBlobKeys.current.add(blobKey);
       newAttachments.push({
         id: uuid(),
         fileName: file.name,
@@ -140,10 +209,31 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
   const removeAttachment = (id: string) => {
     const att = attachments.find(a => a.id === id);
     if (att?.blobKey) {
-      deleteFileBlob(att.blobKey).catch(e => console.warn('Failed to clean up blob:', e));
+      if (persistedBlobKeys.current.has(att.blobKey)) {
+        // Already saved on the report: stage the deletion and only carry it out
+        // once the removal is committed. Deleting here meant that tapping the
+        // wrong X and then hitting Back left the report still listing an
+        // attachment whose bytes were permanently gone.
+        pendingBlobDeletions.current.add(att.blobKey);
+      } else {
+        // Added in this session and never persisted — nothing references it.
+        uncommittedBlobKeys.current.delete(att.blobKey);
+        deleteFileBlob(att.blobKey).catch(e => console.warn('Failed to clean up blob:', e));
+      }
     }
     setAttachments(prev => prev.filter(a => a.id !== id));
   };
+
+  /** Carry out staged blob deletions after a save has actually landed. */
+  const commitBlobChanges = useCallback(async (saved: ReportAttachment[]) => {
+    for (const key of pendingBlobDeletions.current) {
+      await deleteFileBlob(key).catch(e => console.warn('Failed to clean up blob:', e));
+    }
+    pendingBlobDeletions.current.clear();
+    // Everything now on the saved report is persisted; nothing is uncommitted.
+    persistedBlobKeys.current = new Set(saved.map(a => a.blobKey).filter(Boolean) as string[]);
+    uncommittedBlobKeys.current.clear();
+  }, []);
 
   /** Attempt to push the report data to the selected global project (best-effort). */
   const maybeLinkToGlobalProject = async (data: Pick<DailyReport,
@@ -201,10 +291,18 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
 
       if (mode === 'create') {
         const report = await onSave(data as Omit<DailyReport, 'id' | 'createdAt' | 'updatedAt' | 'reportNumber'>);
+        // Only now are the blobs referenced by a persisted row.
+        await commitBlobChanges(attachments);
+        setDirty(false);
+        autosavePending.current = false;
         await maybeLinkToGlobalProject(data, report.id);
         navigateToReport(router, report.id);
       } else if (initial && onUpdate) {
         await onUpdate({ ...initial, ...data, updatedAt: new Date().toISOString() });
+        // The removal is committed — safe to delete the staged blobs now.
+        await commitBlobChanges(attachments);
+        setDirty(false);
+        autosavePending.current = false;
         await maybeLinkToGlobalProject(data, initial.id);
         navigateToReport(router, initial.id);
       }
@@ -218,7 +316,12 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
       <TopBar title={mode === 'create' ? 'New Daily Report' : `Edit ${initial?.name?.trim() || `Report #${initial?.reportNumber || ''}`}`} />
       <div className="p-4 md:p-6 max-w-3xl space-y-6 pb-24">
         {/* Back button */}
-        <Button variant="ghost" size="sm" onClick={() => router.back()} className="gap-1.5 -ml-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { if (dirty && !isReadOnly) setShowDiscardConfirm(true); else router.back(); }}
+          className="gap-1.5 -ml-2"
+        >
           <ArrowLeft className="h-4 w-4" /> Back
         </Button>
 
@@ -312,11 +415,11 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <Label htmlFor="start-time">Start Time</Label>
-              <Input id="start-time" type="time" value={startTime} onChange={e => setStartTime(e.target.value)} disabled={isReadOnly} className="mt-1.5" />
+              <Input id="start-time" type="time" value={startTime} onChange={e => { timesTouched.current = true; setStartTime(e.target.value); }} disabled={isReadOnly} className="mt-1.5" />
             </div>
             <div>
               <Label htmlFor="end-time">End Time</Label>
-              <Input id="end-time" type="time" value={endTime} onChange={e => setEndTime(e.target.value)} disabled={isReadOnly} className="mt-1.5" />
+              <Input id="end-time" type="time" value={endTime} onChange={e => { timesTouched.current = true; setEndTime(e.target.value); }} disabled={isReadOnly} className="mt-1.5" />
             </div>
             <div>
               <Label htmlFor="hours">Hours On Site</Label>
@@ -444,7 +547,16 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
                 <Button variant="outline" onClick={() => handleSubmit('draft')} disabled={saving || !projectId} className="gap-1.5">
                   <Save className="h-4 w-4" /> Save Draft
                 </Button>
-                <Button onClick={() => handleSubmit('submitted')} disabled={saving || !projectId} className="gap-1.5">
+                {/* In edit mode this passes NO status, so `finalStatus` falls
+                    back to the Status dropdown. It used to hard-code
+                    'submitted', silently discarding a "Finalized" selection —
+                    the one action a tech takes to lock a customer-facing
+                    document did nothing. Create mode still submits. */}
+                <Button
+                  onClick={() => (mode === 'create' ? handleSubmit('submitted') : handleSubmit())}
+                  disabled={saving || !projectId}
+                  className="gap-1.5"
+                >
                   {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                   {mode === 'create' ? 'Submit' : 'Save'}
                 </Button>
@@ -453,6 +565,21 @@ export function ReportForm({ initial, onSave, onUpdate, mode }: ReportFormProps)
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={showDiscardConfirm}
+        onOpenChange={setShowDiscardConfirm}
+        title="Discard unsaved changes?"
+        description={
+          mode === 'create'
+            ? 'This report has not been saved yet. Leaving now discards everything you have entered.'
+            : 'You have unsaved edits to this report. Leaving now discards them.'
+        }
+        confirmLabel="Discard"
+        cancelLabel="Keep Editing"
+        variant="destructive"
+        onConfirm={() => { setShowDiscardConfirm(false); setDirty(false); router.back(); }}
+      />
     </>
   );
 }

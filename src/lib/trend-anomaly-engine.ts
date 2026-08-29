@@ -388,7 +388,17 @@ function detectGaps(data: TrendDataPoint[], series: TrendSeries, config: Anomaly
     intervals.push(timestamps[i] - timestamps[i - 1]);
   }
 
-  const medianInterval = median(intervals);
+  // Use the median of the NONZERO intervals. Duplicate timestamps are routine
+  // (two points logged in the same second, two COV records at one timestamp);
+  // once half the intervals are 0 the plain median is 0, so `threshold` is 0,
+  // every nonzero interval is flagged, and `gap / medianInterval` renders as
+  // "Infinity× normal interval". computeSeriesStats already guards this way,
+  // which is why the Statistics tab reported 0 gaps while this reported one
+  // per sample.
+  const nonZeroIntervals = intervals.filter(i => i > 0);
+  if (nonZeroIntervals.length === 0) return anomalies;
+  const medianInterval = median(nonZeroIntervals);
+  if (medianInterval <= 0) return anomalies;
   const threshold = medianInterval * config.gapThresholdMultiplier;
 
   for (let i = 1; i < timestamps.length; i++) {

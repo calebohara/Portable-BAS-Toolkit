@@ -29,7 +29,7 @@ import { ACCEPTED_TYPES, validateFileForCategory } from '@/components/files/acce
 import type { GlobalProjectFile } from '@/types/global-projects';
 import { cn, sanitizeFilename } from '@/lib/utils';
 import {
-  buildStoragePath, uploadProjectFile, getPublicUrl, validateFileSize,
+  buildStoragePath, uploadProjectFile, getSignedUrl, validateFileSize,
   isImageFile,
 } from '@/lib/storage';
 import { toast } from 'sonner';
@@ -102,19 +102,22 @@ export function GlobalFileListView({
     }
   };
 
-  const handleDownload = (file: GlobalProjectFile) => {
-    const url = file.storagePath ? getPublicUrl(file.storagePath) : null;
+  const handleDownload = async (file: GlobalProjectFile) => {
+    const url = file.storagePath ? await getSignedUrl(file.storagePath) : null;
     if (!url) { toast.error('No file data available'); return; }
     const a = document.createElement('a');
     a.href = url;
     a.download = sanitizeFilename(file.fileName);
     a.target = '_blank';
     a.rel = 'noopener noreferrer';
+    // Firefox ignores click() on a detached anchor — it must be in the document.
+    document.body.appendChild(a);
     a.click();
+    a.remove();
   };
 
-  const handlePreview = (file: GlobalProjectFile) => {
-    const url = file.storagePath ? getPublicUrl(file.storagePath) : null;
+  const handlePreview = async (file: GlobalProjectFile) => {
+    const url = file.storagePath ? await getSignedUrl(file.storagePath) : null;
     if (!url) { toast.error('No preview available'); return; }
     window.open(url, '_blank', 'noopener,noreferrer');
   };

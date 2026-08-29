@@ -19,7 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { getPublicUrl } from '@/lib/storage';
+import { getSignedUrl } from '@/lib/storage';
 import { cn } from '@/lib/utils';
 import type { KbArticle, KbReply } from '@/types/knowledge-base';
 import { isPaywallEnabled, hasCollabAccess } from '@/lib/paywall';
@@ -367,20 +367,26 @@ function ArticleCard({ article, userId, onDeleteArticle, onReply, onDeleteReply 
           <div className="px-5 pb-4">
             <div className="flex flex-wrap gap-2">
               {article.attachments.map((att) => {
-                const url = att.storagePath ? getPublicUrl(att.storagePath) : null;
+                // Signed URLs are short-lived and must be minted per click —
+                // they cannot be rendered into href up front the way the old
+                // never-expiring public URL was.
+                const openAttachment = async () => {
+                  const url = att.storagePath ? await getSignedUrl(att.storagePath) : null;
+                  if (!url) { toast.error('Attachment is not available'); return; }
+                  window.open(url, '_blank', 'noopener,noreferrer');
+                };
                 return (
-                  <a
+                  <button
                     key={att.id}
-                    href={url || '#'}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs hover:bg-accent transition-colors"
+                    type="button"
+                    onClick={openAttachment}
+                    className="flex items-center gap-2 rounded-lg border border-border bg-muted/30 px-3 py-2 text-xs hover:bg-accent transition-colors text-left"
                   >
                     <FileText className="h-4 w-4 text-muted-foreground" />
                     <span className="truncate max-w-40">{att.fileName}</span>
                     <span className="text-muted-foreground">{formatFileSize(att.size)}</span>
                     <Download className="h-3.5 w-3.5 text-muted-foreground" />
-                  </a>
+                  </button>
                 );
               })}
             </div>

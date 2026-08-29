@@ -103,7 +103,45 @@ export async function uploadBlobToStorage(
 }
 
 /**
+ * Issue a short-lived signed URL for a file in the project-files bucket.
+ *
+ * Prefer this over getPublicUrl(). The bucket is being moved to `public = false`
+ * (see supabase/migrations/make-project-files-bucket-private.sql): a PUBLIC
+ * bucket serves /object/public/<path> WITHOUT consulting RLS, so anyone holding
+ * a URL could read any customer's site drawings and field photos forever, and a
+ * "deleted" file stayed readable at its old URL.
+ *
+ * Signed URLs work against a public bucket too, so this can (and should) ship
+ * BEFORE the bucket is flipped — deploy the code, then apply the migration.
+ *
+ * @param expiresIn seconds the link stays valid (default 5 minutes — long enough
+ *                  to open or download, short enough that a leaked URL is inert).
+ */
+export async function getSignedUrl(
+  storagePath: string,
+  expiresIn = 300,
+): Promise<string | null> {
+  const client = getSupabaseClient();
+  if (!client) return null;
+
+  const { data, error } = await client.storage
+    .from(PROJECT_FILES_BUCKET)
+    .createSignedUrl(storagePath, expiresIn);
+
+  if (error) {
+    console.warn('[storage] Failed to sign URL for', storagePath, error.message);
+    return null;
+  }
+  return data?.signedUrl || null;
+}
+
+/**
  * Get the public URL for a file in storage.
+ *
+ * @deprecated Use getSignedUrl(). This only resolves while the bucket is
+ * `public = true`, and it hands out a URL that never expires and is readable by
+ * anyone. Retained for the `avatars` bucket pattern and any not-yet-migrated
+ * caller; do not add new uses.
  */
 export function getPublicUrl(storagePath: string): string | null {
   const client = getSupabaseClient();

@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::{Read as _, Write as _};
 use std::net::IpAddr;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Instant;
 use tauri::{Emitter, Manager};
@@ -202,9 +203,22 @@ const SE: u8 = 240;
 const OPT_ECHO: u8 = 1;
 const OPT_SGA: u8 = 3; // Suppress Go-Ahead
 
+/// Monotonic connection epoch, shared by telnet and serial.
+///
+/// A read task reaps its own map entry when the peer closes or the port
+/// errors, but a reconnect on the same session id may already have replaced
+/// that entry. The epoch lets the dying task remove only the connection it
+/// actually owns instead of tearing down its live successor.
+static CONNECTION_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+fn next_connection_epoch() -> u64 {
+    CONNECTION_EPOCH.fetch_add(1, Ordering::Relaxed)
+}
+
 struct TelnetConnection {
     writer: Arc<Mutex<tokio::net::tcp::OwnedWriteHalf>>,
     read_task: tokio::task::JoinHandle<()>,
+    epoch: u64,
 }
 
 struct TelnetState(Arc<Mutex<HashMap<String, TelnetConnection>>>);
@@ -433,6 +447,8 @@ async fn telnet_connect(
     let sid = sessionId.clone();
     let app_handle = app.clone();
     let writer_for_task = writer.clone();
+    let epoch = next_connection_epoch();
+    let state_for_task = state.0.clone();
 
     let read_task = tokio::spawn(async move {
         let mut reader = read_half;
@@ -470,6 +486,30 @@ async fn telnet_connect(
                 }
             }
         }
+
+        // The peer's FIN (or a read error) closed only ITS direction. Without
+        // this, our OwnedWriteHalf stayed alive in the state map: the socket
+        // sat half-open in FIN_WAIT_2 and the controller kept its (often
+        // single) telnet session slot allocated, so reconnecting from a new
+        // tab — a different session id, so it never replaced the stale entry —
+        // was refused by the panel.
+        //
+        // LOCK ORDER MATTERS: take the state map first and RELEASE it before
+        // touching the writer. `telnet_disconnect` holds the state lock while
+        // it awaits the writer lock, so acquiring these in the opposite order
+        // here would be an ABBA deadlock — and because the state mutex would
+        // then be held forever, every telnet command in the app would hang,
+        // not just this session.
+        {
+            let mut conns = state_for_task.lock().await;
+            if conns.get(&sid).map(|c| c.epoch) == Some(epoch) {
+                conns.remove(&sid);
+            }
+        }
+        {
+            let mut w = writer_for_task.lock().await;
+            let _ = w.shutdown().await;
+        }
     });
 
     let mut connections = state.0.lock().await;
@@ -481,6 +521,7 @@ async fn telnet_connect(
         TelnetConnection {
             writer,
             read_task,
+            epoch,
         },
     );
 
@@ -566,6 +607,7 @@ pub struct SerialPortInfo {
 struct SerialConnection {
     port: Arc<std::sync::Mutex<Box<dyn serialport::SerialPort>>>,
     read_task: tokio::task::JoinHandle<()>,
+    epoch: u64,
 }
 
 struct SerialState(Arc<Mutex<HashMap<String, SerialConnection>>>);
@@ -646,6 +688,8 @@ async fn serial_connect(
     let read_port = port.clone();
     let sid = sessionId.clone();
     let app_handle = app.clone();
+    let epoch = next_connection_epoch();
+    let state_for_task = state.0.clone();
 
     let read_task = tokio::spawn(async move {
         loop {
@@ -688,6 +732,17 @@ async fn serial_connect(
                 Err(_) => break, // Task was cancelled
             }
         }
+
+        // Drop our entry so the Arc holding the port is released and the OS
+        // frees the COM handle. Without this, unplugging a USB-serial adapter
+        // left the handle owned by the state map forever, and replugging then
+        // connecting from a new tab failed with "Access denied".
+        {
+            let mut conns = state_for_task.lock().await;
+            if conns.get(&sid).map(|c| c.epoch) == Some(epoch) {
+                conns.remove(&sid);
+            }
+        }
         let _ = app_handle.emit(&format!("serial-closed-{}", sid), ());
     });
 
@@ -700,6 +755,7 @@ async fn serial_connect(
         SerialConnection {
             port,
             read_task,
+            epoch,
         },
     );
 

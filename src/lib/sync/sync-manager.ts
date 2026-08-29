@@ -1071,6 +1071,30 @@ export class SyncManager implements SyncManagerInterface {
     // Step 0: Purge orphaned demo data from Supabase (null project_id rows, soft-deleted projects)
     await this.purgeOrphans();
 
+    // Step 0b: Capture everything still UN-PUSHED before the clear below
+    // deletes it.
+    //
+    // THE BUG THIS FIXES (P0, BASAgents 2026-08-29): the watermark below is
+    // advanced at SCAN time, not on push success, while the clear is
+    // unconditional. So:
+    //   1. fullSync #1 enqueues 500 offline edits and sets lastFullPush = T.
+    //   2. Connectivity is flaky; 300 drain, 200 stay `pending`.
+    //   3. The user taps "Sync Now" again. clearSyncQueueExceptFailed() DELETES
+    //      those 200, and the dirty scan then skips every one of them because
+    //      their mtime is <= T.
+    // The rows stayed correct locally and were silently absent from the cloud
+    // and every other device, forever — `notifySync` only fires on a NEW write,
+    // the periodic pull never pushes, and consistency-check deliberately never
+    // flags local-ahead. Only a manual "Reset Sync State" recovered it.
+    //
+    // Keys captured here are exempted from the watermark skip below, so exactly
+    // the stranded rows are re-enqueued. Note getUnpushedSyncItemKeys() also
+    // includes `failed` items, which clearSyncQueueExceptFailed() preserves —
+    // re-enqueuing those is harmless because enqueue() coalesces on the
+    // deterministic `${entityType}-${entityId}` id and preserveRetry carries
+    // their retry bookkeeping over.
+    const unpushedBeforeClear = await getUnpushedSyncItemKeys();
+
     // Step 1: Clear the queue to prevent duplicates — but KEEP `failed` items
     // (Phase 1b, Finding #5). Wiping them would reset their retriedCount to 0 on
     // re-enqueue, so a deterministically-doomed write never stays terminal and
@@ -1083,6 +1107,7 @@ export class SyncManager implements SyncManagerInterface {
 
     let totalEnqueued = 0;
     let totalSkipped = 0;
+    let totalRescued = 0;
     const errors: string[] = [];
 
     for (const entityType of SYNC_ORDER) {
@@ -1090,6 +1115,7 @@ export class SyncManager implements SyncManagerInterface {
         const items = await getAllFromStore(entityType) as Record<string, unknown>[];
         let storeEnqueued = 0;
         let storeSkipped = 0;
+        let storeRescued = 0;
 
         // ── Dirty-tracking high-water mark (Phase 1b, Finding #5) ──────────
         // Only enqueue rows MODIFIED since the last full push. We compare each
@@ -1148,9 +1174,18 @@ export class SyncManager implements SyncManagerInterface {
           // Dirty check: skip rows NOT newer than the last full-push mark.
           // Rows with a usable mtime that is <= the mark are unchanged → skip.
           // Rows with no usable mtime (NaN) fall through and are enqueued.
+          //
+          // EXCEPT rows that still had an un-pushed queue item when this run
+          // started: the watermark says "already pushed", but the queue says
+          // otherwise and the queue is right. Without this exemption the clear
+          // above strands them permanently (see Step 0b).
+          const stillUnpushed = unpushedBeforeClear.has(`${entityType}-${item.id as string}`);
           if (!Number.isNaN(mtimeMs) && mtimeMs <= prevMarkTime) {
-            storeSkipped++;
-            continue;
+            if (!stillUnpushed) {
+              storeSkipped++;
+              continue;
+            }
+            storeRescued++;
           }
 
           // preserveRetry: carry over the retriedCount/status of any surviving
@@ -1167,9 +1202,11 @@ export class SyncManager implements SyncManagerInterface {
 
         totalEnqueued += storeEnqueued;
         totalSkipped += storeSkipped;
+        totalRescued += storeRescued;
 
         if (storeEnqueued > 0) {
-          console.info(`${LOG_PREFIX} ${entityType}: ${storeEnqueued} enqueued, ${storeSkipped} skipped`);
+          const rescuedNote = storeRescued > 0 ? `, ${storeRescued} rescued (un-pushed, behind watermark)` : '';
+          console.info(`${LOG_PREFIX} ${entityType}: ${storeEnqueued} enqueued, ${storeSkipped} skipped${rescuedNote}`);
         } else if (items.length > 0) {
           console.info(`${LOG_PREFIX} ${entityType}: all ${items.length} skipped (unchanged/invalid/foreign)`);
         }
@@ -1180,7 +1217,12 @@ export class SyncManager implements SyncManagerInterface {
       }
     }
 
-    console.info(`${LOG_PREFIX} Full sync: ${totalEnqueued} enqueued, ${totalSkipped} skipped`);
+    console.info(
+      `${LOG_PREFIX} Full sync: ${totalEnqueued} enqueued, ${totalSkipped} skipped` +
+      (totalRescued > 0
+        ? `, ${totalRescued} rescued (un-pushed work that the dirty-tracking watermark would otherwise have stranded)`
+        : ''),
+    );
 
     // Kick off processing immediately (don't await — runs in background)
     if (totalEnqueued > 0) {

@@ -60,6 +60,7 @@ REPLY.md
 !.claude/DesignAgents.md
 !.claude/SyncAgents.md
 !.claude/ShareAgents.md
+!.claude/LandingAgents.md
 docs/**/*.md
 !docs/BASAgents-fixes-*.md
 !docs/DesignAgents-fixes-*.md

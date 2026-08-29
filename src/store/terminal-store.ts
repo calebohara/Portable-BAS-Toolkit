@@ -290,6 +290,16 @@ export const useTerminalStore = create<TerminalStore>()(
           connectionState: 'disconnected' as ConnectionState,
           errorMessage: '',
           paused: false,
+          // Scrollback is deliberately NOT persisted. zustand's persist
+          // middleware re-runs partialize + JSON.stringify + setItem on EVERY
+          // set(), and appendLine() is one set() per received line — so
+          // persisting the buffer meant re-serializing the whole scrollback
+          // (up to MAX_BUFFER_LINES per session) per line on a chatty panel.
+          // That stalled the UI and could blow the ~5MB localStorage quota,
+          // whose throw propagated out of appendLine and left the store
+          // permanently unable to persist. Config/notes/history still persist;
+          // use Export or Attach to Project to keep a capture.
+          buffer: [],
         })),
         activeSessionId: state.activeSessionId,
         sessionHistory: state.sessionHistory,
@@ -301,7 +311,11 @@ export const useTerminalStore = create<TerminalStore>()(
         return {
           ...current,
           ...p,
-          sessions: (p.sessions ?? current.sessions).map(s => ({
+          // An empty persisted array must fall back to the freshly-created
+          // session: `[] ?? x` keeps `[]`, and the page derives
+          // `sessions.find(...) || sessions[0]` during render, so an empty
+          // array threw before the repair effect could run.
+          sessions: (p.sessions?.length ? p.sessions : current.sessions).map(s => ({
             ...s,
             connectionMode: s.connectionMode ?? 'serial' as ConnectionMode,
             serialPort: s.serialPort ?? '',
@@ -313,6 +327,7 @@ export const useTerminalStore = create<TerminalStore>()(
             localEcho: s.localEcho ?? false,
             lineMode: s.lineMode ?? false,
             sessionNotes: s.sessionNotes ?? '',
+            buffer: s.buffer ?? [],
           })),
         };
       },

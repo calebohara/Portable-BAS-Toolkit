@@ -28,12 +28,19 @@ export function downsampleLTTB(
   let prevIndex = 0;
 
   for (let i = 0; i < targetPoints - 2; i++) {
-    const bucketStart = Math.floor((i + 1) * bucketSize) + 1;
-    const bucketEnd = Math.min(Math.floor((i + 2) * bucketSize) + 1, points.length - 1);
+    // Selection bucket for iteration i is [floor(i*b)+1, floor((i+1)*b)+1) and
+    // the averaging bucket is the one after it. These were previously shifted
+    // one bucket forward (selection used the i+1 bucket, averaging the i+2),
+    // which meant points 1..floor(bucketSize) were never selection candidates —
+    // a transient in the first bucket of a trend simply vanished from the chart
+    // — and on the final iteration bucketStart === bucketEnd === n-1 left
+    // maxIndex at its initializer, so the last point was emitted twice.
+    const bucketStart = Math.floor(i * bucketSize) + 1;
+    const bucketEnd = Math.min(Math.floor((i + 1) * bucketSize) + 1, points.length - 1);
 
     // Average of next bucket (for the triangle)
-    const nextBucketStart = Math.floor((i + 2) * bucketSize) + 1;
-    const nextBucketEnd = Math.min(Math.floor((i + 3) * bucketSize) + 1, points.length);
+    const nextBucketStart = Math.floor((i + 1) * bucketSize) + 1;
+    const nextBucketEnd = Math.min(Math.floor((i + 2) * bucketSize) + 1, points.length);
 
     let avgX = 0;
     let avgY = 0;

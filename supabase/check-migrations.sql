@@ -119,6 +119,22 @@ with probe(seq, migration, probe_desc, applied) as (
     exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
            where n.nspname='public' and p.proname='is_global_project_member'
              and p.proconfig is not null and array_to_string(p.proconfig, ',') like '%search_path%')
+  -- The ledger table itself had no probe: the checker could not report whether
+  -- its own precondition exists. (BASAgents 2026-08-29, Platform Engineer P3-2.)
+  union all select 53, 'add-schema-migrations-ledger.sql', 'table schema_migrations',
+    exists(select 1 from information_schema.tables
+           where table_schema='public' and table_name='schema_migrations')
+  union all select 54, 'harden-project-files-storage-policies.sql', 'storage policy "Users can delete own project files"',
+    exists(select 1 from pg_policies
+           where schemaname='storage' and tablename='objects'
+             and policyname='Users can delete own project files')
+  union all select 55, 'guard-profile-privilege-columns.sql', 'trigger profiles_guard_privilege_columns',
+    exists(select 1 from pg_trigger t join pg_class c on c.oid=t.tgrelid
+           join pg_namespace n on n.oid=c.relnamespace
+           where n.nspname='public' and c.relname='profiles'
+             and t.tgname='profiles_guard_privilege_columns')
+  union all select 56, 'make-project-files-bucket-private.sql', 'bucket project-files is private',
+    exists(select 1 from storage.buckets where id='project-files' and public = false)
 )
 select
   seq            as "#",

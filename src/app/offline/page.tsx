@@ -38,8 +38,13 @@ export default function OfflinePage() {
   const storagePercent = storage.quota > 0 ? (storage.used / storage.quota) * 100 : 0;
 
   const handleClearCache = async () => {
-    const count = await clearFileCache();
-    toast.success(`Cleared ${count} cached files`);
+    const { cleared, keptOnlyCopies } = await clearFileCache();
+    toast.success(
+      `Cleared ${cleared} cached files` +
+      (keptOnlyCopies > 0
+        ? ` — kept ${keptOnlyCopies} that exist only on this device`
+        : ''),
+    );
     getStorageEstimate().then(setStorage).catch((e) => reportError('load storage estimate', e, { silent: true }));
   };
 
