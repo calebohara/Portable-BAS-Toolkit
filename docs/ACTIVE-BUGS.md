@@ -27,7 +27,7 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 ## 🤖 Daily health check
 
 <!-- AUTOMATED-CHECKS:START -->
-**Last run:** 2026-09-05 13:16 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/33968175900)
+**Last run:** 2026-09-06 13:17 UTC · [run log](https://github.com/calebohara/Portable-BAS-Toolkit/actions/runs/34035350224)
 
 > ✅ All automated checks passed.
 
@@ -47,12 +47,7 @@ Bug Report dialog → Supabase `bug_reports`), and anything you log by hand.
 Open rows from the Supabase `bug_reports` table (submitted via the in-app Bug Report dialog).
 
 <!-- USER-REPORTS:START -->
-**2** open reports as of 2026-09-05 13:16 UTC.
-
-| Opened | Sev | Status | Title | Page | Version | By |
-|--------|-----|--------|-------|------|---------|----|
-| 2026-06-08 | high | open | [sync] rls-rejected on globalDevices | /global-projects/_/ | 4.31.1 | Caleb O'Hara |
-| 2026-06-08 | high | open | [sync] rls-rejected on globalActivityLog | /settings | 4.25.0 | Caleb O'Hara |
+_Supabase query errored: TypeError: fetch failed_
 <!-- USER-REPORTS:END -->
 
 ---
