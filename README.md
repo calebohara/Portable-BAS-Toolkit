@@ -19,6 +19,16 @@
 
 ## What's New
 
+### v4.43.1
+
+- **Fixed: the desktop app checks for updates even with the sidebar collapsed** — the update check lived inside the expanded sidebar footer, so a collapsed sidebar silently disabled it. The check now always runs, and a compact "check for updates" button stays in the collapsed footer.
+- **Fixed: releases can no longer ship with a mismatched version number** — a release now refuses to build if its tag, `package.json`, and the desktop app's own version files disagree. A mismatch could previously leave installed copies convinced they were up to date.
+- **Security: unapproved accounts are now blocked at the database** — account approval was only a redirect in the app, so a new, unapproved account could still read the knowledge base, send messages, look up users, and join shared projects by access code by calling the backend directly. Those are now refused until an admin approves the account. One migration accompanies this release.
+- **Fixed: subscriptions (not yet enabled)** — a first-time Pro/Team subscriber would have been charged but left on the free plan, the renewal date was never recorded, and cancelling a monthly donation could downgrade a subscriber. All corrected ahead of the paywall going live.
+- **Build health** — the daily health check now actually fails when a check fails (it used to report success regardless), and every push now runs the desktop static build.
+
+_Full engineering detail for this release: `docs/BASAgents-fixes-2026-11-11.md`._
+
 ### v4.43.0
 
 - **Corrected: metric enthalpy in the Psychrometric Calculator** — SI enthalpy was converted from the imperial value with a scale factor alone, ignoring the different reference datum (imperial is referenced to 0°F dry air, metric to 0°C). Every kJ/kg reading was **17.9 too high** — standard return air showed 65.4 kJ/kg instead of 47.5. Entering a *correct* metric enthalpy in `Dry Bulb + Enthalpy` mode was worse: it came back as ~12% RH instead of 50%, taking dew point, wet bulb and the comfort verdict with it. Differences were unaffected, so coil loads and economizer comparisons were always right — which is why nothing looked wrong. If you work in SI, re-check any saved session where you read an absolute enthalpy.

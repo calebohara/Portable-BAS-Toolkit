@@ -67,6 +67,7 @@ select migration from (
   union all select 'harden-project-files-storage-policies.sql' where exists(select 1 from pg_policies where schemaname='storage' and tablename='objects' and policyname='Users can delete own project files')
   union all select 'guard-profile-privilege-columns.sql' where exists(select 1 from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname='profiles' and t.tgname='profiles_guard_privilege_columns')
   union all select 'make-project-files-bucket-private.sql' where exists(select 1 from storage.buckets where id='project-files' and public = false)
+  union all select 'enforce-account-approval-rls.sql' where exists(select 1 from pg_policies where schemaname='public' and tablename='kb_articles' and policyname='Approved accounts only' and permissive='RESTRICTIVE')
 ) applied
 on conflict (id) do nothing;
 

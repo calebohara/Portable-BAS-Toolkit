@@ -127,3 +127,32 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      # ── Final gate ──────────────────────────────────────────────────────────
+      # Every check above is continue-on-error so the registry + Discord steps
+      # always run, which also meant the JOB was green no matter what failed
+      # (CI-ALWAYS-GREEN, BASAgents 2026-08-29). This step turns the captured
+      # outcomes back into a real job result, so a red check is a red run — even
+      # when the Discord webhook secret is unset.
+      - name: Fail if any check failed
+        if: always()
+        env:
+          TSC_RESULT: ${{ steps.tsc.outcome }}
+          LINT_RESULT: ${{ steps.lint.outcome }}
+          TEST_RESULT: ${{ steps.test.outcome }}
+          BUILD_RESULT: ${{ steps.build.outcome }}
+          CARGO_RESULT: ${{ steps.cargo.outcome }}
+        run: |
+          failed=""
+          for pair in "TypeScript:$TSC_RESULT" "Lint:$LINT_RESULT" "Unit tests:$TEST_RESULT" \
+                      "Production build:$BUILD_RESULT" "Rust:$CARGO_RESULT"; do
+            name="${pair%%:*}"; result="${pair#*:}"
+            # 'skipped' means an earlier hard failure (e.g. npm ci) stopped the
+            # run — that is a failure too, not a pass.
+            if [ "$result" != "success" ]; then failed="$failed\n  - $name: ${result:-not run}"; fi
+          done
+          if [ -n "$failed" ]; then
+            printf "Health check failed:%b\n" "$failed"
+            exit 1
+          fi
+          echo "All checks passed."

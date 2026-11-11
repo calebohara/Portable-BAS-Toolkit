@@ -135,6 +135,10 @@ with probe(seq, migration, probe_desc, applied) as (
              and t.tgname='profiles_guard_privilege_columns')
   union all select 56, 'make-project-files-bucket-private.sql', 'bucket project-files is private',
     exists(select 1 from storage.buckets where id='project-files' and public = false)
+  union all select 57, 'enforce-account-approval-rls.sql', 'restrictive policy "Approved accounts only" on kb_articles',
+    exists(select 1 from pg_policies
+           where schemaname='public' and tablename='kb_articles'
+             and policyname='Approved accounts only' and permissive='RESTRICTIVE')
 )
 select
   seq            as "#",

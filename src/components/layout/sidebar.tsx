@@ -204,17 +204,21 @@ export function Sidebar() {
           </div>
         )}
 
-        {/* Version + update notifier */}
-        {sidebarOpen && (
-          <div className="space-y-1">
-            <div className="mb-0.5">
-              <UpdateNotifier />
-            </div>
+        {/* Version + update notifier. The notifier stays mounted while the
+            sidebar is collapsed: it owns the silent startup update check, and
+            it used to sit inside `sidebarOpen &&`, so a collapsed sidebar
+            disabled update checks entirely (BUILD-VERSION-DRIFT). Kept at the
+            same tree position so toggling doesn't remount and re-check.
+            `empty:hidden` drops the wrapper in browser mode when collapsed,
+            where the notifier renders nothing. */}
+        <div className="space-y-1.5 empty:hidden">
+          <UpdateNotifier collapsed={!sidebarOpen} />
+          {sidebarOpen && (
             <p className="text-center text-[10px] text-muted-foreground/60">
               v{APP_VERSION}
             </p>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Collapse toggle — desktop only */}
         <Button

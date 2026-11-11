@@ -25,7 +25,7 @@ import {
 
 type UpdateState = 'idle' | 'checking' | 'available' | 'downloading' | 'error' | 'up-to-date';
 
-export function UpdateNotifier() {
+export function UpdateNotifier({ collapsed = false }: { collapsed?: boolean } = {}) {
   const [mounted, setMounted] = useState(false);
   const [state, setState] = useState<UpdateState>('idle');
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
@@ -135,7 +135,7 @@ export function UpdateNotifier() {
   return (
     <>
       {/* Manual check button — shown in sidebar footer */}
-      <ManualCheckButton state={state} onClick={() => doCheck(false)} />
+      <ManualCheckButton state={state} collapsed={collapsed} onClick={() => doCheck(false)} />
 
       {/* Update dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleDismiss(); }}>
@@ -227,11 +227,33 @@ export function UpdateNotifier() {
 /** Small button for the sidebar footer — manual "Check for Updates" */
 function ManualCheckButton({
   state,
+  collapsed,
   onClick,
 }: {
   state: UpdateState;
+  collapsed: boolean;
   onClick: () => void;
 }) {
+  const label = state === 'checking' ? 'Checking...' : state === 'available' ? 'Update Available!' : 'Check for Updates';
+
+  // Collapsed sidebar: icon-only, so the control (and the dialog it owns) stays
+  // reachable without the text label.
+  if (collapsed) {
+    return (
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onClick}
+        disabled={state === 'checking' || state === 'downloading'}
+        aria-label={label}
+        title={label}
+        className={`w-full justify-center h-6 ${state === 'available' ? 'text-primary' : 'text-muted-foreground/70 hover:text-muted-foreground'}`}
+      >
+        <RefreshCw className={`h-3 w-3 ${state === 'checking' ? 'animate-spin' : ''}`} />
+      </Button>
+    );
+  }
+
   return (
     <Button
       variant="ghost"
@@ -241,7 +263,7 @@ function ManualCheckButton({
       className="w-full justify-center gap-1.5 text-[10px] text-muted-foreground/70 hover:text-muted-foreground h-6"
     >
       <RefreshCw className={`h-3 w-3 ${state === 'checking' ? 'animate-spin' : ''}`} />
-      {state === 'checking' ? 'Checking...' : state === 'available' ? 'Update Available!' : 'Check for Updates'}
+      {label}
     </Button>
   );
 }

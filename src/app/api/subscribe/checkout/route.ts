@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { APP_BASE_URL } from '@/lib/stripe-config';
 import { checkRateLimit, getRateLimitKey } from '@/lib/rate-limit';
+import { asSupabaseUserId, buildSubscriptionMetadata } from '@/lib/stripe-subscription';
 
 /**
  * POST /api/subscribe/checkout
@@ -74,6 +75,13 @@ export async function POST(request: NextRequest) {
     // Create Checkout Session in subscription mode
     // Monthly plans get a 30-day free trial. Annual plans are already discounted.
     const isMonthly = interval === 'month';
+    const supabaseUserId = asSupabaseUserId(userId);
+    const metadata = buildSubscriptionMetadata({
+      source: 'bau-suite-subscription',
+      tier: tier as Tier,
+      interval: interval as Interval,
+      userId: supabaseUserId,
+    });
 
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -84,20 +92,17 @@ export async function POST(request: NextRequest) {
           quantity: 1,
         },
       ],
-      ...(isMonthly && {
-        subscription_data: {
-          trial_period_days: 30,
-        },
-      }),
+      // Session metadata is NOT copied onto the Subscription, and the webhook's
+      // subscription.* handlers read the Subscription — so the user id has to
+      // be stamped here too or a first-time subscriber is never granted.
+      subscription_data: {
+        ...(isMonthly && { trial_period_days: 30 }),
+        metadata,
+      },
+      ...(supabaseUserId && { client_reference_id: supabaseUserId }),
       success_url: `${APP_BASE_URL}/settings?subscription=success`,
       cancel_url: `${APP_BASE_URL}/settings?subscription=cancelled`,
-      metadata: {
-        source: 'bau-suite-subscription',
-        tier,
-        interval,
-        // Used by webhook to correlate subscription → Supabase user
-        supabase_user_id: userId || '',
-      },
+      metadata,
     });
 
     if (!session.url) {

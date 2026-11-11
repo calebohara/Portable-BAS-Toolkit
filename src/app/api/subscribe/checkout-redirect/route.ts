@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { APP_BASE_URL } from '@/lib/stripe-config';
+import { asSupabaseUserId, buildSubscriptionMetadata } from '@/lib/stripe-subscription';
 
 /**
  * GET /api/subscribe/checkout-redirect
@@ -60,6 +61,14 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    const supabaseUserId = asSupabaseUserId(userId);
+    const metadata = buildSubscriptionMetadata({
+      source: 'bau-suite-subscription-desktop',
+      tier: tier as Tier,
+      interval: interval as Interval,
+      userId: supabaseUserId,
+    });
+
     // Create Checkout Session
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
@@ -70,14 +79,14 @@ export async function GET(request: NextRequest) {
           quantity: 1,
         },
       ],
+      // Session metadata is NOT copied onto the Subscription, and the webhook's
+      // subscription.* handlers read the Subscription — so the user id has to
+      // be stamped here too or a first-time subscriber is never granted.
+      subscription_data: { metadata },
+      ...(supabaseUserId && { client_reference_id: supabaseUserId }),
       success_url: `${APP_BASE_URL}/settings?subscription=success`,
       cancel_url: `${APP_BASE_URL}/settings?subscription=cancelled`,
-      metadata: {
-        source: 'bau-suite-subscription-desktop',
-        tier,
-        interval,
-        supabase_user_id: userId,
-      },
+      metadata,
     });
 
     if (!session.url) {

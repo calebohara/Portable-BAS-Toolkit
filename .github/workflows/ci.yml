@@ -28,6 +28,11 @@ jobs:
           cache: npm
       - name: Install deps
         run: npm ci
+      # package.json is the canonical version; Cargo.toml + tauri.conf.json must
+      # match it or the desktop updater publishes a stale latest.json and
+      # clients are stranded "up to date" (BUILD-VERSION-DRIFT).
+      - name: Version sync
+        run: node scripts/sync-version.js --check
       - name: Typecheck
         run: npm run typecheck
       - name: Lint
@@ -43,5 +48,33 @@ jobs:
         run: |
           [ -z "$DISCORD_WEBHOOK_URL" ] && { echo "no webhook secret — skipping"; exit 0; }
           msg="❌ **CI failed** on \`${GITHUB_REF_NAME}\` by ${GITHUB_ACTOR}\n${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+          curl -fsS -H 'Content-Type: application/json' -X POST "$DISCORD_WEBHOOK_URL" \
+            -d "$(printf '{"username":"BAU Suite CI","content":"%s"}' "$msg")" || true
+
+  # The Tauri static-export build used to be gated only by the daily cron and by
+  # the tag-triggered release itself, so a push that broke it went unnoticed
+  # until release time (CI-ALWAYS-GREEN, BASAgents 2026-08-29). Runs as its own
+  # job, in parallel, so the fast gate above stays fast. Cargo stays on the
+  # daily cron — it needs the Linux WebKit/GTK system deps.
+  static-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install deps
+        run: npm ci
+      - name: Static export build
+        run: npm run build:static
+
+      - name: Notify Discord on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK_URL" ] && { echo "no webhook secret — skipping"; exit 0; }
+          msg="❌ **Static build failed** on \`${GITHUB_REF_NAME}\` by ${GITHUB_ACTOR}\n${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           curl -fsS -H 'Content-Type: application/json' -X POST "$DISCORD_WEBHOOK_URL" \
             -d "$(printf '{"username":"BAU Suite CI","content":"%s"}' "$msg")" || true
